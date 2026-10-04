@@ -38,11 +38,12 @@ export async function listProviders(staffId:string,options:ProviderAdminOptions=
  return run(staffId,options,async client=>{
   const providers=(await client.query(`select id,name,adapter,base_url,enabled,priority,health_status,last_health_check,revision,
    length(api_key_encrypted)>0 as key_configured from private.ai_providers order by priority,id`)).rows;
-  const models=(await client.query(`select id,provider_id,model_id,display_name,supports_tools,supports_json,supports_vision,
+  const models=(await client.query(`select id,provider_id,model_id,display_name,purpose,embedding_dimensions,supports_tools,supports_json,supports_vision,
    enabled,priority,timeout_ms,input_price_per_million,output_price_per_million,revision from private.ai_models order by priority,id`)).rows;
   return providers.map(p=>({id:p.id,name:p.name,adapter:p.adapter,baseUrl:p.base_url,enabled:p.enabled,priority:p.priority,
    healthStatus:p.health_status,lastHealthCheck:p.last_health_check?.toISOString()??null,keyConfigured:p.key_configured,revision:p.revision,
    models:models.filter(m=>m.provider_id===p.id).map(m=>({id:m.id,modelId:m.model_id,displayName:m.display_name,
+    purpose:m.purpose,embeddingDimensions:m.embedding_dimensions===null?null:Number(m.embedding_dimensions),
     supportsTools:m.supports_tools,supportsJson:m.supports_json,supportsVision:m.supports_vision,enabled:m.enabled,priority:m.priority,
     timeoutMs:m.timeout_ms,inputPricePerMillion:m.input_price_per_million===null?null:Number(m.input_price_per_million),
     outputPricePerMillion:m.output_price_per_million===null?null:Number(m.output_price_per_million),revision:m.revision} satisfies ModelView))}));
@@ -68,14 +69,15 @@ export async function updateProvider(staffId:string,id:string,input:unknown,opti
   await audit(client,staffId,'AI_PROVIDER_UPDATED',id);return changed;
  });
 }
-const modelValues=(value:z.infer<typeof createModelSchema>)=>[value.modelId,value.displayName,value.supportsTools,value.supportsJson,value.supportsVision,
- value.enabled,value.priority,value.timeoutMs,value.inputPricePerMillion,value.outputPricePerMillion];
+const modelValues=(value:z.infer<typeof createModelSchema>)=>[value.modelId,value.displayName,value.purpose,value.embeddingDimensions,
+ value.supportsTools,value.supportsJson,value.supportsVision,value.enabled,value.priority,value.timeoutMs,
+ value.inputPricePerMillion,value.outputPricePerMillion];
 export async function createModel(staffId:string,providerId:string,input:unknown,options:ProviderAdminOptions={}):Promise<{id:string;revision:number}>{
  const value=parse(createModelSchema,input);
  return run(staffId,options,async client=>{
   await provider(client,providerId);
-  const created=(await client.query(`insert into private.ai_models(provider_id,model_id,display_name,supports_tools,supports_json,supports_vision,enabled,priority,timeout_ms,input_price_per_million,output_price_per_million)
-   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id,revision`,[providerId,...modelValues(value)])).rows[0];
+  const created=(await client.query(`insert into private.ai_models(provider_id,model_id,display_name,purpose,embedding_dimensions,supports_tools,supports_json,supports_vision,enabled,priority,timeout_ms,input_price_per_million,output_price_per_million)
+   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id,revision`,[providerId,...modelValues(value)])).rows[0];
   await client.query("update private.ai_providers set revision=revision+1,health_status='UNKNOWN',last_health_check=null,updated_at=clock_timestamp() where id=$1",[providerId]);
   await audit(client,staffId,'AI_MODEL_CREATED',providerId,created.id);return created;
  });
@@ -86,8 +88,9 @@ export async function updateModel(staffId:string,providerId:string,id:string,inp
   await provider(client,providerId);if(!z.uuid().safeParse(id).success)throw new ProviderAdminError('NOT_FOUND');
   const current=(await client.query('select revision from private.ai_models where id=$1 and provider_id=$2 for update',[id,providerId])).rows[0];
   if(!current)throw new ProviderAdminError('NOT_FOUND');if(current.revision!==value.revision)throw new ProviderAdminError('CONFLICT');
-  const changed=(await client.query(`update private.ai_models set model_id=$3,display_name=$4,supports_tools=$5,supports_json=$6,supports_vision=$7,
-   enabled=$8,priority=$9,timeout_ms=$10,input_price_per_million=$11,output_price_per_million=$12,revision=revision+1,updated_at=clock_timestamp()
+  const changed=(await client.query(`update private.ai_models set model_id=$3,display_name=$4,purpose=$5,embedding_dimensions=$6,
+   supports_tools=$7,supports_json=$8,supports_vision=$9,enabled=$10,priority=$11,timeout_ms=$12,input_price_per_million=$13,
+   output_price_per_million=$14,revision=revision+1,updated_at=clock_timestamp()
    where id=$1 and provider_id=$2 returning id,revision`,[id,providerId,...modelValues(value)])).rows[0];
   await client.query("update private.ai_providers set revision=revision+1,health_status='UNKNOWN',last_health_check=null,updated_at=clock_timestamp() where id=$1",[providerId]);
   await audit(client,staffId,'AI_MODEL_UPDATED',providerId,id);return changed;

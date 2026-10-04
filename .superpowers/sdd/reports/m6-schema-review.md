@@ -1,0 +1,19 @@
+# M6 Schema, Retrieval, and Citation Review
+
+Reviewed the RAG migration, retrieval SQL and metadata filter, provider administration/store paths, provider schemas, citation helper, and the requested PostgreSQL/unit integration tests. This was a read-only review. I did not run database tests or touch DEV/live provider configuration; root owns the fixtures and local gates. Root reports the relevant PG suites green (schema 3/3, retrieval 6/6, embedding store 5/5) and the citation suite green (9/9).
+
+## Resolved during review
+
+**Historical year-only ambiguity is now rejected.** The retrieval CTE computes same-family, same-stream eligible-document counts for a year-only historical request and throws `KNOWLEDGE_SCOPE_AMBIGUOUS` before returning evidence ([retrieval.ts:47-49](../../../lib/knowledge/retrieval.ts), [retrieval.ts:65-67](../../../lib/knowledge/retrieval.ts)). The actual PG regression covers two same-year revisions and expects that error ([knowledge-retrieval.integration.ts:99-105](../../../tests/database/knowledge-retrieval.integration.ts)); root reports the retrieval suite green at 6/6. Historical as-of-date searches continue to select the latest applicable revision through `version_rank`.
+
+**The retrieval deadline is server-enforced.** The function requires a caller-owned `PoolClient` transaction and installs a transaction-local PostgreSQL statement timeout capped at four seconds while preserving a shorter existing timeout ([retrieval.ts:18-27](../../../lib/knowledge/retrieval.ts)). Its lock-wait test checks both the shorter caller deadline and the installed server deadline ([knowledge-retrieval.integration.ts:82-96](../../../tests/database/knowledge-retrieval.integration.ts)). This closes the client-only `query_timeout` gap identified earlier.
+
+## Citation boundary
+
+`buildCitedAnswer` accepts only a strict answer schema with one to five unique UUID chunk citations. It rejects common HTTP(S)/www URL patterns in model text and rejects model-supplied source fields; every citation ID must resolve to the available backend evidence ([citations.ts:5-7](../../../lib/knowledge/citations.ts), [citations.ts:30-42](../../../lib/knowledge/citations.ts)). The helper derives titles, pages, sections, and source URLs from that evidence and restricts citation links to HTTPS without credentials, ports, or line breaks ([citations.ts:13-16](../../../lib/knowledge/citations.ts)). `evidenceStillMatches` requires the same chunk/document/revision/content and citation metadata while allowing similarity to move ([citations.ts:49-58](../../../lib/knowledge/citations.ts)). LINE messages are split at grapheme boundaries, capped at 5,000 UTF-16 code units each, and limited to five messages ([citations.ts:18-28](../../../lib/knowledge/citations.ts)). The current citation tests exercise these cases; root reports 9/9 passing. I found no additional actionable citation defect.
+
+## Other reviewed boundaries
+
+The migration preserves existing provider models as `GENERATION` with null embedding dimensions, constrains embedding-purpose capability/dimension coherence, validates vector dimension/fingerprint/norm consistency, and denies browser roles access to the RAG tables while granting `service_role`. Retrieval validates and parameterizes its scope/vector, materializes eligibility before similarity ranking, and compares only matching fingerprints and dimensions. Provider configuration and the embedding adapter share model-specific OpenAI dimension validation; the admin DTO returns only a `keyConfigured` flag, and the internal store loads encrypted credentials while separating enabled generation and embedding models.
+
+I found no other concrete defect in the reviewed schema, retrieval, provider-admin, store, or citation boundaries. This scoped review does not constitute full M6 acceptance; the durable jobs and tool-execution gates remain separate.

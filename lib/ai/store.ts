@@ -1,6 +1,7 @@
 import type {Pool} from 'pg';
 import {z} from 'zod';
 import type {AIStore,AIModelConfig} from './types';
+import type {EmbeddingStore,EmbeddingModelConfig} from './embedding-types';
 
 const observationSchema=z.object({providerId:z.uuid(),modelId:z.uuid(),requestType:z.string().regex(/^[A-Z_]{1,32}$/),
  providerRevision:z.number().int().min(0).max(2_147_483_647),modelRevision:z.number().int().min(0).max(2_147_483_647),
@@ -11,17 +12,27 @@ const observationSchema=z.object({providerId:z.uuid(),modelId:z.uuid(),requestTy
  httpStatus:z.number().int().min(100).max(599).optional(),health:z.enum(['HEALTHY','DEGRADED','RATE_LIMITED','OFFLINE','UNKNOWN']),
 }).strict().refine(value=>value.status==='ERROR'?value.errorCode!==undefined:value.errorCode===undefined);
 
-export function createAIStore(pool:Pool):AIStore {
+export function createAIStore(pool:Pool):AIStore&EmbeddingStore {
  return {
   async loadModels(){
    const query={text:`select m.id,m.provider_id as "providerId",p.adapter,m.model_id as "modelId",p.base_url as "baseUrl",
     p.api_key_encrypted as "apiKeyEncrypted",p.revision as "providerRevision",m.revision as "modelRevision",p.priority as "providerPriority",m.priority,m.timeout_ms as "timeoutMs",
     m.supports_json as "supportsJson",m.supports_tools as "supportsTools",m.input_price_per_million as "inputPricePerMillion",
     m.output_price_per_million as "outputPricePerMillion" from private.ai_models m join private.ai_providers p on p.id=m.provider_id
-    where p.enabled and m.enabled order by p.priority,m.priority,m.id limit 64`,query_timeout:5000};
+    where p.enabled and m.enabled and m.purpose='GENERATION' order by p.priority,m.priority,m.id limit 64`,query_timeout:5000};
    const result=await pool.query(query);
    return result.rows.map(row=>({...row,inputPricePerMillion:row.inputPricePerMillion===null?null:Number(row.inputPricePerMillion),
     outputPricePerMillion:row.outputPricePerMillion===null?null:Number(row.outputPricePerMillion)})) as AIModelConfig[];
+  },
+  async loadEmbeddingModels(){
+   const query={text:`select m.id,m.provider_id as "providerId",p.adapter,m.model_id as "modelId",p.base_url as "baseUrl",
+    p.api_key_encrypted as "apiKeyEncrypted",p.revision as "providerRevision",m.revision as "modelRevision",p.priority as "providerPriority",
+    m.priority,m.timeout_ms as "timeoutMs",m.embedding_dimensions as dimensions,m.input_price_per_million as "inputPricePerMillion",
+    m.output_price_per_million as "outputPricePerMillion" from private.ai_models m join private.ai_providers p on p.id=m.provider_id
+    where p.enabled and m.enabled and m.purpose='EMBEDDING' order by p.priority,m.priority,m.id limit 64`,query_timeout:5000};
+   const result=await pool.query(query);
+   return result.rows.map(row=>({...row,inputPricePerMillion:row.inputPricePerMillion===null?null:Number(row.inputPricePerMillion),
+    outputPricePerMillion:row.outputPricePerMillion===null?null:Number(row.outputPricePerMillion)})) as EmbeddingModelConfig[];
   },
   async recordAttempt(input){
    const parsed=observationSchema.safeParse(input);if(!parsed.success)throw new Error('AI_OBSERVATION_INVALID');

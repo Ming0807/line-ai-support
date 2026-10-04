@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProviderHealth } from '@/lib/ai/types';
-import type { ModelView, ProviderView } from '@/types/providers';
+import type { ModelPurpose, ModelView, ProviderView } from '@/types/providers';
 
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 type ApiResult = Record<string, unknown> | null;
@@ -80,8 +80,12 @@ function NumberField({ id, label, name, defaultValue, min, max, step = 1, hint, 
   return <Field id={id} label={label} hint={hint}><input id={id} name={name} type="number" min={min} max={max} step={step} defaultValue={defaultValue} required={required} /></Field>;
 }
 
-function CheckField({ id, label, name, defaultChecked }: { id: string; label: string; name: string; defaultChecked: boolean }) {
-  return <label className="provider-check" htmlFor={id}><input id={id} name={name} type="checkbox" defaultChecked={defaultChecked} /><span>{label}</span></label>;
+function CheckField({ id, label, name, defaultChecked, checked, onChange, disabled }: {
+  id: string; label: string; name: string; defaultChecked?: boolean; checked?: boolean;
+  onChange?: (event: ChangeEvent<HTMLInputElement>) => void; disabled?: boolean;
+}) {
+  return <label className="provider-check" htmlFor={id}><input id={id} name={name} type="checkbox"
+    defaultChecked={checked === undefined ? defaultChecked : undefined} checked={checked} onChange={onChange} disabled={disabled} /><span>{label}</span></label>;
 }
 
 function priceValue(form: FormData, name: string): number | null {
@@ -89,10 +93,17 @@ function priceValue(form: FormData, name: string): number | null {
   return raw === '' ? null : Number(raw);
 }
 
+function dimensionValue(form: FormData): number | null {
+  const raw = String(form.get('embeddingDimensions') ?? '').trim();
+  return raw === '' ? null : Number(raw);
+}
+
 function commonModelValues(form: FormData) {
   return {
     modelId: String(form.get('modelId') ?? '').trim(),
     displayName: String(form.get('displayName') ?? '').trim(),
+    purpose: String(form.get('purpose') ?? 'GENERATION'),
+    embeddingDimensions: dimensionValue(form),
     supportsTools: form.has('supportsTools'),
     supportsJson: form.has('supportsJson'),
     supportsVision: form.has('supportsVision'),
@@ -189,6 +200,12 @@ function ProviderSettings({ provider, api }: { provider: ProviderView; api: ApiC
 }
 
 function ModelForm({ providerId, model, api }: { providerId: string; model?: ModelView; api: ApiController }) {
+  const [purpose, setPurpose] = useState<ModelPurpose>(model?.purpose ?? 'GENERATION');
+  const [embeddingDimensions, setEmbeddingDimensions] = useState(model?.embeddingDimensions?.toString() ?? '');
+  const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? false);
+  const [supportsJson, setSupportsJson] = useState(model?.supportsJson ?? false);
+  const [supportsVision, setSupportsVision] = useState(model?.supportsVision ?? false);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const element = event.currentTarget;
@@ -199,25 +216,55 @@ function ModelForm({ providerId, model, api }: { providerId: string; model?: Mod
         { ...values, revision: model.revision }, 'บันทึกการตั้งค่า Model แล้ว');
     } else {
       const result = await api.send(`/api/providers/${encodeURIComponent(providerId)}/models`, 'POST', values, 'เพิ่ม Model แล้ว');
-      if (result) element.reset();
+      if (result) {
+        element.reset();
+        setPurpose('GENERATION');
+        setEmbeddingDimensions('');
+        setSupportsTools(false);
+        setSupportsJson(false);
+        setSupportsVision(false);
+      }
     }
   }
 
   const prefix = `${providerId}-${model?.id ?? 'new-model'}`;
+  const isEmbedding = purpose === 'EMBEDDING';
   return (
     <form className="provider-form model-form" onSubmit={submit}>
       <div className="provider-fields provider-fields-model">
         <Field id={`${prefix}-model-id`} label="รหัส Model ใน API"><input id={`${prefix}-model-id`} name="modelId" defaultValue={model?.modelId ?? ''} maxLength={200} required placeholder="เช่น gpt-4.1-mini" /></Field>
         <Field id={`${prefix}-display-name`} label="ชื่อที่แสดง"><input id={`${prefix}-display-name`} name="displayName" defaultValue={model?.displayName ?? ''} maxLength={100} required placeholder="ระบุชื่อสำหรับทีมงาน" /></Field>
+        <Field id={`${prefix}-purpose`} label="ประเภทการใช้งาน">
+          <select id={`${prefix}-purpose`} name="purpose" value={purpose} onChange={event => {
+            const nextPurpose = event.target.value as ModelPurpose;
+            setPurpose(nextPurpose);
+            setEmbeddingDimensions('');
+            if (nextPurpose === 'EMBEDDING') {
+              setSupportsTools(false);
+              setSupportsJson(false);
+              setSupportsVision(false);
+            }
+          }}>
+            <option value="GENERATION">สร้างคำตอบ</option>
+            <option value="EMBEDDING">Embedding</option>
+          </select>
+        </Field>
+        {isEmbedding && <Field id={`${prefix}-embedding-dimensions`} label="Embedding dimensions" hint="กำหนดตามรุ่น Model ที่เลือก (1–4096)">
+          <input id={`${prefix}-embedding-dimensions`} name="embeddingDimensions" type="number" min={1} max={4096} step={1}
+            value={embeddingDimensions} onChange={event => setEmbeddingDimensions(event.target.value)} required />
+        </Field>}
         <NumberField id={`${prefix}-priority`} label="ลำดับความสำคัญ" name="priority" defaultValue={model?.priority ?? 100} min={0} max={1000} hint="เลขน้อยจะถูกเลือกก่อน" />
         <NumberField id={`${prefix}-timeout`} label="หมดเวลาตอบสนอง (มิลลิวินาที)" name="timeoutMs" defaultValue={model?.timeoutMs ?? 15000} min={1000} max={45000} step={1000} />
         <NumberField id={`${prefix}-input-price`} label="ราคา Input / 1M tokens (USD)" name="inputPricePerMillion" defaultValue={model?.inputPricePerMillion ?? undefined} min={0} max={10000} step="any" hint="เว้นว่างเพื่อไม่ระบุราคา" required={false} />
         <NumberField id={`${prefix}-output-price`} label="ราคา Output / 1M tokens (USD)" name="outputPricePerMillion" defaultValue={model?.outputPricePerMillion ?? undefined} min={0} max={10000} step="any" hint="เว้นว่างเพื่อไม่ระบุราคา" required={false} />
       </div>
       <div className="provider-checks">
-        <CheckField id={`${prefix}-tools`} name="supportsTools" label="รองรับ Tools" defaultChecked={model?.supportsTools ?? false} />
-        <CheckField id={`${prefix}-json`} name="supportsJson" label="รองรับ JSON mode" defaultChecked={model?.supportsJson ?? false} />
-        <CheckField id={`${prefix}-vision`} name="supportsVision" label="รองรับภาพ" defaultChecked={model?.supportsVision ?? false} />
+        <CheckField id={`${prefix}-tools`} name="supportsTools" label="รองรับ Tools" checked={supportsTools} disabled={isEmbedding}
+          onChange={event => setSupportsTools(event.target.checked)} />
+        <CheckField id={`${prefix}-json`} name="supportsJson" label="รองรับ JSON mode" checked={supportsJson} disabled={isEmbedding}
+          onChange={event => setSupportsJson(event.target.checked)} />
+        <CheckField id={`${prefix}-vision`} name="supportsVision" label="รองรับภาพ" checked={supportsVision} disabled={isEmbedding}
+          onChange={event => setSupportsVision(event.target.checked)} />
         <CheckField id={`${prefix}-enabled`} name="enabled" label="เปิดใช้งาน Model" defaultChecked={model?.enabled ?? true} />
       </div>
       <button className="provider-button provider-button-secondary" type="submit" disabled={api.pending}>{api.pending ? 'กำลังบันทึก…' : model ? 'บันทึก Model' : 'เพิ่ม Model'}</button>
@@ -237,6 +284,7 @@ function ModelList({ provider, api }: { provider: ProviderView; api: ApiControll
             <span className={`provider-pill ${model.enabled ? 'provider-pill-on' : 'provider-pill-off'}`}>{model.enabled ? 'เปิด' : 'ปิด'}</span>
           </header>
           <dl className="provider-model-facts">
+            <div><dt>ประเภทการใช้งาน</dt><dd>{model.purpose === 'EMBEDDING' ? `Embedding · ${model.embeddingDimensions ?? '—'} มิติ` : 'สร้างคำตอบ'}</dd></div>
             <div><dt>ลำดับ</dt><dd>{model.priority}</dd></div>
             <div><dt>หมดเวลา</dt><dd>{new Intl.NumberFormat('th-TH').format(model.timeoutMs)} ms</dd></div>
             <div><dt>Input / 1M</dt><dd>{formatPrice(model.inputPricePerMillion)}</dd></div>
