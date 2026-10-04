@@ -12,7 +12,7 @@
 
 - Follow master guide §§29–31. Preserve existing anonymous LINE, ticket service, RLS and delivery boundaries.
 - Start with OPENAI only; provider/model selection comes from explicit configuration. There is no guessed default model or production fake provider. Missing keys leave the registry unconfigured; controlled adapters prove automated behavior and the final report identifies live evidence still pending.
-- The credential-bearing provider record, model registry, usage and error tables are private, RLS-enabled and denied to browser roles. Dashboard access later uses server-authorized safe DTOs.
+- The credential-bearing provider record, model registry, usage and error tables are private, RLS-enabled and denied to browser roles. Dashboard access uses server-authorized safe DTOs.
 - Only `https://api.openai.com/v1` is a permitted OPENAI base URL. No model output can choose a URL, credential, SQL, table or executable function.
 - Credentials and raw request/response text never enter logs. Error records use fixed codes and optional HTTP status. Tokens are nullable when the provider supplies no count; cost is nullable without configured prices.
 - Model priorities are deterministic; maximum three attempts and one hard overall deadline (45s maximum), with per-model timeouts. Fallback handles timeout,429,5xx,unavailable model/provider and invalid structured output. Cancellation stops further attempts.
@@ -36,9 +36,10 @@ Root creates `lib/ai/types.ts` before delegation:
 
 ## Tasks and gates
 
-1. **Root: registry/schema.** Write meaningful PG RED fixtures, CLI-generate additive private provider/model/usage/error tables with constraints, indexes, explicit effective grants and RLS. Implement deterministic enabled registry reads and redacted persistence. Bootstrap configured env only, without overwriting existing keys/models.
+1. **Root: registry/schema.** Write meaningful PG RED fixtures, CLI-generate additive private provider/model/usage/error tables with constraints, indexes, explicit effective grants and RLS. Implement deterministic enabled registry reads and redacted persistence. Dashboard is the required configuration path; optional future env bootstrap must preserve existing configuration.
 2. **Luna MAX: OpenAI adapter.** Native POST `/responses`, `text.format` strict JSON schema and strict function tools; bounded response read, validate result/usage/tool arguments, refusal/incomplete handling, abort/error normalization. Safe GET model health check. Fake HTTP tests prove schema request, normal JSON, malformed output,429,5xx,404,401,abort and response size. Consult official OpenAI docs.
 3. **Root: gateway/tools.** RED→GREEN normal output, invalid JSON, provider ordering, model capabilities, timeout/429/5xx/unavailable fallback, finite attempts/overall deadline, cancellation, usage/error/health records. Implement strict tool allowlist and context-bound executors; unknown tools fail before execution. No arbitrary SQL path.
+   **User clarification:** Provider setup must be manageable from Dashboard in V1. Add Super Admin `/providers` and server-authorized provider/model create/update, optional key replacement with no key read-back, enabled/priority/timeouts/capabilities/prices and model health-check. Validate origin/body/active server role, audit configuration changes with names/IDs only, never credentials. `.env` bootstrap is optional, not a required configuration path. Root owns backend and freezes safe DTOs before delegating UI.
 4. **Independent review:** Check credentials, URL/cancellation/deadline/fallback, structured validation, private grants and tool boundaries. Fix findings and rerun affected tests.
 5. **Acceptance:** Local clean migration replay, meaningful PG registry/log/privacy tests, full unit/type/lint/build, controlled adapter gateway success/fallback. Guarded development schema sync, report `docs/reports/M5_AI_GATEWAY_REPORT.md`, commit/push and proceed M6. Actual provider/key/model and paid generation evidence stay explicitly deferred when credentials are absent.
 

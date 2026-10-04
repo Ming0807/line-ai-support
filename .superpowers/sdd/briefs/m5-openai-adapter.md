@@ -1,0 +1,9 @@
+# M5 OpenAI adapter — Luna MAX ownership
+
+The approved master guide and `docs/superpowers/plans/2026-10-04-yru-ai-gateway.md` govern. M4 automated gates are accepted/pushed; full V1 remains active. User authorized autonomous coding; provider keys/model are currently missing, so no live API call/payment.
+
+Own only `lib/ai/providers/openai.ts`, `tests/openai-provider.test.ts`, and `.superpowers/sdd/reports/m5-openai-adapter.md`. Read frozen `lib/ai/types.ts`; do not change it without requesting root's integration decision. Root owns gateway/schema/store/config. No PG or real provider call; use fake fetch only.
+
+Implement `createOpenAIAdapter(options?:{fetchImpl?:typeof fetch}):AIProviderAdapter`. Exactly allow OPENAI base URL `https://api.openai.com/v1` (optionally trailing slash normalized); validate API key/model/messages/schema/tool inputs before HTTP. Generate with Responses `/responses`, strict `text.format` JSON schema, strict function tools and AbortSignal. Normalize only valid bounded message output/tool calls/usage; refusal/incomplete/ambiguous multiple JSON outputs/malformed JSON or arguments become fixed AIProviderError. Bound streamed body to256KiB and cancel oversized/incomplete readers. Handle output_text content, function_call output and usage. No response bodies, headers, tokens, messages or raw errors in logs. Do not follow credential-bearing redirects. Normalize timeout/cancellation,429,5xx,404-model unavailable,401/403-auth,other4xx and network-down errors. Tool-only output is `output:null` plus calls; no execution.
+
+Health check GET `/models/{encoded modelId}`, same base/credential/signal safeguards, fixed health enum; no generation/token spend. Check official OpenAI docs/skill first. All HTTP must be mocked in tests. RED→GREEN focused behavior then lint/type check; report failure codes and actual case counts. End with source review risks and protocol citations. Do not block on missing real keys.

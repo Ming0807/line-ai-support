@@ -9,6 +9,6 @@ foreach ($taskSql in @('tests\database\foundation.sql')) {
 Push-Location $taskRoot
 try {
     # Each suite claims a real channel queue; serialize fixture suites, while their workers race internally.
-    pnpm exec tsx --test --test-concurrency=1 tests/database/queue.integration.ts tests/database/ingress.integration.ts tests/database/staff-ingress.integration.ts tests/database/worker.integration.ts tests/database/tickets.integration.ts tests/database/student-ticket.integration.ts tests/database/ticket-security.integration.ts tests/database/outbox.integration.ts tests/database/staff-outbox.integration.ts tests/database/takeover.integration.ts tests/database/token-clock.integration.ts
+    pnpm exec tsx --test --test-concurrency=1 tests/database/queue.integration.ts tests/database/ingress.integration.ts tests/database/staff-ingress.integration.ts tests/database/worker.integration.ts tests/database/tickets.integration.ts tests/database/student-ticket.integration.ts tests/database/ticket-security.integration.ts tests/database/outbox.integration.ts tests/database/staff-outbox.integration.ts tests/database/takeover.integration.ts tests/database/token-clock.integration.ts tests/database/ai-registry.integration.ts tests/database/provider-admin.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Queue integration verification failed' }
 } finally { Pop-Location }
