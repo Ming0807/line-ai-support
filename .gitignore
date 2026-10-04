@@ -1,0 +1,19 @@
+# Local original source archives and rendered document QA; keep manifests/reports in Git.
+documents/yru/**/*.pdf
+documents/yru/**/*.PDF
+documents/yru/**/*.doc
+documents/yru/**/*.docx
+documents/yru/**/*.xls
+documents/yru/**/*.xlsx
+documents/yru/**/qa/*.png
+documents/yru/**/previews/*.png
+documents/yru/**/_qa/*.png
+documents/yru/**/__pycache__/
+
+# Application development secrets and generated files.
+.env
+.env.local
+.env.*.local
+node_modules/
+.next/
+coverage/
