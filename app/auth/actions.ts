@@ -24,7 +24,13 @@ export async function signInAction(_previous: LoginState, formData: FormData): P
   try {
     const supabase = await createUserClient();
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
-    if (error) return { error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง' };
+    if (error) {
+      console.warn('STAFF_SIGNIN_FAILED', {
+        code: typeof error.code==='string' && /^[a-z_]+$/.test(error.code) ? error.code : 'auth_error',
+        status: error.status,
+      });
+      return { error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง' };
+    }
   } catch {
     return { error: 'ระบบเข้าสู่ระบบยังไม่พร้อม กรุณาติดต่อผู้ดูแลระบบ' };
   }

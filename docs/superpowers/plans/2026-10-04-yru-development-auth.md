@@ -1,0 +1,12 @@
+# Development database and real staff authentication
+
+Continue the approved V1 roadmap. This plan follows foundation review acceptance; no development database writes may run before the M1 review and automated gates pass. User-only configuration/manual acceptance is deferred to the final V1 report by explicit user steering.
+
+1. Add a tested development-target guard: require explicit development environment, expected project reference, matching Supabase HTTPS origin and matching direct/session-pooler database identity. Reject mismatches. Keep certificate verification mandatory.
+2. Inspect existing remote migration history/schema read-only. Apply the exact reviewed timestamp migrations using Supabase CLI discovered flags, `--skip-vault`, an explicitly verified database URL and noninteractive execution. Sanitize all subprocess output; credentials never enter logs or documentation. No reset, table removal or overwrite. Existing unexpected tables/history require investigation, not forced application.
+3. Verify resulting tables, RLS/grants and migration versions. Seed departments without overwriting existing rows. Exercise authenticated SQL scope in a rollback-only transaction using verified staff subjects; avoid committed fake student/ticket data.
+4. Bootstrap a development SUPER_ADMIN and IT/Library staff, without email invitations. The user previously delegated the first account email choice. Save generated passwords only to an ignored local credentials file. Never overwrite an existing account/password/profile; make repeat runs idempotent using recorded account IDs.
+5. Authenticate each real account through Supabase Auth, verify claims/profile roles server-side and prove cross-profile/cross-department denial. Test the actual Next.js login/logout/session in a local browser, using the ignored credentials file without printing secrets. Browser artifacts must contain no passwords or tokens.
+6. Run focused tests, database integration, typecheck/lint/build as warranted, review the changed scope, record exact evidence and remaining configuration. Then proceed to the durable LINE milestone.
+
+Acceptance: reviewed migrations on development Supabase, strict TLS, real login and logout, correct server-resolved role, unauthorized/cross-department denial, no public credential/LINE-identity exposure. Human browser/LINE checks deferred by the user are recorded as pending until actual evidence exists.
