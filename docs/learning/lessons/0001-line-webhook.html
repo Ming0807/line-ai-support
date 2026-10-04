@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รับข้อความ LINE: บทเรียนแรก</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f7faf8;color:#203a33;font:17px/1.75 Tahoma,sans-serif}main{max-width:880px;margin:auto;padding:40px 24px}h1{font-size:clamp(26px,5vw,38px);line-height:1.35}h2{font-size:23px;margin:40px 0 12px}p{max-width:70ch}a{color:#135b43;text-underline-offset:3px}code{font:15px/1.7 Consolas,monospace;background:#e9f1ed;padding:2px 5px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#e9f1ed;padding:16px}ol{padding-left:24px}li{margin:12px 0}.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:16px 0;border-block:1px solid #ccd9d2}.flow span{padding:6px 10px;background:#e9f1ed}.flow b{font-weight:400}button{font:inherit;background:#175f49;color:white;border:0;border-radius:6px;padding:9px 14px;cursor:pointer;margin:6px 4px 6px 0}button:hover{background:#124c3a}button:focus-visible,textarea:focus-visible{outline:3px solid #b88428;outline-offset:3px}textarea{font:15px/1.6 Consolas,monospace;width:100%;min-height:90px;padding:12px;border:1px solid #879e94;border-radius:6px;background:white;color:#203a33}label{display:block;margin:12px 0 5px}output{display:block;min-height:54px;padding:12px 0;font-weight:bold}.tip{color:#465f55}details{margin:16px 0}summary{cursor:pointer}@media print{button,textarea,.practice{display:none}body{background:white}main{padding:0}}
+</style></head><body><main>
+<h1>LINE ส่งข้อความเข้าระบบเราอย่างไร?</h1>
+<p>เป้าหมายของขั้นตอนนี้คือ <strong>รับข้อมูลจาก LINE และตรวจว่าคำขอนั้นมีลายเซ็นถูกต้อง</strong> ยังไม่ต้องตอบด้วย AI หรือบันทึกฐานข้อมูล</p>
+<div class="flow" aria-label="ลำดับรับข้อความ"><span>นักศึกษาส่ง LINE</span><b>→</b><span>LINE ส่ง POST</span><b>→</b><span>ตรวจลายเซ็น</span><b>→</b><span>อ่าน JSON</span><b>→</b><span>ตอบ 200</span></div>
+<h2>แปลคำสั่งที่ GPT ให้ทีละข้อ</h2>
+<ol>
+<li><strong>สร้าง route.ts:</strong> ไฟล์ <code>app/api/line/student/webhook/route.ts</code> ทำให้เรามี URL <code>/api/line/student/webhook</code> ฟังก์ชัน <code>POST</code> จะทำงานเมื่อ LINE ส่ง POST มาที่ URL นี้ <a href="https://nextjs.org/docs/app/getting-started/route-handlers">ที่มา Next.js</a></li>
+<li><strong>อ่าน raw body:</strong> รับข้อมูลต้นฉบับมาก่อน ยังไม่ใช้ <code>request.json()</code> เพราะเราจะใช้ข้อมูลชุดนี้ตรวจลายเซ็น</li>
+<li><strong>ตรวจ x-line-signature:</strong> LINE แนบลายเซ็นมาใน header เราใช้ <code>LINE_STUDENT_CHANNEL_SECRET</code> และ body เดิมคำนวณ HMAC-SHA256 ถ้าตรงกันจึงรับคำขอ ถ้าไม่ตรงตอบ 401 <a href="https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/">ที่มา LINE</a></li>
+<li><strong>ค่อยแปลง JSON:</strong> หลังตรวจผ่าน จึงใช้ <code>JSON.parse</code> อ่าน fields เช่น <code>events</code></li>
+<li><strong>Log payload:</strong> ในตัวอย่างพื้นฐาน พิมพ์ข้อมูลที่ตรวจแล้วลง terminal ของ server เพื่อดูว่า LINE ส่งอะไรมา ตัวอย่างนี้ไม่มี AI หรือฐานข้อมูล</li>
+<li><strong>ตอบ HTTP 200:</strong> แจ้ง LINE ว่าได้รับคำขอแล้ว <code>{"events":[]}</code> ก็เป็นคำขอทดสอบที่ถูกต้องและต้องตอบ 200 เมื่อมีลายเซ็นถูกต้อง <a href="https://developers.line.biz/en/docs/messaging-api/receiving-messages/">ที่มา LINE</a></li>
+</ol>
+<p class="tip">Channel Secret นี้มาจาก LINE Developers ของ OA นักศึกษา เป็นคนละค่ากับ Supabase key และ SSH public key</p>
+<h2>ทำไมต้องตรวจ body ก่อนแปลง JSON?</h2>
+<pre>{"events":[]}
+{ "events": [] }</pre>
+<p>สองบรรทัดนี้แปลงเป็น object เดียวกันได้ แต่มีช่องว่างต่างกัน จึงเป็นข้อมูลคนละชุดสำหรับการคำนวณลายเซ็น ถ้าเราแปลงแล้วประกอบ JSON ใหม่ก่อนตรวจ อาจทำให้คำขอจริงตรวจไม่ผ่าน</p>
+<section class="practice" aria-labelledby="practice-title"><h2 id="practice-title">ลองด้วยข้อมูลจำลอง</h2>
+<p>ลายเซ็นในตัวอย่างสร้างจากบรรทัดแรก กดตรวจ แล้วลองเพิ่มช่องว่าง ค่า secret เป็นค่าจำลองที่ฝังในบทเรียนนี้เท่านั้น</p>
+<label for="body">Body ที่ backend ได้รับ</label><textarea id="body" spellcheck="false">{"events":[]}</textarea>
+<button id="verify" type="button">ตรวจลายเซ็น</button><button id="space" type="button">ลองเพิ่มช่องว่าง</button><button id="reset" type="button">กลับข้อมูลเดิม</button>
+<output id="result" aria-live="polite">พร้อมทดลอง</output></section>
+<h2>HTTP 200 ไม่ได้ส่งข้อความตอบนักศึกษา</h2>
+<p>200 เป็นคำตอบจาก server ของเราไปยัง server ของ LINE ว่า “รับคำขอแล้ว” การส่งข้อความกลับไปในแชตเป็นงานอีกขั้นหนึ่งผ่าน reply/push API ดังนั้นจบขั้นตอนนี้แล้ว นักศึกษาอาจยังไม่ได้รับข้อความตอบ</p>
+<details><summary>ทบทวน: events ว่างควรตอบอะไร?</summary><p>ถ้าลายเซ็นถูกต้อง ตอบ 200 ได้เลย เป็นการทดสอบ endpoint ไม่ต้องรอให้มีข้อความจริง</p></details>
+<p><a href="../reference/line-webhook-minimal.ts">ดูโค้ดตัวอย่างพื้นฐาน 30 บรรทัด</a> · <a href="../reference/webhook-cheatsheet.html">เปิดแผ่นอ้างอิงคำศัพท์</a></p>
+<p>endpoint ของโปรเจกต์ตอนนี้เป็นขั้นพื้นฐานแบบบทเรียนนี้แล้ว ยังไม่เรียก AI หรือฐานข้อมูล และปิดตัวระบุ LINE ใน log ส่วนคิวที่เตรียมไว้จะเชื่อมในขั้นถัดไป ถ้าตรงไหนยังไม่ชัด ถามผมโดยยกชื่อบรรทัดหรือคำศัพท์นั้นได้เลย</p>
+</main><script>
+const original='{"events":[]}', body=document.getElementById('body'), result=document.getElementById('result');
+async function signature(text){const bytes=new TextEncoder();const key=await crypto.subtle.importKey('raw',bytes.encode('demo-channel-secret'),{name:'HMAC',hash:'SHA-256'},false,['sign']);return new Uint8Array(await crypto.subtle.sign('HMAC',key,bytes.encode(text)));}
+document.getElementById('verify').onclick=async()=>{try{const supplied=await signature(original),expected=await signature(body.value);let different=0;for(let i=0;i<supplied.length;i++)different|=supplied[i]^expected[i];if(different){result.textContent='401: ลายเซ็นไม่ตรง เพราะ body เปลี่ยนไป';return;}JSON.parse(body.value);result.textContent='200: ลายเซ็นตรง และ events ว่างก็รับได้';}catch{result.textContent='ทดลองไม่ได้ใน browser นี้ ให้เปิดบทเรียนผ่าน localhost';}};
+document.getElementById('space').onclick=()=>{body.value='{ "events": [] }';result.textContent='JSON มีความหมายเดิม แต่ข้อมูลต้นฉบับเปลี่ยนแล้ว ลองตรวจอีกครั้ง';};
+document.getElementById('reset').onclick=()=>{body.value=original;result.textContent='พร้อมทดลอง';};
+</script></body></html>

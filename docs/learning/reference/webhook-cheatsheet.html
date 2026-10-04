@@ -1,0 +1,13 @@
+<!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LINE webhook: แผ่นอ้างอิง</title>
+<style>body{font:17px/1.7 Tahoma,sans-serif;max-width:820px;padding:32px;margin:auto;color:#193a32}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #ccc;padding:10px}code{background:#edf4f1;padding:2px 5px}a{color:#126044}@media print{body{padding:0}}</style>
+<h1>คำศัพท์ที่ใช้ใน LINE webhook</h1>
+<table><tr><th>คำ</th><th>ความหมายในโปรเจกต์เรา</th></tr>
+<tr><td>Webhook</td><td>LINE ส่ง event มาที่ URL ของ backend อัตโนมัติ</td></tr>
+<tr><td>POST</td><td>วิธีส่งคำขอพร้อม body มายัง endpoint</td></tr>
+<tr><td>Raw body</td><td>ข้อมูลต้นฉบับก่อนแปลงเป็น object ต้องใช้คำนวณลายเซ็น</td></tr>
+<tr><td>Payload</td><td>ข้อมูลที่มากับคำขอ เช่น events และข้อความ</td></tr>
+<tr><td>Channel Secret</td><td>ค่าของ LINE channel ใช้ตรวจลายเซ็น เก็บใน .env ของ server</td></tr>
+<tr><td>x-line-signature</td><td>ลายเซ็น HMAC-SHA256 แบบ base64 ที่ส่งมาใน header</td></tr>
+<tr><td>JSON.parse</td><td>แปลงข้อความ JSON เป็น object หลังตรวจลายเซ็นแล้ว</td></tr>
+<tr><td>HTTP 200</td><td>backend ตอบว่าได้รับคำขอสำเร็จ ไม่ใช่ข้อความตอบนักศึกษา</td></tr></table>
+<p><a href="../lessons/0001-line-webhook.html">กลับบทเรียน</a> · <a href="https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/">เอกสาร LINE ทางการ</a></p>

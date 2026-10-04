@@ -12,7 +12,7 @@
 
 - Follow the master guide and approved LINE → Ticket → AI/RAG order.
 - No student profile, grade, course enrollment, payment, or SSO tables in V1.
-- Never expose raw LINE user IDs, encryption keys, service keys, or webhook payloads to the browser or logs.
+- Never expose raw LINE user IDs, encryption keys or service keys to the browser or logs. The user's later basic-webhook instruction permits logging verified payload content during this teaching step, with LINE identifiers/reply tokens protected.
 - RLS and table grants exist with the first exposed table; auth uses verified claims/user, never user_metadata for staff authority.
 - Roles: STAFF, SUPERVISOR, ADMIN, SUPER_ADMIN. Department scope and sensitive permissions are checked on the backend and in SQL.
 - Tickets and conversations have distinct modes; human acceptance is atomic. AI send rechecks human takeover.
@@ -23,7 +23,7 @@
 
 ### F1: Bootstrap and auth (Luna high)
 
-Files: package.json, pnpm-lock.yaml, tsconfig.json, next.config.ts, eslint.config.mjs, vitest.config.ts, next-env.d.ts, app/layout.tsx, app/globals.css, app/page.tsx, app/login/**, app/auth/**, app/(dashboard)/layout.tsx, app/(dashboard)/page.tsx, lib/config/**, lib/supabase/{browser,server,proxy}.ts, lib/auth/**, proxy.ts, tests/env.test.ts, tests/auth-policy.test.ts.
+Files: package.json, pnpm-lock.yaml, tsconfig.json, next.config.ts, eslint.config.mjs, vitest.config.ts, next-env.d.ts, app/layout.tsx, app/globals.css, app/page.tsx, app/login/**, app/auth/**, app/(dashboard)/layout.tsx, app/(dashboard)/dashboard/page.tsx, lib/config/**, lib/supabase/{browser,server,proxy}.ts, lib/auth/**, proxy.ts, tests/env.test.ts, tests/auth-policy.test.ts. The root page redirects; `/dashboard` is the protected landing route.
 
 1. Scaffold manually in this existing repository; preserve research artifacts. Add dev/build/start/lint/typecheck/test scripts. Add pg, dotenv, tsx and their type packages for the controller's worker/SQL tooling.
 2. Write failing behavioral tests for optional integration configuration, modern-key preference, invalid encryption/timeout config, internal-only redirect targets, inactive/unknown staff access denied. Then implement.
@@ -55,3 +55,7 @@ Files: lib/line/**, lib/security/**, lib/queue/**, lib/spam/**, app/api/line/stu
 ## Phase gate
 
 Runnable app and authenticated staff boundary, migration resets cleanly, actual RLS/queue behavior verified, signed webhook durably accepts and deduplicates. Live LINE E2E remains pending until channel credentials and public webhook URL are available. Continue into Phase 2 after this gate; preserve full V1 requirements in roadmap and progress ledger.
+
+## Current teaching step requested by the user
+
+The student public route currently verifies raw bytes, logs verified payload content with protected identifiers, and acknowledges200 including events: []. It has no AI or database dependency. The durable ingress/worker is prepared separately for the later F3 integration and is not connected to this route yet. A student Channel Secret is configured locally and a temporary HTTPS tunnel is verified with simulated signed requests. Real LINE Console Verify and message delivery remain pending; this basic step does not meet the durable F3 phase gate above.

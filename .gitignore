@@ -17,3 +17,11 @@ documents/yru/**/__pycache__/
 node_modules/
 .next/
 coverage/
+*.tsbuildinfo
+test-results/
+playwright-report/
+.superpowers/sdd/staging/
+.superpowers/staging/
+.superpowers/sdd/reports/*.diff
+supabase/.temp/
+supabase/.branches/
