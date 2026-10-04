@@ -17,6 +17,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <h1 id="login-title">ระบบงานบริการบุคลากร</h1>
         <p className="intro">เข้าสู่ระบบด้วยบัญชีบุคลากรเพื่อดูและติดตามงานบริการ</p>
         {denied && <p className="notice" role="status">บัญชีนี้ยังไม่มีสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ</p>}
+        {params.error === 'signout_failed' && <p className="notice" role="alert">ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ</p>}
         <LoginForm nextPath={safeRedirectTarget(requestedNext)} />
       </section>
     </main>

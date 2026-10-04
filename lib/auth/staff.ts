@@ -55,6 +55,6 @@ export async function requireStaff(): Promise<StaffIdentity> {
     display_name: data.display_name,
     active: true,
     can_view_sensitive: data.role === 'SUPER_ADMIN' || data.can_view_sensitive === true,
-    can_view_restricted: data.can_view_restricted === true,
+    can_view_restricted: data.role === 'SUPER_ADMIN' || data.can_view_restricted === true,
   };
 }

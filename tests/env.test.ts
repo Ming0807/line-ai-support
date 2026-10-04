@@ -6,6 +6,12 @@ function processEnv(values: Record<string, string | undefined>): NodeJS.ProcessE
 }
 
 describe('environment configuration', () => {
+  it('accepts canonical base64 keys of exactly 32 bytes', () => {
+    const encryptionKey = Buffer.alloc(32, 23).toString('base64');
+    expect(readServerEnv(processEnv({ ENCRYPTION_KEY: encryptionKey })).encryptionKey).toBe(encryptionKey);
+    expect(() => readServerEnv(processEnv({ ENCRYPTION_KEY: Buffer.alloc(31).toString('base64') }))).toThrow();
+    expect(() => readServerEnv(processEnv({ ENCRYPTION_KEY: Buffer.alloc(33).toString('base64') }))).toThrow();
+  });
   it('allows app startup with no Supabase or optional integration settings', () => {
     const env = readServerEnv(processEnv({}));
 
@@ -64,5 +70,10 @@ describe('environment configuration', () => {
       supabasePublishableKey: 'sb_publishable_example',
     });
     expect(JSON.stringify(env)).not.toContain('must-not-leak');
+  });
+
+  it('rejects malformed public URLs before creating a browser client', () => {
+    expect(() => readPublicEnv({ NEXT_PUBLIC_SUPABASE_URL: 'not a URL' })).toThrow();
+    expect(readPublicEnv({})).toEqual({ supabaseUrl: '', supabasePublishableKey: '' });
   });
 });

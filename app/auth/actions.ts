@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { readPublicEnv } from '@/lib/config/public-env';
 import { safeRedirectTarget } from '@/lib/auth/redirect';
 import { createUserClient } from '@/lib/supabase/server';
 
@@ -33,8 +35,22 @@ export async function signInAction(_previous: LoginState, formData: FormData): P
 export async function signOutAction(): Promise<void> {
   try {
     const supabase = await createUserClient();
-    await supabase.auth.signOut();
-  } finally {
-    redirect('/login');
+    // A returned provider error is compensated by explicit local cookie removal below.
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // A provider outage does not prevent removing the current browser's auth cookies.
   }
+  try {
+    const { supabaseUrl } = readPublicEnv();
+    const prefix = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+    const store = await cookies();
+    for (const cookie of store.getAll()) {
+      if (cookie.name === prefix || (cookie.name.startsWith(`${prefix}.`) && /^\d+$/.test(cookie.name.slice(prefix.length + 1)))) {
+        store.delete(cookie.name);
+      }
+    }
+  } catch {
+    redirect('/login?error=signout_failed');
+  }
+  redirect('/login');
 }

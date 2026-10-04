@@ -37,8 +37,8 @@ const serverSchema = z.object({
     blankToUndefined,
     z.string().trim().optional().refine((value) => {
       if (value === undefined) return true;
-      if (!/^(?:[A-Za-z0-9+/]{4}){10}[A-Za-z0-9+/]{2}=$/.test(value)) return false;
-      return Buffer.from(value, 'base64').byteLength === 32;
+      const decoded = Buffer.from(value, 'base64');
+      return decoded.byteLength === 32 && decoded.toString('base64') === value;
     }, 'ENCRYPTION_KEY must be a base64-encoded 32-byte key'),
   ),
   appBaseUrl: httpUrl,

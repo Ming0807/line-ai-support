@@ -11,11 +11,17 @@ export function readPublicEnv(source?: Record<string, string | undefined>): Publ
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   };
 
-  return {
+  return publicSchema.parse({
     supabaseUrl: values.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? '',
     supabasePublishableKey:
       values.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
       values.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
       '',
-  };
+  });
 }
+import { z } from 'zod';
+
+const publicSchema = z.object({
+  supabaseUrl: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]),
+  supabasePublishableKey: z.string(),
+});
