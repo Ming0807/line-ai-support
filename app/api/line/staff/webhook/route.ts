@@ -1,11 +1,19 @@
 import { verifyLineSignature } from '@/lib/line/signature';
 import { replyToStaffTextEvent } from '@/lib/line/staff-echo';
 import { z } from 'zod';
+import { receiveLineWebhook } from '@/lib/line/receive-webhook';
+import { persistWebhookEvents } from '@/lib/queue/inbox';
 
 export const runtime = 'nodejs';
 const webhookSchema = z.object({ events: z.array(z.unknown()).max(100) });
 
 export async function POST(request: Request): Promise<Response> {
+  const mode=process.env.LINE_WEBHOOK_MODE?.trim() || 'echo';
+  if(mode==='durable') return receiveLineWebhook(request,{
+    channel:'STAFF',secret:process.env.LINE_STAFF_CHANNEL_SECRET?.trim(),
+    encryptionKey:process.env.ENCRYPTION_KEY,persist:persistWebhookEvents,
+  });
+  if(mode!=='echo') return Response.json({error:'INVALID_WEBHOOK_MODE'},{status:503});
   // Verify the exact raw bytes before parsing JSON, using only the Staff secret.
   const rawBody = Buffer.from(await request.arrayBuffer());
   if (rawBody.length > 1_048_576) return Response.json({ error: 'BODY_TOO_LARGE' }, { status: 413 });

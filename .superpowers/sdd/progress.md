@@ -1,6 +1,8 @@
 # Execution ledger
 
-## Current checkpoint — M1 and M2 accepted, M3 next
+## Current checkpoint — M1, M2 and M3 accepted; M4 next
+
+M3 accepted: six-migration clean replay, full effective-role privacy fixture,18 PostgreSQL tests,108 unit tests,typecheck/lint/production build and local security advisors pass. Actual isolated production Next HTTP-to-PG worker flow verifies commit-before-200, both channel lanes, deduplication and no Student identity from Staff. Independent review finds no actionable defects. Reviewed additive development migration applied:13 RLS tables; remote privacy/real-staff rollback checks pass. Development durable ingress and inbox worker enabled after verification; fresh localhost/public signature smoke passes. Human durable OA test remains deferred, not claimed. Report `docs/reports/M3_DURABLE_LINE_REPORT.md`. Proceed to M4 ticket lifecycle/router/outbox; full V1 remains active and incomplete.
 
 M2 acceptance proven: reviewed5 migrations/12RLS tables/9departments on DEVELOPMENT; effective browser/server grants plus full rollback privacy fixture pass remotely;3real Auth accounts and actual-subject nonempty department/restricted denial pass; actual Chromium login/server-role/session-reload/logout/postlogout denial passes for all3 accounts, including invalid-password rejection. Repeat bootstrap preserves accounts/profile/passwords. Windows credential-file owner/DACL are verified before reading and new empty temp files are sealed before passwords are written; explicit extra-Users-ACE negative fixture passes. Final independent spec/quality review PASS with no actionable findings (`m2-security-review.md`). Fresh full90unit tests, typecheck/lint/production build pass; Student+Staff localhost signature/empty-event/cross-channel smoke passes. Root report `docs/reports/M2_DEVELOPMENT_AUTH_REPORT.md`. Proceed M3 under `docs/superpowers/plans/2026-10-04-yru-durable-line.md`; full V1 remains active/incomplete.
 

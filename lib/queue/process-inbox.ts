@@ -2,19 +2,24 @@ import type { PoolClient } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { userEventSchema } from '../line/events';
 import { decryptValue, encryptValue, hashLineUserId } from '../security/identity';
-export interface InboxJob { id:string; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
+import { persistStaffInboxEvent } from './staff-inbox';
+export interface InboxJob { id:string; channel:'STUDENT'|'STAFF'; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
 
 /** Caller owns the transaction. Every effect rolls back if the lease cannot be completed. */
 export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:InboxJob,key:string):Promise<void> {
- const lease=await client.query("select id from private.webhook_inbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() for update",[job.id,job.lease_token]);
+ const lease=await client.query("select id,channel from private.webhook_inbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() for update",[job.id,job.lease_token]);
  if(lease.rowCount!==1) throw new Error('STALE_LEASE');
+ if(!['STUDENT','STAFF'].includes(job.channel) || lease.rows[0].channel!==job.channel) throw new Error('INVALID_CLAIM_CHANNEL');
  let errorCode:string|null=null;
  const parsed=userEventSchema.safeParse(JSON.parse(decryptValue(job.payload_encrypted,key)));
  if(!parsed.success){errorCode='UNSUPPORTED_EVENT';}
  else {
   const event=parsed.data,hash=hashLineUserId(event.source.userId,key);
   if(job.user_hash!==hash) throw new Error('IDENTITY_MISMATCH');
-  await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[hash]);
+  if(job.channel==='STAFF') {
+   errorCode=await persistStaffInboxEvent(client,job,event,key);
+  } else {
+  await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:${job.channel}:${hash}`]);
   let session=(await client.query('select line_session_id from private.line_identities where user_hash=$1',[hash])).rows[0];
   if(!session) {
    const created=await client.query('insert into public.line_sessions(anonymous_code) values ($1) returning id',[`Anonymous #${randomBytes(6).toString('hex').toUpperCase()}`]);
@@ -39,6 +44,7 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
     await client.query('update public.line_sessions set last_message_at=now(),updated_at=now() where id=$1',[session.line_session_id]);
    }
   } else {errorCode='UNSUPPORTED_EVENT';}
+  }
  }
  const completed=await client.query("update private.webhook_inbox set status='DONE',completed_at=now(),last_error_code=$3,lease_token=null,lease_until=null where id=$1 and lease_token=$2 and lease_until>clock_timestamp()",[job.id,job.lease_token,errorCode]);
  if(completed.rowCount!==1) throw new Error('STALE_LEASE');

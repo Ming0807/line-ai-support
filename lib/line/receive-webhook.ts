@@ -43,8 +43,12 @@ export async function receiveLineWebhook(request:Request,dependencies:WebhookDep
     payloadEncrypted:encryptValue(json,encryptionKey),eventKind:classifyEventKind(event)};
   });
   await persist(events);
+  console.info('LINE_INGRESS_ACCEPTED',{channel,eventCount:events.length});
   return Response.json({ok:true});
- } catch {return fail(503,'INGRESS_TEMPORARILY_UNAVAILABLE');}
+ } catch {
+  console.error('LINE_INGRESS_FAILED',{channel,code:'INGRESS_TEMPORARILY_UNAVAILABLE'});
+  return fail(503,'INGRESS_TEMPORARILY_UNAVAILABLE');
+ }
 }
 import { createHash } from 'node:crypto';
 import { encryptValue, hashLineUserId } from '../security/identity';

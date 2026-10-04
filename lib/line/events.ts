@@ -12,6 +12,7 @@ export const userEventSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('follow'),source}),
  z.object({type:z.literal('unfollow'),source}),
 ]);
+export type DirectUserEvent=z.infer<typeof userEventSchema>;
 export type EventKind='MESSAGE'|'FOLLOW'|'UNFOLLOW'|'OTHER'|'UNKNOWN';
 
 /** Only non-sensitive event classification leaves the encrypted payload. */

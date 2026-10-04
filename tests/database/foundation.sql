@@ -117,7 +117,7 @@ do $$ begin
   if (select count(*) from public.staff_profiles) <> 1 then raise exception 'Staff profile is not self-only'; end if;
   if (select count(*) from public.staff_department_grants) <> 0 then raise exception 'Staff saw another caller department grant'; end if;
   if exists (select 1 from unnest(array['departments','staff_profiles','staff_department_grants','line_sessions','conversations','tickets','messages','ticket_history']) t(table_name) where has_table_privilege(current_user,'public.'||table_name,'INSERT,UPDATE,DELETE')) then raise exception 'Authenticated can write an exposed public table'; end if;
-  if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname in ('delivery_attempts','line_identities','message_outbox','webhook_inbox') and has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE')) then raise exception 'Authenticated can access a private table'; end if;
+  if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relkind='r' and has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE')) then raise exception 'Authenticated can access a private table'; end if;
   if has_function_privilege(current_user,'private.claim_inbox(text)','EXECUTE') then raise exception 'Authenticated can claim private inbox work'; end if;
   if has_sequence_privilege(current_user,'public.tickets_ticket_seq_seq','USAGE,SELECT,UPDATE') then raise exception 'Authenticated can access ticket sequence'; end if;
 end $$;
@@ -278,7 +278,7 @@ reset role;
 set local role anon;
 do $$ begin
   if exists (select 1 from unnest(array['departments','staff_profiles','staff_department_grants','line_sessions','conversations','tickets','messages','ticket_history']) t(table_name) where has_table_privilege(current_user,'public.'||table_name,'SELECT,INSERT,UPDATE,DELETE')) then raise exception 'Anon can access an exposed public table'; end if;
-  if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname in ('delivery_attempts','line_identities','message_outbox','webhook_inbox') and has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE')) then raise exception 'Anon can access a private table'; end if;
+  if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relkind='r' and has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE')) then raise exception 'Anon can access a private table'; end if;
   if has_function_privilege(current_user,(select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname='can_access_ticket'),'EXECUTE') then raise exception 'Anon can call private RLS helper'; end if;
   if has_function_privilege(current_user,(select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname='claim_inbox'),'EXECUTE') then raise exception 'Anon can claim private inbox work'; end if;
   if has_sequence_privilege(current_user,'public.tickets_ticket_seq_seq','USAGE,SELECT,UPDATE') then raise exception 'Anon can access ticket sequence'; end if;

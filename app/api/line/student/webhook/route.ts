@@ -1,6 +1,8 @@
 import { verifyLineSignature } from '@/lib/line/signature';
 import { replyToStudentTextEvent } from '@/lib/line/student-echo';
 import { z } from 'zod';
+import { receiveLineWebhook } from '@/lib/line/receive-webhook';
+import { persistWebhookEvents } from '@/lib/queue/inbox';
 
 export const runtime = 'nodejs';
 const webhookSchema = z.object({ events: z.array(z.unknown()).max(100) });
@@ -21,6 +23,12 @@ function logPayload(value: unknown, protectedValues: readonly string[], depth = 
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const mode=process.env.LINE_WEBHOOK_MODE?.trim() || 'echo';
+  if(mode==='durable') return receiveLineWebhook(request,{
+    channel:'STUDENT',secret:process.env.LINE_STUDENT_CHANNEL_SECRET?.trim(),
+    encryptionKey:process.env.ENCRYPTION_KEY,persist:persistWebhookEvents,
+  });
+  if(mode!=='echo') return Response.json({error:'INVALID_WEBHOOK_MODE'},{status:503});
   // Verify the exact bytes before parsing JSON. This step has no AI/database dependency.
   const rawBody = Buffer.from(await request.arrayBuffer());
   if (rawBody.length > 1_048_576) return Response.json({ error: 'BODY_TOO_LARGE' }, { status: 413 });
