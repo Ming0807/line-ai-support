@@ -7,7 +7,7 @@ export default function DashboardPage() {
       <h1>งานบริการของหน่วยงาน</h1>
       <section className="queue-card" aria-labelledby="queue-title">
         <h2 id="queue-title">คิวงาน</h2>
-          <Link href="/dashboard/queue">เปิดคิวงาน</Link>
+          <Link href="/tickets">เปิดคิว Ticket</Link>
       </section>
     </main>
   );

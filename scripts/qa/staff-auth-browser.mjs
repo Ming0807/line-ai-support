@@ -45,7 +45,7 @@ try {
   console.log(JSON.stringify({stage:'browser_login_readiness',...readiness}));
   await page.getByRole('button',{name:'เข้าสู่ระบบ',exact:true}).click();
   stage='valid_login_redirect';
-  await page.waitForURL(/\/dashboard(?:\/queue)?$/,{timeout:30_000});
+  await page.waitForURL(/\/(?:dashboard(?:\/queue)?|tickets)$/,{timeout:30_000});
   assert((await page.locator('.user-line').innerText()).includes(roles[account.role]),'SERVER_ROLE_RENDERED');
   stage='session_reload';
   await page.reload();

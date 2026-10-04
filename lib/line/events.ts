@@ -8,9 +8,10 @@ const message=z.discriminatedUnion('type',[
 ]);
 
 export const userEventSchema=z.discriminatedUnion('type',[
- z.object({type:z.literal('message'),source,message}),
- z.object({type:z.literal('follow'),source}),
+ z.object({type:z.literal('message'),source,message,replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
+ z.object({type:z.literal('follow'),source,replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
  z.object({type:z.literal('unfollow'),source}),
+ z.object({type:z.literal('postback'),source,postback:z.object({data:z.string().min(1).max(1024)}),replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
 ]);
 export type DirectUserEvent=z.infer<typeof userEventSchema>;
 export type EventKind='MESSAGE'|'FOLLOW'|'UNFOLLOW'|'OTHER'|'UNKNOWN';
@@ -19,5 +20,5 @@ export type EventKind='MESSAGE'|'FOLLOW'|'UNFOLLOW'|'OTHER'|'UNKNOWN';
 export function classifyEventKind(value:unknown):EventKind {
  const parsed=userEventSchema.safeParse(value);
  if(!parsed.success) return 'OTHER';
- return parsed.data.type==='message'?'MESSAGE':parsed.data.type==='follow'?'FOLLOW':'UNFOLLOW';
+ return parsed.data.type==='message'?'MESSAGE':parsed.data.type==='follow'?'FOLLOW':parsed.data.type==='unfollow'?'UNFOLLOW':'OTHER';
 }

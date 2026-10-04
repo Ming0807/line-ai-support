@@ -101,7 +101,7 @@ Ticket actions, all through ticket-service:
 | RESOLVE | Authorized assigned Staff/delegate in STAFF_HANDLING → RESOLVED; record actor, reason if any, timestamp and history/activity. |
 | CLOSE | Scoped Staff RESOLVED → CLOSED; record history/activity. A user message does not reopen. |
 | REOPEN | Scoped supervisor/admin permission and reason; CLOSED → WAITING_STAFF, record action REOPENED with CLOSED→WAITING_STAFF, clear assignee, notify eligible department Staff. Never persist status REOPENED. |
-| REASSIGN | Scoped supervisor/admin selects active eligible Staff in the same authorized department/sensitivity scope; status unchanged; record REASSIGNED. |
+| REASSIGN | After ACCEPT, scoped supervisor/admin selects active eligible Staff in the same authorized department/sensitivity scope; STAFF_HANDLING or WAITING_USER stays unchanged; record REASSIGNED. WAITING_STAFF remains unassigned until ACCEPT. This clarification avoids the reviewed pending-assignment dead end. |
 
 CANCELLED remains unreachable in M4. START_AI, AI_HANDLING, AI escalation, and AI_RESOLVE remain unavailable until M5; test the state vocabulary without inventing an AI actor or API.
 

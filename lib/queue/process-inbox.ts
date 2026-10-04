@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { userEventSchema } from '../line/events';
 import { decryptValue, encryptValue, hashLineUserId } from '../security/identity';
 import { persistStaffInboxEvent } from './staff-inbox';
+import { processStudentContent } from '../conversation/student-processing';
+import { processStaffCommand } from '../tickets/staff-command';
 export interface InboxJob { id:string; channel:'STUDENT'|'STAFF'; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
 
 /** Caller owns the transaction. Every effect rolls back if the lease cannot be completed. */
@@ -17,7 +19,7 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
   const event=parsed.data,hash=hashLineUserId(event.source.userId,key);
   if(job.user_hash!==hash) throw new Error('IDENTITY_MISMATCH');
   if(job.channel==='STAFF') {
-   errorCode=await persistStaffInboxEvent(client,job,event,key);
+   errorCode=event.type==='postback'?await processStaffCommand(client,event,key):await persistStaffInboxEvent(client,job,event,key);
   } else {
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:${job.channel}:${hash}`]);
   let session=(await client.query('select line_session_id from private.line_identities where user_hash=$1',[hash])).rows[0];
@@ -28,6 +30,9 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
   }
   if(event.type==='follow' || event.type==='unfollow') {
    await client.query('update public.line_sessions set active=$2,updated_at=now() where id=$1',[session.line_session_id,event.type==='follow']);
+  } else if(event.type==='postback') {
+   const source=(await client.query('select received_at from private.webhook_inbox where id=$1',[job.id])).rows[0];
+   errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key);
   } else if(event.type==='message' && event.message) {
    const recent=await client.query(`select count(*)::int as count from private.webhook_inbox prior
     join private.webhook_inbox current_event on current_event.id=$2
@@ -36,11 +41,8 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
      and prior.received_at<=current_event.received_at and prior.event_seq<current_event.event_seq`,[hash,job.id]);
    if(recent.rows[0].count>=20){errorCode='RATE_LIMITED';}
    else {
-    // Foundation storage; Phase 2 replaces this selection with the validated multi-topic router.
-    let conversation=(await client.query("select id from public.conversations where line_session_id=$1 and mode='AI' and status in ('ACTIVE','WAITING') order by created_at desc limit 1",[session.line_session_id])).rows[0];
-    if(!conversation) conversation=(await client.query('insert into public.conversations(line_session_id) values ($1) returning id',[session.line_session_id])).rows[0];
-    const content=event.message.type==='text'?event.message.text:`[${event.message.type==='image'?'รูปภาพ':'ข้อความประเภทอื่น'}]`;
-    await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values ($1,'USER',$2,$3,$4,$5,'{\"routing_status\":\"PENDING\"}') on conflict do nothing",[conversation.id,event.message.type==='image'?'IMAGE':'TEXT',content,event.message.id,job.id]);
+    const source=(await client.query('select received_at from private.webhook_inbox where id=$1',[job.id])).rows[0];
+    errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key);
     await client.query('update public.line_sessions set last_message_at=now(),updated_at=now() where id=$1',[session.line_session_id]);
    }
   } else {errorCode='UNSUPPORTED_EVENT';}

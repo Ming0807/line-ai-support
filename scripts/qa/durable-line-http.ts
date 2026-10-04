@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { runInboxCycle } from '../../lib/queue/run-inbox';
+import { runOutboxCycle } from '../../lib/queue/run-outbox';
 import { decryptValue, hashLineUserId } from '../../lib/security/identity';
 
 // Only a separately launched local-database Next server may be exercised here.
@@ -44,13 +45,20 @@ try {
  assert.equal(identity.rows[0].count,1,'only the Student event creates an anonymous identity');
  const done=await pool.query("select count(*)::int as count from private.webhook_inbox where event_id=$1 and status='DONE'",[eventId]);
  assert.equal(done.rows[0].count,2);
+  let sent=0;
+  const delivery=await runOutboxCycle(pool,key,{accessTokens:{STUDENT:'fake',STAFF:'fake'},fetchImpl:async()=>{sent++;return new Response(null,{status:200});}});
+  assert.equal(delivery.sent,1);assert.equal(sent,1,'one worker response only through controlled transport');
+  assert.equal((await runOutboxCycle(pool,key,{fetchImpl:async()=>{throw new Error('UNEXPECTED_SECOND_SEND');}})).claimed,0);
  console.log(JSON.stringify({stage:'durable_http_verified',signedIngress:true,commitBefore200:true,
-  inboxRows:2,studentMessages:1,privateStaffMessages:1,studentIdentities:1,redeliveryIdempotent:true,channelIsolation:true}));
+  inboxRows:2,studentMessages:1,privateStaffMessages:1,studentIdentities:1,redeliveryIdempotent:true,channelIsolation:true,controlledOutboxSends:1}));
 } catch {
  console.error(JSON.stringify({code:'DURABLE_HTTP_CHECK_FAILED',stage}));process.exitCode=1;
 } finally {
  // Fixed dedicated local URL above; every cleanup predicate is this fixture only.
  const sessions=(await pool.query('select line_session_id from private.line_identities where user_hash=$1',[hash])).rows.map(row=>row.line_session_id);
+ await pool.query('delete from private.delivery_attempts where outbox_id in(select id from private.message_outbox where line_session_id=any($1::uuid[]))',[sessions]);
+ await pool.query('delete from private.message_outbox where line_session_id=any($1::uuid[])',[sessions]);
+ await pool.query('delete from private.pending_route_choices where line_session_id=any($1::uuid[])',[sessions]);
  await pool.query('delete from private.staff_inbound_messages where source_event_id in (select id from private.webhook_inbox where event_id=$1)',[eventId]);
  await pool.query('delete from public.messages where source_event_id in (select id from private.webhook_inbox where event_id=$1)',[eventId]);
  await pool.query('delete from public.conversations where line_session_id=any($1::uuid[])',[sessions]);

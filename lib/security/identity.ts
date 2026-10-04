@@ -26,3 +26,6 @@ export function decryptValue(value:string,key:string):string {
 export function hashLineUserId(value:string,key:string):string {
  return createHmac('sha256',deriveKey(key,'identity-index')).update(value).digest('hex');
 }
+export function hashStaffLineUserId(value:string,key:string):string {
+ return createHmac('sha256',deriveKey(key,'staff-identity-index')).update(value).digest('hex');
+}
