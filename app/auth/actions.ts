@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { readPublicEnv } from '@/lib/config/public-env';
+import { readServerEnv } from '@/lib/config/env';
 import { safeRedirectTarget } from '@/lib/auth/redirect';
 import { createUserClient } from '@/lib/supabase/server';
 
@@ -41,7 +41,7 @@ export async function signOutAction(): Promise<void> {
     // A provider outage does not prevent removing the current browser's auth cookies.
   }
   try {
-    const { supabaseUrl } = readPublicEnv();
+    const { supabaseUrl } = readServerEnv();
     const prefix = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
     const store = await cookies();
     for (const cookie of store.getAll()) {
