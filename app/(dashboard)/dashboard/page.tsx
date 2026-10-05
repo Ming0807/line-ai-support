@@ -12,6 +12,12 @@ export default async function DashboardPage() {
           <Link href="/tickets">เปิดคิว Ticket</Link>
       </section>
       {staff.role === 'SUPER_ADMIN' && (
+        <section className="queue-card" aria-labelledby="knowledge-title">
+          <h2 id="knowledge-title">คลังความรู้</h2>
+          <Link href="/knowledge">ตรวจเอกสารและรายการนำเข้า</Link>
+        </section>
+      )}
+      {staff.role === 'SUPER_ADMIN' && (
         <section className="queue-card" aria-labelledby="providers-title">
           <h2 id="providers-title">ตั้งค่า AI</h2>
           <Link href="/providers">จัดการผู้ให้บริการและ Model</Link>

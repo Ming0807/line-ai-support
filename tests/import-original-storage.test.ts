@@ -5,6 +5,20 @@ import type {OriginalRef} from '../lib/imports/types';
 const jobId=randomUUID(),ref:OriginalRef={id:randomUUID(),backend:'PRIVATE_STORAGE',format:'CSV',checksum:'a'.repeat(64),byteLength:8,keyVersion:1};
 const envelope=new Uint8Array(41).fill(17),url='https://fixture.supabase.co',secretKey='dummy-server-only-storage-key';
 const bucket={id:'knowledge-originals',name:'knowledge-originals',public:false,file_size_limit:20*1024*1024+33,allowed_mime_types:['application/octet-stream']};
+it('caller cancellation interrupts in-flight download immediately even when fetch ignores abort',async()=>{
+ vi.useFakeTimers();vi.setSystemTime(0);
+ try{
+  let receivedSignal:AbortSignal|null|undefined,settledAt:number|null=null;
+  const fetch=vi.fn<typeof globalThis.fetch>(async(_input,init)=>{receivedSignal=init?.signal;return new Promise<Response>(()=>undefined);});
+  const storage=createOriginalStorage({url,secretKey,fetch}),controller=new AbortController();
+  const work=storage.download(jobId,ref,controller.signal).catch(error=>{settledAt=Date.now();return error;});
+  await vi.advanceTimersByTimeAsync(0);controller.abort();await vi.advanceTimersByTimeAsync(5);
+  const wasCancelledImmediately=settledAt!==null;await vi.advanceTimersByTimeAsync(15000);
+  expect(await work).toMatchObject({message:'IMPORT_STORAGE_UNAVAILABLE'});expect(wasCancelledImmediately).toBe(true);expect(receivedSignal?.aborted).toBe(true);
+  const before=fetch.mock.calls.length;
+  await expect(storage.download(jobId,ref,controller.signal)).rejects.toThrow('IMPORT_STORAGE_UNAVAILABLE');expect(fetch).toHaveBeenCalledTimes(before);
+ }finally{vi.useRealTimers();}
+});
 function setup(overrides:{bucket?:unknown;download?:Response;upload?:Response}={}){
  const fetch=vi.fn<typeof globalThis.fetch>(async(input,init)=>{
   const target=new URL(String(input));

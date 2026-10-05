@@ -37,3 +37,9 @@
 - Production hosting, permanent webhook URL และ production operations: ไม่ล็อกจาก development tunnel
 - เกณฑ์ “ใกล้โควต้า” ใช้ ≤10% ของ limit ที่ provider รายงาน โดย unit/window/scopeตรงกันและ evidenceยังสด เป็น warning threshold ของแอป ไม่ใช่ความหมายของ HTTP200
 - สถานะ field/route/table ที่ชื่อแตกต่างจากตัวอย่าง guide ต้องพิสูจน์ behavior และ mapping ไม่สร้างไฟล์ชื่อเหมือน guide เพียงเพื่อทำ checklist
+
+6 October Import decisions (root implementation within approved scope):
+
+- DEC-023 / IMP-01D, CH036/037/045/048/061: extraction history is private, encrypted and append-only. READY/FAILED describe availability, never approval; job and last extraction revisions can differ after failure. Exact CAS, reauthorization and immutable originals guard edits. UI conflict recovery preserves genuine drafts, refreshes untouched fields and requires comparison confirmation; accepted component evidence is in the extraction report.
+- DEC-024 / IMP-03A, CH038/039/040/049/050: planned review receipts have an independent revision bound to exact extraction/job revisions. Saving incomplete nullable metadata and false attestations does not advance extraction, approve or publish. Warning dispositions bind immutable warning evidence and require reasons. Nineteen families are seed/coverage, not a closed family allowlist; seven fixed dataset codes and RAG/STRUCTURED/BOTH remain in scope, with unavailable mappers blocking publication.
+- DEC-025 / IMP-03B, USR-AMENDS: planned publication supports all five master actions. Whole-document CANCELS is an explicit relationship on ADD_ADDITIONAL with exact reviewed target/scope/effective interval; unsupported partial effects remain pending. AMENDS/CANCELS or eligibility changes must invalidate obsolete queued-answer evidence, including answers citing a still-existing base. Existing citation membership alone is insufficient. No publication implementation is claimed by these decisions.

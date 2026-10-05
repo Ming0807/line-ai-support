@@ -9,7 +9,7 @@ import type {ImportFormat,ImportSource,OriginalRef} from './types';
 import {acquireOfficialUrl,type OfficialUrlOptions} from './url-importer';
 import {urlAcquisitionSchema,validateUrlAcquisition,type UrlAcquisitionProvenance} from './source-provenance';
 import {createOriginalStorage,type OriginalStorage} from './original-storage';
-export interface ImportStagingOptions {pool?:Pool;key?:string;acquisition?:unknown;originalBackend?:OriginalRef['backend'];storage?:OriginalStorage}
+export interface ImportStagingOptions {pool?:Pool;key?:string;acquisition?:unknown;originalBackend?:OriginalRef['backend'];storage?:OriginalStorage;signal?:AbortSignal}
 export class ImportStagingError extends Error {
  constructor(readonly code:'FORBIDDEN'|'NOT_FOUND'|'CONFLICT'|'INVALID_REQUEST'|'INTERNAL_ERROR'){super(code);this.name='ImportStagingError';}
 }
@@ -34,6 +34,7 @@ async function run<T>(actor:string,options:ImportStagingOptions,work:(client:Poo
  return safe(()=>transaction(async client=>{await client.query("set local statement_timeout='5s';set local lock_timeout='3s'");await authorize(client,actor);return work(client);},options.pool??getDatabasePool()));
 }
 export async function authorizeImportAdmin(actor:string,options:ImportStagingOptions={}):Promise<void>{await run(actor,options,async()=>undefined);}
+export {run as withImportAdminTransaction};
 function keyFor(options:ImportStagingOptions):string{
  const key=options.key??process.env.ENCRYPTION_KEY;if(!key)throw new ImportStagingError('INTERNAL_ERROR');return key;
 }
@@ -48,7 +49,7 @@ async function rowFor(client:PoolClient,id:string,includeOriginal=false):Promise
  const row=(await client.query<ImportRow>(`select ${columns}${includeOriginal?',original_ciphertext':''} from private.knowledge_import_jobs where id=$1 for share`,[id])).rows[0];
  if(!row)throw new ImportStagingError('NOT_FOUND');return row;
 }
-async function audit(client:PoolClient,actor:string,action:string,metadata:{importJobId:string;byteLength?:number;errorCode?:string}):Promise<void>{
+async function audit(client:PoolClient,actor:string,action:string,metadata:{importJobId:string;byteLength?:number;errorCode?:string;revision?:number}):Promise<void>{
  await client.query('insert into private.activities(actor_id,action,metadata) values($1,$2,$3)',[actor,action,metadata]);
 }
 function storageFor(options:ImportStagingOptions):OriginalStorage{return options.storage??createOriginalStorage();}
@@ -117,13 +118,18 @@ export async function getImportJob(actor:string,id:string,options:ImportStagingO
 export async function readImportOriginal(actor:string,id:string,options:ImportStagingOptions={}):Promise<{job:ImportJobView;bytes:Uint8Array}>{
  return safe(async()=>{
   const snapshot=await run(actor,options,async client=>rowFor(client,id,true));
+  if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');
   const ref:OriginalRef={id:snapshot.original_id,backend:snapshot.backend,byteLength:snapshot.byte_length,format:snapshot.format,checksum:snapshot.checksum,keyVersion:snapshot.key_version};
-  const envelope=snapshot.backend==='PRIVATE_STORAGE'?await storageFor(options).download(id,ref):snapshot.original_ciphertext;
+  let envelope:Uint8Array|null|undefined;
+  try{envelope=snapshot.backend==='PRIVATE_STORAGE'?await storageFor(options).download(id,ref,options.signal):snapshot.original_ciphertext;}
+  catch(error){if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');throw error;}
+  if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');
   if(!envelope)throw new ImportStagingError('INTERNAL_ERROR');
   const bytes=decryptOriginal(envelope,id,ref,keyFor(options));
   // Reauthorize after loading/decryption and immediately before returning original bytes.
   const job=await run(actor,options,async client=>{
    const current=await rowFor(client,id);if(current.revision!==snapshot.revision)throw new ImportStagingError('CONFLICT');
+   if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');
    await audit(client,actor,'KNOWLEDGE_ORIGINAL_READ',{importJobId:id,byteLength:bytes.byteLength});return view(current,keyFor(options));
   });
   return {job,bytes};
@@ -136,6 +142,6 @@ export async function markImportFailed(actor:string,id:string,revision:number,co
   const current=(await client.query<ImportRow>(`select ${columns} from private.knowledge_import_jobs where id=$1 for update`,[id])).rows[0];
   if(!current)throw new ImportStagingError('NOT_FOUND');if(current.revision!==revision)throw new ImportStagingError('CONFLICT');
   const row=(await client.query<ImportRow>(`update private.knowledge_import_jobs set status='FAILED',error_code=$2,revision=revision+1,updated_at=clock_timestamp() where id=$1 returning ${columns}`,[id,parsed.data])).rows[0];
-  await audit(client,actor,'KNOWLEDGE_IMPORT_FAILED',{importJobId:id,errorCode:parsed.data});return view(row,keyFor(options));
+  await audit(client,actor,'KNOWLEDGE_IMPORT_FAILED',{importJobId:id,errorCode:parsed.data,revision:row.revision});return view(row,keyFor(options));
  });
 }

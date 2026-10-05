@@ -103,6 +103,18 @@ expect(approvalSchema.safeParse({...reviewed,effectiveFrom:'2026-02-30'}).succes
 
 ### Task3: encrypted private staging
 
+#### 6 October continuation — IMP-01D extraction/preview/edit
+
+Requirements CH036/037/045/048/049/061 and USR-IMPORT5; depends on accepted acquisition/staging/parser/E5 contracts (`05da65c`). Root owns DB/auth/persistence/API/integration; Luna max PDF-runtime and read-only review-contract tasks are actual delegated work. Luna high may own the pure edit module under the frozen contract below.
+
+Files: new CLI-generated private revision migration, `lib/imports/import-extraction.ts`, `lib/imports/review-draft.ts`, actual `tests/database/import-extraction.integration.ts`, `tests/import-review-draft.test.ts`, `app/api/knowledge/analyze/route.ts`, `app/api/knowledge/imports/[id]/preview/route.ts`, `app/api/knowledge/imports/[id]/edit/route.ts`, route tests, DB runner and component report. The existing staged-original API and READY/FAILED state remain compatible.
+
+Contract: `analyzeImportJob(actor,id,expectedRevision,options)` authenticates active SUPER_ADMIN before reading private original; bounded child/parser and deterministic analysis run outside SQL; final short transaction reauthorizes and compares exact job revision, appends encrypted PARSED revision and advances job revision/READY. Parser failure changes only fixed FAILED receipt at that exact revision, retaining original and prior extraction. `getImportPreview` returns authorized job + latest immutable extraction revision + located extraction/analysis/edit evidence; no raw original checksum/path/key/ciphertext. `editImportExtraction` uses current job revision and validated text-only edit operations, reanalyzes outside SQL, appends EDITED revision and advances only on exact CAS. Immutable encrypted revision records retain actor, extraction checksum and prior history; application has no history delete/update path.
+
+Pure edit interface: `applyExtractionEdit(source,current,input)` returns `{extraction,edit}` with strict bounded `{reason,pages:[{index,text}],cells:[{table,row,column,text}],title?}` (zero-based indexes). Reject duplicate/out-of-range/no-op edits. Preserve locations/table shape/original warnings and original flags, recompute measured counts, mark changed pages for review; changes cannot grant warning disposition or approval. Sensitivity analysis is rerun on edited content. Warning resolution/metadata review/publication is a subsequent explicit task; source report warnings remain UNRESOLVED here.
+
+Acceptance: actual PG browser/server privileges/RLS; unauthorized-before-parser; parser outside transactions; exact immutable original and encrypted extraction roundtrip; location/analysis preserved; concurrent/stale edits single winner; actor deactivation prevents final write; failed parse retains private bytes/history and publishes nothing; revision/audit rollback on failure. Pure edit tests prove provenance/shape/bounds/no disposition bypass/reauth-safe error. Same-origin bounded authenticated routes prove 401/403/409/no-store/fixed errors. All-format runtime/corpus/full M7 approval remains separately pending.
+
 Files: CLI-generated `supabase/migrations/<timestamp>_knowledge_imports.sql`, `lib/imports/import-service.ts`, `lib/imports/authorization.ts`, `tests/database/import-staging.integration.ts`.
 
 Interfaces:
@@ -125,7 +137,23 @@ assert.equal((await pool.query('select count(*) from public.documents')).rows[0]
 
 Files: `lib/imports/publish-service.ts`, `lib/imports/version-resolver.ts`, `tests/database/import-publish.integration.ts`, amendment cases in `tests/database/knowledge-retrieval.integration.ts`.
 
-Interface: `approveImport(staffId,id,approval,options):Promise<{documentId:string;revision:number}>`, with injected `embed` callback compatible with existing `EmbedInput→EmbedResult` for tests and configured Dashboard embeddings in runtime.
+Interface: `approveImport(staffId,id,approval,options):Promise<{documentId:string;revision:number}>`. Latest human update overrides the older registry example: runtime uses local CPU E5/384 through the private backend embedding service outside SQL; controlled tests may inject a matching embedding provider.
+
+#### IMP-03A — review draft before publication
+
+Requirements CH009/016/037/038/039/040/045/049/050/061/062, USR-IMPORT5/AMENDS; depends on accepted extraction/preview/edit, active-admin and immutable source/revision contracts. Root owns the final schema, encryption/auth/CAS/migration/API and integration. Delegate only pure helpers/UI or a scoped independent review with explicit named files. Read [contract proposal](../../../.superpowers/sdd/reports/imp-publication-contract-proposal.md) as input, not authority/acceptance; root's current design governs.
+
+Files: `lib/imports/review-schema.ts`, `lib/imports/import-review.ts`, `app/api/knowledge/imports/[id]/review/route.ts`, CLI-generated additive private review receipt migration, `tests/import-review-schema.test.ts`, `tests/import-review-routes.test.ts`, `tests/database/import-review.integration.ts`, root operations grant checker/database runner; later assigned UI review files/brief. No shared ownership of these files. Current extraction/edit API stays compatible.
+
+Contract: input has expected job/extraction/review revisions, strict nullable draft metadata (title/family/new-family/department/type/version/stream/year/scope/dates/authority/provenance/visibility/storage mode/fixed dataset), one of the five master actions, exact optional target/revision, optional whole-document CANCELS only on ADD_ADDITIONAL, explicit boolean attestations defaulting to none, reason-bound dispositions for server-computed warning keys. Null/false represents an unfinished review, never implicit trust. A completed approval consumes a saved review receipt later and repeats validation; no approve field or SQL/table/model selection is accepted from input.
+
+Receipt: `(job_id, review_revision)` primary key, expected job/extraction revision, actor, plaintext-payload SHA256 and encrypted payload (existing REVIEW context), timestamp; FK to immutable extraction, RLS/browser denial, server SELECT/INSERT only/update rejection, no application deletion. Serialize and encrypt outside SQL; final active-admin short transaction locks the job, verifies exact job/extraction and latest independent review revision, appends receipt and safe activity atomically. Store no personal details in audit. Preview decrypts/validates outside SQL and rechecks actor/current revisions before returning; older receipts are retained and explicitly stale after extraction changes. Draft saving never publishes or marks READY/FAILED differently.
+
+Actual delegated IMP-03A-WARNINGS: Luna max `m7_review_contract` owns only `lib/imports/review-warnings.ts`, `tests/import-review-warnings.test.ts` and `.superpowers/sdd/reports/imp-review-warnings.md`. Pure server-computed warning references bind job/extraction revision, warning source/index and complete warning record; preserve parser locations/order and append unique analysis flags. Validate supplied keys/duplicates with a fixed error; absence remains unresolved. No permission/approval decision, raw original checksum, mutation, DB or schema changes. Root owns strict payload and publication policy; this helper's tests are not publication acceptance.
+
+Acceptance before completing this slice: behavioral RED→GREEN for strict input/invalid calendar dates/unknown keys/warning keys/action-relation rules; actual PG admin/browser/server denial, encrypted roundtrip, incomplete draft remains unpublished, concurrent draft saves single winner, stale extraction/review rejection, revocation during work denial, immutable originals/extraction/review history, injected audit failure full rollback; same-origin/admin preflight before bounded body and safe no-store DTO; UI review can save incomplete choices without prechecked attestations and clearly distinguishes saved draft from publication. Then local replay/RLS/advisors/type/lint/build, guarded DEVELOPMENT sync and scoped root/delegated review. No missing live corpus evidence is counted as a pass.
+
+Publication follow-up (IMP-03B) remains required: metadata/version conflict preview; complete approval and idempotent receipt; exact replacement/additional/historical/AMENDS/CANCELS; E5 token-bounded located chunks; persisted locations→citations; family/delivery snapshot invalidation, transaction rollback/concurrency/lease barriers; real approved corpus and M8 BOTH integration. Do not mark M7 complete after IMP-03A.
 
 - [ ] ActualPG RED:2568current→stage2569 remains2568→approve replaces only the same reviewed stream, preserves2568SUPERSEDED and returns2569current only. Historical/additional/amendment actions do not supersede base. Scope mismatch, stale preview/target, unresolved sensitivity and forced insert failure produce no document/chunk/audit partial effects.
 ```ts
@@ -139,6 +167,8 @@ assert.deepEqual((await searchKnowledge(client,query)).map(x=>x.documentId),[cur
 
 ### Task5: authenticated API and Dashboard
 
+6October IMP-04A private preview/edit slice: Luna high owns `app/(dashboard)/knowledge/page.tsx`, `app/(dashboard)/knowledge/import/page.tsx`, `app/(dashboard)/knowledge/import/import-form.tsx`, `app/knowledge.css` only, following [Import surface brief](../../ui/KNOWLEDGE_IMPORT_SURFACE_BRIEF.md). Root adds dashboard navigation and owns API/auth/actual browser. Dependencies: IMP-01D preview/edit DTO and existing source staging. This slice cannot approve/publish or claim family/version UI complete; final metadata/warning disposition/version/approval follows IMP-03. Validate type/lint and real root browser journey, private scope/desktop/mobile, source location and draft conflict recovery.
+
 Files: `lib/imports/api.ts`, `app/api/knowledge/import/route.ts`, `app/api/knowledge/analyze/route.ts`, `app/api/knowledge/approve/route.ts`, `app/api/knowledge/imports/[id]/route.ts`, `app/(dashboard)/knowledge/page.tsx`, `app/(dashboard)/knowledge/import/page.tsx`, `app/(dashboard)/knowledge/import/import-form.tsx`, `app/knowledge.css`, dashboard link.
 
 - [ ] Read installed Next route/dynamic/page docs before writing; follow `provider-api.ts` same-origin/auth/body-limit patterns. File multipart body is byte-bounded before `Request.formData`; URL uses strict JSON. API returns safe fixed errors and authenticated staged preview only.
@@ -147,6 +177,8 @@ Files: `lib/imports/api.ts`, `app/api/knowledge/import/route.ts`, `app/api/knowl
 - [ ] Actualproduction browser QA logs in all3real test accounts: admin import/preview/approve controlled fixture succeeds, Staff403/404 denied, forged origin denied, refreshed version history persists, stale approval409, mobile390px layout inspected. Scoped fixtures cleaned; no real source approved.
 
 ### Task6: acceptance and development synchronization
+
+6October operational prerequisite: root owns `scripts/storage/setup-development.ts` and `scripts/qa/knowledge-import-browser.mjs`. Explicit human-selected DEVELOPMENT target guard precedes any Storage action; inspect mode is default, `--provision` creates only missing private `knowledge-originals` with exact existing size/MIME contract, rejects unknown object policies and never overwrites/deletes. Apply migration23 only after local review/PG/type/lint/replay gates; actual browser then exercises the DEVELOPMENT-backed private workflow. Synthetic encrypted originals remain retained according to the current no-deletion policy and are not approved corpus.
 
 - [ ] Clean local migration replay after preflight proves no user-owned rows will be deleted; fullRLS/PG/unit/type/lint/build/advisors.
 - [ ] Signed Student current/historical/amendment retrieval fixture verifies published output and takeover suppression. Upload PDF/HTML and URL acquisition get real bounded parser/acquisition evidence; no paid provider/realOA claim.

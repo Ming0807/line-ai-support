@@ -44,20 +44,20 @@
 | CH033 | 33 MetadataFilter | M6, IMP-03 | COMPONENT_EVIDENCE: official/public/reviewed/current/effective/applicabilitybeforevectors; publicationregressionrequired |
 | CH034 | 34 Historicalquestions | M6, IMP-03, PRV-05 | PARTIAL: explicityear/date/usergroundedtestsมี; realversions/freeflowpending |
 | CH035 | 35 Chunking | M6, IMP-01/02 | COMPONENT_EVIDENCE: section/page/Thai/tablechunktests; parserintegrationallformatsremaining |
-| CH036 | 36 Importservice | IMP-01…04 | PARTIAL: authorizedUpload/URL→private encryptedjob/originalGREEN; locatedCSV/HTML components; parserexecution/analyze/edit/review/approve/publication/UI pending |
-| CH037 | 37 Analyzer | IMP-01/02 | PARTIAL: deterministic proposals/sensitivity/ambiguity/review gates pure tests GREEN; real parser/staging/edit/approve remaining |
+| CH036 | 36 Importservice | IMP-01…04 | PARTIAL: private original→supervised parser→encrypted located revision/preview/reason-bound edit/CAS and private UI PASS; review/version/publication/corpus/location→citations remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
+| CH037 | 37 Analyzer | IMP-01/02 | COMPONENT_PASS: deterministic proposals/sensitivity rerun after located parser and text/cell edits,11actualPG/private UI; trusted metadata/approval and real corpus remain |
 | CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PARTIAL: fixed candidates/uninstalled schema→RAG/noDDL/noautopublish GREEN; seven installed mappers/atomic BOTH remain |
 | CH039 | 39 Versionresolver | IMP-03 | PLANNED: replacement/additional/historical/conflict/races/history |
 | CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationshipschemaมี; base+activeamendmentretrieval/publicationUIpending |
 | CH041 | 41 Structuredmapper | STR-01/02 | PLANNED: fixedregistryall7 from§12 แม้ตัวอย่าง§41ละsystems |
-| CH042 | 42 Unknownstructured | IMP-01, STR-01 | PLANNED: fallbackRAG+explicitreview; noautomaticDDL |
-| CH043 | 43 PDFparser | IMP-01 | IN_PROGRESS: Luna max ownedPDF source/realfixtures; boundedchildcomponents passing separately; PDF acceptance/runtime/corpus pending; [parser evidence](../reports/IMP_PARSER_COMPONENT_REPORT.md) |
+| CH042 | 42 Unknownstructured | IMP-01, STR-01 | COMPONENT_PASS: analyzer preserves table/candidate but uninstalled schema→RAG/review flag/noDDL; registry/approval/BOTH remain |
+| CH043 | 43 PDFparser | IMP-01 | COMPONENT_PASS: scoped Luna max synthetic direct+supervisedPDF10tests and actualPG malformed-child FAILED retention; real Thai/fonts/OCR/corpus/production supervision remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | CH044 | 44 URLimport | IMP-01 | COMPONENT_GREEN: officialHTTPS/freshmixedDNS/pinnedTLSoptions/redirect/decompressedlimits/deadline/provenance/queryallowlist+scopedLunareview; actualwireTLS/livecorpus evidencepending |
-| CH045 | 45 Checksum | IMP-01/03 | PARTIAL: immutableSHA/dedup/concurrency/revision/originalretentionactualPGGREEN; approvedversion/edit/publicationreceipt pending |
-| CH046 | 46 KnowledgeDashboard | IMP-04 | PLANNED: family/current/history/version/scope/actions |
-| CH047 | 47 Importpage | IMP-01/02/04 | PLANNED: PDF/DOCX/XLSX/CSV/URL input, preview/sensitivewarnings |
-| CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: sameorigin/auth/adminboundedUpload/URL/list/detail/privateattachmentroutes+buildGREEN; privateStorageactualHTTP+PG accessGREEN; actualdashboardbrowser/parser/analyze/review/publication pending |
-| CH049 | 49 AnalyzeAPI | IMP-01/02 | PLANNED: revision/quality/proposals/fixedschema; noarbitraryproviderpublish |
+| CH045 | 45 Checksum | IMP-01/03 | PARTIAL: immutableSHA/dedup/concurrency and encrypted edit/history/byte-exact original retained in actualPG/browser; approved-version publication receipt remains |
+| CH046 | 46 KnowledgeDashboard | IMP-04 | PARTIAL: SUPER_ADMIN private import list/preview/edit UI and role/browser gates PASS; family/current/history/version/approval UI remains |
+| CH047 | 47 Importpage | IMP-01/02/04 | PARTIAL: all5format/URL input controls/private located preview/sensitive warnings/reason-bound page+cell edits/conflict comparison; actual HTML14browser groups PASS; complete format/corpus/approval acceptance remains |
+| CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: private staging/list/detail/original/analyze/preview/edit/sameorigin/auth/body/CAS, actualPG/Storage/browser/build PASS; review/approval/publication remains |
+| CH049 | 49 AnalyzeAPI | IMP-01/02 | COMPONENT_PASS: authorizedsupervisedparser/analysis→encryptedimmutable located preview/strictCAS/privateAPI,11actualPG/route6/actualprivateUI; versionresolver/structuredmapper/approval/corpus remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | CH050 | 50 ApproveAPI | IMP-03, STR-02 | PLANNED: actor/revision/familylocks/atomicversion+BOTHpublication |
 | CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |

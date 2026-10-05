@@ -6,7 +6,7 @@ export const ORIGINAL_BUCKET='knowledge-originals';
 const envelopeLimit=IMPORT_LIMITS.originalBytes+33,metadataLimit=64*1024;
 export interface OriginalStorage {
  upload(jobId:string,ref:OriginalRef,envelope:Uint8Array):Promise<void>;
- download(jobId:string,ref:OriginalRef):Promise<Uint8Array>;
+ download(jobId:string,ref:OriginalRef,signal?:AbortSignal):Promise<Uint8Array>;
 }
 export interface OriginalStorageConfig {url?:string;secretKey?:string;fetch?:typeof globalThis.fetch}
 const unavailable=():never=>{throw new Error('IMPORT_STORAGE_UNAVAILABLE');};
@@ -51,8 +51,9 @@ async function boundedResponse(response:Response,max:number,signal:AbortSignal):
   return new Response(bytes.length?bytes:null,{status:response.status,headers});
  }finally{if(!complete)void reader?.cancel().catch(()=>undefined);try{reader?.releaseLock();}catch{}}
 }
-async function operation<T>(config:ReturnType<typeof configuration>,path:string|null,max:number,work:(client:SupabaseClient)=>Promise<T>):Promise<T>{
+async function operation<T>(config:ReturnType<typeof configuration>,path:string|null,max:number,work:(client:SupabaseClient)=>Promise<T>,signal?:AbortSignal):Promise<T>{
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15_000);
+ const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
  const fetch:typeof globalThis.fetch=async(input,init)=>{
   const target=new URL(String(input)),method=init?.method??'GET';
   const isObject=path!==null&&target.pathname===`/storage/v1/object/${ORIGINAL_BUCKET}/${path}`&&['GET','POST'].includes(method);
@@ -65,7 +66,7 @@ async function operation<T>(config:ReturnType<typeof configuration>,path:string|
  try{
   const client=createClient(config.url,config.secretKey,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false},global:{fetch}});
   return await work(client);
- }catch{return unavailable();}finally{clearTimeout(timer);}
+ }catch{return unavailable();}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);controller.abort();}
 }
 function verifyBucket(bucket:unknown):void{
  const value=z.object({id:z.literal(ORIGINAL_BUCKET),name:z.literal(ORIGINAL_BUCKET),public:z.literal(false),
@@ -85,12 +86,12 @@ export function createOriginalStorage(options:OriginalStorageConfig={}):Original
     if(error)return unavailable();
    });
   },
-  async download(jobId,ref){
+  async download(jobId,ref,signal){
    const path=objectPath(jobId,ref);
    return operation(config,path,ref.byteLength+33,async client=>{
     await privateBucket(client);const {data,error}=await client.storage.from(ORIGINAL_BUCKET).download(path);
     if(error||!data||data.size!==ref.byteLength+33)return unavailable();return new Uint8Array(await data.arrayBuffer());
-   });
+   },signal);
   },
  };
 }
