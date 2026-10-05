@@ -75,7 +75,7 @@ Files: `AGENTS.md`, `docs/PROJECT_INDEX.md`, `docs/architecture/YRU_V1_DESIGN.md
 
 - [x] Reconcile latest human source with historical provider embedding assumptions in current authority documents; preserve reports as dated history.
 - [x] Run `pnpm typecheck`, `pnpm lint`, relevant/full single-worker tests including both LINE suites and optimized build; inspect results. Keep live generation disabled and document pending import/review/publication/business flows.
-- [ ] Record actual cache locations/offline evidence, changed files, DB/UI scope, commands, failures/review provenance, manual actions and old-cache cleanup decision. Review explicit staged files for credentials/weights/venv/originals before authorized commit/push; verify remote hash.
+- [x] Record actual cache locations/offline evidence, changed files, DB/UI scope, commands, failures/review provenance, manual actions and old-cache cleanup decision. Review explicit staged files for credentials/weights/venv/originals before authorized commit/push; verify remote hash. Source checkpoint `ac487de96588acce77939d17152a1afaada77a87` pushed; remote `ls-remote` matched exactly.
 
 ## Resumption gate
 

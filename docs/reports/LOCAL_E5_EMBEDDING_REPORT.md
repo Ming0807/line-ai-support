@@ -2,6 +2,8 @@
 
 Status: **Local automated/component acceptance PASS; full V1 and deployment remain incomplete.** This implements [human update](../requirements/sources/2026-10-05-local-e5-embedding.md), [EMB plan](../superpowers/plans/2026-10-05-yru-local-e5-embedding.md) and DEC-021/022. Root performed service/cache/backend/DB/UI/integration and self-review. No new independent Luna review is claimed: the PDF agent hit its usage limit; its unfinished Import verdict does not count as embedding review.
 
+Source checkpoint `ac487de96588acce77939d17152a1afaada77a87` was committed and pushed to `origin/feat/yru-helpdesk-v1`; noninteractive HTTPS push exited0 and remote `ls-remote` matched exactly. Explicit80-file stage passed credential scan, local documentation links, preserved-source SHA256 and whitespace checks with preserved CRLF originals accounted for. Model weights, `.venv`, `.env`, private corpus and staging outputs were excluded. Evidence includes the retained parser continuation; it is not a standalone parser/full-Import acceptance.
+
 ## Cache evidence
 
 - Detected source: `C:\Users\NOTEBOOK\.cache\huggingface\hub\models--intfloat--multilingual-e5-small`; no HF_HOME/HF_HUB_CACHE/ST override was set in the inspecting shell. Existing `/health` on8000 reported E5/384.
