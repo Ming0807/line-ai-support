@@ -22,7 +22,7 @@ Latest human instructions override earlier examples and implementation choices. 
 ## Scope and invariants
 
 - Follow LINE → Ticket → AI/RAG, then Import → Structured Data → Advanced → final Flow A–F verification. Current prerequisite work is listed in the task board.
-- Startup runtime generation AND embedding must use verified free services, primarily OpenCode Zen/OpenRouter. Default policy is FREE_ONLY; unknown pricing is not free. Paid services are a later explicit university choice through the UI, including paid fallback. Do not call paid inference during startup tests.
+- Startup generation uses verified free services, primarily OpenCode Zen/OpenRouter; FREE_ONLY blocks unknown/paid inference. Latest human update selects local CPU `intfloat/multilingual-e5-small` / 384 as default embedding infrastructure, outside normal Provider UI. Follow [embedding design](docs/architecture/EMBEDDING_SERVICE_DESIGN.md): offline existing cache, query/passage prefixes, normalized vectors, no automatic old-cache deletion or model download. Paid generation/fallback is a later explicit university UI choice.
 - Provider management includes Provider/Model ordering with up/down controls, per-model HTTP and quota observations and per-model test buttons. Follow [provider design](docs/architecture/AI_PROVIDER_DESIGN.md); a numeric priority field or provider-only health check does not complete this requirement.
 - Anonymous V1: no students/profile/grade/enrollment database. Protect technical LINE identities; staff access remains department and sensitivity scoped.
 - Preserve both working webhook routes: raw-body HMAC before JSON parsing, safe event handling and no secret/access/reply token logging.

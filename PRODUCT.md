@@ -28,7 +28,7 @@ Development ใช้ Next.js/Supabase และ HTTPS tunnel ไป LINE. Runti
 - Backend คุมสิทธิ์และ tools; AI ไม่มี arbitrary SQL/DDL และไม่ publish document เอง
 - เจ้าหน้าที่มี department/sensitivity scope; HUMAN ticket ห้าม AI ตอบเอง
 - Provider/Model ต้องเพิ่ม แก้ เปิด/ปิด จัดลำดับ ตรวจสถานะ และทดสอบจาก UI ได้
-- ไม่มี provider/model/embedding dimensions ที่ล็อกจากการเดา; ราคา/โควต้าที่ไม่มีหลักฐานต้องบอกว่ายังไม่ทราบ
+- Generation provider/model และราคา/โควต้าต้องมีหลักฐานจริง; latest human update selects local CPU E5/384 as embedding infrastructure outside normal Provider UI. See [embedding design](docs/architecture/EMBEDDING_SERVICE_DESIGN.md)
 - ข้อกำหนดในไฟล์นี้อธิบายเป้าหมาย ไม่รับรองว่าทุก capability ทำเสร็จแล้ว ดู [task board](docs/tasks/V1_TASK_BOARD.md)
 
 ## Brand Commitments

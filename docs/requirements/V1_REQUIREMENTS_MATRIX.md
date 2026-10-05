@@ -51,7 +51,7 @@
 | CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationshipschemaมี; base+activeamendmentretrieval/publicationUIpending |
 | CH041 | 41 Structuredmapper | STR-01/02 | PLANNED: fixedregistryall7 from§12 แม้ตัวอย่าง§41ละsystems |
 | CH042 | 42 Unknownstructured | IMP-01, STR-01 | PLANNED: fallbackRAG+explicitreview; noautomaticDDL |
-| CH043 | 43 PDFparser | IMP-01 | PLANNED: boundedparser/pages/sections/lowqualityPENDING_REVIEW |
+| CH043 | 43 PDFparser | IMP-01 | IN_PROGRESS: Luna max ownedPDF source/realfixtures; boundedchildcomponents passing separately; PDF acceptance/runtime/corpus pending; [parser evidence](../reports/IMP_PARSER_COMPONENT_REPORT.md) |
 | CH044 | 44 URLimport | IMP-01 | COMPONENT_GREEN: officialHTTPS/freshmixedDNS/pinnedTLSoptions/redirect/decompressedlimits/deadline/provenance/queryallowlist+scopedLunareview; actualwireTLS/livecorpus evidencepending |
 | CH045 | 45 Checksum | IMP-01/03 | PARTIAL: immutableSHA/dedup/concurrency/revision/originalretentionactualPGGREEN; approvedversion/edit/publicationreceipt pending |
 | CH046 | 46 KnowledgeDashboard | IMP-04 | PLANNED: family/current/history/version/scope/actions |
@@ -96,7 +96,8 @@
 | USR-UX | ล่าสุด: productminimal, scanablemodelrows/progressivesettings/consistency/desktopmobilekeyboard QA ใช้skillimpeccable | PRV-03/04 PARTIAL: actual desktop/mobile/zoom/keyboard screenshot QA+detector GREEN ดู[report](../reports/PRV_OBSERVATIONS_COMPONENT_REPORT.md) |
 | USR-UI | ภาพรวม§32: addprovider/model/baseURL/key/enable/priorityผ่านUIโดยไม่แก้codeทุกinstance | PRV-02/03 AUTOMATED_COMPLETE: compatible instance configured through UI/PG/public-DNS-pinned TLS, FREE_ONLY UNKNOWN blocks; new protocol still needs code |
 | USR-DOC | ล่าสุด: อ่านสเปคจริงและจัด `.md` ก่อนcode; sourceprecedence/design/tasks/evidence/agentsต้องชัด | DOC-01 COMPLETE; planninggateไม่ใช่appacceptance |
-| USR-IMPORT5 | master§0(17): PDF/DOCX/XLSX/CSV/URL ทั้งหมด ไม่จบที่PDF+HTMLslice | IMP-01/02 PARTIAL: all-format source/contracts + locatedCSV/HTML/report/query/acquisition/staging/privateStorage/accesscomponentsGREEN; ZIP23focused/rootreviewpending; PDF/DOCX/XLSX/child/locations→citations/review/publication/UI remain |
+| USR-EMB-LOCAL | [5 October source](sources/2026-10-05-local-e5-embedding.md): existing cache→D: offline E5 CPU/384/query+passage/normalized; private configurable FastAPI/server client/pgvector; generation UI/read-only health; real Thai/English/passage/regression | EMB-01…05 COMPONENT_PASS; [report](../reports/LOCAL_E5_EMBEDDING_REPORT.md): D-only0network/real384HTTP/typedPG/6browser/1197unit/112integration/22replay/RLS/advisors/type/lint/build. No registry model needed; full import/RAG/V1/production remains pending |
+| USR-IMPORT5 | master§0(17): PDF/DOCX/XLSX/CSV/URL ทั้งหมด ไม่จบที่PDF+HTMLslice | IMP-01/02 PARTIAL: acceptedacquisition/staging/privateStorage; ZIP23/rootselfreview, XML16/package26/XLSX30 and nativechild8/4formatdispatch3 focused PASS. DOCX/PDF team source/review/allformat gates active; extractionstaging/locations→citations/review/publication/UI remain; [parser evidence](../reports/IMP_PARSER_COMPONENT_REPORT.md) |
 | USR-AMENDS | versioning§16 + master§40: base+allactiveamendments; additional≠replace | IMP-03 PARTIALschemaonly |
 | USR-WEB | ภาพรวม§27: universityDB→RAG→officialsite→Internet; noforeignuniversityrules/noarbitrarycrawl | ADV-05 PLANNED; exacttoolscopeplanก่อนcode |
 | USR-RICHMENU | ภาพรวม§20เป็น source proposal: primaryLINEentry/menu แยกcontextquickreply; V1 inclusion ยังต้อง decision | ADV-05: OPTIONAL / UNDECIDED ไม่ถือเป็นconfirmedmandatoryrequirement |

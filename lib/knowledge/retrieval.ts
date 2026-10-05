@@ -2,6 +2,7 @@ import type {PoolClient} from 'pg';
 import {z} from 'zod';
 import {isValidKnowledgeDate} from './metadata-filter';
 import type {KnowledgeEvidence,KnowledgeScope} from './types';
+import {LOCAL_EMBEDDING_FINGERPRINT} from './embedding-space';
 
 const nullableCode=z.string().min(1).max(80).nullable();
 const nullableYear=z.number().int().min(2400).max(3000).nullable();
@@ -22,6 +23,11 @@ export async function searchKnowledge(
  const parsed=requestSchema.safeParse(input);
  if(!parsed.success||(today!==undefined&&!isValidKnowledgeDate(today)))throw new Error('KNOWLEDGE_SCOPE_INVALID');
  const {scope:s,vector,fingerprint,threshold,limit}=parsed.data;
+ const localE5=fingerprint===LOCAL_EMBEDDING_FINGERPRINT;
+ if(localE5&&vector.length!==384)throw new Error('KNOWLEDGE_SCOPE_INVALID');
+ // Fixed source-owned identifiers only; never a caller-provided column or SQL fragment.
+ const embeddingColumn=localE5?'embedding_e5':'embedding';
+ const queryVectorType=localE5?'extensions.vector(384)':'extensions.vector';
  // This is a caller-owned transaction. A pg callback timeout alone does not cancel SQL.
  await client.query(`select set_config('statement_timeout',case when current_setting('statement_timeout')='0' then '4000'
   else least(4000,(extract(epoch from current_setting('statement_timeout')::interval)*1000)::integer)::text end,true)`);
@@ -48,13 +54,13 @@ export async function searchKnowledge(
   select exists(select 1 from eligible_documents where $9::boolean and $12::date is null
    group by document_family_id,version_stream having count(*)>1) as ambiguous
  ), eligible_chunks as materialized (
-  select c.id as chunk_id,c.page_number,c.section_title,c.content,c.embedding,d.id as document_id,d.revision as document_revision,
+  select c.id as chunk_id,c.page_number,c.section_title,c.content,c.${embeddingColumn} as embedding,d.id as document_id,d.revision as document_revision,
    d.title,d.family_code,d.academic_year,d.authority_level,coalesce(d.source_url,d.source_page_url) as source_url
   from eligible_documents d join public.knowledge_chunks c on c.document_id=d.id
   where (not $9::boolean or $12::date is null or d.version_rank=1) and not c.requires_review
-   and c.embedding is not null and c.embedding_fingerprint=$13 and c.embedding_dimensions=$14
+   and c.${embeddingColumn} is not null and c.embedding_fingerprint=$13 and c.embedding_dimensions=$14
  ), ranked as (
-  select *,1-(embedding operator(extensions.<=>) $15::extensions.vector) as similarity from eligible_chunks
+  select *,1-(embedding operator(extensions.<=>) $15::${queryVectorType}) as similarity from eligible_chunks
  ), matches as (select chunk_id as "chunkId",document_id as "documentId",document_revision as "documentRevision",title,family_code as "familyCode",
   academic_year as "academicYear",authority_level as "authorityLevel",page_number as "pageNumber",section_title as "sectionTitle",content,
   source_url as "sourceUrl",similarity from ranked where similarity >= $16

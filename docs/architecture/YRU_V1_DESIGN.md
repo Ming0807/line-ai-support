@@ -4,7 +4,9 @@
 
 ## System boundaries
 
-Student OA เป็นช่องทางถาม/ตอบ anonymous; Staff OA เป็น alert/bind/action/เปิด Dashboard ไม่เป็น LINE ส่วนตัวที่คุยกับนักศึกษา. Staff Dashboard ใช้ Supabase Auth; backend ตรวจ department/sensitivity/active role ก่อนอ่านหรือเปลี่ยนงาน. Supabase PostgreSQL/Auth/pgvector เป็น data layer; Storage/import acquisition เพิ่มใน M7. Gateway คุม runtime generation/embedding ตาม FREE_ONLY และ priority; university เพิ่ม paid option ผ่าน UI ภายหลัง
+5 October human update: default embeddings are local CPU `intfloat/multilingual-e5-small` / 384, through private FastAPI called only by Next.js backend. [Embedding design](EMBEDDING_SERVICE_DESIGN.md) owns cache/offline/prefix/configuration/typed-vector contracts. Normal Provider UI configures generation/reasoning; embedding health is read-only. Historical external adapters are compatibility code. Generation remains FREE_ONLY; foundation/import/publication/full-flow acceptance stays explicit.
+
+Student OA เป็นช่องทางถาม/ตอบ anonymous; Staff OA เป็น alert/bind/action/เปิด Dashboard ไม่เป็น LINE ส่วนตัวที่คุยกับนักศึกษา. Staff Dashboard ใช้ Supabase Auth; backend ตรวจ department/sensitivity/active role ก่อนอ่านหรือเปลี่ยนงาน. Supabase PostgreSQL/Auth/pgvector เป็น data layer; Storage/import acquisition เพิ่มใน M7. Gateway คุม runtime generation ตาม FREE_ONLY และ priority; embeddingsใช้local E5 infrastructure. University เพิ่ม paid generation option ผ่าน UI ภายหลัง
 
 ```mermaid
 flowchart TD
@@ -83,7 +85,7 @@ Schema ยังมี NEW/AI_HANDLING/CANCELLED แต่ service ไม่อ�
 
 ## AI Provider
 
-Contract รายละเอียดอยู่ใน [AI provider design](AI_PROVIDER_DESIGN.md). Default FREE_ONLY ครอบคลุม generation/embedding/test และ deterministic bounded fallback. Provider/Model ordering, HTTP observation, quota scope และ selected-model probe เป็น requirement ของ UI ไม่ลดเหลือ server priority field/one health badge
+Contract รายละเอียดอยู่ใน [AI provider design](AI_PROVIDER_DESIGN.md). Default FREE_ONLY ครอบคลุม generation/test และ deterministic bounded fallback; embeddingsใช้local E5 infrastructure. Provider/Model ordering, HTTP observation, quota scope และ selected-model probe เป็น requirement ของ generation UI ไม่ลดเหลือ server priority field/one health badge
 
 PRV-01…05 automated prerequisiteผ่าน [provider acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md): verified free Zen/OpenRouter/order/status/probes/cooldown/compatible configuration. Live free quality/account evidenceยังpending; M7เดินต่อหลัง gatesจริง ไม่เปลี่ยนลำดับmasterเพื่อเลี่ยงgap
 

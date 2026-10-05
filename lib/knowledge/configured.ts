@@ -1,22 +1,22 @@
 import type {Pool} from 'pg';
 import {generate} from '../ai/gateway';
-import {embed} from '../ai/embedding-gateway';
+import {createLocalE5EmbeddingProvider,embedLocalConfigured} from './embedding-client';
 import {createAIStore} from '../ai/store';
-import {createProviderRegistry,createEmbeddingProviderRegistry} from '../ai/provider-registry';
+import {createProviderRegistry} from '../ai/provider-registry';
 import {createPriceReader} from '../ai/pricing';
 import {createKnowledgeToolRegistry} from '../ai/backend-tools';
 import type {AIWorkerOptions} from '../ai/run-worker';
 import {createKnowledgeProducer} from './answer-producer';
 import {citationEvidenceSchema} from './citations';
 
-/** Provider/model settings come from the dashboard registry, never bootstrap env aliases. */
+/** Generation uses the dashboard registry; V1 embeddings use private local infrastructure. */
 export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{fetchImpl?:typeof fetch}={}):AIWorkerOptions['produce']{
  const store=createAIStore(pool);
- const generation=createProviderRegistry(options),embedding=createEmbeddingProviderRegistry(options);
+ const generation=createProviderRegistry(options),embedding=createLocalE5EmbeddingProvider(options);
  const priceReader=createPriceReader(options);
  return (snapshot,signal)=>createKnowledgeProducer({
   generate:input=>generate(input,{store,key,adapters:generation,priceReader}),
-  embed:input=>embed(input,{store,key,adapters:embedding,priceReader}),
+  embed:input=>embedLocalConfigured(input,embedding),
   search:async input=>{
    const registry=createKnowledgeToolRegistry(pool,{vector:input.vector,fingerprint:input.fingerprint});
    const result=await registry.execute({name:'search_knowledge',arguments:{query:snapshot.question,scope:input.scope}},

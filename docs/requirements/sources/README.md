@@ -14,6 +14,8 @@ Attachment 5ff2544c-93d9-4591-a798-9fac1cb9196e มี hash ตรงกับ�
 
 ## จุดอ้างอิงที่ห้ามหลง
 
+Latest 5 October human architecture update: [local E5 specification](2026-10-05-local-e5-embedding.md), attachment `dd6e03c6-fcf7-40db-b544-eb382014a0e4`, SHA-256 `F2936E3049D13A1AA4B1208237BE810982A6BB7715032E76E72FCDB48C4AEFF4`. Preserved byte-for-byte. CPU E5/384 infrastructure replaces normal embedding model selection; free generation/import review requirements remain.
+
 - ภาพรวม §§32–36: Zen/OpenRouter/Provider X, เพิ่ม provider ผ่าน Dashboard, priority ของ provider และ model, deterministic fallback, health และ usage/errors
 - ภาพรวม §22 และคำยืนยันล่าสุด: ประหยัด free quota; startup ใช้ AI ฟรีทั้งหมด Paid Emergency เป็นตัวอย่างในอดีต ไม่ใช่ค่า default ที่อนุมัติแล้ว
 - ภาพรวม §§17–18: หลาย conversation/ticket และ quick reply เมื่อแยกบริบทไม่ชัด

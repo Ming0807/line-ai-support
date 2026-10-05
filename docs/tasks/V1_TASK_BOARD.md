@@ -11,8 +11,8 @@
 | M3 Durable LINE | 1 | AUTOMATED_COMPLETE | [LINE report](../reports/M3_DURABLE_LINE_REPORT.md), signed HTTP/PG/dedup; live durable final flow pending |
 | M4 Ticket Core | 2 | AUTOMATED_COMPLETE | [Ticket report](../reports/M4_TICKET_CORE_REPORT.md), lifecycle/takeover/outbox/browser/PG; full real OA ticket flow pending |
 | M5 AI Gateway | 3 | AUTOMATED_ACCEPTANCE / MANUAL_PENDING | [Provider acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md): free gateway/order/status/quota/probes/cooldown/compatible UI automated gates GREEN; live free account/Thai quality pending |
-| M6 RAG | 4 | PARTIAL / REOPENED | [Component evidence](../reports/M6_RAG_REPORT.md): controlled RAG/worker/citation/current/history ผ่าน; free provider + real import/live evidence ยังขาด |
-| M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Acquisition/staging checkpoint](../reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md): source/CSV/HTML/official URL/public-query/private encrypted Storage/DB staging/API components GREEN. Latest1065unit/110integration/type/lint/21replay/RLS/advisors PASS; finalbuild PASS. ZIP23tests + root contract review; independent ZIP reviewer usage limited. PDF/DOCX/XLSX/child/extraction/edit/review/publication/UI/locations→citations/allformats remain |
+| M6 RAG | 4 | PARTIAL / REOPENED | [RAG component evidence](../reports/M6_RAG_REPORT.md) + [local E5 foundation](../reports/LOCAL_E5_EMBEDDING_REPORT.md): controlled RAG/worker/citation/current/history and CPU384 backend/DB/UI ผ่าน; approved-corpus indexing/live free generation/full flow ยังขาด |
+| M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Acquisition/staging checkpoint](../reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md) + [parser checkpoint](../reports/IMP_PARSER_COMPONENT_REPORT.md): private Storage/staging/URL and bounded parser components PASS. Latest combined1197unit/112integration/type/lint/build/22replay/RLS/advisors PASS. All5-format supervised runtime/real corpus/extraction/edit/review/publication/UI/locations→citations remain; independent PDF verdict unavailable |
 | M8 Structured Data | 6 | PLANNED | 7 fixed datasets; ต้องแตก execution plan และเชื่อม approve/version/search |
 | M9 Advanced / Staff / Analytics | 7 | PLANNED / PARTIAL | scoped notification component มีใน M4; binding/incidents/loading/web/complete dashboard ยังไม่ครบ |
 | FINAL V1 | §69 | PENDING | Flow A–F และ deployment/manual report ยังไม่ผ่านครบ |
@@ -20,6 +20,16 @@
 User ยืนยัน LINE → Ticket → AI/RAG; M1–M9 เป็นการแยก phase เพื่อจับ gate ละเอียดขึ้น ไม่ใช่ลำดับใหม่ที่ข้าม guide. ไม่รายงาน “ทำ 6/9 = 67%” เพราะ M5/M6 reopened และ task มีน้ำหนักต่างกัน
 
 ## Current prerequisite: docs และ provider correction
+
+Latest human update5October: **EMB-01…05 local E5 foundation COMPONENT_PASS**, [report](../reports/LOCAL_E5_EMBEDDING_REPORT.md), [plan](../superpowers/plans/2026-10-05-yru-local-e5-embedding.md), [design](../architecture/EMBEDDING_SERVICE_DESIGN.md), USR-EMB-LOCAL. Root owns cache/service/client/DB/UI/integration. D-only offline load/no-download/Thai+English+passages384/actualHTTP/private status UI PASS; C:retained. Combined1197unit/112integration/22replay/RLS/advisors0/type/lint/build PASS. Full V1 and approved-corpus/livegeneration remain pending; `YRU_AI_ENABLED=false`. Next active implementation returns to M7 extraction preview/review/version/publication. PDF builder hit usage limit before a final independent verdict; no unavailable review is claimed.
+
+| ID | Scope / dependencies | Actual owner | Current evidence |
+|---|---|---|---|
+| EMB-01 | existing cache→D:; offline CPU FastAPI; goals1–3/8 | root |19hash-matchedfiles, D-only model load with0networkattempts, real384health/query/passages,11service units PASS; C:retained |
+| EMB-02 | internal provider/backend/default RAG/preparation; goals4–5/7–8 | root |Zod identity/dimension/norm,deadline/cancel/boundedHTTP/controlled errors/default composition/draft locations PASS; no registry entry required |
+| EMB-03 | additive vector384 projection/retrieval; goal6 | root DB/integration/self-review |local+DEVELOPMENT22migrations, DEV33RLS tables/9departments/actualrolefixtures and generatedvector384 verified; local11knowledgechecks/replay/advisors PASS; no production apply |
+| EMB-04 | generation-only normal UI/read-only health; goal4 | root + frontend/impeccable |actual6browser desktop/mobile/keyboard/backend-status/no direct8000checks and screenshots PASS; generation order/status/test controls retained |
+| EMB-05 | requirements/decisions/setup/report/regression | root |source archived/hash,docs updated,1197unit/112integration/type/lint/build PASS; production/manualfullV1 pending |
 
 | ID | Scope / requirements | Owner | สถานะ | Depends on | Acceptance / evidence |
 |---|---|---|---|---|---|
@@ -42,7 +52,7 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 | ID | งาน | Owner / planned difficulty | สถานะ / dependency | Acceptance ที่ต้องมี |
 |---|---|---|---|---|
 | IMP-01 | Upload PDF/URL/HTML, private originals/storage/access, checksum, quality/sensitivity/analyze/preview | root + Luna max HTML/URL review + Luna high Storage review | PARTIAL: source/HTML/URL/query/envelopes/privateStorage/staging/API GREEN; actual localAuth/StorageHTTP and PG prove access/recovery | PDF/child/extraction/review/publication/UI/sourcecitations remain; DEV/productionStorage/manualcorpus unverified; CH036–038/043–049/061 |
-| IMP-02 | DOCX/XLSX/CSV parsing + safe files + preview | root CSV/integration + Luna max ZIP | PARTIAL: CSV/location/report GREEN; ZIP23tests/rootselfreview GREEN, independent reviewer failed limit | DOCX/XLSX semantics/XML/child stillpending; all5formats required, no automatic schema |
+| IMP-02 | DOCX/XLSX/CSV parsing + safe files + preview | root CSV/XLSX/package/child/integration + actual Luna max ZIP/DOCX/PDF builder/scoped reviews | PARTIAL: XML16/package26/XLSX30/DOCX18 focused; child independent review14PASS; parsers included in1197unit/type/lint/build PASS | supervisedall5/realPDFcorpus/extractionpreview/review/publication/citations pending; PDF final independent verdict unavailable; [parser evidence](../reports/IMP_PARSER_COMPONENT_REPORT.md) |
 | IMP-03 | family/version conflict, replace/additional/historical/AMENDS, atomic approval + publication fences | root | HELD หลัง IMP-01/02 | base+active amendments retrieval, stale revision/concurrency rollback, current uniqueness/history/source citations; CH039/040/045/050 |
 | IMP-04 | knowledge list/detail/version/import UI + real shortlist review workflow | Luna high UI + root acceptance | HELD หลัง IMP-01…03 | version flags/compare/warnings/edit/approve, role/privacy/desktop/mobile, downloaded corpusไม่ autoapproved; CH046/047/064 |
 | STR-01 | migration + registry + mappers สำหรับ 7 fixed datasets | root + Luna max mapping | PLANNED หลัง IMP contracts | all7 datasets/version/applicability/authority, unknownRAG/noDDL, noyear tables; CH012/041/042 |
@@ -67,7 +77,7 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 
 ## Test/evidence snapshot
 
-Latest5October Import continuation:1065/1065unit across63files,110integration(85+7+11+6+1actualAuth/StorageHTTP), foundationRLS,21isolatedreplay/advisors0/type/lint PASS. Final current build PASS. URLquery follow-up closed; Storage scoped independent review PASS; ZIP rootselfreview PASS, independent review unavailable at usage limit. Local21 vs DEV19; no corpus/paid/liveOA/production claim. Older checkpoints below are dated history.
+Latest5October combined E5/parser checkpoint:1197/1197unit across75files,112integration(85core+7provider+2E5+11staging+6Storage+1actualAuth/StorageHTTP), foundationRLS,22isolatedreplay/advisors0/type/lint/build PASS. Local+DEVELOPMENT22migrations; DEV33RLS tables/9departments/actualrolefixtures/generatedvector384 verified. Service11units/offlineD-only/realHTTP and6browserchecks PASS. No corpus/paid/livegeneration/liveOA/production claim. Older checkpoints below are dated history.
 
 
 5 ตุลาคม Import combined checkpoint before latest URL query-policy change: separated `pnpm test --maxWorkers=1` **1,033/1,033 across 60 files**; actual PostgreSQL **103/103** (85 existing + 7 provider + 11 import staging) and foundation RLS; isolated local replay **20 migrations**; local advisors **0 warning/error issues**; typecheck/lint **0 errors, 0 warnings**; optimized build PASS with four Import routes and both LINE webhook routes compiled. An earlier full-suite attempt concurrent with build timed out one existing auth-bootstrap ACL test after 1,032 passed; isolated auth-bootstrap rerun was 6/6 and the separated single-worker full run passed without timeout changes or test weakening. Root then added a restricted public-query allowlist; the latest source/query/acquisition/provenance/write focused set passed 48 tests. The independent URL-review follow-up and full-suite rerun after the policy change are pending. These checks do not accept M7 end to end. DEVELOPMENT remains at 19 migrations; no current server/tunnel, live free-model quality, corpus/OA or production acceptance is claimed. [Import checkpoint report](../reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md). The previous provider checkpoint remains separately documented at [PRV acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md).
@@ -78,6 +88,8 @@ Latest5October Import continuation:1065/1065unit across63files,110integration(85
 - Corpus: 187resources, 15shortlist pending, 5externalsourcewarnings; OCR/metadata/cohort reviewยังไม่เสร็จทั้งหมด
 
 ## Next action และ handoff
+
+Latest parser continuation5October: IMP-02C XML16/package26/XLSX30/DOCX18focused PASS; root nativechild8+actual4format dispatch3 and child scoped independent review14PASS. Actual Luna max package/XLSX reviews closed behavioral regressions; DOCX builder report was received. PDF builder hit usage limit before its final report; root repaired warning-map typing and PDF tests pass in the1197unit/fulltype/lint/build checkpoint. Root owns contracts/process/DB/integration. All5-format supervised runtime/real corpus and M7 extraction/review/publication remain pending. See [parser component report](../reports/IMP_PARSER_COMPONENT_REPORT.md). No unavailable PDF review is claimed.
 
 DOC-01 และ PRV automated prerequisitesผ่านแล้ว. Root continues IMP-01/02: PDF/Office XML semantics and bounded child, extraction/edit/review/publication/UI/citations. Private Storage automated local gates and URL-query independent review passed; DEV/production Storage remains separate. M8 fixed seven-dataset schemas and M9/fullFlowA–F still required. Live free model/quality/corpus/OA MANUAL_PENDING; full V1 active/incomplete.
 

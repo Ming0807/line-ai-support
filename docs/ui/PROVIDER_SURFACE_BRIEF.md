@@ -9,7 +9,7 @@ Super Admin ต้องเลือก AI ที่ใช้ได้จริ�
 ## โครงหน้า
 
 1. หัวหน้า “ผู้ให้บริการ AI” กับ action “เพิ่มผู้ให้บริการ”; policy “ใช้เฉพาะโมเดลฟรี” เห็นได้แต่ไม่เป็น banner ใหญ่
-2. Tabs “สร้างคำตอบ” / “Embedding”: **Model order แยกตาม purpose; Provider order เป็น global ร่วมกัน** เพื่อไม่เอาลำดับ Model คนละ purpose มาปน
+2. Latest human update5October: normal page shows generation/reasoning only; no Embedding tab/purpose/dimension controls. Read-only Embedding Service shows E5/384/Local/observed health/time, no endpoint/cache/key. Internal legacy purpose-aware ordering remains; no normal embedding registry entry required
 3. Provider group มีชื่อ เปิด/ปิด, quota ที่แชร์, ปุ่มขึ้น/ลงและ “ตั้งค่า”; base URL/key/config ยาวอยู่ในรายละเอียด
 4. Model rows: ชื่อ/ID → free/paid/unknown → HTTP/status/เวลาตรวจ → quota พร้อม scope → ขึ้น/ลง → “ทดสอบ” → เมนูแก้ไข
 5. “ลำดับที่ระบบจะใช้” แสดง candidate order จริงและเหตุที่ excluded; form เพิ่ม/แก้เปิดเฉพาะเมื่อใช้งาน
@@ -21,7 +21,8 @@ Concept ตัวอย่างด้านล่างเป็น fixture ข
 ```text
 ผู้ให้บริการ AI                         [เพิ่มผู้ให้บริการ]
 ใช้เฉพาะโมเดลฟรี
-[สร้างคำตอบ] [Embedding]
+[Embedding Service: E5 / 384 / Local / observed health — read only]
+[ผู้ให้บริการและ Models สำหรับสร้างคำตอบ]
 
 OpenCode Zen                       [ขึ้น] [ลง] [ตั้งค่า]
 ลำดับ 1 · โควต้า: ยังไม่ทราบ

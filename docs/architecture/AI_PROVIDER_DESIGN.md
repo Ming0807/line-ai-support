@@ -1,5 +1,7 @@
 # AI Provider / Model — Design และ acceptance
 
+Latest human update 5 October: normal UI manages GENERATION/reasoning only. Local CPU E5/384 is default embedding infrastructure; no normal embedding selection/dimension field or fallback is required. See [embedding design](EMBEDDING_SERVICE_DESIGN.md), DEC-021/022 and EMB plan. Internal external adapters/legacy registry rows remain for future compatibility. All older descriptions below of embedding UI/registry/preview describe retained internal or historical capabilities, not V1 default setup; generation up/down/per-model status/quota/test requirements remain unchanged.
+
 สถานะ 5 ตุลาคม 2026: **Provider automated prerequisites passed; live free evidence pending**. [Acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md) แยก root gates/scoped Luna reviews/live gaps. อ่าน [ต้นฉบับ](../requirements/sources/original-overview.th.md) §§32–36, master §§14–15,29–31 และ [decision log](../decisions/DECISION_LOG.md) ร่วมกัน
 
 ## สิ่งที่มีอยู่จริงและ gap

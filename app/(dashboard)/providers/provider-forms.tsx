@@ -268,9 +268,7 @@ function ProviderSettings({ provider, api, choices }: { provider: ProviderView; 
   </form>;
 }
 
-function ModelForm({ provider, model, api, initialPurpose = 'GENERATION' }: { provider: ProviderView; model?: ModelView; api: ApiController; initialPurpose?: ModelPurpose }) {
-  const [purpose, setPurpose] = useState<ModelPurpose>(model?.purpose ?? initialPurpose);
-  const [dimensions, setDimensions] = useState(model?.embeddingDimensions?.toString() ?? '');
+function ModelForm({ provider, model, api }: { provider: ProviderView; model?: ModelView; api: ApiController }) {
   const [tools, setTools] = useState(model?.supportsTools ?? false);
   const [json, setJson] = useState(model?.supportsJson ?? false);
   const [vision, setVision] = useState(model?.supportsVision ?? false);
@@ -282,29 +280,24 @@ function ModelForm({ provider, model, api, initialPurpose = 'GENERATION' }: { pr
     if (model) await api.send(`/api/providers/${encodeURIComponent(provider.id)}/models/${encodeURIComponent(model.id)}`, 'PATCH', { ...values, revision: model.revision }, 'บันทึก Model แล้ว', key);
     else {
       const result = await api.send(`/api/providers/${encodeURIComponent(provider.id)}/models`, 'POST', values, 'เพิ่ม Model แล้ว', key);
-      if (result) { element.reset(); setPurpose(initialPurpose); setDimensions(''); setTools(false); setJson(false); setVision(false); }
+      if (result) { element.reset(); setTools(false); setJson(false); setVision(false); }
     }
   }
   const prefix = `${provider.id}-${model?.id ?? 'new-model'}`;
-  const embedding = purpose === 'EMBEDDING';
   return <form className="provider-form model-form" onSubmit={submit}>
+    <input type="hidden" name="purpose" value="GENERATION" />
     <div className="provider-fields provider-fields-model">
       <Field id={`${prefix}-model-id`} label="Model ID ใน API"><input id={`${prefix}-model-id`} name="modelId" defaultValue={model?.modelId ?? ''} maxLength={200} required placeholder="เช่น รุ่นที่ผู้ให้บริการระบุ" /></Field>
       <Field id={`${prefix}-display-name`} label="ชื่อที่แสดง"><input id={`${prefix}-display-name`} name="displayName" defaultValue={model?.displayName ?? ''} maxLength={100} required /></Field>
-      <Field id={`${prefix}-purpose`} label="ประเภทการใช้งาน"><select id={`${prefix}-purpose`} name="purpose" value={purpose} onChange={event => {
-        const next = event.target.value as ModelPurpose; setPurpose(next); setDimensions('');
-        if (next === 'EMBEDDING') { setTools(false); setJson(false); setVision(false); }
-      }}><option value="GENERATION">สร้างคำตอบ</option><option value="EMBEDDING">Embedding</option></select></Field>
-      {embedding && <Field id={`${prefix}-dimensions`} label="Embedding dimensions" hint="ระบุตามเอกสารของรุ่น Model"><input id={`${prefix}-dimensions`} name="embeddingDimensions" type="number" min={1} max={4096} step={1} value={dimensions} onChange={event => setDimensions(event.target.value)} required /></Field>}
       <NumberField id={`${prefix}-priority`} label="ลำดับเดิม" name="priority" defaultValue={model?.priority ?? 100} min={0} max={1000} hint="ใช้ปุ่มขึ้น/ลงในรายการ" />
       <NumberField id={`${prefix}-timeout`} label="หมดเวลาตอบสนอง (ms)" name="timeoutMs" defaultValue={model?.timeoutMs ?? 15000} min={1000} max={45000} step={1000} />
       <NumberField id={`${prefix}-input-price`} label="ราคา Input / 1M tokens (USD)" name="inputPricePerMillion" defaultValue={model?.inputPricePerMillion ?? undefined} min={0} max={10000} step="any" required={false} />
       <NumberField id={`${prefix}-output-price`} label="ราคา Output / 1M tokens (USD)" name="outputPricePerMillion" defaultValue={model?.outputPricePerMillion ?? undefined} min={0} max={10000} step="any" required={false} />
     </div>
     <div className="provider-checks">
-      <CheckField id={`${prefix}-tools`} name="supportsTools" label="รองรับ Tools" checked={tools} disabled={embedding} onChange={event => setTools(event.target.checked)} />
-      <CheckField id={`${prefix}-json`} name="supportsJson" label="รองรับ JSON mode" checked={json} disabled={embedding} onChange={event => setJson(event.target.checked)} />
-      <CheckField id={`${prefix}-vision`} name="supportsVision" label="รองรับภาพ" checked={vision} disabled={embedding} onChange={event => setVision(event.target.checked)} />
+      <CheckField id={`${prefix}-tools`} name="supportsTools" label="รองรับ Tools" checked={tools} onChange={event => setTools(event.target.checked)} />
+      <CheckField id={`${prefix}-json`} name="supportsJson" label="รองรับ JSON mode" checked={json} onChange={event => setJson(event.target.checked)} />
+      <CheckField id={`${prefix}-vision`} name="supportsVision" label="รองรับภาพ" checked={vision} onChange={event => setVision(event.target.checked)} />
       <CheckField id={`${prefix}-enabled`} name="enabled" label="เปิดใช้งาน Model" defaultChecked={model?.enabled ?? true} />
     </div>
     <button className="provider-button provider-button-secondary" type="submit" disabled={api.pending(key)}>{api.pending(key) ? 'กำลังบันทึก…' : model ? 'บันทึก Model' : 'เพิ่ม Model'}</button>
@@ -415,7 +408,7 @@ function ProviderGroup({ provider, purpose, choices }: { provider: ProviderView;
       <div className="provider-section-heading"><div><h3>Models สำหรับ{purpose === 'GENERATION' ? 'สร้างคำตอบ' : ' Embedding'}</h3><p>{modelCount} รายการ · ลำดับแยกตามประเภทการใช้งาน</p></div></div>
       {modelCount === 0 ? <div className="provider-empty-models"><h3>ยังไม่มี Model ในกลุ่มนี้</h3><p>เพิ่ม Model นี้เมื่อมีรหัสและความสามารถจากผู้ให้บริการ</p></div>
         : <div className="provider-model-list"><ModelPurposeList provider={provider} purpose={purpose} api={api} /></div>}
-      <details className="provider-add-model"><summary>เพิ่ม Model</summary><ModelForm key={`${provider.id}:new:${purpose}`} provider={provider} api={api} initialPurpose={purpose} /></details>
+      <details className="provider-add-model"><summary>เพิ่ม Model</summary><ModelForm key={`${provider.id}:new:${purpose}`} provider={provider} api={api} /></details>
     </section>
   </section>;
 }
@@ -458,7 +451,7 @@ function FallbackPreview({ providers, purpose }: { providers: ProviderView[]; pu
 }
 
 export default function ProviderForms({ providers, choices, loadError = false }: { providers: ProviderView[]; choices: ProviderChoice[]; loadError?: boolean }) {
-  const [purpose, setPurpose] = useState<ModelPurpose>('GENERATION');
+  const purpose:ModelPurpose = 'GENERATION';
   const api = useApiController();
   const router = useRouter();
   const globalRows = providers.slice().sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
@@ -468,17 +461,9 @@ export default function ProviderForms({ providers, choices, loadError = false }:
     {loadError ? <section className="provider-empty provider-load-error" role="alert"><h2>โหลดรายการผู้ให้บริการไม่สำเร็จ</h2><p>รายการยังไม่พร้อมแสดง กรุณาลองโหลดอีกครั้ง</p><button className="provider-button provider-button-secondary" type="button" onClick={() => router.refresh()}>ลองอีกครั้ง</button></section>
       : providers.length === 0 ? <section className="provider-empty" aria-labelledby="provider-empty-title"><h2 id="provider-empty-title">ยังไม่มีผู้ให้บริการ AI</h2><p>เพิ่ม OpenCode Zen หรือ OpenRouter แล้วบันทึกคีย์ของผู้ให้บริการเพื่อเริ่มตั้งค่า Model</p><button className="provider-button provider-button-primary" type="button" onClick={() => document.querySelector<HTMLDetailsElement>('.provider-add-panel')?.setAttribute('open', '')}>เพิ่มผู้ให้บริการ</button></section>
       : <>
-        <div className="provider-purpose-tabs" role="tablist" aria-label="ประเภท Model">
-          {(['GENERATION', 'EMBEDDING'] as const).map((item, index, tabs) => <button key={item} type="button" role="tab" id={`provider-tab-${item}`} tabIndex={purpose === item ? 0 : -1} aria-selected={purpose === item} aria-controls="provider-purpose-panel" onKeyDown={event => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-            event.preventDefault();
-            const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
-            const next = tabs[nextIndex]; setPurpose(next); document.getElementById(`provider-tab-${next}`)?.focus();
-          }} onClick={() => setPurpose(item)}>{purposeLabels[item]}</button>)}
-        </div>
         <FallbackPreview key={purpose} providers={providers} purpose={purpose} />
-        <section id="provider-purpose-panel" role="tabpanel" aria-labelledby={`provider-tab-${purpose}`} className="provider-list" aria-label={`ผู้ให้บริการสำหรับ${purposeLabels[purpose]}`}>
-          <div className="provider-list-title"><h2>ผู้ให้บริการและ Models</h2><span>ลำดับผู้ให้บริการใช้ร่วมกันทั้งสองประเภท</span></div>
+        <section id="provider-purpose-panel" className="provider-list" aria-label={`ผู้ให้บริการสำหรับ${purposeLabels[purpose]}`}>
+          <div className="provider-list-title"><h2>ผู้ให้บริการและ Models สำหรับสร้างคำตอบ</h2><span>ใช้กับ Chat และ Reasoning</span></div>
           <OrderEditor key={`providers:${scopeKey}`} rows={globalRows} label={provider => provider.name} onSave={async ordered => {
             const result = await api.send('/api/providers/reorder', 'POST', { order: ordered.map(provider => ({ id: provider.id, revision: provider.revision })) }, 'บันทึกลำดับผู้ให้บริการแล้ว', 'provider-order');
             return result !== null;

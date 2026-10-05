@@ -12,6 +12,12 @@
   color: var(--provider-ink);
 }
 .provider-page * { min-width: 0; }
+.embedding-service-status { margin-bottom: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--provider-line); }
+.embedding-service-status dl { display: flex; flex-wrap: wrap; gap: .75rem 2rem; margin: 1rem 0; }
+.embedding-service-status dt { color: var(--provider-muted); font-size: .85rem; }
+.embedding-service-status dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+.embedding-service-status p { margin-bottom: .5rem; color: var(--provider-muted); }
+.embedding-service-status .provider-list-title { flex-wrap: wrap; gap: .75rem; }
 .provider-page *::selection { background: var(--provider-line); color: var(--provider-primary-dark); }
 .provider-page h1, .provider-page h2, .provider-page h3, .provider-page p { margin-top: 0; }
 .provider-page h1 { margin-bottom: 0; font-size: clamp(1.65rem, 3vw, 2rem); line-height: 1.22; letter-spacing: -.02em; }

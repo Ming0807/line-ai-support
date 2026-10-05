@@ -15,10 +15,15 @@
 | LINE Student | `LINE_STUDENT_CHANNEL_SECRET`, `LINE_STUDENT_CHANNEL_ACCESS_TOKEN` | แยกจาก channel ของ Staff |
 | LINE Staff | `LINE_STAFF_CHANNEL_SECRET`, `LINE_STAFF_CHANNEL_ACCESS_TOKEN` | แยกจาก channel ของ Student |
 | แอปและ webhook | `APP_BASE_URL`, `LINE_WEBHOOK_MODE` | `echo` ใช้ demo; `durable` ต้องมีฐานข้อมูลและ workers |
-| AI | `YRU_AI_ENABLED`, `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | ค่า AI provider/model ใน env เป็น reserved/compatibility fields; ไม่ bootstrap model/key. `YRU_AI_ENABLED=false` ใน local เป็นค่าเริ่มต้นโดยตั้งใจ; ตั้ง provider/model/key ผ่าน Dashboard |
+| Generation | `YRU_AI_ENABLED`, reserved `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY` | ไม่ bootstrap model/key; `YRU_AI_ENABLED=false` จนผ่าน foundation/knowledge gates; generationตั้งผ่านDashboard |
+| Embedding infrastructure | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_MODEL_REVISION`, `EMBEDDING_API_URL`, optional `EMBEDDING_API_KEY` | Default local CPU E5/384; server-only. Cache rootอยู่ในignored `services/embedding/.env`; ไม่ต้องเพิ่มEmbedding Modelผ่านUI |
 | Development guards | `YRU_DEPLOYMENT_ENV`, `DEV_SUPABASE_PROJECT_REF` | ใช้กับ scripts ที่จำกัดเป้าหมาย development |
 
-AI เริ่มด้วย `FREE_ONLY`; ใช้ Zen/OpenRouter ที่ตรวจราคาและ capability แล้วเป็นทางเลือกหลัก Unknown pricing ถูกบล็อก ส่วนบริการเสียเงินเป็นการเลือกภายหลังของมหาวิทยาลัยผ่าน UI เท่านั้น ห้ามเปิด paid inference ใน startup checks. ยังไม่เปิด local AI จนผู้ใช้ตั้ง free model และ embedding dimension จริง, ตรวจคุณภาพและ corpus, และผ่าน manual safety checks ที่อยู่ใน [checklist](FINAL_SETUP_CHECKLIST.md). ระหว่างนั้นสามารถทำงาน code และ fixture ต่อได้
+Generation เริ่มด้วย `FREE_ONLY`; Zen/OpenRouterต้องตรวจราคา/capabilityจริง Unknown/paidถูกบล็อก; paidเป็นมหาวิทยาลัยเลือกภายหลังผ่านUI. Embeddingใช้local CPU E5/384 ตามคำยืนยัน5October ไม่ต้องเลือกdimensionเอง. LiveAIยังปิดจนผ่านfoundation/freegeneration quality/corpusreview และ[checklist](FINAL_SETUP_CHECKLIST.md); independent implementation/fixturesดำเนินต่อได้
+
+## Embedding service
+
+จาก root ใช้ `& services/embedding/.venv/Scripts/python.exe services/embedding/run.py`. [Service README](../../services/embedding/README.md) มีconfig/cache/offline/API/remote-auth commands. Cacheถูกคัดลอกไป `D:\AI\Models\huggingface`; C:ยังเก็บไว้ ไม่มีredownload. Backendเรียก `http://127.0.0.1:8000`; browserเห็นread-only healthที่ `/providers` ผ่านNext.js. Query/passage prefixes, normalized384 และfixedrevisionตาม[design](../architecture/EMBEDDING_SERVICE_DESIGN.md); endpointmoveไม่เปลี่ยนfingerprint
 
 ## Supabase, migrations, and seed
 

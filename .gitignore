@@ -25,3 +25,13 @@ playwright-report/
 .superpowers/sdd/reports/*.diff
 supabase/.temp/
 supabase/.branches/
+
+# Local embedding infrastructure: weights/cache and environments never ship with Next.js.
+services/**/.env
+services/**/.env.*.local
+services/**/.venv/
+services/**/__pycache__/
+services/**/.pytest_cache/
+*.safetensors
+*.pt
+*.pth

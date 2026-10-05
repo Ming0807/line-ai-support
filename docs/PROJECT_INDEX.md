@@ -33,10 +33,12 @@
 
 ## สถานะที่ต้องรู้ก่อนเริ่มงาน
 
+- Latest human update 5 October: local CPU `intfloat/multilingual-e5-small` / 384 is default embedding infrastructure, outside normal Provider UI. Read [source](requirements/sources/2026-10-05-local-e5-embedding.md), [design](architecture/EMBEDDING_SERVICE_DESIGN.md), [EMB plan](superpowers/plans/2026-10-05-yru-local-e5-embedding.md). EMB-01…05 component acceptance passed; continue M7 review/publication before approved-corpus/live RAG acceptance. Generation stays FREE_ONLY; old registry-embedding plans/reports are dated history for that choice.
+
 - M1–M4 มีหลักฐาน automated/DB/auth/HTTP ตามรายงาน; Student/Staff echo เคยผ่าน LINE จริงตามผู้ใช้ยืนยัน การทดสอบ ticket flow จริงยังต้องทำภายหลัง
 - M5 provider automated prerequisites ผ่าน [acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); free/order/status/quota/probe/cooldown/compatible UI มีหลักฐานแล้ว. Live free account/Thai quality และ M6 business/full flows ยัง pending
 - DOC-01 และ PRV-01…05 automated prerequisite ผ่านตามรายงาน; root กำลังเดิน Import ต่อภายใต้ contracts ปัจจุบัน
-- M7 ยัง `PARTIAL / IN_PROGRESS`: source/CSV/location, HTML, original envelope, private DB staging, official URL provenance/acquisition และ authenticated read/write routes มี component evidence. Root เพิ่ม restricted public-query allowlist; focused 48-test set ผ่าน แต่ URL reviewer follow-up และ full-suite rerun บน source ล่าสุดยัง pending. Private Storage, PDF/DOCX/XLSX, supervised archive handling, import UI, review/publication และ full V1 ยังไม่ครบ; ดู [Import component checkpoint](reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md) และ current task board
+- M7 ยัง `PARTIAL / IN_PROGRESS`: acquisition/private Storage/staging/URL-query and bounded Office/PDF parser components มีหลักฐานล่าสุดใน [parser checkpoint](reports/IMP_PARSER_COMPONENT_REPORT.md). Combined1197unit/112integration/type/lint/build ผ่าน; all5-format supervised runtime/real corpus, extraction/edit/review/publication/UI และ citations ยังไม่ครบ. PDF builder final independent verdict unavailable; ดู current task board และ [E5 combined checkpoint](reports/LOCAL_E5_EMBEDDING_REPORT.md)
 - ชุดเอกสารมหาวิทยาลัยเก็บ 187 resources; คัด 15 แหล่งเป็น pending review แล้ว ยังไม่ใช่ approved/indexed knowledge
 - ผล426 unit/81PG/build เดิมเป็นประวัติ; PRV รอบแรกมี542unit/type/lint ผ่าน และ focused/actualPG เพิ่มตาม component report. Source ยังแก้ร่วมกับทีม จึงต้องรัน full checks ใหม่ก่อนรับ milestone
 - ยังไม่เรียก live/paid AI และยังไม่ถือว่า V1 พร้อมใช้งานจริง
@@ -54,5 +56,9 @@
 
 ชื่อไฟล์ไม่จำเป็นต้องเป็น `design.md` หรือ `agent.md`; โครงการนี้ใช้ `AGENTS.md` ตาม convention และแยก design/task/requirements ตามหน้าที่ เอกสารทุกชุดต้องโยงจากหน้านี้ ไม่สร้างแผนซ้ำที่มีสถานะขัดกัน
 ## Latest component checkpoint
+
+Latest human-update checkpoint: [local E5 foundation](reports/LOCAL_E5_EMBEDDING_REPORT.md), [architecture](architecture/EMBEDDING_SERVICE_DESIGN.md). E5 CPU/384 is now default infrastructure; D-only offline/realHTTP/backend/typedPG/generation-onlyUI gates PASS. Combined1197unit/112integration/22replay/RLS/advisors0/type/lint/build and6actualbrowser checks PASS. Local+DEVELOPMENT22migrations,DEV33RLS tables/9departments/rolefixtures/generatedvector384 verified. Livegeneration/corpusapproval/fullV1/production remain pending. Continue M7 extraction preview/review/publication; older statements below are dated checkpoints.
+
+Current continuation: [parser component evidence](reports/IMP_PARSER_COMPONENT_REPORT.md). XML/Office package/XLSX and real bounded-child/dispatch focused checks are passing; DOCX/PDF team work and integration review are active. Whole-workspace gates after new parser source remain pending. Upload routes still stage only; extraction/edit/review/publication/UI and full V1 remain incomplete. The acquisition checkpoint below is dated accepted source `6d79c15`, not a full-suite pass for subsequent parser changes.
 
 [Import acquisition/staging checkpoint](reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md):1065unit/63files,110integration including actual localAuth/StorageHTTP, foundationRLS,21isolatedreplay/advisors0/type/lint/build PASS. Source/CSV/HTML/URL/query/privateencryptedStorage/staging/API are component evidence. URL and Storage scoped independent reviews passed; ZIP23tests + rootselfreview passed, independent reviewer usage limited. DEV remains19migrations; PDF/Office semantics/child/extraction/edit/review/publication/UI/citations, M8/M9/fullFlowA–F and livefree/corpus/OA/production remain pending. Prior provider checkpoint is [dated acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md). FullV1 remains active/incomplete.

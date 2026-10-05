@@ -1,2 +1,3 @@
 # User requirement archives are byte-for-byte evidence, including line endings.
 docs/requirements/sources/original-*.md -text
+docs/requirements/sources/2026-10-05-local-e5-embedding.md -text
