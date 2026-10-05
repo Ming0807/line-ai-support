@@ -12,7 +12,7 @@
 | M4 Ticket Core | 2 | AUTOMATED_COMPLETE | [Ticket report](../reports/M4_TICKET_CORE_REPORT.md), lifecycle/takeover/outbox/browser/PG; full real OA ticket flow pending |
 | M5 AI Gateway | 3 | AUTOMATED_ACCEPTANCE / MANUAL_PENDING | [Provider acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md): free gateway/order/status/quota/probes/cooldown/compatible UI automated gates GREEN; live free account/Thai quality pending |
 | M6 RAG | 4 | PARTIAL / REOPENED | [Component evidence](../reports/M6_RAG_REPORT.md): controlled RAG/worker/citation/current/history ผ่าน; free provider + real import/live evidence ยังขาด |
-| M7 Import / Versioning | 5 | READY / CONTRACT_IN_PROGRESS | [Execution plan](../superpowers/plans/2026-10-04-yru-knowledge-import.md); PRV automated prerequisite passed; root freezes all-five-format acquisition/extraction/review contracts next |
+| M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Acquisition/staging checkpoint](../reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md): source/CSV/HTML/official URL/public-query/private encrypted Storage/DB staging/API components GREEN. Latest1065unit/110integration/type/lint/21replay/RLS/advisors PASS; finalbuild PASS. ZIP23tests + root contract review; independent ZIP reviewer usage limited. PDF/DOCX/XLSX/child/extraction/edit/review/publication/UI/locations→citations/allformats remain |
 | M8 Structured Data | 6 | PLANNED | 7 fixed datasets; ต้องแตก execution plan และเชื่อม approve/version/search |
 | M9 Advanced / Staff / Analytics | 7 | PLANNED / PARTIAL | scoped notification component มีใน M4; binding/incidents/loading/web/complete dashboard ยังไม่ครบ |
 | FINAL V1 | §69 | PENDING | Flow A–F และ deployment/manual report ยังไม่ผ่านครบ |
@@ -31,9 +31,9 @@ User ยืนยัน LINE → Ticket → AI/RAG; M1–M9 เป็นกา�
 | PRV-05 | configured free RAG + full provider acceptance | root integration/review | AUTOMATED_COMPLETE / MANUAL_PENDING | PRV-01…04 | [Acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md):919unit/92PG/RLS/type/lint/build/19replay/advisors/8browser/signed free fixture GREEN; DEV19/31RLS/3subjects verified; push recorded in ledger; live deferred |
 | RAG-01 | complete routing/output/tool/application coverage; CH023/031/032/034, original multi-context | root + planned Luna max | PARTIAL | PRV-05; M8 for exact structured | prove business intent/schema/tool mapping, explicit current/history scopes, multi-conversation HUMAN boundary และ actual free transport |
 
-Execution plan: [free providers](../superpowers/plans/2026-10-04-yru-free-ai-providers.md). ไม่เดิน Import เพื่อเลี่ยง provider gap; documentation review ไม่มี permission gate เพิ่ม ผู้ใช้อนุญาตให้ทำต่อเมื่อจัดสเปคและแผนชัดแล้ว
+Execution plan: [free providers](../superpowers/plans/2026-10-04-yru-free-ai-providers.md). Automated provider prerequisites passed; Import continues under its current contract and execution plan. Documentation review adds no permission gate; the user authorized continued work while live configuration remains deferred.
 
-Completed provider automated execution: [5Oct cooldown/compatible contracts](../superpowers/plans/2026-10-05-yru-provider-cooldown-compatible.md). Luna max helper/network/config scoped reviews are actual evidence; root owns integration/DB/full gates. Import contract review was assigned to Luna max but failed at usage limit; root continues, with no review claimed for that failed task
+Completed provider automated execution: [5Oct cooldown/compatible contracts](../superpowers/plans/2026-10-05-yru-provider-cooldown-compatible.md). Luna max helper/network/config scoped reviews are actual evidence; root owns integration/DB/full gates. An early Import contract-review assignment ended at usage limit; root then continued the contract and implementation. Current component reviews and their exact scopes are linked from the Import checkpoint; no unavailable review is claimed.
 
 ## งานที่เหลือใน V1
 
@@ -41,8 +41,8 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 
 | ID | งาน | Owner / planned difficulty | สถานะ / dependency | Acceptance ที่ต้องมี |
 |---|---|---|---|---|
-| IMP-01 | Upload PDF/URL/HTML, private originals/storage/access, checksum, quality/sensitivity/analyze/preview | root contract/implementation; Luna review when available | CONTRACT_IN_PROGRESS; PRV-05 automated passed | bounded acquisition, official source metadata, parser warnings/PENDING_REVIEW, auth/SSRF/size/timeout; CH036–038/043–049/061 |
-| IMP-02 | DOCX/XLSX/CSV parsing + safe files + preview | Luna high/max ตาม format | PLANNED หลัง IMP-01 contract | ทั้ง5source typesจาก §0 ผ่าน fixturesดี/เสีย; metadata/tables/review ไม่สูญหาย; ไม่มี automatic schema |
+| IMP-01 | Upload PDF/URL/HTML, private originals/storage/access, checksum, quality/sensitivity/analyze/preview | root + Luna max HTML/URL review + Luna high Storage review | PARTIAL: source/HTML/URL/query/envelopes/privateStorage/staging/API GREEN; actual localAuth/StorageHTTP and PG prove access/recovery | PDF/child/extraction/review/publication/UI/sourcecitations remain; DEV/productionStorage/manualcorpus unverified; CH036–038/043–049/061 |
+| IMP-02 | DOCX/XLSX/CSV parsing + safe files + preview | root CSV/integration + Luna max ZIP | PARTIAL: CSV/location/report GREEN; ZIP23tests/rootselfreview GREEN, independent reviewer failed limit | DOCX/XLSX semantics/XML/child stillpending; all5formats required, no automatic schema |
 | IMP-03 | family/version conflict, replace/additional/historical/AMENDS, atomic approval + publication fences | root | HELD หลัง IMP-01/02 | base+active amendments retrieval, stale revision/concurrency rollback, current uniqueness/history/source citations; CH039/040/045/050 |
 | IMP-04 | knowledge list/detail/version/import UI + real shortlist review workflow | Luna high UI + root acceptance | HELD หลัง IMP-01…03 | version flags/compare/warnings/edit/approve, role/privacy/desktop/mobile, downloaded corpusไม่ autoapproved; CH046/047/064 |
 | STR-01 | migration + registry + mappers สำหรับ 7 fixed datasets | root + Luna max mapping | PLANNED หลัง IMP contracts | all7 datasets/version/applicability/authority, unknownRAG/noDDL, noyear tables; CH012/041/042 |
@@ -67,7 +67,10 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 
 ## Test/evidence snapshot
 
-5 ตุลาคม provider acceptance:919unit/92PG, lint/type/build,19 isolated migrations+foundationRLS, local advisors warning/error0, signed free RAG9catalog+9inference/paid0 and8browser groups PASS. DEV19migrations/31RLS tables/9departments/security+3real subjects PASS. Scoped Luna max findings corrected; [latest evidence](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md). Older checkpoints below are history
+Latest5October Import continuation:1065/1065unit across63files,110integration(85+7+11+6+1actualAuth/StorageHTTP), foundationRLS,21isolatedreplay/advisors0/type/lint PASS. Final current build PASS. URLquery follow-up closed; Storage scoped independent review PASS; ZIP rootselfreview PASS, independent review unavailable at usage limit. Local21 vs DEV19; no corpus/paid/liveOA/production claim. Older checkpoints below are dated history.
+
+
+5 ตุลาคม Import combined checkpoint before latest URL query-policy change: separated `pnpm test --maxWorkers=1` **1,033/1,033 across 60 files**; actual PostgreSQL **103/103** (85 existing + 7 provider + 11 import staging) and foundation RLS; isolated local replay **20 migrations**; local advisors **0 warning/error issues**; typecheck/lint **0 errors, 0 warnings**; optimized build PASS with four Import routes and both LINE webhook routes compiled. An earlier full-suite attempt concurrent with build timed out one existing auth-bootstrap ACL test after 1,032 passed; isolated auth-bootstrap rerun was 6/6 and the separated single-worker full run passed without timeout changes or test weakening. Root then added a restricted public-query allowlist; the latest source/query/acquisition/provenance/write focused set passed 48 tests. The independent URL-review follow-up and full-suite rerun after the policy change are pending. These checks do not accept M7 end to end. DEVELOPMENT remains at 19 migrations; no current server/tunnel, live free-model quality, corpus/OA or production acceptance is claimed. [Import checkpoint report](../reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md). The previous provider checkpoint remains separately documented at [PRV acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md).
 
 - ก่อนเพิ่ม PRV-01 RED: 426/426 unit, 81/81 actual PostgreSQL, foundation RLS, typecheck/lint/build และ controlled signed RAG/ticket/durable ingress ผ่านตาม M6 report
 - Provider checkpoint: 542 unit ผ่านก่อนเพิ่ม quota/schema/preview และ review fixes; ภายหลัง focused42, schema26, quota47, preview5 และ actualPG order/pricing/admin ผ่านตาม [backend report](../reports/PRV_BACKEND_COMPONENT_REPORT.md). Source ยังเปลี่ยนต่อ ต้องรัน full checks อีกครั้งก่อนรับ PRV-05
@@ -76,6 +79,6 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 
 ## Next action และ handoff
 
-DOC-01 และ PRV automated prerequisitesผ่านแล้ว. Root ต่อ IMP-01/02 contracts/parser/staging/review/publicationตามแผน โดยรวม all5formats/AMENDS/fixed7datasetsและ no-autopublish. Live free model/quality/corpus/OA remains MANUAL_PENDING; fullV1 active/incomplete
+DOC-01 และ PRV automated prerequisitesผ่านแล้ว. Root continues IMP-01/02: PDF/Office XML semantics and bounded child, extraction/edit/review/publication/UI/citations. Private Storage automated local gates and URL-query independent review passed; DEV/production Storage remains separate. M8 fixed seven-dataset schemas and M9/fullFlowA–F still required. Live free model/quality/corpus/OA MANUAL_PENDING; full V1 active/incomplete.
 
 ทุก task ที่จบอัปเดต status, matrix และ dated report. Human-only keys/OA/corpus/deployment stepsเก็บใน [final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md) ไม่ถามซ้ำระหว่างทำ independent authorized work

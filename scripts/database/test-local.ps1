@@ -19,4 +19,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Queue integration verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/provider-cooldown.integration.ts tests/database/provider-protocol-identity.integration.ts tests/database/provider-compatible.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Provider cooldown verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/import-staging.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Knowledge import staging verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/import-storage.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Knowledge import storage staging verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/original-storage-http.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Actual local Storage authorization verification failed' }
 } finally { Pop-Location }

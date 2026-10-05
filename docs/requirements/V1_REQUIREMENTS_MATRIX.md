@@ -19,7 +19,7 @@
 | CH008 | 8 Tickethistory | M4 | COMPONENT_EVIDENCE: history/audit/idempotentaction fixturesในM4report |
 | CH009 | 9 Documentversioning | M6, IMP-03 | PARTIAL: documents/families/relationships/currentconstraintsมี; approvedversionupdateUI/atomicpublishpending |
 | CH010 | 10 Knowledgechunks | M6, IMP-01/03 | PARTIAL: cohort/page/section/chunk/retrieval tests; realimportembeddingspending |
-| CH011 | 11 Importjobs/staging | IMP-01…03 | PLANNED: reviewedstaging/job state/privateoriginalsต้องทำ ไม่ถือshortlistJSONเป็นpipeline |
+| CH011 | 11 Importjobs/staging | IMP-01…03 | PARTIAL: privateimmutableencryptedjob/metadata/original/uploadreceipt/auth/duplicate/failure/readStorage+PG GREEN; persistedextraction/review/publication states pending |
 | CH012 | 12 Sevenstructuredtables | STR-01/02 | PLANNED: calendar,fees,transfer,services,systems,forms,announcementsทั้งหมด |
 | CH013 | 13 Incidents/ticketlinks | ADV-02 | PLANNED: schema/permissions/aggregation/UX |
 | CH014 | 14 Provider/modeltables | PRV-01…04 | AUTOMATED_ACCEPTANCE/MANUAL_PENDING: free/order/pricing/HTTP/quota/probes/cooldown/compatible PG+UI GREEN ดู[acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); live account/quality pending |
@@ -44,19 +44,19 @@
 | CH033 | 33 MetadataFilter | M6, IMP-03 | COMPONENT_EVIDENCE: official/public/reviewed/current/effective/applicabilitybeforevectors; publicationregressionrequired |
 | CH034 | 34 Historicalquestions | M6, IMP-03, PRV-05 | PARTIAL: explicityear/date/usergroundedtestsมี; realversions/freeflowpending |
 | CH035 | 35 Chunking | M6, IMP-01/02 | COMPONENT_EVIDENCE: section/page/Thai/tablechunktests; parserintegrationallformatsremaining |
-| CH036 | 36 Importservice | IMP-01…04 | PLANNED: targetUpload/URL→analyze→preview→approve |
-| CH037 | 37 Analyzer | IMP-01/02 | PLANNED: department/family/version/effectivedate/authority/sensitivityproposals+manualreview |
-| CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PLANNED: classificationdoesnotautopublish/createDDL |
+| CH036 | 36 Importservice | IMP-01…04 | PARTIAL: authorizedUpload/URL→private encryptedjob/originalGREEN; locatedCSV/HTML components; parserexecution/analyze/edit/review/approve/publication/UI pending |
+| CH037 | 37 Analyzer | IMP-01/02 | PARTIAL: deterministic proposals/sensitivity/ambiguity/review gates pure tests GREEN; real parser/staging/edit/approve remaining |
+| CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PARTIAL: fixed candidates/uninstalled schema→RAG/noDDL/noautopublish GREEN; seven installed mappers/atomic BOTH remain |
 | CH039 | 39 Versionresolver | IMP-03 | PLANNED: replacement/additional/historical/conflict/races/history |
 | CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationshipschemaมี; base+activeamendmentretrieval/publicationUIpending |
 | CH041 | 41 Structuredmapper | STR-01/02 | PLANNED: fixedregistryall7 from§12 แม้ตัวอย่าง§41ละsystems |
 | CH042 | 42 Unknownstructured | IMP-01, STR-01 | PLANNED: fallbackRAG+explicitreview; noautomaticDDL |
 | CH043 | 43 PDFparser | IMP-01 | PLANNED: boundedparser/pages/sections/lowqualityPENDING_REVIEW |
-| CH044 | 44 URLimport | IMP-01 | PLANNED: officialdomains/sourceURL/checksum/HTTPSredirectDNS/bodylimits |
-| CH045 | 45 Checksum | IMP-01/03 | PARTIAL: corpusmanifesthaschecksums; applicationdedup/revisionbehaviorpending |
+| CH044 | 44 URLimport | IMP-01 | COMPONENT_GREEN: officialHTTPS/freshmixedDNS/pinnedTLSoptions/redirect/decompressedlimits/deadline/provenance/queryallowlist+scopedLunareview; actualwireTLS/livecorpus evidencepending |
+| CH045 | 45 Checksum | IMP-01/03 | PARTIAL: immutableSHA/dedup/concurrency/revision/originalretentionactualPGGREEN; approvedversion/edit/publicationreceipt pending |
 | CH046 | 46 KnowledgeDashboard | IMP-04 | PLANNED: family/current/history/version/scope/actions |
 | CH047 | 47 Importpage | IMP-01/02/04 | PLANNED: PDF/DOCX/XLSX/CSV/URL input, preview/sensitivewarnings |
-| CH048 | 48 ImportAPI | IMP-01/02 | PLANNED: authenticatedboundedsource→job noautopublish |
+| CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: sameorigin/auth/adminboundedUpload/URL/list/detail/privateattachmentroutes+buildGREEN; privateStorageactualHTTP+PG accessGREEN; actualdashboardbrowser/parser/analyze/review/publication pending |
 | CH049 | 49 AnalyzeAPI | IMP-01/02 | PLANNED: revision/quality/proposals/fixedschema; noarbitraryproviderpublish |
 | CH050 | 50 ApproveAPI | IMP-03, STR-02 | PLANNED: actor/revision/familylocks/atomicversion+BOTHpublication |
 | CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
@@ -69,7 +69,7 @@
 | CH058 | 58 Loadingindicator | ADV-04 | PLANNED: LINEloadingHTTPbounds/permission/firstreplytests |
 | CH059 | 59 ReplyvsPush | M4/M6, ADV-04 | PARTIAL: expiry/outboxdispatchมี; deadline/freeprovider/latehumanliveflowpending |
 | CH060 | 60 Privacy | all | COMPONENT_EVIDENCE: anonymouscode/encryptedidentity/rolefixtures; imports/newUIcontinuechecks |
-| CH061 | 61 Sensitiveimport | IMP-01/03 | PLANNED: flagstudentIDs/phone/email/grades/medical/financialpersonal; blockpublicRAGreview |
+| CH061 | 61 Sensitiveimport | IMP-01/03 | PARTIAL: categorydetector/qualitywarnings/privateencryptedoriginals/Storageanon+authenticateddenialGREEN; redaction/reanalysis/publicapprovalgateandallformatsintegration pending |
 | CH062 | 62 Sourceauthority | M6, IMP-03, STR-02 | PARTIAL: authority/filterretrievaltests; approvedrealversion/conflict/amendmentremaining |
 | CH063 | 63 OfficialYRU sources | DOC-01, IMP-01/04 | PARTIAL: collectedcatalogprovenanceมี; domains/sourceauthoritymustreviewbeforepublish |
 | CH064 | 64 Initialfamilies19 | M6, IMP-04 | PARTIAL: familyschema/corpus19categoriesมี; approvedfamilydatasetcoverageauditpending |
@@ -96,7 +96,7 @@
 | USR-UX | ล่าสุด: productminimal, scanablemodelrows/progressivesettings/consistency/desktopmobilekeyboard QA ใช้skillimpeccable | PRV-03/04 PARTIAL: actual desktop/mobile/zoom/keyboard screenshot QA+detector GREEN ดู[report](../reports/PRV_OBSERVATIONS_COMPONENT_REPORT.md) |
 | USR-UI | ภาพรวม§32: addprovider/model/baseURL/key/enable/priorityผ่านUIโดยไม่แก้codeทุกinstance | PRV-02/03 AUTOMATED_COMPLETE: compatible instance configured through UI/PG/public-DNS-pinned TLS, FREE_ONLY UNKNOWN blocks; new protocol still needs code |
 | USR-DOC | ล่าสุด: อ่านสเปคจริงและจัด `.md` ก่อนcode; sourceprecedence/design/tasks/evidence/agentsต้องชัด | DOC-01 COMPLETE; planninggateไม่ใช่appacceptance |
-| USR-IMPORT5 | master§0(17): PDF/DOCX/XLSX/CSV/URL ทั้งหมด ไม่จบที่PDF+HTMLslice | IMP-01/02 PLANNED |
+| USR-IMPORT5 | master§0(17): PDF/DOCX/XLSX/CSV/URL ทั้งหมด ไม่จบที่PDF+HTMLslice | IMP-01/02 PARTIAL: all-format source/contracts + locatedCSV/HTML/report/query/acquisition/staging/privateStorage/accesscomponentsGREEN; ZIP23focused/rootreviewpending; PDF/DOCX/XLSX/child/locations→citations/review/publication/UI remain |
 | USR-AMENDS | versioning§16 + master§40: base+allactiveamendments; additional≠replace | IMP-03 PARTIALschemaonly |
 | USR-WEB | ภาพรวม§27: universityDB→RAG→officialsite→Internet; noforeignuniversityrules/noarbitrarycrawl | ADV-05 PLANNED; exacttoolscopeplanก่อนcode |
 | USR-RICHMENU | ภาพรวม§20เป็น source proposal: primaryLINEentry/menu แยกcontextquickreply; V1 inclusion ยังต้อง decision | ADV-05: OPTIONAL / UNDECIDED ไม่ถือเป็นconfirmedmandatoryrequirement |

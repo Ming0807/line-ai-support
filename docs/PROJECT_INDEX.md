@@ -14,6 +14,7 @@
 | [Requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md) | แต่ละข้ออยู่ในงานไหน มีหลักฐานแล้วหรือยัง |
 | [System design](architecture/YRU_V1_DESIGN.md) | subsystem เชื่อมกันอย่างไรและมีขอบเขตใด |
 | [Provider design](architecture/AI_PROVIDER_DESIGN.md) | AI ฟรี การจัดลำดับ UX, HTTP/โควต้าและปุ่มทดสอบ |
+| [Import design](architecture/KNOWLEDGE_IMPORT_DESIGN.md) | all5formats/private originals/extraction/review/version/publication contracts |
 | [Task board](tasks/V1_TASK_BOARD.md) | เสร็จอะไร งานถัดไปคืออะไร ใครรับผิดชอบ |
 | [Decision log](decisions/DECISION_LOG.md) | ข้อสรุปใดมาจากผู้ใช้ ข้อใดเป็นวิธีที่ผู้พัฒนาเลือก |
 | [Working protocol](agents/WORKING_PROTOCOL.md) | วิธีมอบงาน ตรวจงาน และอัปเดตเอกสาร |
@@ -34,8 +35,8 @@
 
 - M1–M4 มีหลักฐาน automated/DB/auth/HTTP ตามรายงาน; Student/Staff echo เคยผ่าน LINE จริงตามผู้ใช้ยืนยัน การทดสอบ ticket flow จริงยังต้องทำภายหลัง
 - M5 provider automated prerequisites ผ่าน [acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); free/order/status/quota/probe/cooldown/compatible UI มีหลักฐานแล้ว. Live free account/Thai quality และ M6 business/full flows ยัง pending
-- DOC-01 จัดเอกสารและplanningreviewsเสร็จแล้ว; งานถัดไป PRV-01…PRV-05 แก้ free provider + UX/status/test ก่อนเดินต่อ Import
-- M7 เริ่ม freeze all-five-format import contractsหลัง PRV automated gates; M8/M9 ยังต้องแตก execution planตาม board ไม่ใช่ทุก phaseมี implementationครบแล้ว
+- DOC-01 และ PRV-01…05 automated prerequisite ผ่านตามรายงาน; root กำลังเดิน Import ต่อภายใต้ contracts ปัจจุบัน
+- M7 ยัง `PARTIAL / IN_PROGRESS`: source/CSV/location, HTML, original envelope, private DB staging, official URL provenance/acquisition และ authenticated read/write routes มี component evidence. Root เพิ่ม restricted public-query allowlist; focused 48-test set ผ่าน แต่ URL reviewer follow-up และ full-suite rerun บน source ล่าสุดยัง pending. Private Storage, PDF/DOCX/XLSX, supervised archive handling, import UI, review/publication และ full V1 ยังไม่ครบ; ดู [Import component checkpoint](reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md) และ current task board
 - ชุดเอกสารมหาวิทยาลัยเก็บ 187 resources; คัด 15 แหล่งเป็น pending review แล้ว ยังไม่ใช่ approved/indexed knowledge
 - ผล426 unit/81PG/build เดิมเป็นประวัติ; PRV รอบแรกมี542unit/type/lint ผ่าน และ focused/actualPG เพิ่มตาม component report. Source ยังแก้ร่วมกับทีม จึงต้องรัน full checks ใหม่ก่อนรับ milestone
 - ยังไม่เรียก live/paid AI และยังไม่ถือว่า V1 พร้อมใช้งานจริง
@@ -54,4 +55,4 @@
 ชื่อไฟล์ไม่จำเป็นต้องเป็น `design.md` หรือ `agent.md`; โครงการนี้ใช้ `AGENTS.md` ตาม convention และแยก design/task/requirements ตามหน้าที่ เอกสารทุกชุดต้องโยงจากหน้านี้ ไม่สร้างแผนซ้ำที่มีสถานะขัดกัน
 ## Latest component checkpoint
 
-[Provider prerequisite acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md) records919unit/92PG/type/lint/build,19 isolated migration replay/RLS/advisors, signed free RAG fixture,8browser groups and actual scoped Luna max reviews. DEVELOPMENT19migrations/31RLS/3real subjects verified. Root continues M7; live free quality/corpus/OA and complete V1 remain pending. [Cooldown](reports/PRV_COOLDOWN_COMPONENT_REPORT.md) and [observations](reports/PRV_OBSERVATIONS_COMPONENT_REPORT.md) remain dated evidence.
+[Import acquisition/staging checkpoint](reports/IMP_ACQUISITION_STAGING_COMPONENT_REPORT.md):1065unit/63files,110integration including actual localAuth/StorageHTTP, foundationRLS,21isolatedreplay/advisors0/type/lint/build PASS. Source/CSV/HTML/URL/query/privateencryptedStorage/staging/API are component evidence. URL and Storage scoped independent reviews passed; ZIP23tests + rootselfreview passed, independent reviewer usage limited. DEV remains19migrations; PDF/Office semantics/child/extraction/edit/review/publication/UI/citations, M8/M9/fullFlowA–F and livefree/corpus/OA/production remain pending. Prior provider checkpoint is [dated acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md). FullV1 remains active/incomplete.

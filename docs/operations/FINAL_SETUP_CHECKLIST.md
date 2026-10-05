@@ -12,6 +12,7 @@
 | ผูกStaffLINEกับactiveStaffaccount/department | ADV-01 | boundauthorizedrecipientเท่านั้น; unrelateddepartmentไม่รับalert; sensitivepayloadไม่มีdetailleak |
 | ทดสอบจริงFlowA–Fผ่านLINEและDashboard | FINAL-01 | FAQ/troubleshoot/escalate/HUMAN/newtopic/importupdateครบ; ไม่ตอบซ้ำกับOAautoreply |
 | เลือกproductionhosting/domain/Authstaff/storage/backupoperator | FINAL-01deploymentcontract | workerprocesses/lifecycle/verifiedTLS/queueobservability/backuprestore/rolesพร้อม |
+| ตรวจ private Storage bucket `knowledge-originals` ใน deployment | IMP-01C-STORAGE/final deployment | public=false, limit20971553bytes, MIMEapplication/octet-stream, ไม่มี browser object policies; backend service keyอยู่เฉพาะserver; actualrole-denial/restore test. Local passแล้ว; DEV/production gateแยก |
 
 คำสั่งexact/หน้าจอขั้นตอนจะอัปเดตหลังแต่ละtaskสร้างroute/UIจริง. ตอนนี้ห้ามบอกว่าquotaAPI/paidtoggle/importapproveพร้อมเพียงเพราะมีdesign. Stablewebhookpathsคือ `/api/line/student/webhook` และ `/api/line/staff/webhook`; domainรอตามserver/tunnelจริงตอนทดสอบ
 

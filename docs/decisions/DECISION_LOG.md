@@ -25,6 +25,11 @@
 
 ## เรื่องที่ยังไม่ตัดสิน/ต้องตรวจภายหลัง
 
+5 October Import decisions (root implementation within approved scope):
+
+- DEC-019 / CH044/061: URL acquisition and stored provenance share a bounded public-query allowlist. It retains catalog-observed YRU view/menu/page/group/t routes, bounded numeric public CMS identifiers and fixed public-view options; external staged Drive provenance permits `usp=sharing`. Unknown/duplicate/opaque query values are rejected before DNS/persistence. This replaces a name-only credential denylist after independent P2 review; it does not claim arbitrary paths can never contain personal information. Original URLs are never silently sanitized into misleading provenance.
+- DEC-020 / CH036/045/048/061: runtime originals default to private encrypted Supabase Storage; legacy/controlled fixtures may explicitly select PRIVATE_DATABASE. An immutable private upload receipt is reserved in SQL before network, then updated as a technical outcome outside active-admin publication authorization. Final job persistence reauthorizes and checksum-deduplicates; revoked/failed/losing uploads stay retained with metadata instead of being deleted. Reads perform bounded download/decryption outside SQL and final active-admin/revision/audit check. Storage bucket setup is explicit and rejects incompatible/public settings; no runtime signed URL/delete/upsert or browser policies. Actual loopback Storage/Auth role denial and byte-exact recovery passed; DEV/production setup remains a separate gate.
+
 - Generation model, embedding model/dimensions และความเหมาะสมกับภาษาไทย: รอ catalog/capability/live free test ไม่มี default ที่เดาไว้
 - Production hosting, permanent webhook URL และ production operations: ไม่ล็อกจาก development tunnel
 - เกณฑ์ “ใกล้โควต้า” ใช้ ≤10% ของ limit ที่ provider รายงาน โดย unit/window/scopeตรงกันและ evidenceยังสด เป็น warning threshold ของแอป ไม่ใช่ความหมายของ HTTP200
