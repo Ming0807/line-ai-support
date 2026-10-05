@@ -1,0 +1,2 @@
+# User requirement archives are byte-for-byte evidence, including line endings.
+docs/requirements/sources/original-*.md -text

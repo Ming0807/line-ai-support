@@ -1,9 +1,10 @@
 import type { Pool } from 'pg';
 import { transaction } from '../database/pool';
 import { processInboxEvent, type InboxJob } from './process-inbox';
+import type {StudentProcessingOptions} from '../conversation/student-processing';
 
 /** Service one job per fixed channel so a busy Student lane cannot starve Staff. */
-export async function runInboxCycle(pool:Pool,key:string):Promise<{claimed:number;completed:number;failed:number}> {
+export async function runInboxCycle(pool:Pool,key:string,options:StudentProcessingOptions={}):Promise<{claimed:number;completed:number;failed:number}> {
  const result={claimed:0,completed:0,failed:0};
  for(const channel of ['STUDENT','STAFF'] as const) {
   let job:InboxJob|undefined;
@@ -12,7 +13,7 @@ export async function runInboxCycle(pool:Pool,key:string):Promise<{claimed:numbe
    if(!job) continue;
    result.claimed++;
    const claimed=job;
-   await transaction(client=>processInboxEvent(client,claimed,key),pool);
+   await transaction(client=>processInboxEvent(client,claimed,key,options),pool);
    result.completed++;
    console.info('INBOX_PROCESSED',{channel});
   } catch {

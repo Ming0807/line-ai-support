@@ -1,0 +1,20 @@
+[
+  {
+    "title": "ปฏิทินวิชาการ สำหรับนักศึกษาภาคปกติ ปีการศึกษา 2569",
+    "local_path": "01-academic/calendars/ปฏ_ท_นว_ชาการ_สำหร_บน_กศ_กษาภาคปกต_ป_การศ_กษา_2569_1d96b8d0.pdf",
+    "preview": "qa/0.png",
+    "returncode": 0
+  },
+  {
+    "title": "การเทียบโอนผลการเรียน 2568",
+    "local_path": "01-academic/guides/การเท_ยบโอนผลการเร_ยน_2568_57dcffbc.pdf",
+    "preview": "qa/1.png",
+    "returncode": 0
+  },
+  {
+    "title": "ตารางเทียบโอนหลักสูตรบัญชีปรับปรุง 2568",
+    "local_path": "01-academic/transfer-tables/ตารางเท_ยบโอนหล_กส_ตรบ_ญช_ปร_บปร_ง_2568_5cfe209d.pdf",
+    "preview": "qa/2.png",
+    "returncode": 0
+  }
+]

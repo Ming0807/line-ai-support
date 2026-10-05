@@ -1,0 +1,48 @@
+[
+  {
+    "title": "ปฏิทินวิชาการสำหรับนักศึกษาภาคปกติ สาขาวิชาการจัดการธุรกิจการค้าปลีกสมัยใหม่ ภาคเรียนที่ 1/2569",
+    "source_url": "https://drive.google.com/file/d/1s-G5DtnGqaVTDPxj5DnWKcp5mz7O0iOn/view?usp=sharing",
+    "source_page_url": "https://acdservice.yru.ac.th/page/41",
+    "category": "calendars",
+    "family_code": "ACADEMIC_CALENDAR",
+    "academic_year": 2569,
+    "audience": "ภาคปกติ",
+    "recommended_storage_mode": "BOTH"
+  },
+  {
+    "title": "คู่มือนักศึกษาปี 2568",
+    "source_url": "https://eduservice.yru.ac.th/files/manual/manual2568.pdf",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=guide",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "academic_year": 2568,
+    "audience": null,
+    "recommended_storage_mode": "RAG",
+    "max_bytes": 419430400,
+    "download_timeout": 120
+  },
+  {
+    "title": "คู่มือลงทะเบียน online",
+    "source_url": "https://eduservice.yru.ac.th/files/manual/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%AD%E0%B8%99%E0%B9%84%E0%B8%A5%E0%B8%99%E0%B9%8C.pdf",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=guide",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "academic_year": null,
+    "audience": null,
+    "recommended_storage_mode": "RAG",
+    "max_bytes": 419430400,
+    "download_timeout": 120
+  },
+  {
+    "title": "คู่มือนักศึกษา ประจำปีการศึกษา 2569",
+    "filename": "student_handbook_2569",
+    "source_url": "https://drive.google.com/file/d/1kenKfpSFVefub6Lpn7cDBZXK3haxMtvg/view?usp=sharing",
+    "source_page_url": "https://acdservice.yru.ac.th/page/425/คู่มือนักศึกษา.html",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "academic_year": 2569,
+    "recommended_storage_mode": "RAG",
+    "max_bytes": 419430400,
+    "download_timeout": 120
+  }
+]

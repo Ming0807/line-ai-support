@@ -47,7 +47,7 @@ it('sends the bounded float embedding request and restores vectors by input inde
  const body=JSON.parse(String(init?.body));
  expect(body).toEqual({model:input.modelId,input:input.input,dimensions:3,encoding_format:'float'});
  expect(JSON.stringify(body)).not.toContain(input.apiKey);
- expect(result).toEqual({vectors:[[1,0,0],[0,1,0]],inputTokens:7});
+ expect(result).toEqual({vectors:[[1,0,0],[0,1,0]],inputTokens:7,httpStatus:200});
 });
 
 it('omits unsupported dimensions for ada-002 and accepts its fixed 1536-vector output',async()=>{
@@ -56,9 +56,14 @@ it('omits unsupported dimensions for ada-002 and accepts its fixed 1536-vector o
  const fetchImpl=fetchFor(payload(input.modelId,[{index:0,embedding:vector}],{prompt_tokens:3,total_tokens:3}));
 
  await expect(createOpenAIEmbeddingAdapter({fetchImpl}).embed(input))
-  .resolves.toEqual({vectors:[vector],inputTokens:3});
+  .resolves.toEqual({vectors:[vector],inputTokens:3,httpStatus:200});
  const [,init]=vi.mocked(fetchImpl).mock.calls[0]!;
  expect(JSON.parse(String(init?.body))).not.toHaveProperty('dimensions');
+});
+
+it('preserves a received 200 when the embedding response fails validation',async()=>{
+ await expect(createOpenAIEmbeddingAdapter({fetchImpl:fetchFor({invalid:true})}).embed(request()))
+  .rejects.toMatchObject({code:'INVALID_OUTPUT',httpStatus:200});
 });
 
 it('rejects unsupported ada-002 dimensions before HTTP',async()=>{
@@ -169,7 +174,7 @@ it('returns null token usage when the provider omits usage',async()=>{
  const fetchImpl=fetchFor(payload(request().modelId,validData()));
 
  await expect(createOpenAIEmbeddingAdapter({fetchImpl}).embed(request()))
-  .resolves.toEqual({vectors:[[1,0,0],[0,1,0]],inputTokens:null});
+  .resolves.toEqual({vectors:[[1,0,0],[0,1,0]],inputTokens:null,httpStatus:200});
 });
 
 const httpErrorCases:Array<[number,string,boolean]>=[

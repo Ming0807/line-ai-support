@@ -12,7 +12,7 @@ process.on('SIGTERM',()=>{stopped=true;});
 
 try {
  while(!stopped) {
-  const result=await runInboxCycle(pool,key);
+  const result=await runInboxCycle(pool,key,{aiEnabled:process.env.YRU_AI_ENABLED==='true'});
   if(process.argv.includes('--once')) {if(result.failed) process.exitCode=1;break;}
   if(!result.claimed || result.failed) await delay(1000);
  }

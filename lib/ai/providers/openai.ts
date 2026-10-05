@@ -1,6 +1,9 @@
 import {AIProviderError,type AIProviderAdapter,type AITool,type ProviderRequest,type ProviderResponse} from '../types';
+import {createChatCompletionsAdapter} from './chat-completions';
+import {readRetryEvidence} from '../retry-evidence';
 
 const OPENAI_BASE='https://api.openai.com/v1';
+const ZEN_BASE='https://opencode.ai/zen/v1';
 const MAX_RESPONSE_BYTES=256*1024;
 const MAX_REQUEST_BYTES=512*1024;
 const MODEL_ID_PATTERN=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
@@ -103,13 +106,14 @@ function validateSignal(signal:unknown):asserts signal is AbortSignal {
   typeof (signal as AbortSignal).addEventListener!=='function')throw invalidRequest();
 }
 
-function validateBaseUrl(baseUrl:unknown):asserts baseUrl is string {
- if(baseUrl!==OPENAI_BASE&&baseUrl!==`${OPENAI_BASE}/`)throw invalidRequest();
+function validateBaseUrl(baseUrl:unknown,expectedBase:string):asserts baseUrl is string {
+ if(baseUrl!==expectedBase&&baseUrl!==`${expectedBase}/`)throw invalidRequest();
 }
 
-function validateCommon(modelId:unknown,baseUrl:unknown,apiKey:unknown,signal:unknown):asserts modelId is string {
- if(typeof modelId!=='string'||!MODEL_ID_PATTERN.test(modelId))throw invalidRequest();
- validateBaseUrl(baseUrl);
+function validateCommon(modelId:unknown,baseUrl:unknown,apiKey:unknown,signal:unknown,expectedBase:string):asserts modelId is string {
+ const pattern=expectedBase===ZEN_BASE?/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/:MODEL_ID_PATTERN;
+ if(typeof modelId!=='string'||!pattern.test(modelId))throw invalidRequest();
+ validateBaseUrl(baseUrl,expectedBase);
  if(typeof apiKey!=='string'||apiKey.length<1||apiKey.length>512||apiKey.trim()!==apiKey||/\s/.test(apiKey))throw invalidRequest();
  validateSignal(signal);
 }
@@ -127,9 +131,12 @@ function validateTools(tools:AITool[]|undefined):void {
  }
 }
 
-function validateRequest(request:ProviderRequest):void {
- if(!isRecord(request)||!hasExactKeys(request,['modelId','baseUrl','apiKey','messages','responseSchema','signal'],['tools','maxOutputTokens']))throw invalidRequest();
- validateCommon(request.modelId,request.baseUrl,request.apiKey,request.signal);
+function validateRequest(request:ProviderRequest,expectedBase:string):void {
+ if(!isRecord(request)||!hasExactKeys(request,['modelId','baseUrl','apiKey','messages','responseSchema','signal'],
+  ['tools','maxOutputTokens',...(expectedBase===ZEN_BASE?['costMode','apiFormat']:[])]))throw invalidRequest();
+ if(expectedBase===ZEN_BASE&&(request.apiFormat!=='RESPONSES'||
+  (request.costMode!==undefined&&request.costMode!=='FREE_ONLY'&&request.costMode!=='ALLOW_PAID')))throw invalidRequest();
+ validateCommon(request.modelId,request.baseUrl,request.apiKey,request.signal,expectedBase);
  if(!Array.isArray(request.messages)||request.messages.length<1||request.messages.length>100)throw invalidRequest();
  for(const message of request.messages){
   if(!isRecord(message)||!hasExactKeys(message,['role','content'])||!['system','user','assistant'].includes(String(message.role))||
@@ -153,11 +160,11 @@ function errorForSignal(signal:AbortSignal,error?:unknown):AIProviderError {
  return new AIProviderError(reasonName==='TimeoutError'||errorName==='TimeoutError'?'TIMEOUT':'CANCELLED');
 }
 
-function responseError(status:number):AIProviderError {
+function responseError(status:number,headers:Headers):AIProviderError {
  if(status===401||status===403)return new AIProviderError('AUTH_ERROR',status);
- if(status===429)return new AIProviderError('RATE_LIMITED',status);
+ if(status===429)return new AIProviderError('RATE_LIMITED',status,readRetryEvidence(status,headers));
  if(status===404)return new AIProviderError('MODEL_UNAVAILABLE',status);
- if(status>=500)return new AIProviderError('SERVER_ERROR',status);
+ if(status>=500)return new AIProviderError('SERVER_ERROR',status,readRetryEvidence(status,headers));
  if(status>=400)return new AIProviderError('INVALID_REQUEST',status);
  return new AIProviderError('PROVIDER_UNAVAILABLE',status);
 }
@@ -312,34 +319,49 @@ function parseResponse(value:unknown,request:ProviderRequest):ProviderResponse {
 }
 
 export function createOpenAIAdapter(options:{fetchImpl?:typeof fetch}={}):AIProviderAdapter {
+ return createResponsesAdapter(OPENAI_BASE,options);
+}
+
+/** Separate immutable endpoint; native OpenAI validation is never broadened to Zen. */
+export function createZenResponsesAdapter(options:{fetchImpl?:typeof fetch}={}):AIProviderAdapter {
+ const responses=createResponsesAdapter(ZEN_BASE,options),chat=createChatCompletionsAdapter(options);
+ return {...responses,healthCheck(config){
+  if(config.baseUrl!==ZEN_BASE&&config.baseUrl!==`${ZEN_BASE}/`)return Promise.reject(invalidRequest());
+  return chat.healthCheck(config);
+ }};
+}
+
+function createResponsesAdapter(base:string,options:{fetchImpl?:typeof fetch}):AIProviderAdapter {
  const fetchImpl=options.fetchImpl??fetch;
  return {
   async generate(request):Promise<ProviderResponse>{
-   try{validateRequest(request);}
+   try{validateRequest(request,base);}
    catch(error){if(error instanceof AIProviderError)throw error;throw invalidRequest();}
    const body:JsonRecord={model:request.modelId,input:request.messages,store:false,
     text:{format:{type:'json_schema',name:request.responseSchema.name,strict:true,schema:request.responseSchema.schema}}};
    if(request.tools)body.tools=request.tools.map((tool)=>({type:'function',name:tool.name,description:tool.description,
     parameters:tool.parameters,strict:true}));
    if(request.maxOutputTokens!==undefined)body.max_output_tokens=request.maxOutputTokens;
-   const response=await fetchSafely(fetchImpl,`${OPENAI_BASE}/responses`,{
+   const response=await fetchSafely(fetchImpl,`${base}/responses`,{
     method:'POST',headers:{authorization:`Bearer ${request.apiKey}`,'content-type':'application/json'},
     body:safeJson(body),signal:request.signal,redirect:'error',
    },request.signal);
-   if(response.status!==200){await cancelBody(response);throw responseError(response.status);}
-   let payload:unknown;
-   try{payload=JSON.parse(await readBoundedBody(response,request.signal));}
-   catch(error){if(error instanceof AIProviderError)throw error;throw invalidOutput();}
-   return parseResponse(payload,request);
+   if(response.status!==200){const failure=responseError(response.status,response.headers);await cancelBody(response);throw failure;}
+   try{
+    const payload:unknown=JSON.parse(await readBoundedBody(response,request.signal));
+    const parsed=parseResponse(payload,request);
+    if(base===ZEN_BASE&&parsed.output!==null&&parsed.toolCalls.length)throw invalidOutput();
+    return {...parsed,httpStatus:response.status};
+   }catch(error){throw new AIProviderError(error instanceof AIProviderError?error.code:'INVALID_OUTPUT',response.status);}
   },
   async healthCheck(config):Promise<'HEALTHY'|'DEGRADED'|'RATE_LIMITED'|'OFFLINE'> {
    try{
     if(!isRecord(config)||!hasExactKeys(config,['modelId','baseUrl','apiKey','signal']))throw invalidRequest();
-    validateCommon(config.modelId,config.baseUrl,config.apiKey,config.signal);
+    validateCommon(config.modelId,config.baseUrl,config.apiKey,config.signal,base);
    }catch(error){if(error instanceof AIProviderError)throw error;throw invalidRequest();}
    let response:Response;
    try{
-    response=await fetchSafely(fetchImpl,`${OPENAI_BASE}/models/${encodeURIComponent(config.modelId)}`,{
+    response=await fetchSafely(fetchImpl,`${base}/models/${encodeURIComponent(config.modelId)}`,{
      method:'GET',headers:{authorization:`Bearer ${config.apiKey}`},signal:config.signal,redirect:'error',
     },config.signal);
    }catch(error){

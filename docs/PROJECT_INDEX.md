@@ -1,0 +1,57 @@
+# YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
+
+อัปเดต 4 ตุลาคม 2026 หลังผู้ใช้ให้ทบทวนสเปคและจัดแผนก่อนกลับไปแก้โค้ด เอกสารชุดนี้เป็นทางเข้าเดียวสำหรับคนและ agent; สถานะงานปัจจุบันอยู่ใน task board ไม่ต้องไล่อ่านประวัติแชต
+
+## อ่านตามลำดับนี้
+
+| เอกสาร | ใช้ตอบคำถาม |
+|---|---|
+| [README](../README.md) | โปรเจกต์คืออะไร เริ่มใช้งานและทดสอบอย่างไร |
+| [PRODUCT](../PRODUCT.md) / [DESIGN](../DESIGN.md) | Product truth และ visual baseline พร้อมข้อกำหนด minimal |
+| [AGENTS](../AGENTS.md) | agent ต้องอ่านอะไรและรักษากติกาใด |
+| [ต้นฉบับและที่มา](requirements/sources/README.md) | ผู้ใช้กำหนดอะไรไว้ตั้งแต่ต้น |
+| [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md) | ขอบเขต V1 และ Flow A–F |
+| [Requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md) | แต่ละข้ออยู่ในงานไหน มีหลักฐานแล้วหรือยัง |
+| [System design](architecture/YRU_V1_DESIGN.md) | subsystem เชื่อมกันอย่างไรและมีขอบเขตใด |
+| [Provider design](architecture/AI_PROVIDER_DESIGN.md) | AI ฟรี การจัดลำดับ UX, HTTP/โควต้าและปุ่มทดสอบ |
+| [Task board](tasks/V1_TASK_BOARD.md) | เสร็จอะไร งานถัดไปคืออะไร ใครรับผิดชอบ |
+| [Decision log](decisions/DECISION_LOG.md) | ข้อสรุปใดมาจากผู้ใช้ ข้อใดเป็นวิธีที่ผู้พัฒนาเลือก |
+| [Working protocol](agents/WORKING_PROTOCOL.md) | วิธีมอบงาน ตรวจงาน และอัปเดตเอกสาร |
+| [Local setup](operations/LOCAL_SETUP.md) | ENV, Supabase, LINE, workers, tests |
+| [Final setup checklist](operations/FINAL_SETUP_CHECKLIST.md) | สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันภายหลัง |
+
+## ลำดับอำนาจของเอกสาร
+
+1. คำสั่ง/คำยืนยันล่าสุดของผู้ใช้ มีผลเหนือข้อเสนอหรือตัวอย่างเก่า บันทึกไว้ใน decision log และ matrix โดยระบุว่าเป็นคำยืนยันภายหลัง
+2. Master guide ใช้ร่วมกับต้นฉบับภาพรวมและ versioning; ห้ามอ่านคู่มือแล้วละเลยเป้าหมาย Zen/OpenRouter/free startup ในต้นฉบับ
+3. Design แปลงข้อกำหนดเป็นวิธีทำงาน; ต้องระบุสิ่งที่มีอยู่จริงและสิ่งที่ยังวางแผน
+4. Task board บอกสถานะล่าสุด; execution plan บอกรายละเอียดของ task; report บอกผลทดสอบ ณ source checkpoint นั้น
+5. Roadmap และ progress ledger เก่าเก็บเป็นประวัติ ไม่ใช้สถานะเก่ามาทับ task board
+
+หากสองแหล่งขัดกัน ให้เพิ่มรายการ conflict/decision ก่อนเปลี่ยน behavior ห้ามตีความ “ตัวอย่าง OpenAI” หรือ “Paid Emergency” เป็นการอนุมัติเปิดบริการเสียเงินเอง
+
+## สถานะที่ต้องรู้ก่อนเริ่มงาน
+
+- M1–M4 มีหลักฐาน automated/DB/auth/HTTP ตามรายงาน; Student/Staff echo เคยผ่าน LINE จริงตามผู้ใช้ยืนยัน การทดสอบ ticket flow จริงยังต้องทำภายหลัง
+- M5 provider automated prerequisites ผ่าน [acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); free/order/status/quota/probe/cooldown/compatible UI มีหลักฐานแล้ว. Live free account/Thai quality และ M6 business/full flows ยัง pending
+- DOC-01 จัดเอกสารและplanningreviewsเสร็จแล้ว; งานถัดไป PRV-01…PRV-05 แก้ free provider + UX/status/test ก่อนเดินต่อ Import
+- M7 เริ่ม freeze all-five-format import contractsหลัง PRV automated gates; M8/M9 ยังต้องแตก execution planตาม board ไม่ใช่ทุก phaseมี implementationครบแล้ว
+- ชุดเอกสารมหาวิทยาลัยเก็บ 187 resources; คัด 15 แหล่งเป็น pending review แล้ว ยังไม่ใช่ approved/indexed knowledge
+- ผล426 unit/81PG/build เดิมเป็นประวัติ; PRV รอบแรกมี542unit/type/lint ผ่าน และ focused/actualPG เพิ่มตาม component report. Source ยังแก้ร่วมกับทีม จึงต้องรัน full checks ใหม่ก่อนรับ milestone
+- ยังไม่เรียก live/paid AI และยังไม่ถือว่า V1 พร้อมใช้งานจริง
+
+## ที่เก็บแผนและหลักฐาน
+
+- [Roadmap เดิม](superpowers/plans/2026-10-04-yru-helpdesk-roadmap.md): ประวัติ Phase 0–7; ตาราง milestone ปัจจุบันอยู่ใน task board
+- [Free provider execution plan](superpowers/plans/2026-10-04-yru-free-ai-providers.md): แผนแก้ M5/M6 ต้องใช้ร่วมกับ provider design ล่าสุด
+- [Provider UX/status/test execution plan](superpowers/plans/2026-10-04-yru-provider-management-ux.md) และ [surface brief](ui/PROVIDER_SURFACE_BRIEF.md): tasks PRV-03/04 แบบ product minimal
+- [RAG execution plan](superpowers/plans/2026-10-04-yru-rag.md), [Import execution plan](superpowers/plans/2026-10-04-yru-knowledge-import.md)
+- [Provider spec audit](reports/AI_PROVIDER_SPEC_AUDIT.md), [M5 report](reports/M5_AI_GATEWAY_REPORT.md), [M6 component evidence](reports/M6_RAG_REPORT.md)
+- [Documentation control report](reports/DOCUMENTATION_CONTROL_REPORT.md): source hash/link/75chapters/Flow coverage และผลreviewของทีมใน DOC-01
+- [M2 Auth](reports/M2_DEVELOPMENT_AUTH_REPORT.md), [M3 LINE](reports/M3_DURABLE_LINE_REPORT.md), [M4 Tickets](reports/M4_TICKET_CORE_REPORT.md)
+- [Corpus completeness](../documents/yru/COMPLETENESS.md) และ [catalog](../documents/yru/CATALOG.md)
+
+ชื่อไฟล์ไม่จำเป็นต้องเป็น `design.md` หรือ `agent.md`; โครงการนี้ใช้ `AGENTS.md` ตาม convention และแยก design/task/requirements ตามหน้าที่ เอกสารทุกชุดต้องโยงจากหน้านี้ ไม่สร้างแผนซ้ำที่มีสถานะขัดกัน
+## Latest component checkpoint
+
+[Provider prerequisite acceptance](reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md) records919unit/92PG/type/lint/build,19 isolated migration replay/RLS/advisors, signed free RAG fixture,8browser groups and actual scoped Luna max reviews. DEVELOPMENT19migrations/31RLS/3real subjects verified. Root continues M7; live free quality/corpus/OA and complete V1 remain pending. [Cooldown](reports/PRV_COOLDOWN_COMPONENT_REPORT.md) and [observations](reports/PRV_OBSERVATIONS_COMPONENT_REPORT.md) remain dated evidence.

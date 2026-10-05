@@ -1,0 +1,42 @@
+[
+  {
+    "title": "คู่มือการใช้งานระบบ YRU Passport (ลิงก์ Google Drive)",
+    "source_url": "https://drive.google.com/file/d/1rnRP_4-HkkVvdVo4eTrEQI9cJIXeOs3I/view",
+    "source_page_url": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+    "fetched_at": "2026-10-04T11:09:32+07:00",
+    "local_path": null,
+    "text_path": null,
+    "sha256": null,
+    "bytes": 0,
+    "content_type": "text/html; charset=utf-8 (redirect to accounts.google.com sign-in)",
+    "download_status": "failed",
+    "page_count": null,
+    "text_quality": "not_available",
+    "recommended_storage_mode": "RAG",
+    "family_code": "YRU_PASSPORT_GUIDE",
+    "academic_year": null,
+    "review_status": "PENDING_REVIEW",
+    "is_current": null,
+    "notes": "ลิงก์คู่มือจากหน้า NSE อย่างเป็นทางการ แต่ดาวน์โหลดผ่าน Drive แล้วถูกเปลี่ยนเส้นทางไปหน้าลงชื่อเข้าใช้ จึงไม่สามารถบันทึก PDF ได้; ใช้ HTML snapshot ของหน้า NSE แทน."
+  },
+  {
+    "title": "หน้าเข้าสู่ระบบ YRU Passport (หน้าเว็บ dynamic)",
+    "source_url": "https://passport.yru.ac.th/",
+    "source_page_url": "https://passport.yru.ac.th/",
+    "fetched_at": "2026-10-04T11:09:32+07:00",
+    "local_path": null,
+    "text_path": null,
+    "sha256": null,
+    "bytes": 0,
+    "content_type": "text/html; charset=utf-8 (HTTP 302 loop at /auth/login)",
+    "download_status": "failed",
+    "page_count": null,
+    "text_quality": "not_available",
+    "recommended_storage_mode": "RAG",
+    "family_code": "YRU_PASSPORT_GUIDE",
+    "academic_year": null,
+    "review_status": "PENDING_REVIEW",
+    "is_current": null,
+    "notes": "ดาวน์โหลด HTML ไม่สำเร็จ: URL ตอบ 302 ไป /auth/login และปลายทางวนกลับเดิม. หน้าค้นหาของเว็บแสดงฟอร์ม Login/ThaiD และให้ติดต่อศูนย์คอมพิวเตอร์; ไม่พบขั้นตอนลืมรหัสผ่านสาธารณะที่ยืนยันได้."
+  }
+]

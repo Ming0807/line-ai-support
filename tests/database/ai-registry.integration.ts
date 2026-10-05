@@ -31,7 +31,7 @@ test('an in-flight generation preserves usage but cannot overwrite health after 
   assert.deepEqual((await pool.query('select provider_revision,model_revision,error_type from private.ai_errors where provider_id=$1',[providerId])).rows,
    [{provider_revision:1,model_revision:0,error_type:'AUTH_ERROR'}]);
  }finally{
-  if(providerId){await pool.query('delete from private.ai_errors where provider_id=$1',[providerId]);await pool.query('delete from private.ai_usage_logs where provider_id=$1',[providerId]);
+  if(providerId){await pool.query('delete from private.ai_model_observations where provider_id=$1',[providerId]);await pool.query('delete from private.ai_errors where provider_id=$1',[providerId]);await pool.query('delete from private.ai_usage_logs where provider_id=$1',[providerId]);
    await pool.query('delete from private.ai_models where provider_id=$1',[providerId]);await pool.query('delete from private.ai_providers where id=$1',[providerId]);}
   await pool.end();
  }
@@ -74,7 +74,7 @@ test('real AI store records usage, fixed errors and provider health without expo
   assert(!JSON.stringify([...usage.rows,...errors.rows]).includes(secret));
   assert.equal((await pool.query('select health_status from private.ai_providers where id=$1',[providerId])).rows[0].health_status,'HEALTHY');
  }finally{
-  if(providerId){await pool.query('delete from private.ai_errors where provider_id=$1',[providerId]);await pool.query('delete from private.ai_usage_logs where provider_id=$1',[providerId]);
+  if(providerId){await pool.query('delete from private.ai_model_observations where provider_id=$1',[providerId]);await pool.query('delete from private.ai_errors where provider_id=$1',[providerId]);await pool.query('delete from private.ai_usage_logs where provider_id=$1',[providerId]);
    await pool.query('delete from private.ai_models where provider_id=$1',[providerId]);await pool.query('delete from private.ai_providers where id=$1',[providerId]);}
   await pool.end();
  }

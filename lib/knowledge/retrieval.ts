@@ -5,12 +5,12 @@ import type {KnowledgeEvidence,KnowledgeScope} from './types';
 
 const nullableCode=z.string().min(1).max(80).nullable();
 const nullableYear=z.number().int().min(2400).max(3000).nullable();
-const scopeSchema=z.object({historical:z.boolean(),academicYear:nullableYear,
+export const knowledgeScopeSchema=z.object({historical:z.boolean(),academicYear:nullableYear,
  asOfDate:z.string().refine(isValidKnowledgeDate).nullable(),familyCodes:z.array(z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/)).max(20),
  departmentCode:nullableCode,audience:nullableCode,studentType:nullableCode,semester:z.string().min(1).max(40).nullable(),
  programCode:nullableCode,curriculumCode:nullableCode,cohort:nullableYear}).strict()
  .refine(s=>s.historical?(s.academicYear!==null||s.asOfDate!==null):s.asOfDate===null);
-const requestSchema=z.object({scope:scopeSchema,vector:z.array(z.number().finite().min(-3.402823466e38).max(3.402823466e38)).min(1).max(4096)
+const requestSchema=z.object({scope:knowledgeScopeSchema,vector:z.array(z.number().finite().min(-3.402823466e38).max(3.402823466e38)).min(1).max(4096)
  .refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),threshold:z.number().finite().min(-1).max(1).default(0.65),
  limit:z.number().int().min(1).max(12).default(8)}).strict();
 export interface KnowledgeSearchRequest {scope:KnowledgeScope;vector:number[];fingerprint:string;threshold?:number;limit?:number}

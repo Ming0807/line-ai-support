@@ -1,5 +1,7 @@
 # YRU AI Helpdesk Implementation Plan
 
+> **Historical planning baseline.** ข้อความ “สถานะก่อนพัฒนา/ไม่มีpackage/Git/pushไม่ได้” และ checklistด้านล่างเป็นsnapshotเดิม ไม่ใช่สถานะปัจจุบัน. อ่าน [current task board](../../tasks/V1_TASK_BOARD.md), [requirements matrix](../../requirements/V1_REQUIREMENTS_MATRIX.md), [decisions](../../decisions/DECISION_LOG.md) และ [project index](../../PROJECT_INDEX.md) ก่อนทำงาน. Provider acceptance M5/M6 reopened; lateststartupfree+minimalUI/order/status/modeltestrequirementsมีผลเหนือแผนOpenAI-only.
+
 > **For agentic workers:** เมื่อเริ่มพัฒนา ใช้ `superpowers:subagent-driven-development` หรือ `superpowers:executing-plans` ทำทีละงานและตรวจรับก่อนงานถัดไป
 
 **Goal:** สร้าง AI Student Support ผ่าน LINE ที่ตอบจากข้อมูล YRU และส่งต่อเจ้าหน้าที่ได้ โดย V1 ไม่สร้างฐานข้อมูลนักศึกษา

@@ -1,0 +1,39 @@
+[
+  {
+    "title": "student_handbook_2569_index",
+    "filename": "student_handbook_2569_index",
+    "source_url": "https://acdservice.yru.ac.th/page/425/คู่มือนักศึกษา.html",
+    "source_page_url": "https://acdservice.yru.ac.th/page/425/คู่มือนักศึกษา.html",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "citizen_guides_new_site",
+    "filename": "citizen_guides_new_site",
+    "source_url": "https://acdservice.yru.ac.th/page/28/คู่มือประชาชน.html",
+    "source_page_url": "https://acdservice.yru.ac.th/page/28/คู่มือประชาชน.html",
+    "category": "guides",
+    "family_code": "TRANSFER_GUIDE",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "admissions_fees_2569_parttime",
+    "filename": "admissions_fees_2569_parttime",
+    "source_url": "https://acdservice.yru.ac.th/page/233/รับสมัครบุคคลเข้าศึกษาต่อตามโครงการ_กศ.บป._รุ่นที่_41_ประจำปีการศึกษา_2569.html",
+    "source_page_url": "https://acdservice.yru.ac.th/page/233/รับสมัครบุคคลเข้าศึกษาต่อตามโครงการ_กศ.บป._รุ่นที่_41_ประจำปีการศึกษา_2569.html",
+    "category": "fees",
+    "family_code": "TUITION_FEE",
+    "recommended_storage_mode": "BOTH"
+  },
+  {
+    "title": "คู่มือนักศึกษา ประจำปีการศึกษา 2569",
+    "filename": "student_handbook_2569",
+    "source_url": "https://drive.google.com/file/d/1kenKfpSFVefub6Lpn7cDBZXK3haxMtvg/view?usp=sharing",
+    "source_page_url": "https://acdservice.yru.ac.th/page/425/คู่มือนักศึกษา.html",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "academic_year": 2569,
+    "recommended_storage_mode": "RAG"
+  }
+]

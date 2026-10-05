@@ -9,7 +9,7 @@ const schema=z.object({answer:z.string()}).strict(),key=randomBytes(32).toString
 const normal:ProviderResponse={output:{answer:'คำตอบทดสอบ'},toolCalls:[],inputTokens:20,outputTokens:10};
 const config=(priority:number):AIModelConfig=>({id:randomUUID(),providerId:randomUUID(),adapter:'MOCK',modelId:`fixture-${priority}`,
  baseUrl:'https://api.openai.com/v1',apiKeyEncrypted:encryptValue('fixture-key',key),providerPriority:priority,priority:1,
- providerRevision:0,modelRevision:0,timeoutMs:100,supportsJson:true,supportsTools:true,inputPricePerMillion:1,outputPricePerMillion:2});
+ providerRevision:0,modelRevision:0,timeoutMs:100,supportsJson:true,supportsTools:true,inputPricePerMillion:1,outputPricePerMillion:2,costMode:'ALLOW_PAID'});
 function fixture(models=[config(1),config(2)]){
  const attempts:AIAttempt[]=[];
  const adapter:AIProviderAdapter={generate:vi.fn().mockResolvedValue(normal),healthCheck:vi.fn().mockResolvedValue('HEALTHY')};

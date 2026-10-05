@@ -3,12 +3,12 @@ import { randomBytes } from 'node:crypto';
 import { userEventSchema } from '../line/events';
 import { decryptValue, encryptValue, hashLineUserId } from '../security/identity';
 import { persistStaffInboxEvent } from './staff-inbox';
-import { processStudentContent } from '../conversation/student-processing';
+import { processStudentContent,type StudentProcessingOptions } from '../conversation/student-processing';
 import { processStaffCommand } from '../tickets/staff-command';
 export interface InboxJob { id:string; channel:'STUDENT'|'STAFF'; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
 
 /** Caller owns the transaction. Every effect rolls back if the lease cannot be completed. */
-export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:InboxJob,key:string):Promise<void> {
+export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:InboxJob,key:string,options:StudentProcessingOptions={}):Promise<void> {
  const lease=await client.query("select id,channel from private.webhook_inbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() for update",[job.id,job.lease_token]);
  if(lease.rowCount!==1) throw new Error('STALE_LEASE');
  if(!['STUDENT','STAFF'].includes(job.channel) || lease.rows[0].channel!==job.channel) throw new Error('INVALID_CLAIM_CHANNEL');
@@ -32,7 +32,7 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
    await client.query('update public.line_sessions set active=$2,updated_at=now() where id=$1',[session.line_session_id,event.type==='follow']);
   } else if(event.type==='postback') {
    const source=(await client.query('select received_at from private.webhook_inbox where id=$1',[job.id])).rows[0];
-   errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key);
+   errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key,options);
   } else if(event.type==='message' && event.message) {
    const recent=await client.query(`select count(*)::int as count from private.webhook_inbox prior
     join private.webhook_inbox current_event on current_event.id=$2
@@ -42,7 +42,7 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
    if(recent.rows[0].count>=20){errorCode='RATE_LIMITED';}
    else {
     const source=(await client.query('select received_at from private.webhook_inbox where id=$1',[job.id])).rows[0];
-    errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key);
+    errorCode=await processStudentContent(client,{sessionId:session.line_session_id,eventId:job.id,receivedAt:source.received_at,event},key,options);
     await client.query('update public.line_sessions set last_message_at=now(),updated_at=now() where id=$1',[session.line_session_id]);
    }
   } else {errorCode='UNSUPPORTED_EVENT';}

@@ -5,7 +5,7 @@ import type {KnowledgeEvidence} from './types';
 export const ragAnswerSchema=z.object({answer:z.string().trim().min(1).max(3000)
  .refine(s=>!/(?:https?:\/\/|www\.)/i.test(s)),citationChunkIds:z.array(z.uuid()).min(1).max(5)
  .refine(ids=>new Set(ids).size===ids.length)}).strict();
-const citationEvidence=z.object({chunkId:z.uuid(),documentId:z.uuid(),documentRevision:z.number().int().min(0),title:z.string().min(1).max(500),
+export const citationEvidenceSchema=z.object({chunkId:z.uuid(),documentId:z.uuid(),documentRevision:z.number().int().min(0),title:z.string().min(1).max(500),
  familyCode:z.string(),academicYear:z.number().int().nullable(),authorityLevel:z.number().int().min(0).max(100),pageNumber:z.number().int().positive().nullable(),
  sectionTitle:z.string().max(180).nullable(),content:z.string().min(1).max(6000),sourceUrl:z.string().max(2000).nullable(),similarity:z.number().finite()}).strict();
 
@@ -33,7 +33,7 @@ export function buildCitedAnswer(input:unknown,available:KnowledgeEvidence[]):{
  const answer=ragAnswerSchema.safeParse(input);
  if(!answer.success||available.length>12)return invalid();
  const evidence=new Map<string,KnowledgeEvidence>();
- for(const item of available){if(!citationEvidence.safeParse(item).success||evidence.has(item.chunkId))return invalid();evidence.set(item.chunkId,item);}
+ for(const item of available){if(!citationEvidenceSchema.safeParse(item).success||evidence.has(item.chunkId))return invalid();evidence.set(item.chunkId,item);}
  const citations=answer.data.citationChunkIds.map(id=>{
   const row=evidence.get(id);if(!row)return invalid();
   // Source URLs/page numbers are selected here, never supplied by model output.

@@ -15,7 +15,7 @@ function model(index:number,overrides:Partial<EmbeddingModelConfig>={}):Embeddin
  return {id:uuid(index),providerId:uuid(index+1000),adapter:'MOCK',modelId:`model-${index}`,
   baseUrl:'https://api.openai.com/v1',apiKeyEncrypted:encryptValue('fixture-provider-key',key),
   providerRevision:1,modelRevision:2,providerPriority:index,priority:1,timeoutMs:100,
-  inputPricePerMillion:2,outputPricePerMillion:null,dimensions:3,...overrides};
+  inputPricePerMillion:2,outputPricePerMillion:null,dimensions:3,costMode:'ALLOW_PAID',...overrides};
 }
 
 function request(overrides:Partial<TestInput>={}):TestInput {

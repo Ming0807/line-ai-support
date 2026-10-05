@@ -45,14 +45,14 @@ function postbackEvent(userId: string, data: string): DirectUserEvent {
   return { type: 'postback', source: { type: 'user', userId }, postback: { data }, replyToken: `reply-${randomUUID()}` };
 }
 
-async function process(client: Client, student: { sessionId: string; userId: string; userHash: string }, event: DirectUserEvent) {
+async function process(client: Client, student: { sessionId: string; userId: string; userHash: string }, event: DirectUserEvent,aiEnabled=false) {
   const source = await sourceEvent(client, student.userHash, event);
   const code = await processStudentContent(client, {
     sessionId: student.sessionId,
     eventId: source.id,
     receivedAt: source.receivedAt,
     event,
-  }, key);
+  }, key,{aiEnabled});
   return { eventId: source.id, code };
 }
 
@@ -328,4 +328,64 @@ test('text after a CLOSED ticket creates a separate AI context and leaves the cl
     assert.equal((await client.query('select mode,status from public.tickets where id=$1', [closed.ticketId])).rows[0].status, 'CLOSED');
     assert.equal((await client.query('select count(*)::int as count from public.tickets where line_session_id=$1', [student.sessionId])).rows[0].count, 1);
   });
+});
+
+test('AI-enabled routed text prepares one encrypted job and keeps answered text in its original context',async()=>{
+ await withRollback(async client=>{
+  const student=await makeStudent(client);
+  const event=textEvent(student.userId,'เทียบโอนต้องทำอย่างไร');
+  const first=await process(client,student,event,true);
+  const jobs=(await client.query('select * from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows;
+  assert.equal(jobs.length,1,'routed text prepares a durable job');
+  assert.equal((await client.query('select count(*)::int n from private.message_outbox where line_session_id=$1',[student.sessionId])).rows[0].n,0,'generation runs after inbox commit');
+  const request=JSON.parse(decryptValue(jobs[0].request_encrypted,key)) as OutboundPayload&{receivedAt:string;quickReply:{items:QuickChoice[]}};
+  assert.equal(request.replyToken,event.type==='message'?event.replyToken:undefined);
+  const newChoice=request.quickReply.items.find(item=>item.action.displayText==='เริ่มเรื่องใหม่');assert.ok(newChoice);
+  const started=await process(client,student,postbackEvent(student.userId,newChoice.action.data),true);
+  assert.match((await replyFor(client,started.eventId)).messages[0].text,/ส่งคำถามเรื่องใหม่/);
+  assert.equal((await client.query('select conversation_id from public.messages where id=$1',[jobs[0].message_id])).rows[0].conversation_id,jobs[0].conversation_id,'the prior routed question is never moved or regenerated');
+  assert.equal((await client.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows[0].n,1);
+  assert.equal((await client.query('select count(*)::int n from public.messages where source_event_id=$1',[first.eventId])).rows[0].n,1);
+  const contact=request.quickReply.items.find(item=>item.action.displayText==='ติดต่อเจ้าหน้าที่');assert.ok(contact);
+  const contacted=await process(client,student,postbackEvent(student.userId,contact.action.data),true);
+  const departmentPrompt=await replyFor(client,contacted.eventId),it=await activeDepartment(client,'IT');
+  const confirmed=await process(client,student,postbackEvent(student.userId,findChoice(departmentPrompt,item=>item.action.displayText===it.name_th).action.data),true);
+  assert.equal((await client.query('select count(*)::int n from private.ai_tool_receipts where confirmation_event_id=$1',[confirmed.eventId])).rows[0].n,1,'explicit department confirmation uses the durable ticket tool');
+  assert.equal((await client.query('select count(*)::int n from public.tickets where line_session_id=$1',[student.sessionId])).rows[0].n,1);
+ });
+});
+
+test('AI-enabled new-topic choice queues pending text separately while HUMAN continuation stays without AI',async()=>{
+ await withRollback(async client=>{
+  const student=await makeStudent(client);
+  const human=await makeHumanTicket(client,student,{status:'WAITING_USER',topic:'เรื่องเดิม'});
+  const first=await process(client,student,textEvent(student.userId,'ห้องสมุดปิดกี่โมง'),true);
+  const prompt=await replyFor(client,first.eventId);
+  assert.equal((await client.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows[0].n,0);
+  await process(client,student,postbackEvent(student.userId,findChoice(prompt,item=>item.action.displayText==='เริ่มเรื่องใหม่').action.data),true);
+  const job=(await client.query('select conversation_id from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows[0];assert.ok(job);assert.notEqual(job.conversation_id,human.conversationId);
+  const follow=await process(client,student,textEvent(student.userId,'รายละเอียดเรื่องเดิม'),true);
+  const followPrompt=await replyFor(client,follow.eventId);
+  const continueChoice=findChoice(followPrompt,item=>item.action.displayText===`ต่อ ${human.ticketNo}`);
+  await process(client,student,postbackEvent(student.userId,continueChoice.action.data),true);
+  assert.equal((await client.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows[0].n,1,'HUMAN continuation creates no job');
+  assert.equal((await client.query('select status from public.tickets where id=$1',[human.ticketId])).rows[0].status,'STAFF_HANDLING');
+ });
+});
+
+test('a department disabled after its choice was issued produces a bounded stale-choice response',async()=>{
+ await withRollback(async client=>{
+  const student=await makeStudent(client),first=await process(client,student,textEvent(student.userId,'ขอติดต่อเจ้าหน้าที่'),true);
+  const job=(await client.query('select request_encrypted from private.ai_jobs where line_session_id=$1',[student.sessionId])).rows[0];assert.ok(job);
+  const request=JSON.parse(decryptValue(job.request_encrypted,key)) as {quickReply:{items:QuickChoice[]}};
+  const contact=request.quickReply.items.find(item=>item.action.displayText==='ติดต่อเจ้าหน้าที่');assert.ok(contact);
+  const contacted=await process(client,student,postbackEvent(student.userId,contact.action.data),true);
+  const prompt=await replyFor(client,contacted.eventId),it=await activeDepartment(client,'IT');
+  const selected=findChoice(prompt,item=>item.action.displayText===it.name_th);
+  await client.query('update public.departments set active=false where id=$1',[it.id]);
+  const stale=await process(client,student,postbackEvent(student.userId,selected.action.data),true);
+  assert.equal(stale.code,'INVALID_CHOICE');assert.match((await replyFor(client,stale.eventId)).messages[0].text,/หน่วยงาน.*ไม่พร้อม|เลือกใหม่/);
+  assert.equal((await client.query('select count(*)::int n from public.tickets where line_session_id=$1',[student.sessionId])).rows[0].n,0);
+  assert.equal(first.code,null);
+ });
 });

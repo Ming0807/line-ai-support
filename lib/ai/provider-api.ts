@@ -5,7 +5,7 @@ import {ProviderAdminError} from './provider-admin';
 
 export function providerApiFailure(error:unknown):Response{
  const code=error instanceof ProviderAdminError?error.code:'INTERNAL_ERROR';
- const status=({FORBIDDEN:403,NOT_FOUND:404,CONFLICT:409,INVALID_REQUEST:400,INTERNAL_ERROR:503})[code];
+ const status=({FORBIDDEN:403,NOT_FOUND:404,CONFLICT:409,INVALID_REQUEST:400,ENDPOINT_UNAVAILABLE:400,INTERNAL_ERROR:503})[code];
  if(status===503)console.error('PROVIDER_API_FAILED',{code:'INTERNAL_ERROR'});
  return Response.json({error:code},{status});
 }

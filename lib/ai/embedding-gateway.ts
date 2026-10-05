@@ -3,6 +3,9 @@ import {z} from 'zod';
 import {decryptValue} from '../security/identity';
 import type {EmbeddingAdapter,EmbeddingModelConfig,EmbeddingResponse,EmbeddingStore} from './embedding-types';
 import {AIProviderError,type AIAttempt,type ProviderHealth} from './types';
+import {createPriceReader,type PriceReader} from './pricing';
+import {authorizeModelCost} from './cost-policy';
+import {compareModelPriority,MODEL_REGISTRY_LIMIT,isModelCoolingDown} from './model-selection';
 
 export interface EmbedInput {
  input:string[];
@@ -17,6 +20,7 @@ export interface EmbeddingGatewayOptions {
  store:EmbeddingStore;
  key:string;
  adapters:Record<string,EmbeddingAdapter>;
+ priceReader?:PriceReader;
 }
 
 export interface EmbedResult {
@@ -36,6 +40,7 @@ const MAX_INPUT_BYTES=6000;
 const responseShape=z.object({
  vectors:z.array(z.array(z.number().finite()).min(1).max(4096)),
  inputTokens:z.number().int().min(0).max(100_000_000).nullable(),
+ httpStatus:z.number().int().min(100).max(599).optional(),
 }).strict();
 
 /** Identifies the vector space, excluding credentials and registry bookkeeping. */
@@ -123,38 +128,59 @@ export async function embed(input:EmbedInput,options:EmbeddingGatewayOptions):Pr
   models=[...registered];
   if(input.fingerprint!==undefined)
    models=models.filter((model)=>embeddingFingerprint(model)===input.fingerprint);
-  models=models.sort((a,b)=>a.providerPriority-b.providerPriority||a.priority-b.priority||a.id.localeCompare(b.id)).slice(0,3);
+  models=models.sort(compareModelPriority).slice(0,MODEL_REGISTRY_LIMIT);
  }catch{throw new AIProviderError('PROVIDER_UNAVAILABLE');}
  if(!models.length)throw new AIProviderError('PROVIDER_UNAVAILABLE');
 
- let lastError=new AIProviderError('PROVIDER_UNAVAILABLE');
- for(let index=0;index<models.length;index++){
+ let lastError=new AIProviderError('PROVIDER_UNAVAILABLE'),inferenceAttempts=0;
+ const readPrice=options.priceReader??createPriceReader();
+ for(let index=0;index<models.length&&inferenceAttempts<3;index++){
   if(input.signal?.aborted)throw new AIProviderError('CANCELLED');
   const remaining=deadline-Date.now();
   if(remaining<=0)throw new AIProviderError('TIMEOUT');
   const model=models[index]!;
+  if(isModelCoolingDown(model))continue;
   const started=Date.now();
   let response:EmbeddingResponse|undefined;
   let error:AIProviderError|undefined;
+  let inferred=false,observedStatus:number|undefined,pricedModel=model;
   const budget=Math.min(remaining,model.timeoutMs);
   try{
    const adapter=options.adapters[model.adapter];
    if(!adapter)throw new AIProviderError('PROVIDER_UNAVAILABLE');
-   const apiKey=decryptValue(model.apiKeyEncrypted,options.key);
-   const raw=await bounded((signal)=>adapter.embed({modelId:model.modelId,baseUrl:model.baseUrl,apiKey,
-    input:input.input,dimensions:model.dimensions,signal}),budget,input.signal);
+   const raw=await bounded(async signal=>{
+    const permission=await authorizeModelCost(model,'EMBEDDING',readPrice,signal);
+    if(!permission)return null;
+    if(signal.aborted)throw new AIProviderError(input.signal?.aborted?'CANCELLED':'TIMEOUT');
+    const apiKey=decryptValue(model.apiKeyEncrypted,options.key);
+    if(permission.pricing)pricedModel={...model,inputPricePerMillion:permission.pricing.inputPricePerMillion,
+     outputPricePerMillion:permission.pricing.outputPricePerMillion};
+    inferred=true;inferenceAttempts++;
+    return adapter.embed({modelId:model.modelId,baseUrl:model.baseUrl,apiKey,
+     input:input.input,dimensions:model.dimensions,signal,
+     ...(['ZEN','OPENROUTER','COMPATIBLE'].includes(model.adapter)?{costMode:permission.costMode}:{})});
+   },budget,input.signal);
+   if(raw===null)continue;
+   observedStatus=z.number().int().min(100).max(599).safeParse(raw?.httpStatus).data;
    response=validateResponse(raw,input.input.length,model.dimensions);
   }catch(caught){error=normalizeAdapterError(caught);}
 
-  const attempt:AIAttempt={providerId:model.providerId,modelId:model.id,requestType:input.requestType,
+  if(!inferred){
+   if(error?.code==='CANCELLED'||(error?.code==='TIMEOUT'&&budget===remaining))throw error;
+   if(error)lastError=error;
+   continue;
+  }
+
+  const attempt:AIAttempt={providerId:model.providerId,modelId:model.id,requestType:input.requestType,purpose:'EMBEDDING',
    providerRevision:model.providerRevision,modelRevision:model.modelRevision,conversationId:input.conversationId,
+   providerNetworkRevision:model.providerNetworkRevision,modelNetworkRevision:model.modelNetworkRevision,retryEvidence:error?.retryEvidence,
    latencyMs:Math.max(0,Date.now()-started),inputTokens:response?.inputTokens??null,outputTokens:0,
-   estimatedCost:response?estimatedCost(model,response.inputTokens):null,status:error?'ERROR':'SUCCESS',
-   fallbackUsed:index>0,errorCode:error?.code,httpStatus:error?.httpStatus,health:error?healthFor(error.code):'HEALTHY'};
+   estimatedCost:response?estimatedCost(pricedModel,response.inputTokens):null,status:error?'ERROR':'SUCCESS',
+   fallbackUsed:inferenceAttempts>1,errorCode:error?.code,httpStatus:error?.httpStatus??observedStatus,health:error?healthFor(error.code):'HEALTHY'};
   await privateState(()=>options.store.recordAttempt(attempt),Math.max(1,deadline-Date.now()),input.signal);
 
   if(!error)return {vectors:response!.vectors,fingerprint:embeddingFingerprint(model),dimensions:model.dimensions,
-   providerId:model.providerId,modelId:model.id,fallbackUsed:index>0};
+   providerId:model.providerId,modelId:model.id,fallbackUsed:inferenceAttempts>1};
   lastError=error;
   if(!error.retryable||(error.code==='TIMEOUT'&&budget===remaining))throw error;
  }

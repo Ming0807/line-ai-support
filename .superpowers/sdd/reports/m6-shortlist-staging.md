@@ -1,0 +1,15 @@
+# M6 shortlist staging report
+
+Added a pure `buildShortlistStaging(shortlist, manifest, files, corpusRoot)` transform and CLI in `scripts/knowledge/stage-shortlist.ts`. The CLI reads `documents/yru/demo-shortlist.json` and the authoritative `manifest.json`, reads only the listed local source bytes after checking their filesystem-resolved paths stay under the YRU corpus directory, validates official YRU source-page URLs (HTTPS, no credentials or nondefault port), validates shortlist-to-manifest provenance and SHA-256/byte counts, then writes `.superpowers/staging/m6-shortlist.json`. Lexical paths containing traversal, drive syntax, alternate streams, or NUL are rejected. External resource URLs such as Drive are retained with `SOURCE_URL_EXTERNAL` and remain pending. The output contains safe metadata only; it does not contain extracted document text and makes no database, approval, publish, network, or embedding calls.
+
+Staged status and `isCurrent` remain `PENDING_REVIEW` and `null`. Unknown audience/year/effective date and authority remain null with review flags. Extraction quality, page count, extracted character counts, extraction notes, file presence, and integrity status are preserved as flags/metadata. Resources deduplicate by SHA-256 while retaining source provenance and the union of explicit family codes and review flags from every contributing manifest row. Per-source metadata carries its own review flags and source-file/integrity status. Multi-family content receives `PENDING_CLASSIFICATION` and a review flag.
+
+## TDD and validation
+
+- Initial RED: focused Vitest failed to load `../scripts/knowledge/stage-shortlist` because the implementation did not yet exist.
+- Additional RED: new fixtures initially failed for alternate-stream/NUL paths, source-page credentials and nondefault ports, missing external-source review flags, symlink escapes, and unioned manifest review flags across duplicate content.
+- GREEN: `vitest run tests/shortlist-staging.test.ts --maxWorkers=1` passed all 12 tests, covering pending metadata and provenance, lexical path attacks, symlink containment, manifest mismatch, checksum mismatch, YRU source-page validation, external resource classification, extraction review flags, missing files, and checksum deduplication with multi-family classification and review flags retained.
+- Actual shortlist CLI completed against all 15 entries and wrote the ignored staging artifact. Summary: **15 staged documents, 0 missing files, 0 OCR/extraction flags, 15 records with manual review fields**; 5 external resource URLs retain an explicit review flag. Every item remains pending review and `isCurrent` remains null.
+- The corpus inventory reports PDFs that may need OCR across all 187 resources; the shortlist staging count is based on each of these 15 items' manifest quality fields and extraction notes. A zero OCR flag count here does not clear the corpus-wide OCR backlog or manual review requirements.
+
+No source was downloaded, parsed, or approved. No DB work, embedding calls, full test suite, global checks, commit, or push were run.

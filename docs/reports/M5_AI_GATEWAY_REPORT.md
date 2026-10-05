@@ -1,5 +1,7 @@
 # M5 AI Gateway and Provider Dashboard
 
+> **Historical component evidence; Provider acceptance REOPENED.** Tests below describe the OPENAI-only source checkpoint. It does not satisfy the original Zen/OpenRouter/free-startup scope or the latest up/down ordering/per-model HTTP/quota/test UX. Use [spec audit](AI_PROVIDER_SPEC_AUDIT.md), [current board](../tasks/V1_TASK_BOARD.md) and [provider design](../architecture/AI_PROVIDER_DESIGN.md) before further work; do not infer current all-green/live acceptance from this report.
+
 Automated acceptance passed on4 October2026. Reviewed additive schema is on the selected development Supabase project. Live provider generation remains pending credentials and an available account model; full V1 remains incomplete.
 
 ## Implemented behavior

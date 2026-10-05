@@ -1,4 +1,5 @@
 import {AIProviderError} from '../types';
+import {readRetryEvidence} from '../retry-evidence';
 import type {EmbeddingAdapter,EmbeddingRequest,EmbeddingResponse} from '../embedding-types';
 import {isEmbeddingDimensionAllowed} from '../embedding-models';
 
@@ -75,11 +76,11 @@ function isAbortError(error:unknown):boolean {
   ['AbortError','TimeoutError'].includes(String((error as {name:unknown}).name)));
 }
 
-function responseError(status:number):AIProviderError {
+function responseError(status:number,headers:Headers):AIProviderError {
  if(status===401||status===403)return new AIProviderError('AUTH_ERROR',status);
- if(status===429)return new AIProviderError('RATE_LIMITED',status);
+ if(status===429)return new AIProviderError('RATE_LIMITED',status,readRetryEvidence(status,headers));
  if(status===404)return new AIProviderError('MODEL_UNAVAILABLE',status);
- if(status>=500)return new AIProviderError('SERVER_ERROR',status);
+ if(status>=500)return new AIProviderError('SERVER_ERROR',status,readRetryEvidence(status,headers));
  if(status>=400)return new AIProviderError('INVALID_REQUEST',status);
  return new AIProviderError('PROVIDER_UNAVAILABLE',status);
 }
@@ -198,11 +199,11 @@ export function createOpenAIEmbeddingAdapter(options:{fetchImpl?:typeof fetch}={
    try{body=validateRequest(request);}
    catch(error){if(error instanceof AIProviderError)throw error;throw invalidRequest();}
    const response=await fetchSafely(fetchImpl,request.signal,body,request.apiKey);
-   if(response.status!==200){cancelBody(response);throw responseError(response.status);}
-   let payload:unknown;
-   try{payload=JSON.parse(await readBoundedBody(response,request.signal));}
-   catch(error){if(error instanceof AIProviderError)throw error;throw invalidOutput();}
-   return parseResponse(payload,request);
+   if(response.status!==200){const failure=responseError(response.status,response.headers);cancelBody(response);throw failure;}
+   try{
+    const payload:unknown=JSON.parse(await readBoundedBody(response,request.signal));
+    return {...parseResponse(payload,request),httpStatus:response.status};
+   }catch(error){throw new AIProviderError(error instanceof AIProviderError?error.code:'INVALID_OUTPUT',response.status);}
   },
  };
 }

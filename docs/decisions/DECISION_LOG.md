@@ -1,0 +1,31 @@
+# YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
+
+อัปเดต 4 ตุลาคม 2026 ลำดับนี้แยกข้อกำหนดจากผู้ใช้กับวิธี implementation ที่ผู้พัฒนาเลือก รายการใหม่อ้าง task/requirement และเหตุผล; ไม่แก้ต้นฉบับให้เข้ากับโค้ด
+
+| ID | ข้อสรุปและที่มา | สถานะ/ผลต่อการทำงาน |
+|---|---|---|
+| DEC-001 | ผู้ใช้เลือก **LINE → Ticket → AI/RAG** แทนเริ่ม demo RAG ก่อน; ตรงลำดับ master §68 | ยืนยันจากผู้ใช้; mapping Phase กับ M1–M9 อยู่ใน task board |
+| DEC-002 | Anonymous V1, backend controls tools, HUMAN takeover, import ≠ migration และ review ก่อน publish ตามต้นฉบับ/master §§2,60,70 | ข้อกำหนด; ห้ามเพิ่ม Student DB หรือ auto DDL/publish |
+| DEC-003 | ผู้ใช้อนุญาตให้ทำงานต่อเนื่องและรวมสิ่งที่ต้องตั้งค่าเองในตอนท้าย | ยืนยันจากผู้ใช้; live keys/manual tests เป็น pending evidence ไม่หยุด independent implementation |
+| DEC-004 | Startup **AI ฟรีทั้งหมด** เน้น Zen/OpenRouter; paid services ให้มหาวิทยาลัยเพิ่มและเปิดผ่าน UI ภายหลัง | คำยืนยันล่าสุดมีผลเหนือ Paid Emergency example; PRV-01/02/05 ต้องผ่านก่อนรับ M5/M6 |
+| DEC-005 | ผู้ใช้ต้องการจัดลำดับผ่าน UX/UI ง่าย ๆ เลื่อนขึ้นลง พร้อม status HTTP/โควต้าและปุ่ม test ต่อ model | คำขอ 4 ต.ค.; PRV-03/04. ต้นฉบับ §§33–36 รองรับ priority/health/error; interaction และ quota evidence ลงรายละเอียดใน provider design |
+| DEC-006 | OPENAI-only ในแผน M5 เดิมเป็นการเลือกของผู้พัฒนา ไม่ได้มาจากสเปค | **Superseded** ในฐานะ provider acceptance. รักษา component evidence; ห้ามเดิน M7 เพื่อกลบ gap ดู [audit](../reports/AI_PROVIDER_SPEC_AUDIT.md) |
+| DEC-007 | Exact cosine distance หลัง metadata filtering พร้อม cohort/filter indexes สำหรับ shortlist V1 | วิธี implementation ของ root ไม่ใช่ user-selected model. ANN ยังไม่ enabled/benchmark; ต้องวัด recall ก่อนเปลี่ยน ดู [M6 evidence](../reports/M6_RAG_REPORT.md) |
+| DEC-008 | ห้ามตั้ง generation/embedding model หรือ dimensions จากการเดา | ข้อกำหนดจากต้นฉบับท้ายภาพรวม + M6 contract; catalog free ≠ ผ่าน Thai quality หรือ account access จริง |
+| DEC-009 | HTTP success, application success และ quota ใช้คนละ evidence; account quota ไม่กลายเป็น model quota | ข้อเลือก implementation เพื่อทำ DEC-005 อย่างถูกต้อง; 429 ไม่พอจะสรุปว่ารายวันหมด และ metadata 200 ไม่พิสูจน์ inference |
+| DEC-010 | ปุ่มขึ้นลงเป็น interaction หลักที่ใช้ keyboard/mobile ได้; optional drag ต้องบันทึกด้วย API เดียวกัน | วิธี UX ที่เสนอในขอบเขตคำขอ; fallback preview ต้องตรง backend order และบันทึกแบบ atomic/revision guarded |
+| DEC-011 | Current task board/matrix/index เป็นเอกสารกลาง; แผนและ progress เก่าเป็น history | คำขอผู้ใช้ให้จัด `.md` ก่อน code; DOC-01 ต้องตรวจ link/source/coverage ก่อนกลับ PRV-01 |
+| DEC-012 | FREE_ONLY ต้องอ่านราคาก่อน decrypt/inference; catalog observation สำหรับ preview อายุไม่เกิน60วินาที และ quota อายุไม่เกิน5นาที | วิธี implementation ของ root; ไม่ใช่ provider guarantee. Runtime อ่านราคาใหม่ใน deadline เดิม; UNKNOWN/paid ไม่เรียก inference |
+| DEC-013 | จำกัด actual inference attempts3 และ registry64; preview positions1–3 เท่านั้น | วิธี bounded execution; blocked metadata ไม่กิน inference attempt แต่กิน total deadline. Preview เป็น saved order + last catalog evidence ไม่รับรอง availability |
+| DEC-014 | เปลี่ยน provider platform/host ต้องใช้ replacement key; trailing slash ของ hostเดิมไม่ถือเปลี่ยน platform | ป้องกันส่ง credentialเดิมไป hostใหม่; actualPG rejection/replacement-health reset ผ่าน. ไม่ลบ recordหรือ keyเดิมแบบเงียบ |
+| DEC-015 | Manual probe/quota ใช้15s durablelease,5s minimumscope interval และ10starts/provider/60s | Application protection ไม่ใช่ upstreamquota;409แสดงbusy/configconflictอย่างปลอดภัย. HTTPหลังsnapshotcommit; stale/unauthorized final writeไม่overwrite |
+| DEC-016 | Cooldown ใช้เฉพาะ normalized Retry-After จาก429/5xx ที่สัมพันธ์กับ endpoint/key/model identity; รับเวลารอไม่เกิน24h และคง receipt time | Root implementation policy PRV-04C; ไม่ใช่ quota/reset ที่เดา. Separate network revisions preserve wait across order/display and fence key/model changes; SQL ต้องพิสูจน์ HTTP ที่ไม่เป็นNULL |
+| DEC-017 | Zen API format เป็น transport identity เพราะเลือก CHAT/RESPONSES คนละ endpoint; ตรวจราคาผ่าน UI เพื่อตรึง protocol ก่อน runtime | Protocol change increments model network+configuration revisions and stamps fresh proof under the new revision. FREE runtime/probe requires fresh catalog agreement with the pinned format; reorder preserves the pin; new model identity clears it. This closes the reviewed in-flight endpoint gap without guessing a protocol |
+| DEC-018 | Compatible instance รองรับ Chat Completions/tools/strict JSON และ Embedding ผ่าน UI; custom HTTPS ต้องผ่าน active-admin preflight→public DNS นอก transaction→reauthorize/revision check | Root PRV-02C contract: fresh public DNS socket pinning + original hostname TLS validation per request, no redirects, fixed routes/body/deadline limits. Generic pricing remains UNKNOWN and FREE_ONLY blocks before decrypt/inference; paid startup calls stay zero. Endpoint/key changes require replacement key and retire prior cooldown/protocol identity. Applied migrations are corrected additively, preserving keys/RLS/grants |
+
+## เรื่องที่ยังไม่ตัดสิน/ต้องตรวจภายหลัง
+
+- Generation model, embedding model/dimensions และความเหมาะสมกับภาษาไทย: รอ catalog/capability/live free test ไม่มี default ที่เดาไว้
+- Production hosting, permanent webhook URL และ production operations: ไม่ล็อกจาก development tunnel
+- เกณฑ์ “ใกล้โควต้า” ใช้ ≤10% ของ limit ที่ provider รายงาน โดย unit/window/scopeตรงกันและ evidenceยังสด เป็น warning threshold ของแอป ไม่ใช่ความหมายของ HTTP200
+- สถานะ field/route/table ที่ชื่อแตกต่างจากตัวอย่าง guide ต้องพิสูจน์ behavior และ mapping ไม่สร้างไฟล์ชื่อเหมือน guide เพียงเพื่อทำ checklist

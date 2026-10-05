@@ -5,11 +5,13 @@ export interface EmbeddingRequest {
   input: string[];
   dimensions: number;
   signal: AbortSignal;
+  costMode?: import('./types').CostMode;
 }
 
 export interface EmbeddingResponse {
   vectors: number[][];
   inputTokens: number | null;
+  httpStatus?: number;
 }
 
 export interface EmbeddingAdapter {

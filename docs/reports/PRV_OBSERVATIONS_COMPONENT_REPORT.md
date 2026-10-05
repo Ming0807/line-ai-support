@@ -1,0 +1,34 @@
+# Provider ordering, observations and configured free RAG — 5 October 2026
+
+This is verified component evidence for PRV-01/03/04/05. M5/M6 provider acceptance and full V1 remain incomplete: compatible-provider transport, observed cooldown behavior, remaining final gates and live setup still need evidence. Historical evidence is in [backend report](PRV_BACKEND_COMPONENT_REPORT.md); current scope is in [task board](../tasks/V1_TASK_BOARD.md).
+
+## Implemented
+
+Private per-model observations retain the actual nullable upstream HTTP status separately from application result, selected action, purpose, configuration revisions, latency and time. Runtime success and error attempts append these observations alongside usage; manual probes never insert usage or resolution metrics. The Dashboard reads observations only when provider/model revisions still match. History remains stored.
+
+Selected metadata/generation/embedding probes use one supplied model, without fallback, automatic enablement or paid permission. Generation and embedding tests force FREE_ONLY even when a provider permits paid runtime use; catalog admission precedes key decryption. Metadata200 proves only model metadata availability. Invalid output at200 remains an error at200, and timeout without a response remains HTTP null. Native embedding now preserves actual200 for success and validation failures too.
+
+Manual test/quota actions commit an authorized snapshot before HTTP, use a15-second durable token lease, a5-second minimum between starts in the same scope, and a maximum10 starts per provider per60-second window. These are application limits. The final write reauthorizes and checks revisions and lease token. A changed configuration returns409 rather than overwriting latest evidence. The legacy public health route now uses the same selected METADATA path instead of bypassing these controls.
+
+Subsequent root review found two edge cases and verified RED→GREEN fixes: in-flight runtime observations now retain the generation/embedding purpose from the original attempt instead of a model purpose edited during HTTP; aborted/ignoring quota readers produce normalized CANCELLED/TIMEOUT with nullable HTTP rather than a generic internal response. The expanded actualPG observation fixture and71 focused gateway/free-policy regressions passed; TypeScript passed after those changes. The whole-unit/build rows below describe their earlier combined-source checkpoint; final PRV-05 source verification still remains.
+
+Quota refresh persists only normalized reported counters and current provider revision. OpenRouter key credits and account daily request counters remain distinct; absent/unsupported/stale evidence is UNKNOWN. The UI shows shared scope and near-limit warning at≤10%, never deriving daily exhaustion from429 alone.
+
+Provider UI supports free defaults, collapsed settings, Provider and purpose-specific Model up/down drafts with atomic Save/Cancel, per-model price/metadata/test controls, safe HTTP/result/time and shared quota, saved-order preview and conflict recovery. Root completed integration after the UI agent reached its usage limit; no independent final UI verdict is claimed.
+
+## Evidence actually run
+
+- Whole unit suite: **627/627 across39files**, including24 selected-probe and47 quota cases. Fresh TypeScript and whole ESLint exited0. Fresh production build exited0 after final UI copy/feedback changes and compiled all new routes.
+- Actual local PostgreSQL: **85/85**, plus the effective-role foundation RLS/privacy fixture. Focused provider suites passed9 cases. Probe fixture proves selected-only errors429/200/nulltimeout, forced paid rejection, duplicate lease rejection, provider-window limit, nonadmin/inactive denial, no open transaction at provider HTTP, stale-result suppression, runtime/probe metric separation and private grants/RLS.
+- CLI-generated migration `20261004165814_provider_observations.sql` applied locally, bringing local history to15. A separate newly-created disposable PostgreSQL database replayed all15 application migrations and foundation RLS/privacy checks, then was removed. Existing local/remote databases were not reset. Bootstrap used schema-only Supabase Auth and pgvector; earlier bootstrap attempts failed on vendor owner/default-privilege permissions and were removed, then the corrected isolated bootstrap passed.
+- Signed Student HTTP → durable queue → configured OpenRouter Chat/embedding adapters → controlled LINE transport passed current and historical backend citations, redelivery and HUMAN takeover suppression. **9 public catalog +9 inference fixture requests**,9 usage observations with cost0 and actual runtimeHTTP200; paid/native requests0. This is injected transport evidence, not live AI.
+- Actual authenticated Chromium: **6 scenario groups**, repeated once after the batched UI fixes. Free default/create, real atomic Provider/Model Save→reload, keyboard focus, purpose isolation, embedding form default, internal-ID preview labels, HTTP429/application distinction, UNKNOWN-price disabled tests, shared account quota near warning, safe DTO and both real Staff accounts denied UI/API passed. Fixture observations were inserted only into the isolated local database and cleaned up.
+- Desktop1440px/mobile390px and200%zoom screenshots inspected in two bounded rounds; no horizontal overflow or page errors. Impeccable mechanical detector on changed page/forms/CSS returned `[]`. Screenshots in `output/playwright/provider-management-{desktop,mobile,zoom}.png` are fixture UI, not live provider/account evidence.
+
+Harness corrections were made after failed runs: missing Chat choice.index0; old create-form selector; nondeterministic tied fixture priorities/focus waiting; list API wrapper shape. Failed runs are not counted as acceptance. Fixture cleanup completed on the passing runs. No credentials, raw LINE identities, reply tokens, prompts or provider response bodies were printed.
+
+## Review provenance and remaining work
+
+Luna max supplied pure transport/quota/probe components and their focused evidence. Read-only provider review identified the legacy health-route bypass; root verified and replaced it. The reviewer has not delivered a final verdict on the combined source. UI and free-RAG integration assignments hit usage limits; root completed the work and acceptance described here. This is explicitly root integration/self-review.
+
+Still required: compatible-provider validated HTTPS/DNS/redirect contract; real Retry-After/reset cooldown persistence and preview/runtime consistency; complete final provider HTTP/origin/browser tests; guarded additive DEVELOPMENT sync/privacy/advisors and verified commit/push; explicit free account/models/dimensions/Thai quality, corpus approval and real OA flows. M7–M9 and FlowA–F remain in scope. Human setup remains in [final checklist](../operations/FINAL_SETUP_CHECKLIST.md).

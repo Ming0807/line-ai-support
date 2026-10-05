@@ -43,7 +43,7 @@ it('sends strict Responses JSON schema and normalizes one structured assistant r
  expect(body.input).toEqual([
   {role:'system',content:'Return JSON.'},{role:'user',content:'Hello'},
  ]);
- expect(result).toEqual({output:{answer:'hello'},toolCalls:[],inputTokens:5,outputTokens:3});
+ expect(result).toEqual({output:{answer:'hello'},toolCalls:[],inputTokens:5,outputTokens:3,httpStatus:200});
 });
 
 it('rejects unexpected request fields before contacting the provider',async()=>{
@@ -89,7 +89,7 @@ it('sends strict function tools and returns tool calls as data',async()=>{
  const body=JSON.parse(String(init?.body));
  expect(body.tools).toEqual([{type:'function',name:'lookup_department',description:'Find a department by code.',
   parameters:input.tools[0]!.parameters,strict:true}]);
- expect(result).toEqual({output:null,toolCalls:[{id:'call_1',name:'lookup_department',arguments:{code:'IT'}}],inputTokens:9,outputTokens:4});
+ expect(result).toEqual({output:null,toolCalls:[{id:'call_1',name:'lookup_department',arguments:{code:'IT'}}],inputTokens:9,outputTokens:4,httpStatus:200});
  expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 

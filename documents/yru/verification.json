@@ -1,0 +1,19 @@
+{
+  "resources": 190,
+  "downloaded": 187,
+  "failed": 3,
+  "pdf": 154,
+  "html": 33,
+  "total_bytes": 513244220,
+  "unique_content_hashes": 187,
+  "archive_only": 12,
+  "needs_ocr_or_font_review": 89,
+  "groups": {
+    "01-academic": 143,
+    "02-student-affairs": 24,
+    "03-it-library": 20
+  },
+  "integrity_errors": [],
+  "physical_source_files": 188,
+  "physical_html_files": 34
+}

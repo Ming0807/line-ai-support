@@ -1,5 +1,7 @@
 # M5 AI Gateway implementation plan
 
+> **Historical / superseded provider scope.** OPENAI-onlyเป็นimplementationchoiceเดิม ไม่ตรงstartupfreeZen/OpenRouter. Componenttestevidenceยังเก็บได้ แต่ใช้ตรวจรับProviderทั้งหมดไม่ได้. ทำ [free provider correction](2026-10-04-yru-free-ai-providers.md) ตาม [provider design](../../architecture/AI_PROVIDER_DESIGN.md) และ [current board](../../tasks/V1_TASK_BOARD.md) แทนก่อนกลับM7.
+
 > **For agentic workers:** Use bounded subagent-driven development and verification-before-completion. The user authorized continuous V1 implementation and deferred manual credentials to the final report. Begin implementation after the M4 automated acceptance gate.
 
 **Goal:** A single OpenAI Responses adapter behind a provider/model registry, validated structured responses, deadline-limited fallback, private usage/error records and provider health.

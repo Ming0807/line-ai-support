@@ -1,0 +1,83 @@
+[
+  {
+    "title": "academic_calendar_index",
+    "filename": "academic_calendar_index",
+    "source_url": "https://acdservice.yru.ac.th/page/41",
+    "source_page_url": "https://acdservice.yru.ac.th/page/41",
+    "category": "calendars",
+    "family_code": "ACADEMIC_CALENDAR",
+    "recommended_storage_mode": "BOTH"
+  },
+  {
+    "title": "academic_forms_index",
+    "filename": "academic_forms_index",
+    "source_url": "https://acdservice.yru.ac.th/page/27",
+    "source_page_url": "https://acdservice.yru.ac.th/page/27",
+    "category": "forms",
+    "family_code": "SERVICE_FORM",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "citizen_guides_index",
+    "filename": "citizen_guides_index",
+    "source_url": "https://eduservice.yru.ac.th/page/?view=info_guide",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=info_guide",
+    "category": "guides",
+    "family_code": "REGISTRATION_GUIDE",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "student_handbooks_index",
+    "filename": "student_handbooks_index",
+    "source_url": "https://eduservice.yru.ac.th/page/?view=guide",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=guide",
+    "category": "handbooks",
+    "family_code": "REGISTRATION_GUIDE",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "regulations_index",
+    "filename": "regulations_index",
+    "source_url": "https://eduservice.yru.ac.th/page/?view=aor",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=aor",
+    "category": "regulations",
+    "family_code": "TRANSFER_REGULATION",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "forms_index",
+    "filename": "forms_index",
+    "source_url": "https://eduservice.yru.ac.th/page/?view=doc_form",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=doc_form",
+    "category": "forms",
+    "family_code": "SERVICE_FORM",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "tuition_fees",
+    "filename": "tuition_fees",
+    "source_url": "https://eduservice.yru.ac.th/page/?view=fee",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?view=fee",
+    "category": "fees",
+    "family_code": "TUITION_FEE",
+    "recommended_storage_mode": "BOTH"
+  },
+  {
+    "title": "transfer_tables_index",
+    "filename": "transfer_tables_index",
+    "source_url": "https://eduservice.yru.ac.th/page/?group=17&view=standard",
+    "source_page_url": "https://eduservice.yru.ac.th/page/?group=17&view=standard",
+    "category": "transfer-tables",
+    "family_code": "TRANSFER_COURSE_TABLE",
+    "recommended_storage_mode": "RAG"
+  },
+  {
+    "title": "transfer_system_manuals",
+    "filename": "transfer_system_manuals",
+    "source_url": "https://eduservice.yru.ac.th/tiab/pages/?menu=manual",
+    "source_page_url": "https://eduservice.yru.ac.th/tiab/pages/?menu=manual",
+    "category": "guides",
+    "family_code": "TRANSFER_GUIDE",
+    "recommended_storage_mode": "RAG"
+  }
+]

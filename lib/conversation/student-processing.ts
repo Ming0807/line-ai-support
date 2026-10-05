@@ -7,8 +7,12 @@ import {loadCandidates,candidateSnapshot} from './context-resolver';
 import {createChoices,consumeChoice} from './quick-reply';
 import {createEscalation} from '../tickets/create-ticket';
 import {applyUserReply} from '../tickets/human-takeover';
+import {prepareAIJob} from '../ai/jobs';
+import {createTicketToolRegistry} from '../ai/backend-tools';
 
-export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string):Promise<string|null> {
+export interface StudentProcessingOptions {aiEnabled?:boolean}
+
+export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string,options:StudentProcessingOptions={}):Promise<string|null> {
  const {sessionId,eventId,event,receivedAt}=input;
  if(event.type!=='message'&&event.type!=='postback')return 'UNSUPPORTED_EVENT';
  const initial=await loadCandidates(client,sessionId);
@@ -21,6 +25,9 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   if(!consumed){await respond('ตัวเลือกนี้หมดอายุหรือถูกใช้แล้วครับ กรุณาส่งข้อความใหม่');return 'INVALID_CHOICE';}
   choice=consumed.choice;pendingMessageId=consumed.pendingMessageId;
   selected=choice.conversationId;newTopic=choice.action==='NEW';
+  if(options.aiEnabled&&newTopic&&!pendingMessageId){
+   await respond('ส่งคำถามเรื่องใหม่มาได้เลยครับ แล้วเลือกเริ่มเรื่องใหม่เมื่อระบบถามบริบท');return null;
+  }
  }
  const decision=routeConversation({candidates,selectedConversationId:selected,newTopic});
  let conversationId=selected;
@@ -33,8 +40,17 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  }
  if(choice?.action==='ESCALATE'){
   if(!conversationId||!candidates.some(c=>c.conversationId===conversationId&&c.mode==='AI')){await respond('กรุณาเลือกเรื่องใหม่ก่อนส่งต่อเจ้าหน้าที่');return 'INVALID_CHOICE';}
+  if((await client.query('select id from public.departments where code=$1 and active for share',[choice.departmentCode])).rowCount!==1){
+   await respond('หน่วยงานนี้ยังไม่พร้อมรับเรื่องครับ กรุณากดติดต่อเจ้าหน้าที่เพื่อเลือกใหม่');return 'INVALID_CHOICE';
+  }
   const last=(await client.query("select content from public.messages where conversation_id=$1 and sender_type='USER' order by created_at desc,id desc limit 1",[conversationId])).rows[0];
-  await createEscalation(client,{sessionId,conversationId,departmentCode:choice.departmentCode,summary:Array.from(last?.content??'ติดต่อเจ้าหน้าที่').slice(0,1000).join('')},key);return null;
+  const summary=Array.from(last?.content??'ติดต่อเจ้าหน้าที่').slice(0,1000).join('');
+  if(options.aiEnabled){
+   const selectedContext=candidates.find(c=>c.conversationId===conversationId)!;
+   await createTicketToolRegistry(client,key,eventId).execute({name:'create_ticket',arguments:{departmentCode:choice.departmentCode,summary}},
+    {lineSessionId:sessionId,conversationId,conversationRevision:selectedContext.conversationRevision},['create_ticket']);
+  }else await createEscalation(client,{sessionId,conversationId,departmentCode:choice.departmentCode,summary},key);
+  return null;
  }
  if(event.type==='message'){
   if(decision.route==='AI_NEW'||decision.route==='ASK_CONTEXT'){
@@ -66,7 +82,13 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   await client.query("update public.messages set conversation_id=$2,metadata='{\"routing_status\":\"ROUTED\"}' where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId]);
  }
  const current=await loadCandidates(client,sessionId);
- const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
+ const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:options.aiEnabled?undefined:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
+ if(options.aiEnabled&&pendingMessageId){
+  const text=(await client.query("select id from public.messages where id=$1 and conversation_id=$2 and sender_type='USER' and message_type='TEXT' and metadata->>'routing_status'='ROUTED'",[pendingMessageId,conversationId])).rows[0];
+  if(text){
+   await prepareAIJob(client,{sessionId,conversationId,messageId:pendingMessageId,receivedAt,replyToken,quickReply},key);return null;
+  }
+ }
  await respond('ได้รับข้อความแล้วครับ เลือกติดต่อเจ้าหน้าที่หรือเริ่มเรื่องใหม่ได้ด้านล่าง',quickReply);
  return null;
 

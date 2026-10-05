@@ -1,0 +1,41 @@
+import type {PoolClient} from 'pg';
+import {z} from 'zod';
+import {decodeAIResult,type AIJob} from '../ai/jobs';
+import {searchKnowledge} from './retrieval';
+import {evidenceStillMatches} from './citations';
+
+/** M7 writers acquire sorted family locks, then sorted document locks, before publishing or changing eligibility. */
+export const knowledgeDocumentLock=(documentId:string)=>`knowledge-document:${documentId}`;
+export const knowledgeFamilyLock=(familyId:string)=>`knowledge-family:${familyId}`;
+export async function verifyAIOutboxEvidence(client:PoolClient,input:{idempotencyKey:string;conversationId:string|null;sessionId:string|null},
+ key:string,heldLocks:string[]):Promise<boolean>{
+ if(!input.idempotencyKey.startsWith('ai-job:'))return true;
+ const jobId=input.idempotencyKey.slice(7);if(!z.uuid().safeParse(jobId).success)return false;
+ const job=(await client.query(`select * from private.ai_jobs where id=$1 and conversation_id=$2 and line_session_id=$3 and status='DONE'`,
+  [jobId,input.conversationId,input.sessionId])).rows[0] as AIJob|undefined;
+ if(!job)return false;
+ const result=decodeAIResult(job,key);if(!result)return false;if(result.kind==='CLARIFY')return true;
+ // A source-changing clarification carries no citations and must not reuse the obsolete result.
+ const metadata=(await client.query(`select metadata from public.messages where conversation_id=$1 and metadata->>'ai_job_id'=$2
+  and sender_type='AI' order by created_at desc,id limit 1`,[input.conversationId,jobId])).rows[0]?.metadata;
+ if(Array.isArray(metadata?.citations)&&metadata.citations.length===0)return true;
+ const cited=result.evidence.filter(e=>result.output.citationChunkIds.includes(e.chunkId));
+ const documentIds=[...new Set(cited.map(e=>e.documentId))].sort();
+ const families=(await client.query('select id,document_family_id from public.documents where id=any($1::uuid[])',[documentIds])).rows;
+ if(families.length!==documentIds.length)return false;
+ for(const familyId of [...new Set(families.map(d=>d.document_family_id as string))].sort()){
+  const lock=knowledgeFamilyLock(familyId);await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);heldLocks.push(lock);
+ }
+ for(const documentId of documentIds){
+  const lock=knowledgeDocumentLock(documentId);await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);heldLocks.push(lock);
+ }
+ await client.query('begin');
+ try{
+  const fresh=await searchKnowledge(client,{scope:result.scope,vector:result.queryVector,fingerprint:result.fingerprint,limit:12});
+  const allowed=evidenceStillMatches(cited,fresh);await client.query('commit');return allowed;
+ }catch(error){
+  await client.query('rollback');
+  if(error instanceof Error&&error.message==='KNOWLEDGE_SCOPE_AMBIGUOUS')return false;
+  throw error;
+ }
+}

@@ -4,9 +4,10 @@ import {decryptValue,hashLineUserId,hashStaffLineUserId} from '../security/ident
 import {deliverLine,type LineMessage} from '../line/delivery';
 import {eligibleScopeSql} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
+import {verifyAIOutboxEvidence} from '../knowledge/delivery-fence';
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
-interface OutboxJob {id:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
+interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
 const payloadSchema=z.object({messages:z.array(z.object({type:z.literal('text'),text:z.string().min(1).max(5000),quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action:z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().max(300),displayText:z.string().max(300).optional()}).strict()}).strict()).min(1).max(13)}).strict().optional()}).strict()).min(1).max(5),replyToken:z.string().min(1).max(512).optional()}).strict();
 
 /** Pool must be a dedicated session-mode pool, never a transaction-mode PgBouncer pool. */
@@ -30,6 +31,8 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      const allowed=(await client.query(`select c.id from public.conversations c where c.id=$1 and c.mode='AI' and c.revision=$2 and c.status in ('ACTIVE','WAITING')
       and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in ('CLOSED','CANCELLED'))`,[job.conversation_id,job.expected_conversation_revision])).rowCount===1;
      if(!allowed)suppress='HUMAN_OR_STALE_AI';
+     if(!suppress&&!await verifyAIOutboxEvidence(client,{idempotencyKey:current.idempotency_key,
+      conversationId:job.conversation_id,sessionId:job.line_session_id},key,locks))suppress='EVIDENCE_CHANGED';
     }
     let identity:{user_id_encrypted:string;user_hash:string}|undefined;
     if(channel==='STUDENT'){
