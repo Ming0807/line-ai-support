@@ -1,8 +1,10 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
-อัปเดต 4 ตุลาคม 2026 หลังผู้ใช้ให้ทบทวนสเปคและจัดแผนก่อนกลับไปแก้โค้ด เอกสารชุดนี้เป็นทางเข้าเดียวสำหรับคนและ agent; สถานะงานปัจจุบันอยู่ใน task board ไม่ต้องไล่อ่านประวัติแชต
+อัปเดต 7 ตุลาคม 2026 ต่อจากการทบทวนสเปคและจัดแผนตามผู้ใช้ตั้งแต่4ตุลาคม เอกสารชุดนี้เป็นทางเข้าเดียวสำหรับคนและ agent; สถานะงานปัจจุบันอยู่ใน task board ไม่ต้องไล่อ่านประวัติแชต
 
 ## อ่านตามลำดับนี้
+
+7October current component: [STR-01A-0 payload/registry report](reports/STRUCTURED_PAYLOAD_CONTRACT_REPORT.md), [structured design](architecture/STRUCTURED_DATA_DESIGN.md), [bounded execution plan](superpowers/plans/2026-10-07-yru-structured-payload-contract.md). Root implemented all7 source-only validators/immutable metadata, installed:false;1497unit/31focused/type and actual bounded Luna max static review/adversarial tests. This is independent preparation while Gemini owns Dashboard presentation. Remaining STR-00 contracts/fixed schema/mapping/atomic modes/query/row evidence and wholeV1 remain pending; current board/report distinguish final gates from component checks.
 
 Latest human steering6October: **Import ease/Dashboard UX reopened**, [assistance design](architecture/IMPORT_ASSISTANCE_DESIGN.md) and [plan](superpowers/plans/2026-10-06-yru-assisted-import.md). User delegates UI to Gemini with local commits/no push in separate worktree; [ready prompt](agents/GEMINI_UI_UX_PROMPT.md). Root implements catalog/assistance APIs and owns final commit/integration review. [Backend UI contracts](operations/BACKEND_UI_CONTRACTS.md) and [backend evidence](reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md) separate verified server behavior from pending combined Gemini UI/usability acceptance; see board for exact gates.
 
