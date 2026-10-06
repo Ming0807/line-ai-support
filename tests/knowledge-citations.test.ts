@@ -1,12 +1,36 @@
 import {describe,expect,it} from 'vitest';
 import {buildCitedAnswer,evidenceStillMatches} from '../lib/knowledge/citations';
 import type {KnowledgeEvidence} from '../lib/knowledge/types';
+import {knowledgeLocations} from './fixtures/knowledge-locations';
 
 const evidence:KnowledgeEvidence={chunkId:'11111111-1111-4111-8111-111111111111',documentId:'22222222-2222-4222-8222-222222222222',
  documentRevision:2,title:'ระเบียบการเทียบโอน',familyCode:'TRANSFER_REGULATION',academicYear:2569,authorityLevel:100,
  pageNumber:12,sectionTitle:'ข้อ 5',content:'Controlled reviewed rule',sourceUrl:'https://fixture.yru.ac.th/transfer.pdf',similarity:0.9};
 const output={answer:'ยื่นคำร้องตามระเบียบที่อ้างอิงครับ',citationChunkIds:[evidence.chunkId]};
 describe('backend-owned source citations',()=>{
+ it.each(knowledgeLocations)('preserves and renders proven $kind coordinates without fabricated pagination',location=>{
+  const row={...evidence,pageNumber:location.kind==='PDF'?12:null,sourceLocations:[location]};
+  const reply=buildCitedAnswer(output,[row]);
+  expect(reply.citations[0]).toHaveProperty('sourceLocations',[location]);
+  const text=reply.messages.map(item=>item.text).join('');
+  const expected={PDF:['PDF','หน้า 12','ช่วง 2–3'],DOCX:['Word','ช่วง 2–3','ข้อ 5'],XLSX:['Excel','ค่าธรรมเนียม','แถว 2–3','คอลัมน์ 1–2'],CSV:['CSV','แถว 2–3','คอลัมน์ 1–2'],HTML:['HTML','ช่วง 2–3','ข้อ 5']}[location.kind];
+  for(const coordinate of expected)expect(text).toContain(coordinate);
+  if(location.kind!=='PDF')expect(text).not.toContain('หน้า 12');
+  expect(reply.citations[0].sourceLocations).not.toBe(row.sourceLocations);
+ });
+ it('invalidates changed, missing or malformed location evidence; legacy missing equals empty only',()=>{
+  const location=knowledgeLocations[0];if(location.kind!=='PDF')throw new Error('PDF_FIXTURE_REQUIRED');
+  const row={...evidence,sourceLocations:[location]};
+  expect(evidenceStillMatches([row],[{...row,sourceLocations:[{...location,blockStart:3}]}])).toBe(false);
+  expect(evidenceStillMatches([row],[evidence])).toBe(false);
+  expect(evidenceStillMatches([evidence],[{...evidence,sourceLocations:[]}])).toBe(true);
+  const malformed={...row,sourceLocations:[{...location,blockStart:8,blockEnd:3}]};
+  expect(evidenceStillMatches([malformed],[malformed])).toBe(false);
+ });
+ it('rejects unsafe/malformed/mixed provenance and model supplied locations',()=>{
+  for(const sourceLocations of [[{...knowledgeLocations[0],blockEnd:0}],[{...knowledgeLocations[4],sourceUrl:'https://user:password@fixture.yru.ac.th/rules'}],[knowledgeLocations[0],knowledgeLocations[1]],Array.from({length:17},()=>knowledgeLocations[0])])expect(()=>buildCitedAnswer(output,[{...evidence,sourceLocations}])).toThrow('KNOWLEDGE_CITATION_INVALID');
+  expect(()=>buildCitedAnswer({...output,sourceLocations:[knowledgeLocations[0]]},[evidence])).toThrow('KNOWLEDGE_CITATION_INVALID');
+ });
  it('uses source title/page/section/URL from retrieved evidence',()=>{
   const reply=buildCitedAnswer(output,[evidence]);
   expect(reply.citations[0]).toMatchObject({documentId:evidence.documentId,pageNumber:12,sourceUrl:evidence.sourceUrl});

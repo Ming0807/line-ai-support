@@ -5,7 +5,10 @@ import {getImportPreview,type ImportPreview,type ImportExtractionOptions} from '
 import {reviewDraftSchema,reviewSaveSchema,type ImportReviewDraft} from './review-schema';
 import {buildReviewWarnings,assertReviewWarningBindings,type ReviewWarning} from './review-warnings';
 import {encryptStagingValue,decryptStagingValue} from './staging-envelope';
+import {prepareImportChunkPlan} from './chunk-preparation';
+import type {PassageTokenCounter} from '../knowledge/embedding-client';
 export interface ImportReviewOptions extends ImportExtractionOptions {
+ counter?:PassageTokenCounter;
  /** Internal deterministic concurrency seam, outside SQL; never request-configurable. */
  beforeCommit?:()=>Promise<void>;
 }
@@ -63,6 +66,10 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
   const snapshot=await withImportAdminTransaction(actor,options,client=>lockedSnapshot(client,preview,'share'));
   if((snapshot.row?.review_revision??0)!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
   try{assertReviewWarningBindings(buildReviewWarnings(preview),request.draft.warningDispositions);}catch{throw new ImportStagingError('INVALID_REQUEST');}
+  if(request.draft.schemaVersion===2&&request.draft.chunkPlan!==null){
+   const plan=await prepareImportChunkPlan(actor,preview,options);
+   if(plan.digest!==request.draft.chunkPlan.digest||plan.chunkerVersion!==request.draft.chunkPlan.chunkerVersion)throw new ImportStagingError('INVALID_REQUEST');
+  }
   const reviewRevision=request.expectedReviewRevision+1,serialized=JSON.stringify(request.draft),payloadHash=digest(serialized);
   const encrypted=encryptStagingValue(serialized,receiptContext(id,snapshot.checksum,preview.job.revision,preview.extractionRevision,reviewRevision),keyFor(options));
   checkSignal(options);await options.beforeCommit?.();checkSignal(options);

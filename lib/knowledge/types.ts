@@ -1,3 +1,5 @@
+import type {SourceLocation} from '../imports/types';
+
 export interface ExtractedPage {
   pageNumber: number | null;
   text: string;
@@ -55,6 +57,8 @@ export interface KnowledgeScope {
 }
 
 export interface KnowledgeEvidence {
+  /** Missing on pre-location serialized jobs; new retrieval always returns the stored array. */
+  sourceLocations?: SourceLocation[];
   chunkId: string;
   documentId: string;
   documentRevision: number;

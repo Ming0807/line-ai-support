@@ -9,6 +9,14 @@ function draft(){return {
 const id='39f7e07f-7d76-433e-a83e-205297c60a83';
 const accepts=(value:unknown)=>reviewDraftSchema.safeParse(value).success;
 describe('strict independent review drafts',()=>{
+ it('preserves v1 history while accepting only explicit v2 reviewed chunk digests',()=>{
+  const value={...draft(),schemaVersion:2,chunkPlan:{digest:'a'.repeat(64),chunkerVersion:'located-e5-v1'}};
+  expect(reviewDraftSchema.parse(value)).toEqual(value);
+  expect(accepts({...value,chunkPlan:null})).toBe(true);
+  for(const chunkPlan of [{digest:'bad',chunkerVersion:'located-e5-v1'},{digest:'a'.repeat(64),chunkerVersion:'other'},{...value.chunkPlan,approved:true}])expect(accepts({...value,chunkPlan})).toBe(false);
+  expect(accepts({...draft(),chunkPlan:value.chunkPlan})).toBe(false);
+  const missing={...value} as Record<string,unknown>;delete missing.chunkPlan;expect(accepts(missing)).toBe(false);
+ });
  it('accepts explicitly unfinished metadata and false attestations without inferred trust or defaults',()=>{
   const value=draft();expect(reviewDraftSchema.parse(value)).toEqual(value);
   const missing=structuredClone(value) as Record<string,unknown>;delete missing.attestations;expect(accepts(missing)).toBe(false);

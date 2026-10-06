@@ -4,6 +4,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {ImportReviewState} from '@/lib/imports/import-review';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import VersionPanel from './version-panel';
+import ChunkPlanPanel from './chunk-plan-panel';
 import type {VersionCandidate} from '@/lib/imports/version-candidates';
 
 type ReviewStatus='UNRESOLVED'|'CORRECTED'|'FALSE_POSITIVE';
@@ -83,6 +84,7 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
  const [baseline,setBaseline]=useState<ImportReviewDraft|null>(null);
  const [pending,setPending]=useState<'load'|'save'|null>(null);
  const [versionPending,setVersionPending]=useState(false);
+ const [chunkPending,setChunkPending]=useState(false);
  const [versionSelectionPending,setVersionSelectionPending]=useState(false);
  const [versionResetEpoch,setVersionResetEpoch]=useState(0);
  const [failure,setFailure]=useState('');
@@ -101,8 +103,8 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
  const readyForKey=loadedKey===currentKey;
  const dirty=useMemo(()=>draft!==null&&baseline!==null&&JSON.stringify(draft)!==JSON.stringify(baseline),[draft,baseline]);
  const busy=pending!==null;
- const activityPending=busy||versionPending||versionSelectionPending||(!readyForKey&&!failure);
- const disabled=parentPending||busy||versionPending||!readyForKey||conflicted||revisionMismatch||Boolean(review?.stale&&!startedCurrent);
+ const activityPending=busy||versionPending||chunkPending||versionSelectionPending||(!readyForKey&&!failure);
+ const disabled=parentPending||busy||versionPending||chunkPending||!readyForKey||conflicted||revisionMismatch||Boolean(review?.stale&&!startedCurrent);
 
  const setMutation=useCallback((updater:(current:ImportReviewDraft)=>ImportReviewDraft)=>{
   setDraft(current=>current?updater(current):current);setFailure('');setNotice('');
@@ -125,6 +127,10 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
   setMutation(current=>({...current,action:null,target:null,relationship:null,metadata:{...current.metadata,newFamily:null}}));
  },[setMutation]);
  const onVersionPendingChange=useCallback((value:boolean)=>setVersionPending(value),[]);
+ const onChunkPendingChange=useCallback((value:boolean)=>setChunkPending(value),[]);
+ const onChunkDigestChange=useCallback((digest:string|null)=>{
+  setMutation(current=>({...current,schemaVersion:2,chunkPlan:digest===null?null:{digest,chunkerVersion:'located-e5-v1'}}));
+ },[setMutation]);
 
  const load=useCallback(async(signal?:AbortSignal)=>{
   const serial=++requestSerial.current;abortRef.current?.abort();
@@ -227,6 +233,10 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
    <VersionPanel key={`${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${versionResetEpoch}:${JSON.stringify(draft.metadata)}`} jobId={jobId} jobRevision={jobRevision} extractionRevision={extractionRevision} reviewRevision={review.reviewRevision} saved={Boolean(review.saved&&!review.stale)}
     metadata={draft.metadata} baselineMetadata={baseline?.metadata??draft.metadata} action={draft.action} target={draft.target} relationship={draft.relationship}
     disabled={disabled} onSelect={onVersionSelection} onClear={clearVersionSelection} onReloadPreview={onReloadPreview} onPendingChange={onVersionPendingChange} onSelectionPendingChange={setVersionSelectionPending}/>
+   <ChunkPlanPanel key={`chunks:${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${versionResetEpoch}`}
+    jobId={jobId} jobRevision={jobRevision} extractionRevision={extractionRevision} reviewRevision={review.reviewRevision}
+    saved={Boolean(review.saved&&!review.stale&&!dirty)} disabled={disabled||versionSelectionPending}
+    acknowledgedDigest={draft.schemaVersion===2?draft.chunkPlan?.digest??null:null} onDigestChange={onChunkDigestChange} onPendingChange={onChunkPendingChange}/>
    <fieldset className="knowledge-review-fields" disabled={disabled}><legend>ข้อมูลร่างตรวจ</legend>
     <details open><summary>ข้อมูลและขอบเขตเอกสาร</summary><div className="knowledge-review-grid">
      <label className="knowledge-field">ชื่อเอกสาร{nullableText(draft.metadata.title,value=>updateMetadata('title',value),{maxLength:500,disabled})}</label>

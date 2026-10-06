@@ -21,11 +21,13 @@ const metadata=z.object({
 }).strict().refine(value=>value.effectiveTo===null||(value.effectiveFrom!==null&&value.effectiveTo>=value.effectiveFrom));
 const disposition=z.object({warningKey:z.string().regex(/^[a-f0-9]{64}$/),status:z.enum(['UNRESOLVED','CORRECTED','FALSE_POSITIVE']),reason:nullableText(500)}).strict()
  .refine(value=>value.status==='UNRESOLVED'||value.reason!==null);
-export const reviewDraftSchema=z.object({
+const legacyDraft=z.object({
  schemaVersion:z.literal(1),metadata,action:z.enum(reviewActions).nullable(),target:z.object({documentId:z.uuid(),revision}).strict().nullable(),relationship:z.literal('CANCELS').nullable(),
  attestations:z.object({sourceAuthorityReviewed:z.boolean(),extractionReviewed:z.boolean(),applicabilityReviewed:z.boolean(),sensitivityReviewed:z.boolean(),versionReviewed:z.boolean()}).strict(),
  warningDispositions:z.array(disposition).max(10_000),
-}).strict().superRefine((value,ctx)=>{
+}).strict();
+const currentDraft=legacyDraft.extend({schemaVersion:z.literal(2),chunkPlan:z.object({digest:z.string().regex(/^[a-f0-9]{64}$/),chunkerVersion:z.literal('located-e5-v1')}).strict().nullable()});
+export const reviewDraftSchema=z.discriminatedUnion('schemaVersion',[legacyDraft,currentDraft]).superRefine((value,ctx)=>{
  const issue=(path:(string|number)[])=>ctx.addIssue({code:'custom',message:'IMPORT_REVIEW_INVALID',path});
  const requiresTarget=value.action==='REPLACE_CURRENT'||value.action==='AMEND_EXISTING'||value.relationship==='CANCELS';
  if(requiresTarget!==(value.target!==null))issue(['target']);

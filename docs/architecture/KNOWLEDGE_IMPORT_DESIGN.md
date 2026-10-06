@@ -58,6 +58,10 @@ IMP-03B-1 clarification: ordinary ADD_ADDITIONAL creates a separate current stre
 
 ## Execution and acceptance
 
+Task4 publication follows the [6October continuation](../superpowers/plans/2026-10-06-yru-import-publication.md). Planned DEC-026…028 keep READY/FAILED as availability and add explicit publication completion/immutable receipt; retain all seven fixed datasets; prepare local E5 vectors outside SQL before atomic persistence. Family-rule revision and applicable AMENDS/CANCELS must invalidate obsolete saved answers even when base chunks still exist. These contracts are not implemented publication acceptance.
+
+IMP-LOC-01 preserves proven format locations in bounded `knowledge_chunks.source_locations` JSONB (default[] only for legacy), plus nullable `passage_token_count` (1..512 when present). Retrieval returns the stored array; strict backend citation parsing validates format/ranges and copied arrays, renders only proven format labels/coordinates and compares canonical locations at the delivery fence. Missing old serialized evidence normalizes to legacy[]; neither migration nor display invents pagination/locations. New approval must enforce nonempty source-format-consistent locations and exact-token preparation; those are separate required publication gates. SQL checks bounded shape/kinds while application validation remains the detailed location boundary. No browser RLS or historical embeddings are changed.
+
 1. IMP-01A/02A root shared source/extraction/analyzer schemas with RED→GREEN malformed/limit/provenance/sensitive/UNKNOWN tests; implementation is partial until actual format parser/acquisition evidence.
 2. IMP-01B bounded official URL and PDF/HTML parsers; IMP-02B DOCX/XLSX/CSV parser fixtures including malformed/expansion/formula/encoding tables. Install pinned dependencies only after primary documentation check; no live AI needed.
 3. IMP-01C private staging/original storage/auth/checksum/revision/failed parse retention actual PG/storage tests.

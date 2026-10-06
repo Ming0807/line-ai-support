@@ -4,7 +4,7 @@
 
 ## อ่านตามลำดับนี้
 
-6October current continuation: [exact E5 passage counting](reports/E5_TOKEN_COUNT_REPORT.md) **COMPONENT_PASS** after pushed611e631;21service/18focusedclient/1262fullunit/type/lint/build/offline0network/actualHTTP PASS. Root contracts/integration, Luna max scoped independent review. Task4C-2 located page/table chunk plans is active; reviewed preview/publication/location persistence/citations/M8/M9/fullV1 remain.
+6October current continuation: [located preparation](reports/IMP_LOCATED_PREPARATION_REPORT.md) **COMPONENT_PASS**:1297unit/154PG/foundationRLS/25replay/lint/type/build and actual14chunk+17version+21import browser groups PASS; local+DEVELOPMENT25migrations. Root integration/DB/auth/privacy/QA; Luna scoped implementation/reviews. Next root PUB-01…05 in [publication continuation](superpowers/plans/2026-10-06-yru-import-publication.md); no approval/publication or fullV1 acceptance yet.
 
 | เอกสาร | ใช้ตอบคำถาม |
 |---|---|
@@ -59,7 +59,7 @@
 ชื่อไฟล์ไม่จำเป็นต้องเป็น `design.md` หรือ `agent.md`; โครงการนี้ใช้ `AGENTS.md` ตาม convention และแยก design/task/requirements ตามหน้าที่ เอกสารทุกชุดต้องโยงจากหน้านี้ ไม่สร้างแผนซ้ำที่มีสถานะขัดกัน
 ## Latest component checkpoint
 
-Current checkpoint: [version choices and initial families](reports/IMP_VERSION_RESOLVER_REPORT.md) **COMPONENT_PASS**:1257unit/145PG,0advisorWARN+ERROR(86INFO),type/lint/build/17actualversionbrowser groups and scoped independent reviews PASS. DEVELOPMENT19reference families; schema unchanged24migrations/35RLS tables. Next M7 token-bounded located preparation/approval/publication/AMENDS/CANCELS/delivery revalidation and citations; M8/M9/fullFlowA–F remain.
+Current checkpoint: [located preparation](reports/IMP_LOCATED_PREPARATION_REPORT.md) **COMPONENT_PASS**, with exact private v2 review-bound chunk acknowledgment, all5format lossless plans and persisted location/citation infrastructure.1297unit/154PG/25replay/0advisorWARN+ERROR(86INFO)/lint/type/build/14+17+21browser groups PASS. DEVELOPMENT25migrations/35RLS tables/9departments;19family reference rows remain reference data. Next publication receipts/action effects/AMENDS/CANCELS/delivery invalidation, M8/M9/corpus and fullFlowA–F remain.
 
 Prior6October checkpoint: [IMP-03A private review draft](reports/IMP_REVIEW_DRAFT_REPORT.md) **COMPONENT_ACCEPTANCE_PASS**:1235unit/135PG,24replay/RLS,0advisorWARN+ERROR (89INFO),type/lint/build and21actualbrowser groups. Local+DEVELOPMENT24 migrations/DEV35RLS tables/9departments; private incomplete drafts remain unpublished. Next **IMP-03B version resolver/publication**, followed by M8/M9/fullFlowA–F. Parent source45915c2; no fullM7/V1/live claim.
 
