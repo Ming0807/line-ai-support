@@ -18,7 +18,7 @@
 | CH007 | 7 Tickets | M4, FINAL-01 | COMPONENT_EVIDENCE: ticket schema/lifecycle/actualPG+HTTP; realOAfullflowpending |
 | CH008 | 8 Tickethistory | M4 | COMPONENT_EVIDENCE: history/audit/idempotentaction fixturesในM4report |
 | CH009 | 9 Documentversioning | M6, IMP-03 | PARTIAL: documents/families/relationships/currentconstraintsมี; approvedversionupdateUI/atomicpublishpending |
-| CH010 | 10 Knowledgechunks | M6, IMP-01/03 | PARTIAL: cohort/page/section/chunk/retrieval tests; realimportembeddingspending |
+| CH010 | 10 Knowledgechunks | M6, IMP-01/03 | PARTIAL: cohort/page/section/retrieval and exact localE5count infrastructure PASS; located token-bounded plan/review/persisted citations/realimportembeddings pending; [count report](../reports/E5_TOKEN_COUNT_REPORT.md) |
 | CH011 | 11 Importjobs/staging | IMP-01…03 | PARTIAL: privateimmutableencryptedjob/metadata/original/uploadreceipt/auth/duplicate/failure/readStorage+PG GREEN; persistedextraction/review/publication states pending |
 | CH012 | 12 Sevenstructuredtables | STR-01/02 | PLANNED: calendar,fees,transfer,services,systems,forms,announcementsทั้งหมด |
 | CH013 | 13 Incidents/ticketlinks | ADV-02 | PLANNED: schema/permissions/aggregation/UX |
@@ -43,7 +43,7 @@
 | CH032 | 32 RAG | M6, PRV-05, IMP-04 | PARTIAL: controlledcurrent/historycitationsผ่าน; freeactualapprovedPDF/liveevidencepending |
 | CH033 | 33 MetadataFilter | M6, IMP-03 | COMPONENT_EVIDENCE: official/public/reviewed/current/effective/applicabilitybeforevectors; publicationregressionrequired |
 | CH034 | 34 Historicalquestions | M6, IMP-03, PRV-05 | PARTIAL: explicityear/date/usergroundedtestsมี; realversions/freeflowpending |
-| CH035 | 35 Chunking | M6, IMP-01/02 | COMPONENT_EVIDENCE: section/page/Thai/tablechunktests; parserintegrationallformatsremaining |
+| CH035 | 35 Chunking | M6, IMP-01/02 | PARTIAL: existing section/page/Thai/table chunks and exact pinned passage counting PASS; all5format lossless located plans/post-overlap token bounds active; publication/locations→citations remain |
 | CH036 | 36 Importservice | IMP-01…04 | PARTIAL: private original→supervised parser→encrypted located revision/preview/reason-bound edit/CAS and private UI PASS; review/version/publication/corpus/location→citations remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | CH037 | 37 Analyzer | IMP-01/02 | COMPONENT_PASS: deterministic proposals/sensitivity rerun after located parser and text/cell edits,11actualPG/private UI; trusted metadata/approval and real corpus remain |
 | CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PARTIAL: fixed candidates/uninstalled schema→RAG/noDDL/noautopublish GREEN; strict private draft and actualUI retain all3modes/seven codes; installed mappers/atomic BOTH remain |

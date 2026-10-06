@@ -1,0 +1,24 @@
+# EMB-TOK-01 — exact local E5 passage counting
+
+6 October2026. **COMPONENT_ACCEPTANCE_PASS**. Parent/source checkpoint `611e631e16cda8cb58e2e082cc6f27a563a664be`, actually pushed and remote matched. Requirements CH010/035/045/049/050/061 and USR-EMB-LOCAL/IMPORT5; [Task4C](../superpowers/plans/2026-10-04-yru-knowledge-import.md), [embedding design](../architecture/EMBEDDING_SERVICE_DESIGN.md), [latest original E5 specification](../requirements/sources/2026-10-05-local-e5-embedding.md). Root owns service/client/contracts/actual integration; Luna max scoped independent review has no concrete findings in [report](../../.superpowers/sdd/reports/emb-token-review.md).
+
+The private authenticated `POST /tokens/count` uses the already loaded pinned E5 tokenizer. It counts one `passage: ` prefix and special tokens with truncation disabled, returns ordered positive counts including above512, and never encodes or returns source text/vectors. Counting shares the non-queuing inference lock. Strict1–16 raw passages/6,000UTF8bytes each, fixed identity/cardinality/count validation, bounded600,000byte request bodies and private no-store sanitized responses preserve the existing embedding routes. Client reuses bounded HTTP/redirect denial/deadline/cancellation; its separate counting capability does not change unrelated embedding adapters, generation pricing or Provider UI.
+
+Primary API references inspected: [Starlette pure ASGI middleware](https://www.starlette.io/middleware/) supports request/response wrappers; [FastAPI validation error handling](https://fastapi.tiangolo.com/tutorial/handling-errors/) exposes invalid body data in default diagnostics, so this private service returns fixed errors. Installed runtime and actual tests, rather than newer documentation features, control implementation.
+
+| Actual check | Result |
+|---|---|
+| Meaningful initial RED |8 new service failures (missing count route) and5 client failures (missing capability), existing11service/13client checks passed |
+| Final service |21/21 PASS: exact512/513, no encode/text echo, auth, non-queuing shared lock/recovery, malformed tokenizer, byte/body/escaped-JSON/stream bounds, fixed validation and existing private routes |
+| Final focused client |18/18 PASS: raw ordered count payload, identity/cardinality/integer limits, input bounds, controlled HTTP/unavailable, response size, preflight/in-flight cancellation and ignored-abort deadline |
+| Independent Luna max |Reran21service/18client; read-only scoped source review PASS/no concrete findings; no independent whole-V1 or real-model claim |
+| Full unit regression |1262/84files PASS, before the separate Task4C-2 builder's implementation; no SQL/schema changes in this slice |
+| Type/lint/build |Full `pnpm lint`, `pnpm typecheck`, `pnpm build` exit0; unchanged Student/Staff routes compile |
+| Actual offline cache |Existing D: pinned snapshot loaded;384 dimensions/normalized vectors, networkAttempts0; no cache removal/download |
+| Actual final-source HTTP |Health200; Thai/English query and passage normalized384; exact passage counts9/14; synthetic Thai5,700bytes counts1,204 then embedding422 without truncation; controlled unavailable path PASS |
+
+Root commands: service unittest discovery, focused Vitest, full `pnpm test`, lint/typecheck/build, existing `verify_cache.py`, and `pnpm exec tsx scripts/qa/local-embedding.ts`. Root restarted only its owned service after verifying the listener/process command, then repeated HTTP smoke against final middleware source. No real YRU document was imported/approved/indexed and no generation/provider call ran.
+
+Failures remain evidence: first HTTP smoke ran before CPU service startup was ready and failed health; after readiness, the initial repeated transfer-rule phrase measured324tokens, invalidating the test fixture's >512 assumption. Root selected a measured synthetic Thai greeting fixture (1,204tokens under6,000bytes) and repeated the unchanged limit/rejection checks successfully. Service warnings about TestClient deprecation, renamed dimension API and a counted input exceeding512 remain informational; dependencies/API limits were not changed to conceal them. Staged credential and local-link checks run before commit; private accounts/cache/logs/originals remain ignored.
+
+This completes only exact-token infrastructure. Task4C-2 located lossless page/table plans is active in a separate named-file Luna max assignment; its RED/GREEN and actual-format/model evidence are not included here. Task4C-3 saved review/preview/digest/embedding/location persistence/citations, actual version publication/AMENDS/CANCELS/delivery invalidation, M8 seven structured datasets/BOTH, M9/corpus and Flow A–F remain required. No whole-M7/V1 completion or live OA/provider/production acceptance is claimed. Human-only setup remains in the [final checklist](../operations/FINAL_SETUP_CHECKLIST.md).

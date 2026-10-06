@@ -8,6 +8,38 @@ const config={model:health.model,dimension:384,revision:LOCAL_EMBEDDING_REVISION
 const response=(value:unknown,status=200)=>new Response(JSON.stringify(value&&typeof value==='object'&&('embedding'in value||'embeddings'in value)?{model:health.model,revision:LOCAL_EMBEDDING_REVISION,...value}:value),{status});
 
 describe('local E5 backend client',()=>{
+ it('counts raw ordered passages with fixed E5 identity without requesting vectors',async()=>{
+  const counts={model:health.model,revision:health.revision,dimension:384,tokenCounts:[512,513]};
+  const request=vi.fn<typeof fetch>().mockResolvedValue(response(counts));
+  const provider=createLocalE5EmbeddingProvider({config,fetchImpl:request});
+  expect(await provider.countPassageTokens(['หนึ่ง','two'])).toEqual([512,513]);
+  expect(request).toHaveBeenCalledExactlyOnceWith('http://127.0.0.1:8000/tokens/count',expect.objectContaining({method:'POST',redirect:'error',cache:'no-store',body:JSON.stringify({texts:['หนึ่ง','two'],type:'passage'})}));
+  expect(provider.fingerprint).toBe(LOCAL_EMBEDDING_FINGERPRINT);
+ });
+ it('rejects malformed counts, wrong identity, cardinality and extra fields',async()=>{
+  const valid={model:health.model,revision:health.revision,dimension:384,tokenCounts:[512]};
+  for(const invalid of [{...valid,model:'other'},{...valid,revision:'a'.repeat(40)},{...valid,dimension:383},{...valid,tokenCounts:[]},{...valid,tokenCounts:[1,2]},{...valid,tokenCounts:[0]},{...valid,tokenCounts:[-1]},{...valid,tokenCounts:[1.5]},{...valid,tokenCounts:[true]},{...valid,tokenCounts:[16385]},{...valid,tokenCounts:['512']},{...valid,extra:'private'}]){
+   const request=vi.fn<typeof fetch>().mockResolvedValue(response(invalid));
+   await expect(createLocalE5EmbeddingProvider({config,fetchImpl:request}).countPassageTokens(['raw'])).rejects.toThrow('EMBEDDING_INVALID_RESPONSE');
+  }
+ });
+ it('bounds count input bytes/batches before HTTP',async()=>{
+  const request=vi.fn<typeof fetch>();const provider=createLocalE5EmbeddingProvider({config,fetchImpl:request});
+  for(const texts of [[],Array<string>(17).fill('x'),[''],['  '],['ไทย'.repeat(1000)]])await expect(provider.countPassageTokens(texts)).rejects.toThrow('EMBEDDING_INPUT_INVALID');
+  expect(request).not.toHaveBeenCalled();
+ });
+ it('count respects deadlines and both preflight and in-flight cancellation',async()=>{
+  const request=vi.fn<typeof fetch>().mockImplementation(()=>new Promise(()=>{}));const provider=createLocalE5EmbeddingProvider({config,fetchImpl:request});
+  await expect(provider.countPassageTokens(['raw'],{timeoutMs:15})).rejects.toThrow('EMBEDDING_TIMEOUT');
+  const before=new AbortController();before.abort();await expect(provider.countPassageTokens(['raw'],{signal:before.signal})).rejects.toThrow('EMBEDDING_ABORTED');
+  const during=new AbortController(),promise=provider.countPassageTokens(['raw'],{signal:during.signal});during.abort();await expect(promise).rejects.toThrow('EMBEDDING_ABORTED');
+ });
+ it('count safely reports HTTP/unavailable and bounds response streams',async()=>{
+  for(const result of [new Response('private upstream',{status:503}),new Response('x'.repeat(300_000))]){
+   await expect(createLocalE5EmbeddingProvider({config,fetchImpl:vi.fn<typeof fetch>().mockResolvedValue(result)}).countPassageTokens(['raw'])).rejects.toThrow(/^EMBEDDING_(HTTP_ERROR|INVALID_RESPONSE)$/);
+  }
+  await expect(createLocalE5EmbeddingProvider({config,fetchImpl:vi.fn<typeof fetch>().mockRejectedValue(new Error('private-key'))}).countPassageTokens(['raw'])).rejects.toThrow(/^EMBEDDING_UNAVAILABLE$/);
+ });
  it('sends raw query/passages through the backend API with the right type and stable identity',async()=>{
   const request=vi.fn<typeof fetch>().mockResolvedValueOnce(response(health)).mockResolvedValueOnce(response({dimension:384,embedding:vector})).mockResolvedValueOnce(response({dimension:384,embeddings:[vector,vector]}));
   const provider=createLocalE5EmbeddingProvider({config,fetchImpl:request});

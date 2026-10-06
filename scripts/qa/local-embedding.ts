@@ -13,7 +13,17 @@ for(const [name,text] of [['thai_query','การเทียบโอนรา
 const passages=await embedLocalConfigured({input:['Reviewed course credit transfer information','ข้อมูลการเทียบโอนรายวิชาที่ผ่านการตรวจแล้ว'],requestType:'EMBEDDING_DOCUMENT'},provider);
 assert.equal(passages.vectors.length,2);assert(passages.vectors.every(vector=>vector.length===384&&Math.abs(Math.hypot(...vector)-1)<0.001));
 checks.push({name:'passages',dimension:384,length:384,count:2,normalized:true});
+const rawPassages=['Reviewed course credit transfer information','ข้อมูลการเทียบโอนรายวิชาที่ผ่านการตรวจแล้ว'];
+const counts=await provider.countPassageTokens(rawPassages);
+assert.equal(counts.length,rawPassages.length);assert(counts.every(count=>Number.isSafeInteger(count)&&count>0&&count<=512));
+checks.push({name:'exact_passage_counts',counts});
+const denseThai='สวัสดี '.repeat(300);
+assert(Buffer.byteLength(denseThai,'utf8')<=6000);
+const [denseCount]=await provider.countPassageTokens([denseThai]);assert(denseCount>512);
+await assert.rejects(provider.embedPassages([denseThai]),{code:'EMBEDDING_HTTP_ERROR',httpStatus:422});
+checks.push({name:'thai_count_above_limit_embedding_rejected',count:denseCount,httpStatus:422});
 const unavailable=createLocalE5EmbeddingProvider({config:{...readLocalEmbeddingConfig(),apiUrl:'http://127.0.0.1:65530'}});
 await assert.rejects(unavailable.embedQuery('Controlled availability check'),{message:'EMBEDDING_UNAVAILABLE'});
 assert.equal((await unavailable.healthCheck()).healthy,false);
+await assert.rejects(unavailable.countPassageTokens(['Controlled availability check']),{message:'EMBEDDING_UNAVAILABLE'});
 console.log(JSON.stringify({status:'PASS',health,checks,controlledUnavailable:true,generationCalled:false,documentsImported:false}));

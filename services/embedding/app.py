@@ -9,12 +9,66 @@ import threading
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from starlette.responses import JSONResponse
 
 MODEL = "intfloat/multilingual-e5-small"
 REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
 DIMENSION = 384
 MAX_TEXT_BYTES = 6000
+MAX_REQUEST_BYTES = 600000
+MAX_TOKEN_COUNT = 16384
+
+
+class PrivateRequestMiddleware:
+    """Bound JSON before parsing; never cache private success or error responses."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def private_send(message):
+            if message["type"] == "http.response.start":
+                headers = [(name, value) for name, value in message.get("headers", []) if name.lower() != b"cache-control"]
+                message = {**message, "headers": [*headers, (b"cache-control", b"no-store")]}
+            await send(message)
+
+        if scope["method"] != "POST":
+            return await self.app(scope, receive, private_send)
+
+        async def reject():
+            await JSONResponse({"detail": "EMBEDDING_INPUT_INVALID"}, status_code=413)(scope, receive, private_send)
+
+        lengths = [value for name, value in scope.get("headers", []) if name.lower() == b"content-length"]
+        if len(lengths) > 1 or any(not value.isdigit() or len(value) > 9 or int(value) > MAX_REQUEST_BYTES for value in lengths):
+            return await reject()
+        payload = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                return await reject()
+            body = message.get("body", b"")
+            if len(payload) + len(body) > MAX_REQUEST_BYTES:
+                return await reject()
+            payload.extend(body)
+            if not message.get("more_body", False):
+                break
+        delivered = False
+        payload = bytes(payload)
+
+        async def replay():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": payload, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, private_send)
 
 
 def load_service_env():
@@ -138,6 +192,12 @@ def create_app(settings=None, model_factory=None):
         application.state.model = None
 
     application = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    application.add_middleware(PrivateRequestMiddleware)
+
+    @application.exception_handler(RequestValidationError)
+    async def validation_error(request, error):
+        # FastAPI's default errors echo invalid source text and arbitrary fields.
+        return JSONResponse({"detail": "EMBEDDING_INPUT_INVALID"}, status_code=422)
 
     def authenticate(request: Request):
         if not settings.api_key and (request.client is None or request.client.host not in ("127.0.0.1", "::1")):
@@ -145,15 +205,33 @@ def create_app(settings=None, model_factory=None):
         if settings.api_key and not hmac.compare_digest(request.headers.get("authorization", "").encode("utf-8"), ("Bearer " + settings.api_key).encode("utf-8")):
             raise HTTPException(status_code=401, detail="EMBEDDING_UNAUTHENTICATED")
 
+    def prefixed_token_counts(prefixed):
+        counts = []
+        for text in prefixed:
+            ids = application.state.model.tokenizer(text, truncation=False, add_special_tokens=True)["input_ids"]
+            if not isinstance(ids, list) or not 1 <= len(ids) <= MAX_TOKEN_COUNT or any(not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in ids):
+                raise RuntimeError("EMBEDDING_OUTPUT_INVALID")
+            counts.append(len(ids))
+        return counts
+
+    def token_counts(texts):
+        if not lock.acquire(blocking=False):
+            raise HTTPException(status_code=503, detail="EMBEDDING_BUSY")
+        try:
+            return prefixed_token_counts(["passage: " + text for text in texts])
+        except Exception:
+            raise HTTPException(status_code=503, detail="EMBEDDING_UNAVAILABLE") from None
+        finally:
+            lock.release()
+
     def encode(texts, kind):
         model = application.state.model
         prefixed = [kind + ": " + text for text in texts]
         if not lock.acquire(blocking=False):
             raise HTTPException(status_code=503, detail="EMBEDDING_BUSY")
         try:
-            for text in prefixed:
-                if len(model.tokenizer(text, truncation=False, add_special_tokens=True)["input_ids"]) > 512:
-                    raise HTTPException(status_code=422, detail="EMBEDDING_INPUT_TOO_LONG")
+            if any(count > 512 for count in prefixed_token_counts(prefixed)):
+                raise HTTPException(status_code=422, detail="EMBEDDING_INPUT_TOO_LONG")
             return validated_vectors(model.encode(prefixed, normalize_embeddings=True, batch_size=16, show_progress_bar=False).tolist(), len(texts))
         except HTTPException:
             raise
@@ -173,6 +251,10 @@ def create_app(settings=None, model_factory=None):
     @application.post("/embed/batch", dependencies=[Depends(authenticate)])
     def embed_batch(request: BatchRequest):
         return {"model": settings.model, "revision": settings.revision, "dimension": DIMENSION, "embeddings": encode(request.texts, request.type)}
+
+    @application.post("/tokens/count", dependencies=[Depends(authenticate)])
+    def count_passages(request: BatchRequest):
+        return {"model": settings.model, "revision": settings.revision, "dimension": DIMENSION, "tokenCounts": token_counts(request.texts)}
 
     return application
 

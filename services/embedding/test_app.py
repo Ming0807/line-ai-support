@@ -1,9 +1,11 @@
 import importlib
+import json
 import math
 import os
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from unittest.mock import patch
@@ -124,6 +126,126 @@ class ServiceTest(unittest.TestCase):
             response = client.post("/embed", json={"text": "controlled fixture"})
             self.assertEqual(response.status_code, 503)
             self.assertNotIn("private", response.text)
+
+    def test_count_reports_exact_prefixed_boundary_without_encoding_or_text(self):
+        calls = []
+        def tokens(text, **kwargs):
+            calls.append((text, kwargs))
+            return {"input_ids": [1] * (512 if text.endswith("boundary512") else 513)}
+        self.model.tokenizer = tokens
+        with self.client() as client:
+            result = client.post("/tokens/count", json={"texts": ["boundary512", "boundary513"], "type": "passage"})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json(), {"model": module.MODEL, "revision": REVISION, "dimension": 384, "tokenCounts": [512, 513]})
+            self.assertEqual(calls, [("passage: boundary512", {"truncation": False, "add_special_tokens": True}), ("passage: boundary513", {"truncation": False, "add_special_tokens": True})])
+            self.assertEqual(result.headers["cache-control"], "no-store")
+            self.assertNotIn("boundary", result.text)
+            self.assertEqual(self.model.inputs, [])
+            self.assertEqual(client.post("/embed", json={"text": "boundary512", "type": "passage"}).status_code, 200)
+            self.assertEqual(client.post("/embed", json={"text": "boundary513", "type": "passage"}).status_code, 422)
+            self.assertEqual(len(self.model.inputs), 1)
+
+    def test_count_invalid_batches_have_fixed_private_diagnostics(self):
+        with self.client() as client:
+            private = "private-invalid-count-fixture"
+            for value in [{"texts": []}, {"texts": ["x"] * 17}, {"texts": ["ไทย" * 1000]}, {"texts": [" "]}, {"texts": [private], "type": "query"}, {"texts": [private], "extra": private}]:
+                result = client.post("/tokens/count", json=value)
+                self.assertEqual(result.status_code, 422)
+                self.assertEqual(result.json(), {"detail": "EMBEDDING_INPUT_INVALID"})
+                self.assertNotIn(private, result.text)
+                self.assertEqual(result.headers["cache-control"], "no-store")
+            self.assertEqual(self.model.inputs, [])
+
+    def test_count_authentication_precedes_tokenizer(self):
+        called = []
+        self.model.tokenizer = lambda text, **kwargs: called.append(text)
+        self.settings = module.EmbeddingSettings(cache_dir=self.root, api_key="fixture-only-test-key")
+        with self.client() as client:
+            result = client.post("/tokens/count", json={"texts": ["private-fixture"]})
+            self.assertEqual(result.status_code, 401)
+            self.assertEqual(result.headers["cache-control"], "no-store")
+            self.assertEqual(called, [])
+            self.model.tokenizer = lambda text, **kwargs: {"input_ids": [1] * 10}
+            self.assertEqual(client.post("/tokens/count", json={"texts": ["ok"]}, headers={"authorization": "Bearer fixture-only-test-key"}).status_code, 200)
+        self.settings = module.EmbeddingSettings(cache_dir=self.root)
+        with TestClient(module.create_app(self.settings, model_factory=lambda p: self.model), client=("203.0.113.10", 1234)) as client:
+            self.assertEqual(client.post("/tokens/count", json={"texts": ["ok"]}).status_code, 403)
+
+    def test_count_rejects_malformed_tokenizer_outputs_safely(self):
+        with self.client() as client:
+            for output in [None, {}, {"input_ids": "private-tokenizer-fixture"}, {"input_ids": []}, {"input_ids": [True]}, {"input_ids": [-1]}, {"input_ids": [1] * 16385}]:
+                self.model.tokenizer = lambda text, value=output, **kwargs: value
+                result = client.post("/tokens/count", json={"texts": ["private-source-fixture"]})
+                self.assertEqual(result.status_code, 503)
+                self.assertEqual(result.json(), {"detail": "EMBEDDING_UNAVAILABLE"})
+                self.assertNotIn("private", result.text)
+            self.assertEqual(self.model.inputs, [])
+
+    def test_count_and_encode_share_non_queuing_lock_and_recover(self):
+        entered, release = threading.Event(), threading.Event()
+        def tokens(text, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("TEST_RELEASE_REQUIRED")
+            return {"input_ids": [1] * 10}
+        self.model.tokenizer = tokens
+        results = []
+        with self.client() as client:
+            worker = threading.Thread(target=lambda: results.append(client.post("/tokens/count", json={"texts": ["held"]})))
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(3))
+                for route, body in [("/tokens/count", {"texts": ["second"]}), ("/embed", {"text": "second"})]:
+                    result = client.post(route, json=body)
+                    self.assertEqual(result.status_code, 503)
+                    self.assertEqual(result.json(), {"detail": "EMBEDDING_BUSY"})
+            finally:
+                release.set()
+                worker.join(5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(results[0].status_code, 200)
+            self.assertEqual(client.post("/tokens/count", json={"texts": ["recovered"]}).status_code, 200)
+
+    def test_request_body_is_bounded_before_validation(self):
+        with self.client() as client:
+            for kwargs in [{"content": b'{"texts":["ok"]}' + b' ' * 600000}, {"json": {"texts": ["ok"]}, "headers": {"content-length": "600001"}}]:
+                result = client.post("/tokens/count", **kwargs)
+                self.assertEqual(result.status_code, 413)
+                self.assertEqual(result.json(), {"detail": "EMBEDDING_INPUT_INVALID"})
+                self.assertEqual(result.headers["cache-control"], "no-store")
+            self.assertEqual(self.model.inputs, [])
+
+    def test_streamed_body_without_content_length_is_still_bounded(self):
+        with self.client() as client:
+            result = client.post("/tokens/count", content=iter([b" " * 300001, b" " * 300001]))
+            self.assertEqual(result.status_code, 413)
+            self.assertEqual(result.json(), {"detail": "EMBEDDING_INPUT_INVALID"})
+            self.assertEqual(self.model.inputs, [])
+
+    def test_existing_routes_validation_does_not_echo_source_and_is_private(self):
+        with self.client() as client:
+            for route, body in [("/embed", {"text": "private-original", "type": "wrong"}), ("/embed/batch", {"texts": ["private-original"], "type": "wrong"})]:
+                result = client.post(route, json=body)
+                self.assertEqual(result.status_code, 422)
+                self.assertEqual(result.json(), {"detail": "EMBEDDING_INPUT_INVALID"})
+                self.assertEqual(result.headers["cache-control"], "no-store")
+                self.assertNotIn("private-original", result.text)
+            self.assertEqual(client.get("/health").headers["cache-control"], "no-store")
+
+    def test_full_escaped_json_batch_fits_the_body_limit(self):
+        with self.client() as client:
+            body = json.dumps({"texts": ["\x00" * 6000] * 16, "type": "passage"})
+            self.assertLess(len(body.encode("utf-8")), 600000)
+            result = client.post("/tokens/count", content=body, headers={"content-type": "application/json"})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()["tokenCounts"], [10] * 16)
+
+    def test_invalid_json_does_not_echo_private_count_text(self):
+        with self.client() as client:
+            result = client.post("/tokens/count", content='{"texts":["private-source"],oops}', headers={"content-type": "application/json"})
+            self.assertEqual(result.status_code, 422)
+            self.assertEqual(result.json(), {"detail": "EMBEDDING_INPUT_INVALID"})
+            self.assertNotIn("private-source", result.text)
 
 
 if __name__ == "__main__":

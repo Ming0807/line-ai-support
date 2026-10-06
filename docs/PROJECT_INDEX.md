@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+6October current continuation: [exact E5 passage counting](reports/E5_TOKEN_COUNT_REPORT.md) **COMPONENT_PASS** after pushed611e631;21service/18focusedclient/1262fullunit/type/lint/build/offline0network/actualHTTP PASS. Root contracts/integration, Luna max scoped independent review. Task4C-2 located page/table chunk plans is active; reviewed preview/publication/location persistence/citations/M8/M9/fullV1 remain.
+
 | เอกสาร | ใช้ตอบคำถาม |
 |---|---|
 | [README](../README.md) | โปรเจกต์คืออะไร เริ่มใช้งานและทดสอบอย่างไร |

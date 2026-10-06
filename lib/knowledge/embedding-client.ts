@@ -11,6 +11,11 @@ export interface EmbeddingProvider {
  embedPassages(texts:string[],options?:EmbeddingCallOptions):Promise<number[][]>;
  healthCheck(options?:EmbeddingCallOptions):Promise<EmbeddingHealth>;
 }
+export interface PassageTokenCounter {
+ readonly modelId:string;readonly revision:string;readonly dimension:number;readonly fingerprint:string;
+ countPassageTokens(texts:string[],options?:EmbeddingCallOptions):Promise<number[]>;
+}
+export interface LocalE5EmbeddingProvider extends EmbeddingProvider,PassageTokenCounter {}
 export interface LocalEmbeddingConfig {model:string;revision:string;dimension:number;apiUrl:string;apiKey?:string}
 export class EmbeddingServiceError extends Error {
  constructor(public readonly code:'EMBEDDING_CONFIG_INVALID'|'EMBEDDING_INPUT_INVALID'|'EMBEDDING_INVALID_RESPONSE'|'EMBEDDING_TIMEOUT'|'EMBEDDING_ABORTED'|'EMBEDDING_UNAVAILABLE'|'EMBEDDING_HTTP_ERROR',public readonly httpStatus:number|null=null){super(code);this.name='EmbeddingServiceError';}
@@ -19,6 +24,7 @@ const vectorSchema=z.array(z.number().finite()).length(384).refine(vector=>Math.
 const identity={model:z.literal(LOCAL_EMBEDDING_MODEL),revision:z.literal(LOCAL_EMBEDDING_REVISION),dimension:z.literal(384)};
 const singleSchema=z.object({...identity,embedding:vectorSchema}).strict();
 const batchSchema=z.object({...identity,embeddings:z.array(vectorSchema).min(1).max(16)}).strict();
+const countsSchema=z.object({...identity,tokenCounts:z.array(z.number().int().min(1).max(16384)).min(1).max(16)}).strict();
 const healthSchema=z.object({status:z.literal('ok'),model:z.literal(LOCAL_EMBEDDING_MODEL),revision:z.literal(LOCAL_EMBEDDING_REVISION),dimension:z.literal(384)}).strict();
 const encoder=new TextEncoder();const MAX_RESPONSE_BYTES=256*1024;
 const textSchema=z.string().min(1).refine(text=>text.trim().length>0&&encoder.encode(text).byteLength<=6000);
@@ -37,7 +43,7 @@ function validateConfig(config:LocalEmbeddingConfig):LocalEmbeddingConfig {
  }catch{throw new EmbeddingServiceError('EMBEDDING_CONFIG_INVALID');}
 }
 /** Server infrastructure; never import into a client component. */
-export function createLocalE5EmbeddingProvider(options:{config?:LocalEmbeddingConfig;fetchImpl?:typeof fetch}={}):EmbeddingProvider {
+export function createLocalE5EmbeddingProvider(options:{config?:LocalEmbeddingConfig;fetchImpl?:typeof fetch}={}):LocalE5EmbeddingProvider {
  const config=validateConfig(options.config??readLocalEmbeddingConfig());const request=options.fetchImpl??fetch;
  async function call(route:string,body:unknown|undefined,callOptions:EmbeddingCallOptions={}):Promise<{json:unknown;status:number}> {
   const timeout=callOptions.timeoutMs??15_000;
@@ -66,6 +72,12 @@ export function createLocalE5EmbeddingProvider(options:{config?:LocalEmbeddingCo
   finally{clearTimeout(timer);callOptions.signal?.removeEventListener('abort',abort);controller.abort();}
  }
  return {modelId:config.model,revision:config.revision,dimension:384,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,
+  async countPassageTokens(texts,callOptions){
+   if(!z.array(textSchema).min(1).max(16).safeParse(texts).success)throw new EmbeddingServiceError('EMBEDDING_INPUT_INVALID');
+   const response=await call('tokens/count',{texts,type:'passage'},callOptions);const parsed=countsSchema.safeParse(response.json);
+   if(!parsed.success||parsed.data.tokenCounts.length!==texts.length)throw new EmbeddingServiceError('EMBEDDING_INVALID_RESPONSE',response.status);
+   return parsed.data.tokenCounts;
+  },
   async embedQuery(text,callOptions){
    if(!textSchema.safeParse(text).success)throw new EmbeddingServiceError('EMBEDDING_INPUT_INVALID');
    const response=await call('embed',{text,type:'query'},callOptions);const parsed=singleSchema.safeParse(response.json);

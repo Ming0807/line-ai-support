@@ -23,10 +23,13 @@ API (include server-to-server Bearer key when configured):
 - `POST /embed`: `{ "text": "การเทียบโอนรายวิชาต้องทำอย่างไร", "type": "query" }`.
 - `POST /embed`: `{ "text": "Reviewed document chunk", "type": "passage" }`.
 - `POST /embed/batch`: `{ "texts": ["First chunk", "Second chunk"], "type": "passage" }` (1–16).
+- `POST /tokens/count`: same raw passage batch; fixed model/revision/384 and ordered `tokenCounts`, including counts above512 to let backend preparation split. Counts include the single service-added passage prefix and special tokens; no vectors/encoding/text echo. Uses the same authentication and non-queuing lock as inference.
 
 Callers send raw text. The service adds `query: ` / `passage: ` exactly once per request and normalizes output, as specified in the [E5 model card](https://huggingface.co/intfloat/multilingual-e5-small/raw/main/README.md). Limit 6000 UTF-8 bytes/text and 512 tokenizer tokens including prefix/special tokens; oversized inputs are rejected, never silently truncated. CPU encode is serialized; concurrent busy inference returns controlled 503. A client timeout cancels waiting for HTTP, not an already executing CPU kernel. No claim of production throughput is made by a local successful request.
 
 Verification:
+
+All responses use `Cache-Control: no-store`. Validation diagnostics are fixed without source text. POST bodies are bounded before JSON parsing at600,000bytes, which permits valid16×6,000byte texts even when JSON escapes every character. Token counts are positive integers≤16,384; malformed tokenizer output fails with a fixed503. Counting is a preparation capability: it does not grant review, approval or publication.
 
 ```powershell
 & services/embedding/.venv/Scripts/python.exe -m unittest discover -s services/embedding -p test_app.py
