@@ -55,6 +55,7 @@ Parent6October PUB-03 checkpoint: complete rule groups/pending-answer fences,140
 - [Free provider execution plan](superpowers/plans/2026-10-04-yru-free-ai-providers.md): แผนแก้ M5/M6 ต้องใช้ร่วมกับ provider design ล่าสุด
 - [Provider UX/status/test execution plan](superpowers/plans/2026-10-04-yru-provider-management-ux.md) และ [surface brief](ui/PROVIDER_SURFACE_BRIEF.md): tasks PRV-03/04 แบบ product minimal
 - [RAG execution plan](superpowers/plans/2026-10-04-yru-rag.md), [Import execution plan](superpowers/plans/2026-10-04-yru-knowledge-import.md)
+- [M8 structured execution gates](superpowers/plans/2026-10-06-yru-structured-data.md): root STR-00 contracts before seven-table/mapper/atomicBOTH/exact-search implementation; no current structured-mode acceptance
 - [Provider spec audit](reports/AI_PROVIDER_SPEC_AUDIT.md), [M5 report](reports/M5_AI_GATEWAY_REPORT.md), [M6 component evidence](reports/M6_RAG_REPORT.md)
 - [Documentation control report](reports/DOCUMENTATION_CONTROL_REPORT.md): source hash/link/75chapters/Flow coverage และผลreviewของทีมใน DOC-01
 - [M2 Auth](reports/M2_DEVELOPMENT_AUTH_REPORT.md), [M3 LINE](reports/M3_DURABLE_LINE_REPORT.md), [M4 Tickets](reports/M4_TICKET_CORE_REPORT.md)

@@ -18,7 +18,7 @@
 | M5 AI Gateway | 3 | AUTOMATED_ACCEPTANCE / MANUAL_PENDING | [Provider acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md): free gateway/order/status/quota/probes/cooldown/compatible UI automated gates GREEN; live free account/Thai quality pending |
 | M6 RAG | 4 | PARTIAL / REOPENED | [RAG component evidence](../reports/M6_RAG_REPORT.md) + [local E5 foundation](../reports/LOCAL_E5_EMBEDDING_REPORT.md): controlled RAG/worker/citation/current/history and CPU384 backend/DB/UI ผ่าน; approved-corpus indexing/live free generation/full flow ยังขาด |
 | M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Approval API/UI](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md), publication backend and complete rule groups component PASS;1439unit/187PG/type/lint/build/10browser. Private review/version/plans/atomic RAG/receipts/relationships/fences accepted. Published family/current/history catalog, installed mappers/atomic BOTH and approved real corpus remain |
-| M8 Structured Data | 6 | PLANNED | 7 fixed datasets; ต้องแตก execution plan และเชื่อม approve/version/search |
+| M8 Structured Data | 6 | CONTRACT_PLANNING / IMPLEMENTATION_HELD | [Source-grounded execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md); STR-00 root design decisions pending, then7fixed schemas/mapping/atomicBOTH/exact search; combined Gemini catalog/import integration prerequisite |
 | M9 Advanced / Staff / Analytics | 7 | PLANNED / PARTIAL | scoped notification component มีใน M4; binding/incidents/loading/web/complete dashboard ยังไม่ครบ |
 | FINAL V1 | §69 | PENDING | Flow A–F และ deployment/manual report ยังไม่ผ่านครบ |
 
@@ -64,7 +64,7 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 
 ## งานที่เหลือใน V1
 
-ตารางนี้ระบุ scope ก่อน implementation; M8/M9 ยังไม่ใช่ detailed execution plans และต้องแตก files/contracts/tests ก่อนเริ่มตาม working protocol
+ตารางนี้ระบุ scope ก่อน implementation. M8 มี [execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md) แล้ว แต่ STR-00 ต้องตรึง types/provenance/query/review/mode decisions ก่อน schema/runtime implementation. M9 ยังต้องแตก files/contracts/tests ตาม working protocol
 
 | ID | งาน | Owner / planned difficulty | สถานะ / dependency | Acceptance ที่ต้องมี |
 |---|---|---|---|---|
@@ -72,7 +72,8 @@ Completed provider automated execution: [5Oct cooldown/compatible contracts](../
 | IMP-02 | DOCX/XLSX/CSV parsing + safe files + preview | root + Luna max parser/runtime/scoped reviews | PARTIAL: Office components and supervised format fixtures; synthetic PDF direct+child10PASS; included1219unit/123PG extraction checkpoint | actual all5-format persisted chunk/citation equality, Thai/font/OCR/real corpus and production resource evidence remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | IMP-03 | review receipts/family/version/replace/additional/historical/AMENDS/CANCELS, atomic publication fences | root + actual Luna high/max scoped work | PARTIAL: PUB-01…05 atomic RAG/API/UI/relationships/fences accepted; [approval report](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md) | M8 atomic STRUCTURED/BOTH and actual corpus/live flows remain; CH039/040/045/050 |
 | IMP-04 | knowledge list/detail/version/import UI + real shortlist review workflow | Gemini UI + root backend/integration | PARTIAL: CAT-01/UX-01A backend component PASS1466unit/196PG/7actualHTTP/type/lint/build; private UI dated acceptance | combined Gemini family/history/detail/easy-import UI and real corpus review remain; CH046/047/064 |
-| STR-01 | migration + registry + mappers สำหรับ 7 fixed datasets | root + Luna max mapping | PLANNED หลัง IMP contracts | all7 datasets/version/applicability/authority, unknownRAG/noDDL, noyear tables; CH012/041/042 |
+| STR-00 | fixed schema/types/provenance/mapper/query/mode design decisions | root | PLANNING: [execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md); master§12all7 verified, local exact tables0/7 | source-to-decision table, exact types/bounds/receipt compatibility, public scope, AMENDS/CANCELS proof, no silent guesses before DDL |
+| STR-01 | migration + registry + mappers สำหรับ 7 fixed datasets | root; Luna max isolated pure work when available | HELD หลัง STR-00 frozen contracts + combined catalog/import UI integration | all7 datasets/version/applicability/authority, unknownRAG/noDDL, noyear tables; CH012/041/042 |
 | STR-02 | exact query tools + BOTH atomic publication + dates/fees citations | root integration | HELD หลัง STR-01/IMP-03 | exactdate/value chooses structured; current/history guard; same approved versionสำหรับ BOTH; Flow F |
 | ADV-01 | Staff OA binding/auth/actions/department+sensitive notifications | root auth + Luna high UI | PARTIAL; fullหลัง M7/M8 | boundactive staff only, no broadcast/rawidentity, realOA binding/accept/open dashboard; CH054 |
 | ADV-02 | similar issues/incidents/severity backend rules + incident UI | Luna max logic + root contract | PLANNED หลัง M7/M8 | meaning similarity+scope/time/count thresholds, no sensitive leak, validatedseverity, incident→ticket actions; CH013/055–057 |

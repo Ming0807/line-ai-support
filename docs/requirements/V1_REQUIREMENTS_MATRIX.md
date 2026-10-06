@@ -20,7 +20,7 @@
 | CH009 | 9 Documentversioning | M6, IMP-03 | PARTIAL: documents/families/relationships/currentconstraintsมี; approvedversionupdateUI/atomicpublishpending |
 | CH010 | 10 Knowledgechunks | M6, IMP-01/03 | PARTIAL: all5format exact located plans, pinned512token/6000byte bounds, review-v2 consent and locations→retrieval/citation/delivery equality COMPONENT_PASS; newly approved realimport vectors/publication pending; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
 | CH011 | 11 Importjobs/staging | IMP-01…03 | PARTIAL: privateimmutableencryptedjob/metadata/original/uploadreceipt/auth/duplicate/failure/readStorage+PG GREEN; persistedextraction/review/publication states pending |
-| CH012 | 12 Sevenstructuredtables | STR-01/02 | PLANNED: calendar,fees,transfer,services,systems,forms,announcementsทั้งหมด |
+| CH012 | 12 Sevenstructuredtables | STR-00/01/02 | CONTRACT_PLANNING: [execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md), all7source schemas verified/local installed0of7; fixed types/provenance/mapping/atomicBOTH/exact search pending, no implementation acceptance |
 | CH013 | 13 Incidents/ticketlinks | ADV-02 | PLANNED: schema/permissions/aggregation/UX |
 | CH014 | 14 Provider/modeltables | PRV-01…04 | AUTOMATED_ACCEPTANCE/MANUAL_PENDING: free/order/pricing/HTTP/quota/probes/cooldown/compatible PG+UI GREEN ดู[acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); live account/quality pending |
 | CH015 | 15 Usage/errors | M5, PRV-04, ADV-03 | PARTIAL: attempts/errors/actualHTTP/probe separation/cooldown GREEN; complete usage/log/analytics UI remaining |
