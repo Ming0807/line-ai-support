@@ -37,3 +37,5 @@ No new SQL migration, database/advisor check, build, HTTP/browser, provider or L
 Saved review-v3/receipt acknowledgment, authorized structured preview, fixed seven SQL tables/private provenance grants/retention, lifecycle projections, atomic STRUCTURED/BOTH rollback/replay/history, exact query/contradiction/citation/finalization/delivery proof and combined UI acceptance remain STR-00/01/02 work. No structured mode is enabled. Gemini's later reported `443c227` is a separate pending review, not acceptance of this backend component or whole V1.
 
 No new user configuration, upload, key, model download or source approval is required. [Final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md) preserves deferred real corpus/live/production checks. Backend/schema/integration work remains the agents' responsibility.
+
+Root committed this23-file component as `c1160b9966975bd05fc77c213e9509236a646748`; authorized noninteractive push tofeat/yru-helpdesk-v1 exited0 and remote full SHA matched. This did not push Gemini's branch. Later prompt/review documentation records the new human steering separately.

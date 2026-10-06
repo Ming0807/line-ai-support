@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October latest human UI steering: preserve Gemini443c227 home/sidebar and extend all remaining surfaces. [Review/all-page map](reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md) records13source modules/9page routes and actual4Standards/5Specfindings; [round2 prompt](agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md) is ready for independent local-only Gemini continuation. [Visualauthority](../DESIGN.md)/DEC-041 supersede the old green baseline. No Gemini merge/combined UI/wholeV1 pass.
+
 7October latest component: [Mapping1 report](reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md), [design](architecture/STRUCTURED_MAPPING_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-mapping.md). Pure source-bound DTO/transforms/private rows for all7,1561unit/64focused/type/lint, installed:false; actual author/audit scope recorded. No saved-v3/SQL/preview/publication/query/delivery readiness. Gemini reported443c227 for separate review; combined acceptance remains pending.
 
 7October current component: [STR-01A-0 payload/registry report](reports/STRUCTURED_PAYLOAD_CONTRACT_REPORT.md), [structured design](architecture/STRUCTURED_DATA_DESIGN.md), [bounded execution plan](superpowers/plans/2026-10-07-yru-structured-payload-contract.md). Root implemented all7 source-only validators/immutable metadata, installed:false;1497unit/31focused/type and actual bounded Luna max static review/adversarial tests. This is independent preparation while Gemini owns Dashboard presentation. Remaining STR-00 contracts/fixed schema/mapping/atomic modes/query/row evidence and wholeV1 remain pending; current board/report distinguish final gates from component checks.

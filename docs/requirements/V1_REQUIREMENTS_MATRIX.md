@@ -106,6 +106,8 @@
 | USR-STAFFASSIST | ภาพรวม§14: AIสรุป/ค้น/แนะนำระหว่างHUMANแต่staffกดส่งเอง | ADV-05 PLANNED; noautomaticstudentreply |
 | USR-DASHBOARD | ภาพรวม§30–31: Overviewรวม8metrics + Tickets/Incidents/Departments/Knowledge/Activities/Providers/Models/Fallback/Usage/Analytics/Logs/Settings รวม13modules | ADV-01…05 PARTIAL; currenttickets/providersonlyไม่ครบ |
 
+| USR-UI-R2 | 7Octoberlatest: user likesGemini443c227 home/sidebar; remainingpagesconsistent, mapallspecandcontinuousGeminiassignment | GEM-REV-02 review/planPASS: [13modules/9routes/two-axis findings](../reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md), [ready prompt](../agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md). Gemini21selectedtests/type/lintPASS; whitespace/metrics/keyboard/recovery/modulecoverage open. No merge/combined UI/fullV1 acceptance |
+
 ## Flow A–F — Full V1 acceptance
 
 Coverage ในตารางด้านบนเป็นสถานะของ requirement รวม ไม่ใช่การรับทั้ง milestone. Provider/free RAG มี component evidence แต่ compatible transport/cooldown/final/live gatesยังขาด. สถานะ taskล่าสุดให้อ่าน task board

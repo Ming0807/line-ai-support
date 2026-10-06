@@ -1,5 +1,7 @@
 # Prompt สำหรับ Gemini — YRU Dashboard UX/UI
 
+7October round2 supersedes the original assignment below: [continuation prompt](GEMINI_UI_UX_CONTINUATION_PROMPT.md), [review/all-page map](../reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md). User likes443c227 home/sidebar; retain that visual authority, fix truthfulness/interaction/recovery and cover13source modules. Current root catalog contracts are implemented; the old snapshot dependency statements below are historical. Gemini dependencies are now actual local files, not the earlier junction. No Gemini push or main-workspace UI writes.
+
 คัดลอกข้อความด้านล่างให้ Gemini ซึ่งมีสิทธิ์อ่าน/แก้ไฟล์และรันคำสั่งในเครื่องนี้ ทำงานต่อเนื่องจนส่งมอบผลตรวจได้ ไม่ต้อง push
 
 ---

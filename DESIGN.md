@@ -1,21 +1,21 @@
 ---
 name: YRU Helpdesk Dashboard
-description: Restrained Thai product interface for university support operations
+description: Warm Thai support workspace with dark icon rail and coral overview
 colors:
-  ink: "#17272b"
-  muted: "#52666b"
-  paper: "#f4f7f5"
+  ink: "#141622"
+  muted: "#7e8299"
+  paper: "#f4f3ef"
   surface: "#ffffff"
-  line: "#d5e0dc"
-  primary: "#155e4b"
-  primary-dark: "#104b3c"
-  focus: "#bf5b18"
+  line: "#e7e5df"
+  primary: "#2563eb"
+  primary-dark: "#1d4ed8"
+  focus: "#ff4b72"
 typography:
   body:
-    fontFamily: '"Leelawadee UI", "Th Sarabun New", Tahoma, sans-serif'
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Leelawadee UI", sans-serif'
 rounded:
   field: "0.5rem"
-  panel: "0.8rem"
+  panel: "1.75rem"
 spacing:
   compact: "0.5rem"
   regular: "1rem"
@@ -30,13 +30,13 @@ components:
 
 ## Overview
 
-บันทึก baseline จาก `app/globals.css`, `app/providers.css` และ Dashboard code วันที่ 4 ตุลาคม 2026 ไม่ใช่รายงานว่าหน้า Provider ใหม่ render/QA แล้ว ผู้ใช้กำหนด product minimal: อ่านลำดับและสถานะได้เร็ว ทำ action ได้ตรง และใช้รูปแบบเดียวกันทั้งระบบ
+7 ตุลาคม 2026 ผู้ใช้เลือกหน้าหลักและ sidebar จาก Gemini443c227 เป็น visual authority รอบต่อไป: dark icon rail, warm canvas, soft white cards และ coral hero. Tokensข้างบนอ่านจากCSSของcommitนั้น เป็นแนวทางที่อนุมัติด้านภาพ ไม่ใช่ผลยอมรับbehavior/contrastหรือclaimว่าmainbranchรวมUIแล้ว. [Review/page map](docs/reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md) และ [round2 prompt](docs/agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md) กำหนดงานที่ยังขาด
 
-คง vocabulary ของสีและ control ที่มีอยู่ก่อน ปรับ composition ของ Provider ตาม [surface brief](docs/ui/PROVIDER_SURFACE_BRIEF.md) ซึ่งแยกสิ่งที่วางแผนจาก incumbent UI. ไม่ถือว่าผู้ใช้เลือกธีมใหม่หรืออนุมัติ brand assets ที่ไม่มีอยู่
+รักษาภาษาดีไซน์ที่ผู้ใช้ชอบและขยายไปหน้าอื่น. [Provider surface brief](docs/ui/PROVIDER_SURFACE_BRIEF.md) ยังเป็นfunctional/interactionreference แต่ข้อpaletteเก่าที่ขัดกับคำยืนยันล่าสุดถูกแทนด้วยแนวทางนี้. ไม่มีofficialbrandassetsหรือuniversityendorsementที่อนุมัติให้สร้างขึ้นเอง
 
 ## Colors
 
-สีเขียวหลักใช้กับ primary action/selection; neutral ใช้พื้นผิว ตัวอักษร เส้นแบ่ง และข้อความรอง ไม่ใช้ accent ตกแต่งทุก panel. สถานะ success/warning/error ใช้ข้อความหรือ icon ประกอบเสมอ และแยก status จาก enabled/disabled
+ใช้ neutralพื้นผิว/ข้อความ, darkrail, coral/pinkaccentบนOverviewและblueactionsตามtokensของ443c227. ไม่กลับไปใช้ธีมเขียวเดิม. สถานะsuccess/warning/errorใช้ข้อความหรือiconประกอบเสมอ แยกobservedhealthจากenabled/disabled และวัดcontrastจริงก่อนยอมรับ
 
 สี status ของ layout ใหม่ยังต้องวัด contrast ตอน implementation ไม่คัดลอกสี screenshot ที่ยังไม่มี
 
@@ -54,7 +54,7 @@ Provider view ใหม่มี page title/action, free policy, tabs ตาม 
 
 ## Elevation & Depth
 
-Incumbent ใช้ surface ขาวกับเส้นแบ่งและ shadow เบา; panel หลักมี shadow (`0 5px 16px #17382d0c`). หน้าทำงานใหม่ใช้เส้นแบ่งและ tonal surface เป็นหลัก ลดการซ้อน card ใน card ไม่เพิ่ม blur/glass/gradient เป็นวัสดุใหม่
+Visualauthority443c227ใช้white roundedcards/softshadowและcoralhero gradient. รักษาcompositionที่ผู้ใช้เลือก; หน้าตาราง/formใช้spacingที่กระชับและเส้นแบ่งชัด ลดcardซ้อนcard. Decorativeheroไม่ใช่analytics: กราฟ/percentที่อ่านเป็นข้อมูลต้องมีactualsource/ช่วงเวลา/นิยามตรงกัน
 
 ## Shapes
 

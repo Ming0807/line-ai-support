@@ -31,6 +31,6 @@ Create `lib/imports/structured-mapper.ts`; root `tests/structured-mapper.test.ts
 
 - [x] All new focused tests/scoped lint/type, then whole `pnpm exec vitest run --maxWorkers=1` and full `pnpm run lint` (serial after heavy checks to avoid existing parser deadline interference). Read results. No DB/build/HTTP rerun claimed because no runtime consumers/schema/routes change; disclose any attempt/failure/source scope.
 - [x] Create `docs/reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md`; update design/main structured design/board/matrix/index/broad plan/decisions/setup/ledger with bounded component-only evidence and actual owners. Existing quality, v1/v2 receipts, uninstalled modes and Gemini WIP remain explicit.
-- [ ] Link/diff/selective staged credential check; only task files, no UI/env/corpus/output. Commit and existing authorized noninteractive push on feat/yru-helpdesk-v1, verify remote full SHA. No full M8/V1/real-source/live claim.
+- [x] Link/diff/selective staged credential check; only task files, no UI/env/corpus/output. Commitc1160b9966975bd05fc77c213e9509236a646748 and existing authorized noninteractive push onfeat/yru-helpdesk-v1 exited0; verified remote full SHA. No full M8/V1/real-source/live claim.
 
-Fresh implementation/check evidence is in the [report](../../reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md). The final Git checkbox is completed only after selective staged checks/commit/push/remote verification.
+Fresh implementation/check and actual Git evidence is in the [report](../../reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md). Gemini443c227 review/prompt is a separate subsequent documentation task, not UI integration in this component.
