@@ -12,7 +12,7 @@
 | M4 Ticket Core | 2 | AUTOMATED_COMPLETE | [Ticket report](../reports/M4_TICKET_CORE_REPORT.md), lifecycle/takeover/outbox/browser/PG; full real OA ticket flow pending |
 | M5 AI Gateway | 3 | AUTOMATED_ACCEPTANCE / MANUAL_PENDING | [Provider acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md): free gateway/order/status/quota/probes/cooldown/compatible UI automated gates GREEN; live free account/Thai quality pending |
 | M6 RAG | 4 | PARTIAL / REOPENED | [RAG component evidence](../reports/M6_RAG_REPORT.md) + [local E5 foundation](../reports/LOCAL_E5_EMBEDDING_REPORT.md): controlled RAG/worker/citation/current/history and CPU384 backend/DB/UI ผ่าน; approved-corpus indexing/live free generation/full flow ยังขาด |
-| M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Extraction/preview checkpoint](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md): encrypted located revisions/text+cell edits/private UI passed1219unit/123PG,23replay/RLS/advisors0/type/lint/build and14actualbrowser groups. Local+DEV23 migrations/DEV34RLS tables/private Storage role denial verified. Review metadata/version/AMENDS/CANCELS/approval/publication/locations→citations and real corpus remain |
+| M7 Import / Versioning | 5 | PARTIAL / IN_PROGRESS | [Review-draft checkpoint](../reports/IMP_REVIEW_DRAFT_REPORT.md): private immutable extraction/review histories and metadata/warning UX passed1235unit/135PG,24replay/RLS,0WARN+ERROR advisors89INFO/type/lint/build/21actualbrowser groups. Local+DEV24migrations/DEV35RLS tables. Version resolver/all5action+target UX/approval/publication/AMENDS/CANCELS/citations and real corpus remain |
 | M8 Structured Data | 6 | PLANNED | 7 fixed datasets; ต้องแตก execution plan และเชื่อม approve/version/search |
 | M9 Advanced / Staff / Analytics | 7 | PLANNED / PARTIAL | scoped notification component มีใน M4; binding/incidents/loading/web/complete dashboard ยังไม่ครบ |
 | FINAL V1 | §69 | PENDING | Flow A–F และ deployment/manual report ยังไม่ผ่านครบ |
@@ -20,6 +20,8 @@
 User ยืนยัน LINE → Ticket → AI/RAG; M1–M9 เป็นการแยก phase เพื่อจับ gate ละเอียดขึ้น ไม่ใช่ลำดับใหม่ที่ข้าม guide. ไม่รายงาน “ทำ 6/9 = 67%” เพราะ M5/M6 reopened และ task มีน้ำหนักต่างกัน
 
 ## Current prerequisite: docs และ provider correction
+
+6 October **IMP-03A COMPONENT_ACCEPTANCE_PASS**: strict nullable encrypted review receipts/three-counter CAS/private GET+PUT/metadata+warning UX. Full1235unit/135PG,24replay/foundationRLS,0advisorWARN+ERROR (89INFO),type/lint/build and21actualbrowser groups PASS; local+DEVELOPMENT24migrations/DEV35RLS tables/9departments. [Review report](../reports/IMP_REVIEW_DRAFT_REPORT.md). Root owns contracts/DB/auth/integration/actualQA; Luna high implemented UI; Luna max scoped backend checks and final independent UI source review found no open concrete findings. Next active **IMP-03B version resolution/publication**; fullM7/V1 remains incomplete.
 
 6 October: IMP-01D/IMP-04A extraction/preview/edit component acceptance PASS, [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md). Root owns DB/auth/encryption/API/integration/actualQA; Luna high `m7_edit_draft` owns pure edit/private UI; Luna max `m7_review_contract` independently verified backend corrections; Luna max `m7_pdf_runtime` scoped PDF/runtime10tests PASS. Next active **IMP-03A review draft**, execution Task4A; root owns strict contracts/DB/CAS/API, Luna max `m7_review_contract` owns only the pure warning-reference helper/tests/report. No publication or full M7 claim; missing live evidence remains pending.
 

@@ -21,19 +21,20 @@ try {
   join pg_namespace n on n.oid=c.relnamespace
   cross join unnest(array['SELECT','INSERT','UPDATE','DELETE']) privilege
   where n.nspname in ('public','private') and c.relkind='r'
-   and not (n.nspname='private' and c.relname='knowledge_import_revisions')
+   and not (n.nspname='private' and c.relname in ('knowledge_import_revisions','knowledge_import_reviews'))
    and not has_table_privilege('service_role',c.oid,privilege)`);
- const revisionGrants=await client.query(`select
-  has_table_privilege('service_role','private.knowledge_import_revisions','SELECT') as can_read,
-  has_table_privilege('service_role','private.knowledge_import_revisions','INSERT') as can_append,
-  has_table_privilege('service_role','private.knowledge_import_revisions','UPDATE') as can_update,
-  has_table_privilege('service_role','private.knowledge_import_revisions','DELETE') as can_delete`);
- const revisions=revisionGrants.rows[0];
+ const revisionGrants=await client.query(`select c.relname,
+  has_table_privilege('service_role',c.oid,'SELECT') as can_read,
+  has_table_privilege('service_role',c.oid,'INSERT') as can_append,
+  has_table_privilege('service_role',c.oid,'UPDATE') as can_update,
+  has_table_privilege('service_role',c.oid,'DELETE') as can_delete
+  from pg_class c join pg_namespace n on n.oid=c.relnamespace
+  where n.nspname='private' and c.relname in ('knowledge_import_revisions','knowledge_import_reviews')`);
  const workerPermission=await client.query("select has_function_privilege('service_role','private.claim_inbox(text)','EXECUTE') as allowed");
  if(missingServerGrants.rows[0].count!==0 || !workerPermission.rows[0].allowed ||
-  !revisions.can_read || !revisions.can_append || revisions.can_update || revisions.can_delete) throw new Error('DEVELOPMENT_SERVER_GRANT_VERIFICATION_FAILED');
+  revisionGrants.rows.length!==2 || revisionGrants.rows.some(row=>!row.can_read||!row.can_append||row.can_update||row.can_delete)) throw new Error('DEVELOPMENT_SERVER_GRANT_VERIFICATION_FAILED');
  console.log(JSON.stringify({stage:'development_security',tableCount:tables.rows[0].count,allRls:true,
-  rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,
+  rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,appendOnlyImportReviews:true,
   crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
 } catch(error) {
  await client.query('rollback').catch(()=>undefined);

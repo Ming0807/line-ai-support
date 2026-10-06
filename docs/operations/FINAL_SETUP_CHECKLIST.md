@@ -20,3 +20,5 @@
 บัญชีDashboarddevelopmentเก็บlocalใน `.superpowers/staging/dev-staff-credentials.json`; ไม่อยู่Git/READMEและไม่แสดงpasswordในreport. ผู้ใช้เปลี่ยน/เลือกproductionstaffaccountsภายหลังโดยไม่ต้องลบdevelopmentevidence
 
 ถ้าmanualข้อใดยังไม่ผ่าน ให้finalreportระบุ `MANUAL_PENDING` พร้อมผลที่ทำแล้ว ไม่เดาว่าผู้ใช้configuredครบ และไม่ใช้elapsedtimeแทนanswer/approval
+
+6October IMP-03A private draft UI is implemented and tested. It can retain unfinished metadata and warning choices; it does not approve/index the shortlist. Version-target resolution/publication remains root implementation work before asking the university to perform the corpus approval row. No additional user configuration is needed for this slice; existing keys/originals/accounts stay local.

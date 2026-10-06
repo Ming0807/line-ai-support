@@ -5,6 +5,7 @@ import type {ChangeEvent,FormEvent} from 'react';
 import type {ImportPreview} from '@/lib/imports/import-extraction';
 import type {ImportJobView} from '@/lib/imports/import-staging';
 import type {SourceLocation} from '@/lib/imports/types';
+import ReviewForm from './review-form';
 
 type ApiResponse={response:Response;body:unknown};
 type EditConflict={id:string;label:string;previousValue:string;latestValue:string|null;draftValue:string;location:string;targetExists:boolean;acknowledged:boolean};
@@ -129,7 +130,14 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const [conflict,setConflict]=useState(false);
  const [editConflicts,setEditConflicts]=useState<EditConflict[]>([]);
  const [conflictIndex,setConflictIndex]=useState(0);
+ const [reviewDirty,setReviewDirty]=useState(false);
+ const [reviewRefreshKey,setReviewRefreshKey]=useState(0);
  const initialLoad=useRef<string|null>(null);
+
+ const onReviewStateChange=useCallback((dirty:boolean,reviewPending:boolean)=>{
+  setReviewDirty(dirty);
+  setPending(current=>reviewPending?(current??'review'):(current==='review'?null:current));
+ },[]);
 
  const loadPreview=useCallback(async(id:string,draftSnapshot:DraftSnapshot|null):Promise<boolean>=>{
   setPending('open');setFailure('');setNotice('');setConflict(false);
@@ -143,6 +151,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
    }
    setPreview(next);setSelectedId(next.job.id);
    setJobs(current=>[next.job,...current.filter(job=>job.id!==next.job.id)].slice(0,50));
+   setReviewRefreshKey(value=>value+1);
    setPageIndex(0);setTableIndex(0);setRowWindow(0);setColumnWindow(0);
    if(draftSnapshot){
     const rebased=rebaseDrafts(draftSnapshot,next);
@@ -165,7 +174,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   Boolean(preview&&Object.entries(pageDrafts).some(([index,text])=>text!==preview.extraction.pages[Number(index)]?.text))||
   Boolean(preview&&Object.entries(cellDrafts).some(([key,text])=>{
    const [table,row,column]=key.split(':').map(Number);return text!==preview.extraction.tables[table]?.rows[row]?.[column];
-  }));
+  }))||reviewDirty;
 
  async function refreshJobs(){
   try{
@@ -177,16 +186,16 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  }
  function acceptPreview(next:ImportPreview,clearDrafts:boolean){
   setPreview(next);setSelectedId(next.job.id);setJobs(current=>[next.job,...current.filter(job=>job.id!==next.job.id)].slice(0,50));
-  if(clearDrafts){setTitleDraft(next.extraction.title??'');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);}
+  if(clearDrafts){setTitleDraft(next.extraction.title??'');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);}
   setFailure('');setConflict(false);
  }
  async function selectJob(id:string){
-  if(hasDrafts&&!window.confirm(id===selectedId?'มีข้อความร่างที่ยังไม่บันทึก การเปิดรายการซ้ำจะล้างข้อความร่าง ต้องการเปิดใหม่หรือไม่':'มีข้อความร่างที่ยังไม่บันทึก หากเปลี่ยนเอกสาร ข้อความร่างจะหาย ต้องการเปลี่ยนหรือไม่'))return;
+  if(hasDrafts&&!window.confirm(id===selectedId?'มีข้อความแก้หรือร่างตรวจที่ยังไม่บันทึก การเปิดรายการซ้ำจะทิ้งข้อมูลในเครื่อง ต้องการเปิดใหม่หรือไม่':'มีข้อความแก้หรือร่างตรวจที่ยังไม่บันทึก หากเปลี่ยนเอกสาร ข้อมูลในเครื่องจะหาย ต้องการเปลี่ยนหรือไม่'))return;
   await loadPreview(id,null);
  }
  async function stageSource(event:FormEvent<HTMLFormElement>){
   event.preventDefault();setFailure('');setNotice('');setConflict(false);
-  if(hasDrafts&&!window.confirm('มีข้อความร่างที่ยังไม่บันทึก หากรับต้นฉบับใหม่และเลือกเอกสารนั้น ข้อความร่างจะหาย ต้องการดำเนินการต่อหรือไม่'))return;
+  if(hasDrafts&&!window.confirm('มีข้อความแก้หรือร่างตรวจที่ยังไม่บันทึก หากรับต้นฉบับใหม่ ข้อมูลในเครื่องอาจหาย ต้องการดำเนินการต่อหรือไม่'))return;
   if(mode==='FILE'&&(!file||file.size===0||file.size>20*1024*1024)){setFailure(file?'ไฟล์ต้องมีขนาดไม่เกิน 20 MB':'เลือกไฟล์ที่ต้องการนำเข้าก่อน');return;}
   if(mode==='URL'&&!sourceUrl.trim()){setFailure('กรอก URL ของเว็บไซต์มหาวิทยาลัยก่อน');return;}
   setPending('stage');
@@ -201,7 +210,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
    const job=getJob(result);
    if(!job){setFailure(errorMessage(result,mode==='URL'?'นำเข้า URL ไม่สำเร็จ ตรวจที่อยู่เว็บไซต์แล้วลองใหม่':'อัปโหลดไม่สำเร็จ ตรวจชนิดและขนาดไฟล์แล้วลองใหม่'));return;}
    setJobs(current=>[job,...current.filter(item=>item.id!==job.id)].slice(0,50));
-   setSelectedId(job.id);setPreview(null);setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);
+   setSelectedId(job.id);setPreview(null);setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);
    setPageIndex(0);setTableIndex(0);setRowWindow(0);setColumnWindow(0);
    setNotice(result.response.status===200?'พบไฟล์ซ้ำ ระบบคงต้นฉบับเดิมไว้ เลือกรายการเพื่อดูผล':'รับต้นฉบับแล้ว กด “วิเคราะห์เอกสาร” เพื่อดูข้อความที่อ่านได้');
    if(mode==='FILE'){setFile(null);setProvenanceUrl('');}
@@ -212,7 +221,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  }
  async function analyze(){
   if(!selectedJob)return;
-  if(hasDrafts&&!window.confirm('การวิเคราะห์ใหม่จะสร้างผลอ่านชุดใหม่และล้างข้อความร่างเดิม ต้องการดำเนินการต่อหรือไม่'))return;
+  if(hasDrafts&&!window.confirm('การวิเคราะห์ใหม่จะสร้างผลอ่านชุดใหม่ ทำให้ร่างตรวจเดิมล้าสมัย และล้างข้อมูลร่างในเครื่อง ต้องการดำเนินการต่อหรือไม่'))return;
   setPending('analyze');setFailure('');setNotice('');setConflict(false);
   try{
    const result=await requestJson('/api/knowledge/analyze',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:selectedJob.id,revision:selectedJob.revision})});
@@ -224,6 +233,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  }
  async function saveEdit(){
   if(!preview)return;
+  if(reviewDirty&&!window.confirm('บันทึกการแก้ข้อความจะทำให้ร่างตรวจผูกกับฉบับเดิม คุณบันทึกข้อความแล้วเริ่มตรวจฉบับใหม่ได้ ต้องการดำเนินการต่อหรือไม่'))return;
   if(editConflicts.some(item=>!item.acknowledged||!item.targetExists)){setFailure('เปรียบเทียบฉบับล่าสุดและเลือกค่าที่จะเก็บก่อนบันทึก');return;}
   const pages=Object.entries(pageDrafts).flatMap(([index,text])=>text!==preview.extraction.pages[Number(index)]?.text?[{index:Number(index),text}]:[]);
   const cells=Object.entries(cellDrafts).flatMap(([key,text])=>{
@@ -377,6 +387,9 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
       {analysisOnlyFlags.map(flag=><li key={`analysis-${flag}`}><strong>{warningLabels[flag]??'พบข้อเสนอที่ต้องตรวจ'}</strong><span>ตัววิเคราะห์เสนอให้ตรวจ · ยังไม่ยืนยัน</span></li>)}
      </ul>}
    </section>
+
+   <ReviewForm key={`${preview.job.id}:${preview.job.revision}:${preview.extractionRevision}:${reviewRefreshKey}`} jobId={preview.job.id} jobRevision={preview.job.revision} extractionRevision={preview.extractionRevision} refreshKey={reviewRefreshKey}
+    parentPending={pending!==null&&pending!=='review'} onDraftStateChange={onReviewStateChange} onReloadPreview={()=>void selectJob(preview.job.id)}/>
 
    <section className="knowledge-extraction-editor" aria-labelledby="edit-title"><div className="knowledge-section-heading"><div><h3 id="edit-title">ข้อความที่อ่านได้</h3><p>{extraction.report.pages} หน้า · {extraction.report.tables} ตาราง · {extraction.report.cells} ช่อง · {extraction.report.textCharacters.toLocaleString('th-TH')} ตัวอักษร</p></div></div>
      <div className="knowledge-page-controls"><div><h4>หน้าเอกสาร</h4><p>{formatLocation(extraction.locations.pages[pageIndex])}</p></div>
