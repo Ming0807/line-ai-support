@@ -22,3 +22,6 @@
 ถ้าmanualข้อใดยังไม่ผ่าน ให้finalreportระบุ `MANUAL_PENDING` พร้อมผลที่ทำแล้ว ไม่เดาว่าผู้ใช้configuredครบ และไม่ใช้elapsedtimeแทนanswer/approval
 
 6October IMP-03A private draft UI is implemented and tested. It can retain unfinished metadata and warning choices; it does not approve/index the shortlist. Version-target resolution/publication remains root implementation work before asking the university to perform the corpus approval row. No additional user configuration is needed for this slice; existing keys/originals/accounts stay local.
+
+
+6October version-choice checkpoint: DEVELOPMENT has all19initial family reference rows; this is not19approved documents or complete real corpus coverage. Save reviewed metadata before version lookup, select the applicable action and exact target explicitly, and review scope/source/dates/sensitivity independently. Approval/published data effects remain agent implementation work; human document review follows after those required gates. No additional manual configuration was required for this resolver component. [Evidence](../reports/IMP_VERSION_RESOLVER_REPORT.md).

@@ -47,18 +47,18 @@
 | CH036 | 36 Importservice | IMP-01…04 | PARTIAL: private original→supervised parser→encrypted located revision/preview/reason-bound edit/CAS and private UI PASS; review/version/publication/corpus/location→citations remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | CH037 | 37 Analyzer | IMP-01/02 | COMPONENT_PASS: deterministic proposals/sensitivity rerun after located parser and text/cell edits,11actualPG/private UI; trusted metadata/approval and real corpus remain |
 | CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PARTIAL: fixed candidates/uninstalled schema→RAG/noDDL/noautopublish GREEN; strict private draft and actualUI retain all3modes/seven codes; installed mappers/atomic BOTH remain |
-| CH039 | 39 Versionresolver | IMP-03 | PLANNED: replacement/additional/historical/conflict/races/history |
-| CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationshipschemaมี; base+activeamendmentretrieval/publicationUIpending |
+| CH039 | 39 Versionresolver | IMP-03 | PARTIAL: private saved-snapshot resolver, all5explicit choices/exacttargets/scope/stream/year/3counter+lock-wait races and browser PASS; actual effects/publication/history acceptance pending |
+| CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationship schema and same-year current-base selection, separate amendment cancellation UX PASS; active group retrieval/publication/invalidation pending |
 | CH041 | 41 Structuredmapper | STR-01/02 | PLANNED: fixedregistryall7 from§12 แม้ตัวอย่าง§41ละsystems |
 | CH042 | 42 Unknownstructured | IMP-01, STR-01 | COMPONENT_PASS: analyzer preserves table/candidate but uninstalled schema→RAG/review flag/noDDL; registry/approval/BOTH remain |
 | CH043 | 43 PDFparser | IMP-01 | COMPONENT_PASS: scoped Luna max synthetic direct+supervisedPDF10tests and actualPG malformed-child FAILED retention; real Thai/fonts/OCR/corpus/production supervision remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
 | CH044 | 44 URLimport | IMP-01 | COMPONENT_GREEN: officialHTTPS/freshmixedDNS/pinnedTLSoptions/redirect/decompressedlimits/deadline/provenance/queryallowlist+scopedLunareview; actualwireTLS/livecorpus evidencepending |
 | CH045 | 45 Checksum | IMP-01/03 | PARTIAL: immutableSHA/dedup/concurrency and encrypted edit/history/byte-exact original retained in actualPG/browser; approved-version publication receipt remains |
-| CH046 | 46 KnowledgeDashboard | IMP-04 | PARTIAL: SUPER_ADMIN private import list/preview/edit/review draft UI and21role/browser groups PASS; family/current/history/version/approval UI remains |
-| CH047 | 47 Importpage | IMP-01/02/04 | PARTIAL: all5format/URL input controls/private located preview/sensitive warnings/reason-bound page+cell edits/conflict comparison; actual HTML21browser groups include incomplete private review/warning/conflict UX PASS; complete format/corpus/approval acceptance remains |
+| CH046 | 46 KnowledgeDashboard | IMP-04 | PARTIAL: private upload/preview/edit/review/version-choice desktop/mobile/role/conflict UX PASS; public family/history/list/approval surfaces remain |
+| CH047 | 47 Importpage | IMP-01/02/04 | PARTIAL: all5format/URL/private located preview/review + all5action/CANCELS target UX,17version browser+21review groups PASS; approval/real corpus acceptance remains |
 | CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: private staging/list/detail/original/analyze/preview/edit/sameorigin/auth/body/CAS, actualPG/Storage/browser/build PASS; review/approval/publication remains |
 | CH049 | 49 AnalyzeAPI | IMP-01/02 | COMPONENT_PASS: authorizedsupervisedparser/analysis→encryptedimmutable located preview/strictCAS/privateAPI,11actualPG/route6/actualprivateUI; versionresolver/structuredmapper/approval/corpus remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
-| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL prerequisite: independent encrypted review drafts/three-counter CAS/privateAPI12PG+schema10/route6 and21actualbrowser groups PASS, full1235unit/135PG/type/lint/build; actual approval/familylocks/atomicversion+BOTHpublication still pending; [report](../reports/IMP_REVIEW_DRAFT_REPORT.md) |
+| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL prerequisite: strict encrypted private draft and saved-snapshot version resolution/scope/target/three-counter races;1257unit/145PG/type/lint/build+actual browser PASS; actual approval/idempotent atomic version+BOTH publication/family-delivery locks pending; [report](../reports/IMP_VERSION_RESOLVER_REPORT.md) |
 | CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
@@ -72,7 +72,7 @@
 | CH061 | 61 Sensitiveimport | IMP-01/03 | PARTIAL: categorydetector/qualitywarnings/privateencryptedoriginals/Storageanon+authenticateddenialGREEN; redaction/reanalysis/publicapprovalgateandallformatsintegration pending |
 | CH062 | 62 Sourceauthority | M6, IMP-03, STR-02 | PARTIAL: authority/filterretrievaltests; approvedrealversion/conflict/amendmentremaining |
 | CH063 | 63 OfficialYRU sources | DOC-01, IMP-01/04 | PARTIAL: collectedcatalogprovenanceมี; domains/sourceauthoritymustreviewbeforepublish |
-| CH064 | 64 Initialfamilies19 | M6, IMP-04 | PARTIAL: familyschema/corpus19categoriesมี; approvedfamilydatasetcoverageauditpending |
+| CH064 | 64 Initialfamilies19 | M6, IMP-04 | COMPONENT_PASS reference data: exact19catalog + guardedDEVELOPMENT data-only seed/idempotency/preserveexisting metadata verified; custom family remains open; approved actual-document/dataset coverage audit pending |
 | CH065 | 65 Departments9 | M1/M2 | COMPONENT_EVIDENCE: supabase/seed.sql, guardedDONOTHINGseed andPGfixtures; nooverwritehumanrecords |
 | CH066 | 66 Testcases | all, FINAL-01 | PARTIAL: router/state/filter/fallback/spamcomponentsมี; importversioning/freeUX/fullflowsremaining |
 | CH067 | 67 README13topics | DOC-01, FINAL-01 | DOC_COMPLETE: README/localsetup/finalchecklist covertopics; finalimport/deploycommandspendingimplementation |

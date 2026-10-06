@@ -209,3 +209,28 @@
 @media (prefers-reduced-motion: reduce) {
   .knowledge-page *, .knowledge-page *::before, .knowledge-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+.knowledge-version-panel { display: grid; gap: .7rem; min-width: 0; padding: .85rem; border: 1px solid var(--knowledge-line); border-radius: .8rem; background: var(--knowledge-paper); }
+.knowledge-version-heading { display: flex; align-items: start; justify-content: space-between; gap: .75rem; }
+.knowledge-version-heading p, .knowledge-version-note, .knowledge-version-family, .knowledge-version-feedback p, .knowledge-version-warning p, .knowledge-version-selected p { margin: .2rem 0 0; line-height: 1.5; }
+.knowledge-version-heading p, .knowledge-version-note, .knowledge-version-family span { color: var(--knowledge-muted); font-size: .88rem; }
+.knowledge-version-note { margin: 0; }
+.knowledge-version-feedback, .knowledge-version-warning, .knowledge-version-selected { display: grid; gap: .5rem; padding: .7rem; border: 1px solid var(--knowledge-line); border-radius: .5rem; background: var(--knowledge-surface); }
+.knowledge-version-warning { color: var(--knowledge-ink); }
+.knowledge-version-warning .knowledge-button { justify-self: start; }
+.knowledge-version-family { overflow-wrap: anywhere; }
+.knowledge-version-choices { display: grid; gap: .4rem; margin: 0; padding: 0; border: 0; }
+.knowledge-version-choices legend { margin-bottom: .15rem; color: var(--knowledge-green-dark); font-weight: 700; }
+.knowledge-version-choices label { display: flex; align-items: start; gap: .65rem; min-height: 2.75rem; padding: .55rem .65rem; border: 1px solid var(--knowledge-line); border-radius: .5rem; background: var(--knowledge-surface); cursor: pointer; }
+.knowledge-version-choices input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin: .12rem 0 0; accent-color: var(--knowledge-green); }
+.knowledge-version-choices label span { display: grid; gap: .12rem; }
+.knowledge-version-choices small { color: var(--knowledge-muted); font-size: .84rem; line-height: 1.45; }
+.knowledge-version-target { max-width: 100%; }
+.knowledge-version-selected { overflow-wrap: anywhere; }
+.knowledge-version-feedback .knowledge-button { justify-self: start; }
+
+@media (max-width: 36rem) {
+  .knowledge-version-heading { align-items: stretch; flex-direction: column; }
+  .knowledge-version-heading .knowledge-button { width: 100%; }
+  .knowledge-version-warning .knowledge-button, .knowledge-version-feedback .knowledge-button { width: 100%; }
+}

@@ -27,6 +27,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge extraction revision verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-review.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge review receipt verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/import-versions.integration.ts tests/database/import-family-seed.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Knowledge version lookup and fixed family data verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-storage.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge import storage staging verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/original-storage-http.integration.ts

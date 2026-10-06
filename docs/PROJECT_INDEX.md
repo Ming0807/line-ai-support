@@ -57,7 +57,9 @@
 ชื่อไฟล์ไม่จำเป็นต้องเป็น `design.md` หรือ `agent.md`; โครงการนี้ใช้ `AGENTS.md` ตาม convention และแยก design/task/requirements ตามหน้าที่ เอกสารทุกชุดต้องโยงจากหน้านี้ ไม่สร้างแผนซ้ำที่มีสถานะขัดกัน
 ## Latest component checkpoint
 
-Current continuation: [IMP-03A private review draft](reports/IMP_REVIEW_DRAFT_REPORT.md) **COMPONENT_ACCEPTANCE_PASS**:1235unit/135PG,24replay/RLS,0advisorWARN+ERROR (89INFO),type/lint/build and21actualbrowser groups. Local+DEVELOPMENT24 migrations/DEV35RLS tables/9departments; private incomplete drafts remain unpublished. Next **IMP-03B version resolver/publication**, followed by M8/M9/fullFlowA–F. Parent source45915c2; no fullM7/V1/live claim.
+Current checkpoint: [version choices and initial families](reports/IMP_VERSION_RESOLVER_REPORT.md) **COMPONENT_PASS**:1257unit/145PG,0advisorWARN+ERROR(86INFO),type/lint/build/17actualversionbrowser groups and scoped independent reviews PASS. DEVELOPMENT19reference families; schema unchanged24migrations/35RLS tables. Next M7 token-bounded located preparation/approval/publication/AMENDS/CANCELS/delivery revalidation and citations; M8/M9/fullFlowA–F remain.
+
+Prior6October checkpoint: [IMP-03A private review draft](reports/IMP_REVIEW_DRAFT_REPORT.md) **COMPONENT_ACCEPTANCE_PASS**:1235unit/135PG,24replay/RLS,0advisorWARN+ERROR (89INFO),type/lint/build and21actualbrowser groups. Local+DEVELOPMENT24 migrations/DEV35RLS tables/9departments; private incomplete drafts remain unpublished. Next **IMP-03B version resolver/publication**, followed by M8/M9/fullFlowA–F. Parent source45915c2; no fullM7/V1/live claim.
 
 6 October current acceptance: [extraction/preview/edit report](reports/IMP_EXTRACTION_PREVIEW_REPORT.md). Private immutable extraction history, reason-bound edits, authenticated original download and desktop/mobile conflict handling passed backend/browser checks. The warning-reference helper adds6tests; full1219unit PASS. Root continues Task4A/IMP-03A review drafts; no approval/publication/corpus/fullV1 claim. The paragraphs below preserve earlier checkpoints.
 
