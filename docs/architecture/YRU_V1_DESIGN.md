@@ -121,6 +121,8 @@ Deployment ต้องมี web + inbox/outbox/AI/import workers ที่ม�
 
 ## การตรวจรับ
 
+Current M7 catalog/assistance contracts: [approved administrative inventory](KNOWLEDGE_CATALOG_DESIGN.md), [private prepared metadata](IMPORT_ASSISTANCE_DESIGN.md), [browser API boundaries](../operations/BACKEND_UI_CONTRACTS.md). Root supplies read-only backend/auth/SQL/revision/retention evidence; Gemini owns separate Dashboard presentation and submits commits for combined acceptance. No migration or normal-provider embedding change is introduced. See [current backend report](../reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md) rather than treating an API component pass as full UI/usability/V1 evidence.
+
 Unit/property behavior + actual PostgreSQL/RLS/concurrency + signed HTTP + authenticated browser ตรวจ component. Flow A–F ตรวจ business behavior ข้าม subsystem และแยก controlled mock transport จาก live free provider/OA. คำสั่ง/หลักฐานอยู่ใน reports; manual gates อยู่ใน [final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md)
 
 Document checkpoint นี้ไม่ได้รัน application build ใหม่ และไม่ทำให้ pending pricing RED test ผ่าน การปิด milestoneต้องตรวจ source ที่รวมแก้แล้วจริง ไม่เอาจำนวน tests ก่อนแก้มาอ้าง whole completion

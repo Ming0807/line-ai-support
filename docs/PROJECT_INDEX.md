@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+Latest human steering6October: **Import ease/Dashboard UX reopened**, [assistance design](architecture/IMPORT_ASSISTANCE_DESIGN.md) and [plan](superpowers/plans/2026-10-06-yru-assisted-import.md). User delegates UI to Gemini with local commits/no push in separate worktree; [ready prompt](agents/GEMINI_UI_UX_PROMPT.md). Root implements catalog/assistance APIs and owns final commit/integration review. [Backend UI contracts](operations/BACKEND_UI_CONTRACTS.md) and [backend evidence](reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md) separate verified server behavior from pending combined Gemini UI/usability acceptance; see board for exact gates.
+
 6October latest checkpoint **PUB-04/05 + IMP-PDF-01 COMPONENT_PASS**: private approval/receipts/unknown-response recovery and10actual isolated browser groups;1439unit/93files,type/lint/build,187PG/foundationRLS before final parser-only refinement. Final authenticated Analyze200/Preview200 recover both retained PDFs, unchanged originals and no publication. [Approval report](reports/IMP_PUBLICATION_APPROVAL_REPORT.md), [PDF recovery](reports/IMP_PDF_RECOVERY_REPORT.md). Next published family/current/history catalog, then M8/M9/fullV1; no real source automatically approved.
 
 Parent6October PUB-03 checkpoint: complete rule groups/pending-answer fences,1405unit/187PG/28replay/advisors0/type/lint/build and actual paused-LINE publication barrier. Local+DEVELOPMENT28migrations/36RLS tables/9departments remain. [Rule-group report](reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). Latest approval/recovery evidence above supersedes its pending-PUB-04 status; fullM7/M8/V1 remains incomplete.

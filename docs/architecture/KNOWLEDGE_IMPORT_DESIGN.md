@@ -73,6 +73,8 @@ IMP-LOC-01 preserves proven format locations in bounded `knowledge_chunks.source
 
 The user has authorized these normal milestones continuously and deferred human keys/corpus/OA checks to the final checklist. This doc resolves implementation details within that approved scope; it introduces no additional permission gate.
 
+Latest usability continuation separates [read-only assistance proposals](IMPORT_ASSISTANCE_DESIGN.md) from saved authoritative review drafts, and [approved family/history metadata](KNOWLEDGE_CATALOG_DESIGN.md) from private intake jobs. Exact-revision preparation cannot overwrite human metadata or supply publication consent. Root-owned [API contracts](../operations/BACKEND_UI_CONTRACTS.md) are available to the isolated Gemini UI assignment; combined UI acceptance remains separate. Current backend checks are recorded in the [backend report](../reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md).
+
 
 PUB-01/02 backend component is now implemented and accepted under DEC-026/028/029: strict complete review policy and exact source/plan binding, outside-SQL45s pinned vector preparation, job/family/document fences, immutable idempotent private receipt, atomic RAG document/version/chunk/relation/activity/completion and runtime original retention. [Evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md). PUBLIC relationship eligibility/queued-answer invalidation and approval API/UI remain PUB-03/04 implementation, and STRUCTURED/BOTH remain blocked until M8. The frozen PUB-03 complete-group/proof/legacy contract is in the current continuation plan.
 
