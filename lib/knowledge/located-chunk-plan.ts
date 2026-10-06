@@ -155,7 +155,7 @@ function locationsOverlap(left:SourceLocation,right:SourceLocation):boolean{
  return false;
 }
 
-function reviewApplies(location:SourceLocation,warnings:ExtractionWarning[]):boolean{
+export function locatedReviewApplies(location:SourceLocation,warnings:ExtractionWarning[]):boolean{
  return warnings.some(warning=>warning.location===null||locationsOverlap(location,warning.location));
 }
 
@@ -222,7 +222,7 @@ function pageSegments(page:LocatedExtraction['pages'][number],pageIndex:number,t
   merged.push({...segment});
  }
  if(pendingWhitespaceStart!==null&&merged.length)merged[merged.length-1].end=text.length;
- const requiresReview=page.requiresReview||reviewApplies(location,warnings);
+ const requiresReview=page.requiresReview||locatedReviewApplies(location,warnings);
  return merged.map((segment,index)=>({key:`page-${pageIndex}-section-${index}`,pageIndex,pageText:text,pageNumber:page.pageNumber,
   sectionTitle:segment.sectionTitle,location:copyLocation(location),requiresReview,start:segment.start,end:segment.end,
   preferredBreaks:preferredBreaks(text,segment.start,segment.end)}));
@@ -403,7 +403,7 @@ function sourceUnits(extraction:LocatedExtraction,options:{maxChunks:number}):Wo
  const anyPageReview=extraction.pages.some(page=>page.requiresReview);
  for(let index=0;index<extraction.tables.length;index++){
   const table=extraction.tables[index],location=extraction.locations.tables[index];
-  const requiresReview=anyPageReview||reviewApplies(location,extraction.report.warnings);
+  const requiresReview=anyPageReview||locatedReviewApplies(location,extraction.report.warnings);
   works.push(...tableWorks(table,index,location,requiresReview));
   if(works.length>options.maxChunks)fail('KNOWLEDGE_PLAN_LIMIT_EXCEEDED');
  }
@@ -468,7 +468,7 @@ function cloneWarnings(warnings:ExtractionWarning[]):ExtractionWarning[]{
  return warnings.map(warning=>({...warning,location:warning.location?copyLocation(warning.location):null}));
 }
 
-function digestFor(binding:LocatedPlanBinding,sourceChecksum:string,chunks:LocatedChunkDraft[],warnings:ExtractionWarning[]):string{
+export function computeLocatedChunkPlanDigest(binding:LocatedPlanBinding,sourceChecksum:string,chunks:LocatedChunkDraft[],warnings:ExtractionWarning[]):string{
  const identity={model:LOCAL_EMBEDDING_MODEL,modelRevision:LOCAL_EMBEDDING_REVISION,embeddingFingerprint:LOCAL_EMBEDDING_FINGERPRINT,
   dimension:LOCAL_EMBEDDING_DIMENSION};
  const payload={schemaVersion:1,chunkerVersion:'located-e5-v1',binding:{...binding},sourceChecksum,identity,
@@ -534,7 +534,7 @@ export async function buildLocatedChunkPlan(source:ImportSource,extraction:Locat
   if(splitCount){works=next.sort(compareWorks);continue;}
   checkBudget(deadline,checkedOptions.signal);
   const drafts=makeDrafts(works,counts,checkedOptions.overlapCharacters);
-  const digest=digestFor(checkedBinding,verifiedSource.checksum,drafts,warnings);
+  const digest=computeLocatedChunkPlanDigest(checkedBinding,verifiedSource.checksum,drafts,warnings);
   return {schemaVersion:1,chunkerVersion:'located-e5-v1',binding:{...checkedBinding},sourceChecksum:verifiedSource.checksum,
    model:LOCAL_EMBEDDING_MODEL,modelRevision:LOCAL_EMBEDDING_REVISION,embeddingFingerprint:LOCAL_EMBEDDING_FINGERPRINT,
    chunks:drafts,warnings:cloneWarnings(warnings),digest};

@@ -57,6 +57,8 @@ export interface KnowledgeScope {
 }
 
 export interface KnowledgeEvidence {
+  /** Absent only on legacy saved results; fresh retrieval always proves complete rule context. */
+  ruleProof?: KnowledgeRuleProof;
   /** Missing on pre-location serialized jobs; new retrieval always returns the stored array. */
   sourceLocations?: SourceLocation[];
   chunkId: string;
@@ -71,4 +73,13 @@ export interface KnowledgeEvidence {
   content: string;
   sourceUrl: string | null;
   similarity: number;
+}
+
+export interface KnowledgeRuleProof {
+  familyId:string;
+  baseDocumentId:string;
+  versionStream:string;
+  ruleRevision:string;
+  evaluationDate:string;
+  contextDigest:string;
 }

@@ -4,13 +4,15 @@ import type {ImportPreview,ImportExtractionOptions} from './import-extraction';
 import {buildLocatedChunkPlan} from '../knowledge/located-chunk-plan';
 import {LocatedPlanError,type LocatedChunkPlan} from '../knowledge/located-plan-types';
 import {createLocalE5EmbeddingProvider,type PassageTokenCounter} from '../knowledge/embedding-client';
-export interface ImportChunkPreparationOptions extends ImportExtractionOptions {counter?:PassageTokenCounter}
+export interface ImportChunkPreparationOptions extends ImportExtractionOptions {counter?:PassageTokenCounter;timeoutMs?:number}
 export class ImportChunkPlanError extends Error {
  constructor(readonly code:'CHUNK_PLAN_UNAVAILABLE'|'CHUNK_PLAN_TOO_LARGE'|'CHUNK_PLAN_TABLE_ROW_TOO_LARGE'|'CHUNK_PLAN_GRAPHEME_TOO_LARGE'|'CHUNK_PLAN_TIMEOUT',readonly status:number){super(code);this.name='ImportChunkPlanError';}
 }
 /** Private preparation only; each caller must final-fence the returned extraction/review snapshot. */
 export async function prepareImportChunkPlan(actor:string,preview:ImportPreview,options:ImportChunkPreparationOptions={}):Promise<LocatedChunkPlan>{
- await authorizeImportAdmin(actor,options);const deadline=performance.now()+45_000;
+ await authorizeImportAdmin(actor,options);const timeout=options.timeoutMs??45_000;
+ if(!Number.isSafeInteger(timeout)||timeout<1||timeout>45_000)throw new ImportStagingError('INVALID_REQUEST');
+ const deadline=performance.now()+timeout;
  if(options.signal?.aborted||preview.job.status!=='READY')throw new ImportStagingError('CONFLICT');
  const read=await readImportOriginal(actor,preview.job.id,options);
  if(read.job.revision!==preview.job.revision||read.job.id!==preview.job.id||options.signal?.aborted)throw new ImportStagingError('CONFLICT');

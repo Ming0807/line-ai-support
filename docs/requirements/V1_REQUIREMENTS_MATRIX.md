@@ -58,7 +58,7 @@
 | CH047 | 47 Importpage | IMP-01/02/04 | PARTIAL: all5format/URL/private located preview/review + all5action/CANCELS target UX,17version browser+21review groups PASS; approval/real corpus acceptance remains |
 | CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: private staging/list/detail/original/analyze/preview/edit/sameorigin/auth/body/CAS, actualPG/Storage/browser/build PASS; review/approval/publication remains |
 | CH049 | 49 AnalyzeAPI | IMP-01/02 | COMPONENT_PASS: supervised encrypted private extraction/edit, three-counter saved-review version resolver and private located chunk preview; actual14chunk/17version/21import browser regressions PASS. Mapper/approval/corpus remain; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
-| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL prerequisite: saved strict review-v2 explicit digest consent recomputed outside SQL, final job-lock/fresh three-counter barrier and all5actions exact target selection PASS; approval API/immutable idempotent receipt/atomic version+BOTH effects/delivery locks pending PUB-01…05; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
+| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL: PUB-01/02 strict complete saved review/plan, exact idempotent immutable receipt, all5actions+CANCELS atomic RAG writes/fresh locks/rollback/runtime retention PASS; approval API/UI, relationship invalidation and atomic BOTH pending PUB-03/04+M8. [Backend evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md) |
 | CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
@@ -120,3 +120,6 @@ Coverage ในตารางด้านบนเป็นสถานะข�
 ## หลักการอัปเดต matrix
 
 เมื่อ acceptance ผ่านเพิ่ม datedreport/command/source scope และเปลี่ยน row อย่างเจาะจง ไม่เปลี่ยนทุก chapter เป็น completeจาก `pnpm build`. Newrequirementเพิ่ม USR row และ linkedtaskก่อนcode. ชื่อทางกายภาพที่ต่างจากตัวอย่างguideต้องเขียน mapping/evidence; ห้ามเอาชื่อไฟล์ที่เหมือนกันเป็นหลักฐานว่า behaviorครบ
+
+
+6October PUB-01/02 checkpoint: CH010/035/038–042/045/049/050/061 and USR-IMPORT5/EMB-LOCAL gained complete private RAG publication backend evidence (1393unit/168PG/27replay/actual5format). Relationship effects are persisted but retrieval/dispatch acceptance is still pending; no full requirement is promoted solely from component tests. [Report](../reports/IMP_PUBLICATION_BACKEND_REPORT.md).

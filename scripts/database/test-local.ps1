@@ -33,6 +33,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge source location verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-chunk-plan.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Private located chunk plan verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/import-publication.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Knowledge atomic publication verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-storage.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge import storage staging verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/original-storage-http.integration.ts

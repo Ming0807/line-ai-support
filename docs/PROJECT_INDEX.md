@@ -4,7 +4,7 @@
 
 ## อ่านตามลำดับนี้
 
-6October current continuation: [located preparation](reports/IMP_LOCATED_PREPARATION_REPORT.md) **COMPONENT_PASS**:1297unit/154PG/foundationRLS/25replay/lint/type/build and actual14chunk+17version+21import browser groups PASS; local+DEVELOPMENT25migrations. Root integration/DB/auth/privacy/QA; Luna scoped implementation/reviews. Next root PUB-01…05 in [publication continuation](superpowers/plans/2026-10-06-yru-import-publication.md); no approval/publication or fullV1 acceptance yet.
+6October PUB-01/02 private RAG publication backend **COMPONENT_PASS**:1393unit/90files,168fullPG/foundationRLS,27isolated replay,0advisorWARN+ERROR/87INFO,lint/type/build and actual isolated5format publication/recovery/citations/retry PASS; local+DEVELOPMENT27migrations/36RLS tables/9departments. Root contracts/DB/auth/privacy/integration/QA and actual Luna max helper/scoped reviews. [Publication backend report](reports/IMP_PUBLICATION_BACKEND_REPORT.md). Current **PUB-03 IN_PROGRESS**: complete relationship groups/family proofs/dispatch invalidation before PUB-04 approval API/UI. FullM7/M8/V1 and live/corpus/production acceptance remain incomplete.
 
 | เอกสาร | ใช้ตอบคำถาม |
 |---|---|

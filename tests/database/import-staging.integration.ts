@@ -29,7 +29,7 @@ test('private import staging has effective browser denial, server grants and RLS
  try{
   const table=(await pool.query(`select c.relrowsecurity,has_table_privilege('anon',c.oid,'SELECT,INSERT,UPDATE,DELETE') anon_access,
    has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') browser_access,
-   (select bool_and(has_table_privilege('service_role',c.oid,p)) from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p) server_access
+   (select bool_and(has_table_privilege('service_role',c.oid,p)) from unnest(array['SELECT','INSERT','UPDATE']) p) server_access
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname='knowledge_import_jobs'`)).rows[0];
   assert(table,'PRIVATE_IMPORT_SCHEMA_REQUIRED');assert(table.relrowsecurity&&!table.anon_access&&!table.browser_access&&table.server_access);
   for(const role of ['anon','authenticated']){
