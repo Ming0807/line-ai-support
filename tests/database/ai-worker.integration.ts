@@ -236,3 +236,61 @@ test('publication in a cited family waits for LINE dispatch without an open work
   if(family)await f.pool.query('delete from public.document_families where id=$1',[family]);await f.cleanup();
  }
 });
+
+for(const stage of ['GENERATION','DISPATCH'] as const)for(const change of ['EPOCH','UNCITED_AMENDMENT','LEGACY','DATE'] as const)
+test(`${stage} rejects ${change} rule-context drift while the cited base chunk stays intact`,async()=>{
+ const f=await fixture();const documents:string[]=[];let family='';
+ const fingerprint='d'.repeat(64),vector=[1,0];
+ const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
+ try{
+  const code='RULE_'+randomUUID().replaceAll('-','').toUpperCase();scope.familyCodes=[code];
+  family=(await f.pool.query("insert into public.document_families(code,name,category) values($1,'Controlled stale rule','REGULATION') returning id",[code])).rows[0].id;
+  async function document(current:boolean){
+   const id=(await f.pool.query(`insert into public.documents(document_family_id,title,version_name,version_stream,status,is_current,approval_status,approved_at,official_source,extraction_reviewed,requires_review,effective_from,source_url,checksum)
+    values($1,'Controlled rule source','v1','main','ACTIVE',$2,'APPROVED',clock_timestamp(),true,true,false,'2026-01-01','https://fixture.yru.ac.th/rules.pdf',$3) returning id`,[family,current,randomBytes(32).toString('hex')])).rows[0].id;
+   documents.push(id);await f.pool.query("insert into public.knowledge_chunks(document_id,chunk_index,content,embedding,embedding_dimensions,embedding_fingerprint) values($1,0,'Unchanged controlled passage','[1,0]',2,$2)",[id,fingerprint]);return id as string;
+  }
+  const base=await document(true);const amendment=change==='UNCITED_AMENDMENT'?await document(false):null;
+  if(amendment)await f.pool.query("insert into public.document_relationships(source_document_id,target_document_id,relation_type) values($1,$2,'AMENDS')",[amendment,base]);
+  const mutate=async()=>{
+   if(change==='EPOCH')await f.pool.query('update public.document_families set rule_revision=rule_revision+1 where id=$1',[family]);
+   if(change==='UNCITED_AMENDMENT')await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[amendment]);
+  };
+  await runAICycle(f.pool,f.key,{produce:async()=>{
+   let evidence=await transaction(c=>searchKnowledge(c,{scope,vector,fingerprint,limit:12}),f.pool);
+   const cited=evidence.find(e=>e.documentId===base)!;
+   if(change==='LEGACY'&&stage==='GENERATION')evidence=evidence.map(row=>{const copy={...row};delete copy.ruleProof;return copy;});
+   if(change==='DATE'&&stage==='GENERATION')evidence=evidence.map(row=>({...row,ruleProof:{...row.ruleProof!,evaluationDate:'2026-01-01'}}));
+   if(stage==='GENERATION')await mutate();
+   return {kind:'ANSWER',output:{answer:'STALE_RULE_MUST_NOT_DELIVER',citationChunkIds:[cited.chunkId]},scope,evidence,queryVector:vector,fingerprint};
+  }});
+  if(stage==='DISPATCH'){
+   await mutate();
+   if(change==='DATE'||change==='LEGACY'){
+    // Old encrypted records stay parseable; they must not acquire current proof implicitly.
+    const job=(await f.pool.query('select result_encrypted from private.ai_jobs where id=$1',[f.job])).rows[0];
+    const result=JSON.parse(decryptValue(job.result_encrypted,f.key));
+    result.evidence=result.evidence.map((row:Record<string,unknown>)=>{
+     if(change==='LEGACY'){delete row.ruleProof;return row;}
+     return {...row,ruleProof:{...(row.ruleProof as Record<string,unknown>),evaluationDate:'2026-01-01'}};
+    });
+    await f.pool.query('update private.ai_jobs set result_encrypted=$2 where id=$1',[f.job,encryptValue(JSON.stringify(result),f.key)]);
+   }
+  }
+  let sends=0,staleSends=0;
+  const stats=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'fixture',STAFF:'fixture'},fetchImpl:async(_url,init)=>{sends++;if(String(init?.body).includes('STALE_RULE_MUST_NOT_DELIVER'))staleSends++;return new Response(null,{status:200});}});
+  assert.equal(staleSends,0);assert.equal(stats.failed,0);
+  assert.equal((await f.pool.query('select revision,status,is_current from public.documents where id=$1',[base])).rows[0].revision,0);
+  if(stage==='GENERATION'){
+   const message=(await f.pool.query("select content,metadata from public.messages where conversation_id=$1 and sender_type='AI'",[f.conversation])).rows[0];
+   assert(message.content.includes('เอกสารอ้างอิงเปลี่ยนแปลง'));assert.deepEqual(message.metadata.citations,[]);
+  }else{
+   assert.equal(sends,0);assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${f.job}`])).rows[0].status,'SUPPRESSED');
+  }
+ }finally{
+  await f.pool.query('delete from public.document_relationships where source_document_id=any($1::uuid[])',[documents]);
+  await f.pool.query('delete from public.knowledge_chunks where document_id=any($1::uuid[])',[documents]);
+  await f.pool.query('delete from public.documents where id=any($1::uuid[])',[documents]);
+  if(family)await f.pool.query('delete from public.document_families where id=$1',[family]);await f.cleanup();
+ }
+});

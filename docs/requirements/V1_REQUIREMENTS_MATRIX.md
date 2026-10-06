@@ -48,7 +48,7 @@
 | CH037 | 37 Analyzer | IMP-01/02 | COMPONENT_PASS: deterministic proposals/sensitivity rerun after located parser and text/cell edits,11actualPG/private UI; trusted metadata/approval and real corpus remain |
 | CH038 | 38 RAG/STRUCTURED/BOTHclassifier | IMP-01, STR-01 | PARTIAL: fixed candidates/uninstalled schema→RAG/noDDL/noautopublish GREEN; strict private draft and actualUI retain all3modes/seven codes; installed mappers/atomic BOTH remain |
 | CH039 | 39 Versionresolver | IMP-03 | PARTIAL: private saved-snapshot resolver, all5explicit choices/exacttargets/scope/stream/year/3counter+lock-wait races and browser PASS; actual effects/publication/history acceptance pending |
-| CH040 | 40 AMENDS | IMP-03 | PARTIAL: relationship schema and same-year current-base selection, separate amendment cancellation UX PASS; active group retrieval/publication/invalidation pending |
+| CH040 | 40 AMENDS | IMP-03 | COMPONENT_PASS: direct base+all applicable amendments, independent scopes/date/public eligibility, whole-base vs amendment cancellation, history and complete bounded context; family/member/date proof fences suppress stale pending answers. Real corpus/live evidence pending. [Report](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md) |
 | CH041 | 41 Structuredmapper | STR-01/02 | PLANNED: fixedregistryall7 from§12 แม้ตัวอย่าง§41ละsystems |
 | CH042 | 42 Unknownstructured | IMP-01, STR-01 | COMPONENT_PASS: analyzer preserves table/candidate but uninstalled schema→RAG/review flag/noDDL; registry/approval/BOTH remain |
 | CH043 | 43 PDFparser | IMP-01 | COMPONENT_PASS: scoped Luna max synthetic direct+supervisedPDF10tests and actualPG malformed-child FAILED retention; real Thai/fonts/OCR/corpus/production supervision remain; [report](../reports/IMP_EXTRACTION_PREVIEW_REPORT.md) |
@@ -58,7 +58,7 @@
 | CH047 | 47 Importpage | IMP-01/02/04 | PARTIAL: all5format/URL/private located preview/review + all5action/CANCELS target UX,17version browser+21review groups PASS; approval/real corpus acceptance remains |
 | CH048 | 48 ImportAPI | IMP-01/02 | PARTIAL: private staging/list/detail/original/analyze/preview/edit/sameorigin/auth/body/CAS, actualPG/Storage/browser/build PASS; review/approval/publication remains |
 | CH049 | 49 AnalyzeAPI | IMP-01/02 | COMPONENT_PASS: supervised encrypted private extraction/edit, three-counter saved-review version resolver and private located chunk preview; actual14chunk/17version/21import browser regressions PASS. Mapper/approval/corpus remain; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
-| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL: PUB-01/02 strict complete saved review/plan, exact idempotent immutable receipt, all5actions+CANCELS atomic RAG writes/fresh locks/rollback/runtime retention PASS; approval API/UI, relationship invalidation and atomic BOTH pending PUB-03/04+M8. [Backend evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md) |
+| CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL: PUB-01/02 strict complete saved review/plan, exact idempotent immutable receipt, all5actions+CANCELS atomic RAG writes/fresh locks/rollback/runtime retention PASS; approval API/UI and atomic BOTH pending PUB-04+M8; PUB-03 relationship invalidation component passed. [Backend evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md) |
 | CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
@@ -123,3 +123,6 @@ Coverage ในตารางด้านบนเป็นสถานะข�
 
 
 6October PUB-01/02 checkpoint: CH010/035/038–042/045/049/050/061 and USR-IMPORT5/EMB-LOCAL gained complete private RAG publication backend evidence (1393unit/168PG/27replay/actual5format). Relationship effects are persisted but retrieval/dispatch acceptance is still pending; no full requirement is promoted solely from component tests. [Report](../reports/IMP_PUBLICATION_BACKEND_REPORT.md).
+
+
+6October PUB-03 adds CH035/039/040/045/050/061/062 and USR-AMENDS evidence through complete retrieval groups and pending-answer fences; this does not promote real corpus/public approval/UI/fullFlow acceptance. [Report](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md).

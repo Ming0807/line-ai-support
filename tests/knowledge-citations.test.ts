@@ -2,12 +2,21 @@ import {describe,expect,it} from 'vitest';
 import {buildCitedAnswer,evidenceStillMatches} from '../lib/knowledge/citations';
 import type {KnowledgeEvidence} from '../lib/knowledge/types';
 import {knowledgeLocations} from './fixtures/knowledge-locations';
+import {buildRuleProof} from '../lib/knowledge/rule-proof';
 
 const evidence:KnowledgeEvidence={chunkId:'11111111-1111-4111-8111-111111111111',documentId:'22222222-2222-4222-8222-222222222222',
  documentRevision:2,title:'ระเบียบการเทียบโอน',familyCode:'TRANSFER_REGULATION',academicYear:2569,authorityLevel:100,
  pageNumber:12,sectionTitle:'ข้อ 5',content:'Controlled reviewed rule',sourceUrl:'https://fixture.yru.ac.th/transfer.pdf',similarity:0.9};
 const output={answer:'ยื่นคำร้องตามระเบียบที่อ้างอิงครับ',citationChunkIds:[evidence.chunkId]};
 describe('backend-owned source citations',()=>{
+ it('preserves internal rule proof and rejects an epoch change even when the cited chunk remains',()=>{
+  const proof=buildRuleProof({familyId:'33333333-3333-4333-8333-333333333333',baseDocumentId:evidence.documentId,versionStream:'main',ruleRevision:'0',evaluationDate:'2026-10-06',members:[{documentId:evidence.documentId,revision:2}],effects:[]});
+  const row={...evidence,ruleProof:proof};
+  expect(buildCitedAnswer(output,[row]).citations[0]).toHaveProperty('ruleProof',proof);
+  expect(evidenceStillMatches([row],[row])).toBe(true);
+  expect(evidenceStillMatches([row],[{...row,ruleProof:{...proof,ruleRevision:'1'}}])).toBe(false);
+  expect(evidenceStillMatches([evidence],[row])).toBe(false);
+ });
  it.each(knowledgeLocations)('preserves and renders proven $kind coordinates without fabricated pagination',location=>{
   const row={...evidence,pageNumber:location.kind==='PDF'?12:null,sourceLocations:[location]};
   const reply=buildCitedAnswer(output,[row]);

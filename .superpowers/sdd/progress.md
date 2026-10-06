@@ -132,3 +132,8 @@ Parent33710b7. IMP-03B-2/IMP-LOC-01/IMP-PLAN-01 accepted as component only.1297u
 ## 6October2026 PUB-01/02 private publication backend
 
 Parent50d0859; COMPONENT_PASS1393unit/90files,168fullPG/foundationRLS,27isolated replay,0advisorWARN+ERROR/87INFO,lint/type/build,actual5format isolated offline publication/exact citations/recovery/retry; guardedDEVELOPMENT27migrations/36RLS/9departments and retention verification. Root integration/DB/auth/privacy/QA; actual Luna max vector helper/policy+atomic reviews. Shared deadline/source checksum/conservative flags/OCR and parent-cascade retention findings fixed; QA fixture contamination was diagnosed and isolated without retaining private data in Git. [Report](../../docs/reports/IMP_PUBLICATION_BACKEND_REPORT.md). Next PUB-03…05 then M8/M9/FlowA–F; no approval API/UI, real corpus, paid/live or fullV1 pass.
+
+
+## 6October2026 PUB-03 complete rule-group component
+
+Parent225defe;1405unit/91files,187fullPG/foundationRLS,28isolatedreplay,0advisorWARN+ERROR/85INFO,lint/type/build,actual approveImport versus pausedLINE family fence/no open senderTX PASS. GuardedDEVELOPMENT28migrations/36RLS/9departments. Root contracts/SQL/callers/privacy/integration/QA; Luna max proof helper and scoped independent retrieval/caller reviews. Ranking/date/JSONorder/eligible legacy chain findings fixed with disclosed evidence. [Report](../../docs/reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). Next PUB-04/05 then M8/M9/FlowA–F; fullV1 remains active/incomplete, no extra human configuration now.

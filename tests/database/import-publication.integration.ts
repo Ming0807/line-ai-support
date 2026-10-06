@@ -13,6 +13,14 @@ import type {ImportReviewDraft} from '../../lib/imports/review-schema';
 import type {LocalE5EmbeddingProvider} from '../../lib/knowledge/embedding-client';
 import {LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION,LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';
 import {encryptStagingValue} from '../../lib/imports/staging-envelope';
+import {transaction} from '../../lib/database/pool';
+import {prepareAIJob} from '../../lib/ai/jobs';
+import {runAICycle} from '../../lib/ai/run-worker';
+import {runOutboxCycle} from '../../lib/queue/run-outbox';
+import {encryptValue,hashLineUserId} from '../../lib/security/identity';
+import {searchKnowledge} from '../../lib/knowledge/retrieval';
+import type {KnowledgeScope} from '../../lib/knowledge/types';
+import {setTimeout as delay} from 'node:timers/promises';
 async function fixture(work:(f:Awaited<ReturnType<typeof setup>>)=>Promise<void>){
  const actor=randomUUID(),staff=randomUUID(),pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:6,application_name:'publication-'+actor});
  try{await work(await setup(pool,actor,staff));}
@@ -52,12 +60,61 @@ async function setup(pool:Pool,actor:string,staff:string){
 test('atomic located publication persists exact immutable receipt and sequential retry does not count or encode again',()=>fixture(async f=>{
  const r=await f.ready();const result=await approveImport(f.actor,r.input,f.options);assert.equal(result.replayed,false);const calls=f.calls();
  const again=await approveImport(f.actor,r.input,f.options);assert.equal(again.replayed,true);assert.deepEqual(again.receipt,result.receipt);assert.deepEqual(f.calls(),calls);
+ assert.equal((await f.pool.query('select rule_revision::text revision from public.document_families where id=$1',[result.receipt.familyId])).rows[0].revision,'1','retry does not increment the family twice');
  const rows=(await f.pool.query('select chunk_index,content,source_locations,passage_token_count,embedding_dimensions,embedding_fingerprint,extensions.vector_dims(embedding_e5) dim from public.knowledge_chunks where document_id=$1 order by chunk_index',[result.receipt.documentId])).rows;
  assert.equal(rows.length,r.plan.chunks.length);for(const [i,c] of rows.entries()){assert.equal(c.content,r.plan.chunks[i].content);assert.deepEqual(c.source_locations,r.plan.chunks[i].sourceLocations);assert.equal(c.passage_token_count,25);assert.equal(c.dim,384);assert.equal(c.embedding_fingerprint,LOCAL_EMBEDDING_FINGERPRINT);}
  assert.deepEqual(f.encoded.flat(),r.plan.chunks.map(c=>c.content));assert.equal((await readImportOriginal(f.actor,r.input.id,f.options)).bytes.length,r.source.bytes.length);
  assert.equal((await f.pool.query('select publication_status,status from private.knowledge_import_jobs where id=$1',[r.input.id])).rows[0].publication_status,'COMPLETED');
  await assert.rejects(approveImport(f.actor,{...r.input,expectedReviewRevision:1},f.options),/CONFLICT/);
  await assert.rejects(f.pool.query("update private.knowledge_import_publications set plan_digest=repeat('b',64) where job_id=$1",[r.input.id]),/IMPORT_PUBLICATION_IMMUTABLE/);
+}));
+
+test('actual reviewed amendment publication waits for paused LINE dispatch, then advances family proof atomically',()=>fixture(async f=>{
+ const publicReview=(d:ImportReviewDraft):ImportReviewDraft=>({...d,metadata:{...d.metadata,visibility:'PUBLIC',sourceUrl:'https://fixture.yru.ac.th/controlled.html'}});
+ const base=await f.ready(publicReview),published=await approveImport(f.actor,base.input,f.options);
+ const amendment=await f.ready(d=>publicReview({...d,action:'AMEND_EXISTING',metadata:{...d.metadata,newFamily:null,versionName:'Amendment'},target:{documentId:published.receipt.documentId,revision:0}}));
+ const session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
+ const user='U'+randomUUID().replaceAll('-','');
+ await f.pool.query('insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)',[session,hashLineUserId(user,f.options.key),encryptValue(user,f.options.key)]);
+ const conversation=(await f.pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
+ let pending:Promise<unknown>|undefined;
+ try{
+  const message=(await f.pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Controlled publication race') returning id",[conversation])).rows[0].id;
+  await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.options.key),f.pool);
+  const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[f.familyCode],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
+  const vector=[1,...Array(383).fill(0)],fingerprint=LOCAL_EMBEDDING_FINGERPRINT;
+  assert.equal((await runAICycle(f.pool,f.options.key,{produce:async()=>{
+   const evidence=await transaction(c=>searchKnowledge(c,{scope,vector,fingerprint,limit:12}),f.pool);
+   return {kind:'ANSWER',output:{answer:'Controlled current source answer',citationChunkIds:[evidence[0].chunkId]},scope,evidence,queryVector:vector,fingerprint};
+  }})).completed,1);
+  let waiting=false;const publicationFailure:{error?:unknown}={};
+  const delivery=await runOutboxCycle(f.pool,f.options.key,{accessTokens:{STUDENT:'fixture',STAFF:'fixture'},fetchImpl:async()=>{
+   // Preparation already proved outside SQL in provider fixture; allow the expected blocked final transaction here.
+   const provider={...f.provider,embedPassages:async(texts:string[])=>texts.map(()=>[1,...Array(383).fill(0)])};
+   pending=approveImport(f.actor,amendment.input,{...f.options,provider}).catch(error=>{publicationFailure.error=error;});
+   const deadline=Date.now()+4000;
+   while(Date.now()<deadline){
+    waiting=(await f.pool.query(`select exists(select 1 from pg_locks l join pg_stat_activity a on a.pid=l.pid where a.application_name=$1 and l.locktype='advisory' and not l.granted) waiting`,['publication-'+f.actor])).rows[0].waiting;
+    if(waiting)break;await delay(10);
+   }
+   assert.equal(waiting,true,'actual finalizer waits for the session family fence');
+   const open=(await f.pool.query(`select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'`,['publication-'+f.actor])).rows[0].n;
+   assert.equal(open,0,'LINE sender has no open SQL transaction; publisher is actively waiting on its final lock');
+   assert.equal((await f.pool.query('select rule_revision::text revision from public.document_families where id=$1',[published.receipt.familyId])).rows[0].revision,'1');
+   return new Response(null,{status:200});
+  }});
+  await pending;if(publicationFailure.error)throw publicationFailure.error;
+  assert.equal(delivery.sent,1);assert.equal(waiting,true);
+  assert.equal((await f.pool.query('select rule_revision::text revision from public.document_families where id=$1',[published.receipt.familyId])).rows[0].revision,'2');
+  const fresh=await transaction(c=>searchKnowledge(c,{scope,vector,fingerprint,limit:12}),f.pool);
+  assert.equal(new Set(fresh.map(e=>e.documentId)).size,2);assert(fresh.every(e=>e.ruleProof?.ruleRevision==='2'));
+ }finally{
+  await pending?.catch(()=>undefined);
+  await f.pool.query('delete from private.delivery_attempts where outbox_id in(select id from private.message_outbox where line_session_id=$1)',[session]);
+  await f.pool.query('delete from private.message_outbox where line_session_id=$1',[session]);await f.pool.query('delete from private.ai_jobs where line_session_id=$1',[session]);
+  await f.pool.query('delete from public.messages where conversation_id=$1',[conversation]);await f.pool.query('delete from public.conversations where id=$1',[conversation]);
+  await f.pool.query('delete from private.line_identities where line_session_id=$1',[session]);await f.pool.query('delete from public.line_sessions where id=$1',[session]);
+ }
 }));
 test('same job concurrent preparations produce one document and one matching receipt',()=>fixture(async f=>{
  const r=await f.ready();let arrivals=0;let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});

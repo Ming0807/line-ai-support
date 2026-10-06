@@ -30,3 +30,6 @@
 
 
 6October PUB-01/02 private backend requires no additional human configuration. Local+DEVELOPMENT27migrations and runtime retention checks passed; actual synthetic publications/original recovery remain isolated private QA evidence. Approval API/UI and relationship behavior are still agent implementation work, not tasks for the user. Real university shortlist review, live free generation/OA flows and production checks remain pending. [Evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md).
+
+
+6October PUB-03 requires no additional human setup. Complete synthetic relationship/date/legacy drift and actual paused-LINE publication fences passed locally; guardedDEVELOPMENT28migrations remain development evidence. Approval UI/API is agent work; real corpus review and live final flows remain pending. [Evidence](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md).

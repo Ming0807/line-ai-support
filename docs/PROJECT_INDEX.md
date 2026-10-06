@@ -4,7 +4,7 @@
 
 ## อ่านตามลำดับนี้
 
-6October PUB-01/02 private RAG publication backend **COMPONENT_PASS**:1393unit/90files,168fullPG/foundationRLS,27isolated replay,0advisorWARN+ERROR/87INFO,lint/type/build and actual isolated5format publication/recovery/citations/retry PASS; local+DEVELOPMENT27migrations/36RLS tables/9departments. Root contracts/DB/auth/privacy/integration/QA and actual Luna max helper/scoped reviews. [Publication backend report](reports/IMP_PUBLICATION_BACKEND_REPORT.md). Current **PUB-03 IN_PROGRESS**: complete relationship groups/family proofs/dispatch invalidation before PUB-04 approval API/UI. FullM7/M8/V1 and live/corpus/production acceptance remain incomplete.
+6October PUB-03 complete rule groups and pending-answer fences **COMPONENT_PASS**:1405unit/91files,187fullPG/foundationRLS,28isolated replay,0advisorWARN+ERROR/85INFO,lint/type/build; actual reviewed amendment publication waits for paused LINE HTTP with no open sender SQL transaction. Local+DEVELOPMENT28migrations/36RLS tables/9departments. Root integration/DB/auth/privacy/QA with actual Luna max pure helper and independent retrieval/caller scopes. [Rule-group report](reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). Current **PUB-04 IN_PROGRESS**: strict private approval API/completed receipts/minimal deliberate confirmation UI. FullM7/M8/V1 and real corpus/live/production evidence remain incomplete.
 
 | เอกสาร | ใช้ตอบคำถาม |
 |---|---|

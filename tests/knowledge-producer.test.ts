@@ -4,6 +4,7 @@ import type {EmbedResult} from '../lib/ai/embedding-gateway';
 import type {KnowledgeEvidence,KnowledgeScope} from '../lib/knowledge/types';
 import type {AISnapshot} from '../lib/ai/run-worker';
 import {createKnowledgeProducer,type KnowledgeProducerOptions} from '../lib/knowledge/answer-producer';
+import {buildRuleProof} from '../lib/knowledge/rule-proof';
 
 const conversationId='00000000-0000-4000-8000-000000000101';
 const chunkId='00000000-0000-4000-8000-000000000201';
@@ -15,6 +16,7 @@ const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,fam
 const evidence:KnowledgeEvidence={chunkId,documentId,documentRevision:2,title:'Transfer rules',familyCode:'TRANSFER_REGULATION',
  academicYear:2569,authorityLevel:100,pageNumber:5,sectionTitle:'Application',content:'Submit the reviewed transfer form.',
  sourceUrl:'https://fixture.yru.ac.th/transfer.pdf',similarity:0.91};
+evidence.ruleProof=buildRuleProof({familyId:'00000000-0000-4000-8000-000000000801',baseDocumentId:documentId,versionStream:'main',ruleRevision:'0',evaluationDate:'2026-10-06',members:[{documentId,revision:2}],effects:[]});
 const vector=[0.2,0.4,0.6];
 const embedding:EmbedResult={vectors:[vector],fingerprint,dimensions:3,providerId:'00000000-0000-4000-8000-000000000401',
  modelId:'00000000-0000-4000-8000-000000000501',fallbackUsed:false};
@@ -37,6 +39,20 @@ function fixture() {
  const producer=createKnowledgeProducer({generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search});
  return {generate,embed,search,producer,outputs,toolCallResponses};
 }
+
+it('sends every bounded required member and the full passage without eight-row or character truncation',async()=>{
+ const f=fixture();const rows=Array.from({length:10},(_,i)=>({...evidence,chunkId:`00000000-0000-4000-8000-${String(900+i).padStart(12,'0')}`,content:i===9?'x'.repeat(2300)+'TAIL_REQUIRED':'Required member '+i}));
+ f.search.mockResolvedValue(rows);f.outputs.push(scope,{answer:'Reviewed full context',citationChunkIds:[rows[9].chunkId]});
+ const result=await f.producer(snapshot(),new AbortController().signal);expect(result.kind).toBe('ANSWER');
+ const payload=JSON.parse(f.generate.mock.calls[1][0].messages[1].content);
+ expect(payload.evidence).toHaveLength(10);expect(payload.evidence[9].content).toBe(rows[9].content);
+});
+it('clarifies rather than draft against legacy proofless or over-budget full context',async()=>{
+ const f=fixture(),legacy={...evidence};delete legacy.ruleProof;f.search.mockResolvedValue([legacy]);
+ expect((await f.producer(snapshot(),new AbortController().signal)).kind).toBe('CLARIFY');expect(f.generate).toHaveBeenCalledTimes(1);
+ const large=fixture();large.search.mockResolvedValue(Array.from({length:12},(_,i)=>({...evidence,chunkId:`00000000-0000-4000-8000-${String(920+i).padStart(12,'0')}`,content:'x'.repeat(5500)})));
+ expect((await large.producer(snapshot(),new AbortController().signal)).kind).toBe('CLARIFY');expect(large.generate).toHaveBeenCalledTimes(1);
+});
 
 it('classifies, embeds, searches, and drafts only against retrieved evidence',async()=>{
  const f=fixture();

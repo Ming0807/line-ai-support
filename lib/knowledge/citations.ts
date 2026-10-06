@@ -3,6 +3,7 @@ import type {OutboundText} from '../queue/outbox';
 import type {KnowledgeEvidence} from './types';
 import {sourceLocationSchema} from '../imports/extraction';
 import type {SourceLocation} from '../imports/types';
+import {ruleProofSchema,ruleProofsEqual} from './rule-proof';
 
 export const ragAnswerSchema=z.object({answer:z.string().trim().min(1).max(3000)
  .refine(s=>!/(?:https?:\/\/|www\.)/i.test(s)),citationChunkIds:z.array(z.uuid()).min(1).max(5)
@@ -10,7 +11,7 @@ export const ragAnswerSchema=z.object({answer:z.string().trim().min(1).max(3000)
 export const citationEvidenceSchema=z.object({chunkId:z.uuid(),documentId:z.uuid(),documentRevision:z.number().int().min(0),title:z.string().min(1).max(500),
  familyCode:z.string(),academicYear:z.number().int().nullable(),authorityLevel:z.number().int().min(0).max(100),pageNumber:z.number().int().positive().nullable(),
  sectionTitle:z.string().max(180).nullable(),content:z.string().min(1).max(6000),sourceUrl:z.string().max(2000).nullable(),similarity:z.number().finite(),
- sourceLocations:z.array(sourceLocationSchema).max(16).optional()}).strict().superRefine((value,context)=>{
+ sourceLocations:z.array(sourceLocationSchema).max(16).optional(),ruleProof:ruleProofSchema.optional()}).strict().superRefine((value,context)=>{
  const locations=value.sourceLocations??[];
  if(Buffer.byteLength(JSON.stringify(locations),'utf8')>65536||locations.some(location=>location.kind!==locations[0].kind)||
   (locations.length>0&&(locations[0].kind==='PDF'?locations[0].pageNumber!==value.pageNumber:value.pageNumber!==null)))context.addIssue({code:'custom',message:'KNOWLEDGE_CITATION_INVALID'});
@@ -56,7 +57,7 @@ export function buildCitedAnswer(input:unknown,available:KnowledgeEvidence[]):{
   const row=evidence.get(id);if(!row)return invalid();
   // Source URLs/page numbers are selected here, never supplied by model output.
   return {chunkId:row.chunkId,documentId:row.documentId,documentRevision:row.documentRevision,title:row.title,familyCode:row.familyCode,
-   academicYear:row.academicYear,authorityLevel:row.authorityLevel,pageNumber:row.pageNumber,sectionTitle:row.sectionTitle,sourceUrl:safeSourceUrl(row.sourceUrl),sourceLocations:structuredClone(row.sourceLocations??[])};
+   academicYear:row.academicYear,authorityLevel:row.authorityLevel,pageNumber:row.pageNumber,sectionTitle:row.sectionTitle,sourceUrl:safeSourceUrl(row.sourceUrl),sourceLocations:structuredClone(row.sourceLocations??[]),...(row.ruleProof?{ruleProof:structuredClone(row.ruleProof)}:{})};
  });
  const references=citations.map((c,i)=>`${i+1}. ${c.title.replace(/[\r\n]/g,' ')}${c.academicYear===null?'':` (ปี ${c.academicYear})`}`+
   `${c.sourceLocations.length?` · ${c.sourceLocations.map(locationLabel).join(' · ').replace(/[\r\n]/g,' ')}`:c.pageNumber===null?'':` หน้า ${c.pageNumber}`}${c.sectionTitle===null?'':` · ${c.sectionTitle.replace(/[\r\n]/g,' ')}`}`+
@@ -73,6 +74,7 @@ export function evidenceStillMatches(previous:KnowledgeEvidence[],current:Knowle
   const before=citationEvidenceSchema.safeParse(e),after=citationEvidenceSchema.safeParse(fresh);if(!before.success||!after.success)return false;
   return e.documentId===fresh.documentId&&e.documentRevision===fresh.documentRevision&&e.content===fresh.content&&e.title===fresh.title&&
    e.familyCode===fresh.familyCode&&e.academicYear===fresh.academicYear&&e.authorityLevel===fresh.authorityLevel&&
-   e.pageNumber===fresh.pageNumber&&e.sectionTitle===fresh.sectionTitle&&e.sourceUrl===fresh.sourceUrl&&JSON.stringify(before.data.sourceLocations??[])===JSON.stringify(after.data.sourceLocations??[]);
+   e.pageNumber===fresh.pageNumber&&e.sectionTitle===fresh.sectionTitle&&e.sourceUrl===fresh.sourceUrl&&JSON.stringify(before.data.sourceLocations??[])===JSON.stringify(after.data.sourceLocations??[])&&
+   (before.data.ruleProof===undefined&&after.data.ruleProof===undefined||ruleProofsEqual(before.data.ruleProof,after.data.ruleProof));
  });
 }

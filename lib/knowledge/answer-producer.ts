@@ -180,7 +180,7 @@ function scopeMessages(snapshot:AISnapshot):AIMessage[] {
 
 function answerMessages(snapshot:AISnapshot,scope:KnowledgeScope,evidence:KnowledgeEvidence[]):AIMessage[] {
  const sourceData=evidence.map(item=>({chunkId:item.chunkId,title:item.title,familyCode:item.familyCode,
-  academicYear:item.academicYear,pageNumber:item.pageNumber,sectionTitle:item.sectionTitle,content:item.content.slice(0,1800)}));
+  academicYear:item.academicYear,pageNumber:item.pageNumber,sectionTitle:item.sectionTitle,content:item.content}));
  return [
   {role:'system',content:ANSWER_PROMPT},
   {role:'user',content:JSON.stringify({question:snapshot.question,history:promptHistory(snapshot),scope,evidence:sourceData})},
@@ -199,7 +199,7 @@ function validEvidence(value:unknown):value is KnowledgeEvidence[] {
  const chunks=new Set<string>();
  for(const item of value){
   const parsed=citationEvidenceSchema.safeParse(item);
-  if(!parsed.success||chunks.has(parsed.data.chunkId))return false;
+  if(!parsed.success||!parsed.data.ruleProof||chunks.has(parsed.data.chunkId))return false;
   chunks.add(parsed.data.chunkId);
  }
  return true;
@@ -255,12 +255,12 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
   }catch(error){
    if(signal.aborted)throw cancelled();
    if(error instanceof Error&&error.message==='KNOWLEDGE_SCOPE_AMBIGUOUS')return clarify(HISTORICAL_CLARIFICATION);
+   if(error instanceof Error&&error.message==='KNOWLEDGE_CONTEXT_INCOMPLETE')return clarify(NO_EVIDENCE_HANDOFF);
    return clarify(PROVIDER_HANDOFF);
   }
   if(!Array.isArray(evidence))return clarify(PROVIDER_HANDOFF);
   if(evidence.length===0)return clarify(needsSpecificScope(snapshot.question)?SCOPE_CLARIFICATION:NO_EVIDENCE_HANDOFF);
   if(!validEvidence(evidence))return clarify(PROVIDER_HANDOFF);
-  evidence=evidence.slice(0,8);
   const messages=answerMessages(snapshot,scope,evidence);
   if(!promptFits(messages))return clarify(PROVIDER_HANDOFF);
 

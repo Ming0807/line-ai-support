@@ -73,3 +73,6 @@ The user has authorized these normal milestones continuously and deferred human 
 
 
 PUB-01/02 backend component is now implemented and accepted under DEC-026/028/029: strict complete review policy and exact source/plan binding, outside-SQL45s pinned vector preparation, job/family/document fences, immutable idempotent private receipt, atomic RAG document/version/chunk/relation/activity/completion and runtime original retention. [Evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md). PUBLIC relationship eligibility/queued-answer invalidation and approval API/UI remain PUB-03/04 implementation, and STRUCTURED/BOTH remain blocked until M8. The frozen PUB-03 complete-group/proof/legacy contract is in the current continuation plan.
+
+
+PUB-03 complete direct rule groups/family epoch/date/member proof and worker/dispatch fences are component-accepted under DEC-030. Every model-context family is fenced and compared, including uncited amendment context; legacy pending proofless answers clarify/suppress. Full passages and up to12bounded evidence remain intact or the producer clarifies. Actual approveImport publication waits for paused LINE HTTP; SQL is closed in the sender. [Evidence](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). PUB-04 approval API/UI and M8 atomic structured/BOTH remain separate work.

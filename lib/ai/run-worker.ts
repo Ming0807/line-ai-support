@@ -5,6 +5,8 @@ import {decryptValue} from '../security/identity';
 import {enqueueOutbound,type OutboundText} from '../queue/outbox';
 import {searchKnowledge} from '../knowledge/retrieval';
 import {buildCitedAnswer,evidenceStillMatches} from '../knowledge/citations';
+import {ruleContextsStillMatch} from '../knowledge/rule-proof';
+import {knowledgeFamilyLock,knowledgeDocumentLock} from '../knowledge/delivery-fence';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
 
 export interface AISnapshot {
@@ -58,15 +60,19 @@ async function finalize(pool:Pool,job:AIJob,key:string):Promise<'DONE'|'SUPPRESS
   if(result.kind==='ANSWER'){
    const citedIds=result.output.citationChunkIds;
    const cited=result.evidence.filter(e=>citedIds.includes(e.chunkId));
-   // Publication writers lock the same document rows; source eligibility stays stable through commit.
-   const ids=[...new Set(cited.map(e=>e.documentId))].sort();
-   await client.query('select id from public.documents where id=any($1::uuid[]) order by id for share',[ids]);
    try{
+    if(result.evidence.some(e=>!e.ruleProof))throw new Error('EVIDENCE_CHANGED');
+    // Fence every group supplied to the model, including context it did not explicitly cite.
+    for(const familyId of [...new Set(result.evidence.map(e=>e.ruleProof!.familyId))].sort())
+     await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);
+    const ids=[...new Set(result.evidence.map(e=>e.documentId))].sort();
+    for(const id of ids)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(id)]);
+    await client.query('select id from public.documents where id=any($1::uuid[]) order by id for share',[ids]);
     const fresh=await searchKnowledge(client,{scope:result.scope,vector:result.queryVector,fingerprint:result.fingerprint,limit:12});
-    if(!evidenceStillMatches(cited,fresh))throw new Error('EVIDENCE_CHANGED');
+    if(!ruleContextsStillMatch(result.evidence,fresh)||!evidenceStillMatches(cited,fresh))throw new Error('EVIDENCE_CHANGED');
     const answer=buildCitedAnswer(result.output,result.evidence);messages=answer.messages;citations=answer.citations;
    }catch(error){
-    if(!(error instanceof Error)||!['EVIDENCE_CHANGED','KNOWLEDGE_SCOPE_AMBIGUOUS','KNOWLEDGE_CITATION_INVALID'].includes(error.message))throw error;
+    if(!(error instanceof Error)||!['EVIDENCE_CHANGED','KNOWLEDGE_SCOPE_AMBIGUOUS','KNOWLEDGE_CONTEXT_INCOMPLETE','KNOWLEDGE_CITATION_INVALID'].includes(error.message))throw error;
     messages=[{type:'text',text:'เอกสารอ้างอิงเปลี่ยนแปลงระหว่างประมวลผลครับ กรุณาส่งคำถามอีกครั้งหรือติดต่อเจ้าหน้าที่'}];code='EVIDENCE_CHANGED';
    }
   }else messages=[{type:'text',text:result.text}];

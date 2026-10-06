@@ -21,6 +21,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Provider cooldown verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/local-e5-knowledge.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Local E5 vector space verification failed' }
+    pnpm exec tsx --test --test-concurrency=1 tests/database/knowledge-relationships.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Knowledge complete relationship group verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-staging.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge import staging verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-extraction.integration.ts
