@@ -49,6 +49,7 @@ function buildExtraction(
 	tablePages: readonly { num: number; tables: string[][][] }[],
 	pageLinks: readonly { pageNumber: number; links: readonly unknown[] }[],
 	hasExternalOutline: boolean,
+	failedTablePages: ReadonlySet<number> = new Set(),
 ): LocatedExtraction {
 	if (pageTexts.length < 1 || pageTexts.length > IMPORT_LIMITS.pages) return invalid();
 	if (pageTexts.some((page, index) => page.num !== index + 1 || typeof page.text !== 'string')) return invalid();
@@ -90,6 +91,11 @@ function buildExtraction(
 	};
 
 	for (const page of pageTexts) {
+		if (failedTablePages.has(page.num)) {
+			addPageWarning('UNSUPPORTED_TABLES', page.num);
+			addPageWarning('TABLE_SHAPE_REVIEW', page.num);
+			markPageReview(page.num);
+		}
 		const tableRows = tablePageMap.get(page.num) ?? [];
 		let pageTableCount = 0;
 		let pageCellCharacters = 0;
@@ -98,12 +104,44 @@ function buildExtraction(
 		if (characters > IMPORT_LIMITS.characters) return invalid();
 
 		for (const candidate of tableRows) {
-			if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > IMPORT_LIMITS.rows) return invalid();
-			const rows: string[][] = [];
+			if (!Array.isArray(candidate) || candidate.length > IMPORT_LIMITS.rows) return invalid();
+			if (candidate.length === 0) {
+				addPageWarning('UNSUPPORTED_TABLES', page.num);
+				addPageWarning('TABLE_SHAPE_REVIEW', page.num);
+				markPageReview(page.num);
+				continue;
+			}
+			let rows: string[][] = [];
+			let firstRow: number | null = null;
 			let width: number | null = null;
 			let irregular = false;
-			for (const row of candidate) {
-				if (!Array.isArray(row) || row.length < 1 || row.length > IMPORT_LIMITS.columns) return invalid();
+			// A fragment ends at an empty detector row, keeping firstRow + offset faithful.
+			const appendFragment = (): void => {
+				if (rows.length === 0) return;
+				if (firstRow === null || tables.length >= IMPORT_LIMITS.tables) return invalid();
+				if (irregular) {
+					addPageWarning('UNSUPPORTED_TABLES', page.num);
+					markPageReview(page.num);
+				}
+				const tableIndex = tables.length + 1;
+				tables.push({ pageNumber: page.num, sectionTitle: null, sheetName: null, firstRow, rows });
+				tableLocations.push(pdfLocation(page.num, tableIndex));
+				pageTableCount++;
+				rows = [];
+				firstRow = null;
+				width = null;
+				irregular = false;
+			};
+			for (const [rowIndex, row] of candidate.entries()) {
+				if (!Array.isArray(row) || row.length > IMPORT_LIMITS.columns) return invalid();
+				if (row.length === 0) {
+					addPageWarning('UNSUPPORTED_TABLES', page.num);
+					addPageWarning('TABLE_SHAPE_REVIEW', page.num);
+					markPageReview(page.num);
+					appendFragment();
+					continue;
+				}
+				firstRow ??= rowIndex + 1;
 				if (width === null) width = row.length;
 				else if (width !== row.length) irregular = true;
 				const exactRow: string[] = [];
@@ -118,15 +156,7 @@ function buildExtraction(
 				}
 				rows.push(exactRow);
 			}
-			if (tables.length >= IMPORT_LIMITS.tables) return invalid();
-			if (irregular) {
-				addPageWarning('UNSUPPORTED_TABLES', page.num);
-				markPageReview(page.num);
-			}
-			const tableIndex = tables.length + 1;
-			tables.push({ pageNumber: page.num, sectionTitle: null, sheetName: null, firstRow: 1, rows });
-			tableLocations.push(pdfLocation(page.num, tableIndex));
-			pageTableCount++;
+			appendFragment();
 		}
 
 		const hasText = page.text.trim().length > 0 || pageCellCharacters > 0;
@@ -288,14 +318,24 @@ export async function parsePdfSource(source: ImportSource, signal?: AbortSignal)
 			if (text.pages.some((page, index) => page.num !== index + 1 || typeof page.text !== 'string')) return invalid();
 			const pageCharacters = text.pages.reduce((sum, page) => sum + page.text.length, 0);
 			if (pageCharacters > IMPORT_LIMITS.characters) return invalid();
-			const tableResult = await currentParser.getTable();
-			if (signal?.aborted || tableResult.total !== info.total) return invalid();
+			// Isolate geometric table failures to their physical page; retain independently read text.
+			const tablePages: {num: number; tables: string[][][]}[] = [];
+			const failedTablePages = new Set<number>();
+			for (let pageNumber = 1; pageNumber <= info.total; pageNumber++) {
+				if (signal?.aborted) return invalid();
+				let tableResult;
+				try { tableResult = await currentParser.getTable({partial: [pageNumber]}); }
+				catch { if (signal?.aborted) return invalid(); failedTablePages.add(pageNumber); continue; }
+				if (signal?.aborted || tableResult.total !== info.total || tableResult.pages.length !== 1 || tableResult.pages[0].num !== pageNumber) return invalid();
+				tablePages.push(tableResult.pages[0]);
+			}
 			const result = buildExtraction(
 				verified,
 				text.pages,
-				tableResult.pages,
+				tablePages,
 				info.pages.map((page) => ({ pageNumber: page.pageNumber, links: page.links })),
 				Boolean(info.outline?.some(containsExternalOutline)),
+				failedTablePages,
 			);
 			if (signal?.aborted) return invalid();
 			return result;

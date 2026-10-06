@@ -163,3 +163,46 @@ it('destroys the parser when the caller cancels an in-flight parse', async () =>
 		destroy.mockRestore();
 	}
 });
+
+it('retains independently read pages and successful page tables when another page table detector fails', async () => {
+ const source=pdfSource(createPdfFixture([
+  {lines:[{text:'Retained text from a page with unsupported table geometry.'}]},
+  {lines:[{text:'Reviewed table page.'}],tables:[[['Item','Amount'],['Fee','001.20']]]},
+ ]));
+ const original=PDFParse.prototype.getTable;
+ const table=vi.spyOn(PDFParse.prototype,'getTable').mockImplementation(function(this:PDFParse,parameters){
+  if(!parameters?.partial||parameters.partial.includes(1))return Promise.reject(new TypeError('Synthetic private upstream geometry diagnostic'));
+  return original.call(this,parameters);
+ });
+ try{
+  const result=await parsePdfSource(source);
+  expect(result.pages[0]).toMatchObject({pageNumber:1,text:expect.stringContaining('Retained text'),requiresReview:true});
+  expect(result.pages[1].text).toContain('Reviewed table page.');
+  expect(result.tables).toEqual([expect.objectContaining({pageNumber:2,rows:[['Item','Amount'],['Fee','001.20']]})]);
+  expect(result.locations.tables).toEqual([{kind:'PDF',pageNumber:2,blockStart:1,blockEnd:1,tableIndex:1}]);
+  expect(result.flags).toContain('UNSUPPORTED_TABLES');
+  expect(result.report.warnings).toContainEqual(expect.objectContaining({code:'UNSUPPORTED_TABLES',severity:'BLOCKING',location:expect.objectContaining({kind:'PDF',pageNumber:1}),disposition:'UNRESOLVED'}));
+  expect(result.report.truncated).toBe(false);
+  expect(JSON.stringify(result)).not.toContain('private upstream geometry diagnostic');
+ }finally{table.mockRestore();}
+});
+
+it('preserves every nonempty detected row and exact cell while flagging empty table geometry for review', async () => {
+ const source=pdfSource(createPdfFixture([{lines:[{text:'All original page text is retained.'}]}]));
+ const table=vi.spyOn(PDFParse.prototype,'getTable').mockResolvedValue({total:1,pages:[{num:1,tables:[[],[[],['Item','Amount'],[],['Fee','001.20'],['','']]]}],mergedTables:[]});
+ try{
+  const result=await parsePdfSource(source);
+  expect(result.pages[0]).toMatchObject({text:expect.stringContaining('All original'),requiresReview:true});
+  expect(result.tables).toEqual([
+   expect.objectContaining({firstRow:2,rows:[['Item','Amount']]}),
+   expect.objectContaining({firstRow:4,rows:[['Fee','001.20'],['','']]}),
+  ]);
+  expect(result.locations.tables).toEqual([
+   expect.objectContaining({kind:'PDF',pageNumber:1,tableIndex:1}),
+   expect.objectContaining({kind:'PDF',pageNumber:1,tableIndex:2}),
+  ]);
+  expect(result.report.cells).toBe(6);
+  expect(result.report.warnings).toContainEqual(expect.objectContaining({code:'UNSUPPORTED_TABLES',severity:'BLOCKING',location:expect.objectContaining({kind:'PDF',pageNumber:1}),count:3,disposition:'UNRESOLVED'}));
+  expect(result.flags).toContain('TABLE_SHAPE_REVIEW');
+ }finally{table.mockRestore();}
+});

@@ -3,12 +3,14 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {ImportReviewState} from '@/lib/imports/import-review';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
+import type {ImportPublicationReceipt} from '@/lib/imports/import-publication';
 import VersionPanel from './version-panel';
 import ChunkPlanPanel from './chunk-plan-panel';
+import ApprovalPanel from './approval-panel';
 import type {VersionCandidate} from '@/lib/imports/version-candidates';
 
 type ReviewStatus='UNRESOLVED'|'CORRECTED'|'FALSE_POSITIVE';
-type ReviewProps={jobId:string;jobRevision:number;extractionRevision:number;refreshKey:number;parentPending:boolean;onDraftStateChange:(dirty:boolean,pending:boolean)=>void;onReloadPreview:()=>void};
+type ReviewProps={jobId:string;jobRevision:number;extractionRevision:number;refreshKey:number;parentPending:boolean;onDraftStateChange:(dirty:boolean,pending:boolean,completedJobId:string|null)=>void;onReloadPreview:()=>void};
 type Result={response:Response;body:unknown};
 const datasetTypes=['academic_calendar_events','tuition_fees','transfer_courses','university_services','university_systems','service_forms','announcements'] as const;
 const storageModes=['RAG','STRUCTURED','BOTH'] as const;
@@ -85,6 +87,8 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
  const [pending,setPending]=useState<'load'|'save'|null>(null);
  const [versionPending,setVersionPending]=useState(false);
  const [chunkPending,setChunkPending]=useState(false);
+ const [publicationPending,setPublicationPending]=useState(false);
+ const [publicationReceipt,setPublicationReceipt]=useState<ImportPublicationReceipt|null>(null);
  const [versionSelectionPending,setVersionSelectionPending]=useState(false);
  const [versionResetEpoch,setVersionResetEpoch]=useState(0);
  const [failure,setFailure]=useState('');
@@ -103,12 +107,15 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
  const readyForKey=loadedKey===currentKey;
  const dirty=useMemo(()=>draft!==null&&baseline!==null&&JSON.stringify(draft)!==JSON.stringify(baseline),[draft,baseline]);
  const busy=pending!==null;
- const activityPending=busy||versionPending||chunkPending||versionSelectionPending||(!readyForKey&&!failure);
- const disabled=parentPending||busy||versionPending||chunkPending||!readyForKey||conflicted||revisionMismatch||Boolean(review?.stale&&!startedCurrent);
+ const activityPending=busy||versionPending||chunkPending||publicationPending||versionSelectionPending||(!readyForKey&&!failure);
+ const reviewLocked=publicationPending||publicationReceipt!==null;
+ const approvalDisabled=parentPending||busy||versionPending||chunkPending||!readyForKey||conflicted||revisionMismatch||Boolean(review?.stale&&!startedCurrent);
+ const disabled=approvalDisabled||reviewLocked;
 
  const setMutation=useCallback((updater:(current:ImportReviewDraft)=>ImportReviewDraft)=>{
+  if(publicationPending||publicationReceipt)return;
   setDraft(current=>current?updater(current):current);setFailure('');setNotice('');
- },[]);
+ },[publicationPending,publicationReceipt]);
  const updateMetadata=useCallback(<K extends keyof ImportReviewDraft['metadata']>(key:K,value:ImportReviewDraft['metadata'][K])=>{
   setMutation(current=>({...current,metadata:{...current.metadata,[key]:value}}));
  },[setMutation]);
@@ -158,10 +165,10 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
   mountedRef.current=true;
   return()=>{clearTimeout(launch);controller.abort();abortRef.current?.abort();mountedRef.current=false;};
  },[currentKey,jobId,jobRevision,extractionRevision,refreshKey,load]);
- useEffect(()=>{onDraftStateChange(dirty,activityPending);},[dirty,activityPending,onDraftStateChange]);
+ useEffect(()=>{onDraftStateChange(dirty,activityPending,publicationReceipt?.jobId??null);},[dirty,activityPending,publicationReceipt,onDraftStateChange]);
 
  function handleStartCurrent(){
-  if(!review)return;
+  if(!review||reviewLocked)return;
   if(dirty&&!window.confirm('เริ่มตรวจจากฉบับปัจจุบันและทิ้งร่างในเครื่องหรือไม่? ใบตรวจที่บันทึกไว้จะยังคงอยู่ในประวัติ'))return;
   const next=emptyDraft(review.warnings);
   if(review.saved){next.action=review.saved.draft.action;next.target=review.saved.draft.target;next.relationship=review.saved.draft.relationship;
@@ -193,10 +200,12 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
   finally{if(mountedRef.current&&serial===requestSerial.current&&resourceKeyRef.current===saveKey)setPending(null);}
  }
  async function reloadLatest(discardConfirmed:boolean){
+  if(reviewLocked)return;
   if(!discardConfirmed){setReloadConfirm(true);return;}
   const loaded=await load();if(loaded)setNotice('โหลดร่างตรวจฉบับล่าสุดแล้ว');
  }
  async function resetToSaved(){
+  if(reviewLocked)return;
   if(!window.confirm('ทิ้งร่างตรวจในเครื่องและโหลดข้อมูลที่บันทึกล่าสุดหรือไม่?'))return;
   const loaded=await load();if(loaded)setNotice('ทิ้งร่างในเครื่องแล้ว โหลดข้อมูลตรวจฉบับล่าสุดเรียบร้อย');
  }
@@ -212,7 +221,7 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
  }
 
  return <section className="knowledge-review" aria-labelledby="review-draft-title">
-  <header className="knowledge-review-heading"><div><h3 id="review-draft-title">ทบทวนข้อมูลเอกสาร</h3><p>ร่างนี้เป็นข้อมูลส่วนตัวที่บันทึกได้ก่อนครบการตรวจ ยังไม่อนุมัติและไม่เผยแพร่</p></div>
+  <header className="knowledge-review-heading"><div><h3 id="review-draft-title">ทบทวนข้อมูลเอกสาร</h3><p>{publicationReceipt?'อนุมัติฉบับตรวจที่ระบุในใบรับรองแล้ว ข้อมูลที่แสดงเปิดให้อ่านเพื่อตรวจสอบย้อนหลัง':'บันทึกร่างส่วนตัวได้ก่อนครบการตรวจ เมื่อตรวจครบแล้วจึงยืนยันอนุมัติด้านล่าง'}</p></div>
    {review&&<span className="knowledge-review-counter">ฉบับตรวจ {review.reviewRevision}</span>}
   </header>
   {(!readyForKey||pending==='load')&&<p className="knowledge-loading" role="status" aria-live="polite">กำลังโหลดร่างตรวจส่วนตัว…</p>}
@@ -229,7 +238,7 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
   {readyForKey&&review&&draft&&<>
    <p className="knowledge-review-state" role="status">{review.saved?`บันทึกฉบับตรวจ ${review.saved.reviewRevision} เมื่อ ${new Date(review.saved.createdAt).toLocaleString('th-TH')}`:'ยังไม่มีร่างตรวจที่บันทึก'} · {review.stale&&!startedCurrent?'ฉบับตรวจเดิมล้าสมัย':dirty?'มีการแก้ไขที่ยังไม่บันทึก':'ไม่มีการแก้ไขค้าง'} · ยังคงเป็นข้อมูลส่วนตัว</p>
    <p className="knowledge-review-pending">{versionSelectionPending?'กำลังตรวจยืนยันตัวเลือกฉบับ เลือกเป้าหมายหรือยกเลิกตัวเลือกก่อนบันทึก':<>การดำเนินการฉบับถัดไป: {draft.action?actionLabels[draft.action]??'มีตัวเลือกที่บันทึกไว้':'ยังไม่ได้เลือกการดำเนินการ'}
-    {draft.target?` · มีเป้าหมายที่บันทึกไว้สำหรับตรวจยืนยัน`:draft.action==='REPLACE_CURRENT'||draft.action==='AMEND_EXISTING'||draft.relationship==='CANCELS'?' · ยังไม่ได้เลือกเป้าหมาย':' · ไม่มีเป้าหมายที่เลือก'}{draft.relationship==='CANCELS'?' · ความสัมพันธ์ยกเลิกเอกสารเดิม':''}</>} · ไม่มีการอนุมัติในหน้านี้</p>
+    {draft.target?` · มีเป้าหมายที่บันทึกไว้สำหรับตรวจยืนยัน`:draft.action==='REPLACE_CURRENT'||draft.action==='AMEND_EXISTING'||draft.relationship==='CANCELS'?' · ยังไม่ได้เลือกเป้าหมาย':' · ไม่มีเป้าหมายที่เลือก'}{draft.relationship==='CANCELS'?' · ความสัมพันธ์ยกเลิกเอกสารเดิม':''}</>}{publicationReceipt?' · ดูผลที่ใบรับรองด้านล่าง':' · บันทึกตัวเลือกและตรวจหลักฐานให้ครบก่อนอนุมัติ'}</p>
    <VersionPanel key={`${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${versionResetEpoch}:${JSON.stringify(draft.metadata)}`} jobId={jobId} jobRevision={jobRevision} extractionRevision={extractionRevision} reviewRevision={review.reviewRevision} saved={Boolean(review.saved&&!review.stale)}
     metadata={draft.metadata} baselineMetadata={baseline?.metadata??draft.metadata} action={draft.action} target={draft.target} relationship={draft.relationship}
     disabled={disabled} onSelect={onVersionSelection} onClear={clearVersionSelection} onReloadPreview={onReloadPreview} onPendingChange={onVersionPendingChange} onSelectionPendingChange={setVersionSelectionPending}/>
@@ -296,11 +305,13 @@ export default function ReviewForm({jobId,jobRevision,extractionRevision,refresh
    </fieldset>
    {failure&&<p className="knowledge-message knowledge-message-error" role="alert">{failure}</p>}
    {notice&&<p className="knowledge-message knowledge-message-success" role="status" aria-live="polite">{notice}</p>}
-   <footer className="knowledge-review-footer"><p>{review.saved?'ร่างล่าสุดบันทึกแล้ว · ยังไม่อนุมัติและยังไม่เผยแพร่':'ร่างใหม่ยังไม่บันทึก · ข้อมูลไม่ครบสามารถบันทึกไว้ตรวจต่อได้'}</p>
-    <div className="knowledge-review-actions">{dirty&&<button type="button" className="knowledge-button knowledge-button-tertiary" onClick={resetToSaved} disabled={busy||parentPending}>ทิ้งการแก้ไขในเครื่อง</button>}
+   <footer className="knowledge-review-footer"><p>{publicationReceipt?'ฉบับที่อนุมัติและต้นฉบับเก็บไว้ตรวจสอบย้อนหลังแล้ว':review.saved?'ร่างล่าสุดบันทึกแล้ว · รอการยืนยันอนุมัติ':'ร่างใหม่ยังไม่บันทึก · ข้อมูลไม่ครบสามารถบันทึกไว้ตรวจต่อได้'}</p>
+    <div className="knowledge-review-actions">{dirty&&<button type="button" className="knowledge-button knowledge-button-tertiary" onClick={resetToSaved} disabled={busy||parentPending||reviewLocked}>ทิ้งการแก้ไขในเครื่อง</button>}
      <button type="button" className="knowledge-button knowledge-button-primary" onClick={()=>void save()} disabled={!dirty||disabled||versionSelectionPending}>{pending==='save'?'กำลังบันทึก…':'บันทึกร่างส่วนตัว'}</button>
     </div>
    </footer>
+   <ApprovalPanel review={review} dirty={dirty} disabled={approvalDisabled||versionSelectionPending}
+    onPendingChange={setPublicationPending} onReceiptChange={setPublicationReceipt}/>
   </>}
  </section>;
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {Pool} from 'pg';
-import {approveImport} from '../../lib/imports/import-publication';
+import {approveImport,getImportPublication} from '../../lib/imports/import-publication';
 import {createImportSource} from '../../lib/imports/source';
 import {createImportJob,readImportOriginal} from '../../lib/imports/import-staging';
 import {analyzeImportJob} from '../../lib/imports/import-extraction';
@@ -60,6 +60,8 @@ async function setup(pool:Pool,actor:string,staff:string){
 test('atomic located publication persists exact immutable receipt and sequential retry does not count or encode again',()=>fixture(async f=>{
  const r=await f.ready();const result=await approveImport(f.actor,r.input,f.options);assert.equal(result.replayed,false);const calls=f.calls();
  const again=await approveImport(f.actor,r.input,f.options);assert.equal(again.replayed,true);assert.deepEqual(again.receipt,result.receipt);assert.deepEqual(f.calls(),calls);
+ assert.deepEqual(await getImportPublication(f.actor,r.input.id,f.options),{receipt:result.receipt});assert.deepEqual(f.calls(),calls,'receipt read does not count or encode');
+ await assert.rejects(getImportPublication(f.staff,'malformed',f.options),/FORBIDDEN/);
  assert.equal((await f.pool.query('select rule_revision::text revision from public.document_families where id=$1',[result.receipt.familyId])).rows[0].revision,'1','retry does not increment the family twice');
  const rows=(await f.pool.query('select chunk_index,content,source_locations,passage_token_count,embedding_dimensions,embedding_fingerprint,extensions.vector_dims(embedding_e5) dim from public.knowledge_chunks where document_id=$1 order by chunk_index',[result.receipt.documentId])).rows;
  assert.equal(rows.length,r.plan.chunks.length);for(const [i,c] of rows.entries()){assert.equal(c.content,r.plan.chunks[i].content);assert.deepEqual(c.source_locations,r.plan.chunks[i].sourceLocations);assert.equal(c.passage_token_count,25);assert.equal(c.dim,384);assert.equal(c.embedding_fingerprint,LOCAL_EMBEDDING_FINGERPRINT);}

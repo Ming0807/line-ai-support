@@ -5,6 +5,7 @@ import type {ChangeEvent,FormEvent} from 'react';
 import type {ImportPreview} from '@/lib/imports/import-extraction';
 import type {ImportJobView} from '@/lib/imports/import-staging';
 import type {SourceLocation} from '@/lib/imports/types';
+import {isReceiptEnvelope} from '@/lib/imports/publication-response';
 import ReviewForm from './review-form';
 
 type ApiResponse={response:Response;body:unknown};
@@ -131,11 +132,16 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const [editConflicts,setEditConflicts]=useState<EditConflict[]>([]);
  const [conflictIndex,setConflictIndex]=useState(0);
  const [reviewDirty,setReviewDirty]=useState(false);
+ const [publishedJobId,setPublishedJobId]=useState<string|null>(null);
+ const knownPublished=useRef(new Set<string>());
+ const [receiptRefresh,setReceiptRefresh]=useState(0);
+ const [sourceReceipt,setSourceReceipt]=useState<{jobId:string;refresh:number;state:'ready'|'error';completed:boolean}|null>(null);
  const [reviewRefreshKey,setReviewRefreshKey]=useState(0);
  const initialLoad=useRef<string|null>(null);
 
- const onReviewStateChange=useCallback((dirty:boolean,reviewPending:boolean)=>{
+ const onReviewStateChange=useCallback((dirty:boolean,reviewPending:boolean,completedJobId:string|null)=>{
   setReviewDirty(dirty);
+  if(completedJobId){knownPublished.current.add(completedJobId);setPublishedJobId(completedJobId);}
   setPending(current=>reviewPending?(current??'review'):(current==='review'?null:current));
  },[]);
 
@@ -170,6 +176,26 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  },[initialJobId,loadPreview]);
 
  const selectedJob=jobs.find(job=>job.id===selectedId)??preview?.job??null;
+ const receiptJobId=selectedJob?.id??null;
+ const sourceReceiptState=sourceReceipt?.jobId===receiptJobId&&sourceReceipt.refresh===receiptRefresh?sourceReceipt.state:'loading';
+ const publicationComplete=receiptJobId!==null&&(receiptJobId===publishedJobId||sourceReceipt?.jobId===receiptJobId&&sourceReceipt.completed);
+ const sourceMutationLocked=receiptJobId!==null&&(sourceReceiptState!=='ready'||publicationComplete);
+ useEffect(()=>{
+  if(!receiptJobId)return;
+  const controller=new AbortController();let active=true;
+  void requestJson(`/api/knowledge/imports/${encodeURIComponent(receiptJobId)}/publication`,{signal:controller.signal})
+   .then(result=>{
+    if(!active||controller.signal.aborted)return;
+    if(!result.response.ok||!isReceiptEnvelope(result.body,receiptJobId)||
+     result.body.publication.receipt===null&&knownPublished.current.has(receiptJobId)){
+     setSourceReceipt({jobId:receiptJobId,refresh:receiptRefresh,state:'error',completed:knownPublished.current.has(receiptJobId)});return;
+    }
+    const completed=result.body.publication.receipt!==null;
+    if(completed){knownPublished.current.add(receiptJobId);setPublishedJobId(receiptJobId);}
+    setSourceReceipt({jobId:receiptJobId,refresh:receiptRefresh,state:'ready',completed});
+   }).catch(()=>{if(active&&!controller.signal.aborted)setSourceReceipt({jobId:receiptJobId,refresh:receiptRefresh,state:'error',completed:knownPublished.current.has(receiptJobId)});});
+  return()=>{active=false;controller.abort();};
+ },[receiptJobId,receiptRefresh]);
  const hasDrafts=Boolean(preview&&titleDraft!==(preview.extraction.title??''))||
   Boolean(preview&&Object.entries(pageDrafts).some(([index,text])=>text!==preview.extraction.pages[Number(index)]?.text))||
   Boolean(preview&&Object.entries(cellDrafts).some(([key,text])=>{
@@ -220,7 +246,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   finally{setPending(null);}
  }
  async function analyze(){
-  if(!selectedJob)return;
+  if(!selectedJob||pending!==null||sourceMutationLocked)return;
   if(hasDrafts&&!window.confirm('การวิเคราะห์ใหม่จะสร้างผลอ่านชุดใหม่ ทำให้ร่างตรวจเดิมล้าสมัย และล้างข้อมูลร่างในเครื่อง ต้องการดำเนินการต่อหรือไม่'))return;
   setPending('analyze');setFailure('');setNotice('');setConflict(false);
   try{
@@ -232,7 +258,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   finally{setPending(null);}
  }
  async function saveEdit(){
-  if(!preview)return;
+  if(!preview||pending!==null||sourceMutationLocked)return;
   if(reviewDirty&&!window.confirm('บันทึกการแก้ข้อความจะทำให้ร่างตรวจผูกกับฉบับเดิม คุณบันทึกข้อความแล้วเริ่มตรวจฉบับใหม่ได้ ต้องการดำเนินการต่อหรือไม่'))return;
   if(editConflicts.some(item=>!item.acknowledged||!item.targetExists)){setFailure('เปรียบเทียบฉบับล่าสุดและเลือกค่าที่จะเก็บก่อนบันทึก');return;}
   const pages=Object.entries(pageDrafts).flatMap(([index,text])=>text!==preview.extraction.pages[Number(index)]?.text?[{index:Number(index),text}]:[]);
@@ -262,6 +288,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   if(loaded)setNotice('โหลดฉบับล่าสุดแล้ว ข้อความร่างเดิมยังอยู่ ตรวจความต่างก่อนบันทึก');
  }
  function resolveEditConflict(item:EditConflict,choice:'LATEST'|'DRAFT'){
+  if(pending!==null||sourceMutationLocked)return;
   if(choice==='DRAFT'&&!item.targetExists)return;
   if(choice==='LATEST'){
    if(item.id==='title')setTitleDraft(preview?.extraction.title??'');
@@ -277,6 +304,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   }
  }
  function changeDraftValue(conflictId:string,update:()=>void){
+  if(pending!==null||sourceMutationLocked)return;
   update();
   setEditConflicts(current=>current.map(item=>item.id===conflictId&&item.acknowledged?{...item,acknowledged:false}:item));
  }
@@ -302,7 +330,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   conflictEntry.id.startsWith('page:')?pageDrafts[Number(conflictEntry.id.slice(5))]??conflictEntry.draftValue:
   cellDrafts[conflictEntry.id.slice(5)]??conflictEntry.draftValue}:undefined;
  const unresolvedEditConflict=editConflicts.some(item=>!item.acknowledged||!item.targetExists);
- const canSave=Boolean(preview&&reason.trim()&&hasDrafts&&!unresolvedEditConflict&&pending===null);
+ const canSave=Boolean(preview&&reason.trim()&&hasDrafts&&!unresolvedEditConflict&&pending===null&&!sourceMutationLocked);
 
  return <div className="knowledge-workspace">
   <section className="knowledge-source-panel" aria-labelledby="source-title">
@@ -345,14 +373,16 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   {selectedJob&&<section className="knowledge-receipt" aria-labelledby="receipt-title">
    <div className="knowledge-receipt-main"><h2 id="receipt-title">ต้นฉบับที่เลือก</h2><strong>{selectedJob.filename}</strong>
     <p>{formatName[selectedJob.format]} · ฉบับ {selectedJob.revision} · {Math.ceil(selectedJob.byteLength/1024)} KB · {selectedJob.status==='FAILED'?'วิเคราะห์ไม่สำเร็จ':preview?.job.id===selectedJob.id?'วิเคราะห์แล้ว':'พร้อมวิเคราะห์'}</p>
-    <p className="knowledge-unpublished">ยังไม่เผยแพร่ · ยังไม่ถูกใช้ตอบคำถาม</p>
+    <p className="knowledge-unpublished">{publicationComplete?'อนุมัติแล้ว · ดูขอบเขตและฉบับที่ใบรับรองด้านล่าง':'ดูสถานะการอนุมัติและใบรับรองในส่วนทบทวนข้อมูลด้านล่าง'}</p>
+    {sourceReceiptState==='loading'&&<p role="status">กำลังตรวจสถานะอนุมัติก่อนเปิดการแก้ไขต้นฉบับ…</p>}
+    {sourceReceiptState==='error'&&<div className="knowledge-review-conflict" role="alert"><p>ยังตรวจสถานะอนุมัติไม่ได้ การวิเคราะห์และแก้ข้อความถูกปิดไว้จนตรวจใบรับรองสำเร็จ</p><button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>setReceiptRefresh(value=>value+1)} disabled={pending!==null}>ตรวจสถานะต้นฉบับอีกครั้ง</button></div>}
    </div>
    <div className="knowledge-receipt-actions"><a className="knowledge-button knowledge-button-secondary" href={`/api/knowledge/imports/${encodeURIComponent(selectedJob.id)}/original`} download>ดาวน์โหลดต้นฉบับ</a>
-    <button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void analyze()} disabled={pending!==null}>{pending==='analyze'?'กำลังวิเคราะห์…':'วิเคราะห์เอกสาร'}</button></div>
+    <button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void analyze()} disabled={pending!==null||sourceMutationLocked}>{pending==='analyze'?'กำลังวิเคราะห์…':'วิเคราะห์เอกสาร'}</button></div>
   </section>}
 
   {preview&&extraction?<section className="knowledge-preview" aria-labelledby="preview-title">
-   <header className="knowledge-preview-heading"><div><h2 id="preview-title">ผลการอ่านและแก้ข้อความ</h2><p>ฉบับข้อความ {preview.extractionRevision} · {preview.kind==='EDITED'?'ฉบับแก้ข้อความ':'ฉบับจากตัวอ่าน'} · สถานะยังไม่เผยแพร่</p></div>
+   <header className="knowledge-preview-heading"><div><h2 id="preview-title">ผลการอ่านและแก้ข้อความ</h2><p>ฉบับข้อความ {preview.extractionRevision} · {preview.kind==='EDITED'?'ฉบับแก้ข้อความ':'ฉบับจากตัวอ่าน'} · {publicationComplete?'ฉบับอนุมัติเก็บไว้ตรวจสอบย้อนหลัง':'ตรวจข้อความก่อนอนุมัติ'}</p></div>
     <a className="knowledge-button knowledge-button-tertiary" href={`/api/knowledge/imports/${encodeURIComponent(preview.job.id)}/original`} download>เปิดต้นฉบับ</a>
    </header>
    {activeEditConflict&&<section className="knowledge-draft-conflicts" aria-labelledby="draft-conflicts-title">
@@ -366,10 +396,10 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
     </div>
     <details className="knowledge-conflict-previous"><summary>ดูค่าจากฉบับที่เปิดก่อนหน้า</summary><pre>{activeEditConflict.previousValue||'ไม่มีข้อความ'}</pre></details>
     {activeEditConflict.acknowledged&&<p className="knowledge-conflict-acknowledged" role="status">เลือกเก็บข้อความร่างนี้แล้ว</p>}
-    <div className="knowledge-conflict-actions"><button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>resolveEditConflict(activeEditConflict,'LATEST')} disabled={pending!==null}>
+    <div className="knowledge-conflict-actions"><button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>resolveEditConflict(activeEditConflict,'LATEST')} disabled={pending!==null||sourceMutationLocked}>
      {activeEditConflict.targetExists?'ใช้ค่าจากฉบับล่าสุด':'ทิ้งร่างที่ไม่มีช่องในฉบับล่าสุด'}
     </button>
-     {activeEditConflict.targetExists&&<button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>resolveEditConflict(activeEditConflict,'DRAFT')} disabled={pending!==null||activeEditConflict.acknowledged}>{activeEditConflict.acknowledged?'เลือกเก็บข้อความร่างแล้ว':'คงข้อความร่างนี้'}</button>}
+     {activeEditConflict.targetExists&&<button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>resolveEditConflict(activeEditConflict,'DRAFT')} disabled={pending!==null||sourceMutationLocked||activeEditConflict.acknowledged}>{activeEditConflict.acknowledged?'เลือกเก็บข้อความร่างแล้ว':'คงข้อความร่างนี้'}</button>}
     </div>
    </section>}
    <section className="knowledge-analysis" aria-labelledby="analysis-title"><div className="knowledge-section-heading"><h3 id="analysis-title">ข้อเสนอจากตัววิเคราะห์</h3><span>ต้องตรวจโดยผู้ดูแล</span></div>
@@ -378,7 +408,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
      <div><dt>ปีการศึกษา</dt><dd>{preview.analysis.academicYear??'ยังไม่ระบุ'}</dd></div><div><dt>วันที่มีผล</dt><dd>ยังไม่ระบุ</dd></div><div><dt>ระดับอำนาจเอกสาร</dt><dd>ยังไม่ระบุ</dd></div>
     </dl>
     {preview.analysis.sensitiveCategories.length>0&&<p className="knowledge-sensitive">อาจพบข้อมูลละเอียดอ่อน: {preview.analysis.sensitiveCategories.map(value=>sensitiveLabels[value]??'ข้อมูลต้องตรวจ').join('、')}</p>}
-    <p className="knowledge-proposal-note">ข้อเสนอเป็นข้อมูลช่วยตรวจเท่านั้น ไม่มีการเผยแพร่หรือแก้ metadata ในหน้านี้</p>
+    <p className="knowledge-proposal-note">ข้อเสนอเป็นข้อมูลช่วยตรวจ ใช้ร่างที่บันทึกแล้วและคำยืนยันของผู้ตรวจในส่วนทบทวนข้อมูลเพื่ออนุมัติ</p>
    </section>
 
    <section className="knowledge-warning-section" aria-labelledby="warning-title"><div className="knowledge-section-heading"><h3 id="warning-title">คำเตือนที่ยังต้องตรวจ</h3><span>{extraction.report.warnings.length+analysisOnlyFlags.length} รายการ</span></div>
@@ -389,14 +419,14 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
    </section>
 
    <ReviewForm key={`${preview.job.id}:${preview.job.revision}:${preview.extractionRevision}:${reviewRefreshKey}`} jobId={preview.job.id} jobRevision={preview.job.revision} extractionRevision={preview.extractionRevision} refreshKey={reviewRefreshKey}
-    parentPending={pending!==null&&pending!=='review'} onDraftStateChange={onReviewStateChange} onReloadPreview={()=>void selectJob(preview.job.id)}/>
+    parentPending={pending!==null&&pending!=='review'||sourceReceiptState!=='ready'} onDraftStateChange={onReviewStateChange} onReloadPreview={()=>void selectJob(preview.job.id)}/>
 
    <section className="knowledge-extraction-editor" aria-labelledby="edit-title"><div className="knowledge-section-heading"><div><h3 id="edit-title">ข้อความที่อ่านได้</h3><p>{extraction.report.pages} หน้า · {extraction.report.tables} ตาราง · {extraction.report.cells} ช่อง · {extraction.report.textCharacters.toLocaleString('th-TH')} ตัวอักษร</p></div></div>
      <div className="knowledge-page-controls"><div><h4>หน้าเอกสาร</h4><p>{formatLocation(extraction.locations.pages[pageIndex])}</p></div>
      <div className="knowledge-window-actions"><button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>setPageIndex(value=>Math.max(0,value-1))} disabled={pending!==null||pageIndex<=0}>หน้าก่อน</button><span aria-live="polite">หน้า {pageIndex+1} / {extraction.pages.length}</span><button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>setPageIndex(value=>Math.min(extraction.pages.length-1,value+1))} disabled={pending!==null||pageIndex>=extraction.pages.length-1}>หน้าถัดไป</button></div>
     </div>
     {page&&<label className="knowledge-field knowledge-page-editor">ข้อความในหน้า {pageIndex+1}
-     <textarea value={pageText} onChange={event=>changeDraftValue(`page:${pageIndex}`,()=>setPageDrafts(current=>({...current,[pageIndex]:event.target.value})))} maxLength={5_000_000} rows={10} disabled={pending!==null}/>
+     <textarea value={pageText} onChange={event=>changeDraftValue(`page:${pageIndex}`,()=>setPageDrafts(current=>({...current,[pageIndex]:event.target.value})))} maxLength={5_000_000} rows={10} disabled={pending!==null||sourceMutationLocked}/>
      <span className="knowledge-hint">ตำแหน่งต้นทางคงเดิม · การแก้จะเพิ่มคำเตือนให้ตรวจซ้ำ</span>
     </label>}
 
@@ -410,7 +440,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
       <div className="knowledge-table-scroll" tabIndex={0} role="region" aria-label={`ตาราง ${tableIndex+1} หน้าต่างแถว ${rowStart+1} ถึง ${Math.min(rowStart+20,table.rows.length)}`}>
        <table className="knowledge-data-table"><thead><tr><th scope="col">แถวต้นทาง</th>{Array.from({length:visibleColumns},(_,offset)=><th key={columnStart+offset} scope="col">คอลัมน์ {columnStart+offset+1}</th>)}</tr></thead>
         <tbody>{visibleRows.map((row,visibleIndex)=>{const rowIndex=rowStart+visibleIndex;return <tr key={rowIndex}><th scope="row">{table.firstRow+rowIndex}</th>{Array.from({length:visibleColumns},(_,offset)=>{const column=columnStart+offset;const original=row[column];if(original===undefined)return <td key={column}><span className="knowledge-empty-cell">—</span></td>;
-          const key=`${tableIndex}:${rowIndex}:${column}`;return <td key={column}><label className="knowledge-cell-label"><span className="knowledge-visually-hidden">ตาราง {tableIndex+1} แถว {table.firstRow+rowIndex} คอลัมน์ {column+1}</span><input value={cellDrafts[key]??original} maxLength={10_000} onChange={event=>changeDraftValue(`cell:${key}`,()=>setCellDrafts(current=>({...current,[key]:event.target.value})))} disabled={pending!==null}/></label></td>;
+          const key=`${tableIndex}:${rowIndex}:${column}`;return <td key={column}><label className="knowledge-cell-label"><span className="knowledge-visually-hidden">ตาราง {tableIndex+1} แถว {table.firstRow+rowIndex} คอลัมน์ {column+1}</span><input value={cellDrafts[key]??original} maxLength={10_000} onChange={event=>changeDraftValue(`cell:${key}`,()=>setCellDrafts(current=>({...current,[key]:event.target.value})))} disabled={pending!==null||sourceMutationLocked}/></label></td>;
          })}</tr>;})}</tbody>
        </table>
       </div>
@@ -419,10 +449,10 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
     </div>}
 
     <label className="knowledge-field knowledge-title-editor">ชื่อเรื่องที่อ่านได้
-     <input value={titleDraft} maxLength={500} onChange={event=>changeDraftValue('title',()=>setTitleDraft(event.target.value))} disabled={pending!==null}/>
+     <input value={titleDraft} maxLength={500} onChange={event=>changeDraftValue('title',()=>setTitleDraft(event.target.value))} disabled={pending!==null||sourceMutationLocked}/>
     </label>
     <label className="knowledge-field knowledge-reason-field">เหตุผลการแก้ไข
-     <textarea value={reason} minLength={1} maxLength={500} rows={3} onChange={event=>setReason(event.target.value)} placeholder="ระบุว่าข้อความส่วนใดอ่านคลาดเคลื่อนและแก้ตามอะไร" disabled={pending!==null}/>
+     <textarea value={reason} minLength={1} maxLength={500} rows={3} onChange={event=>setReason(event.target.value)} placeholder="ระบุว่าข้อความส่วนใดอ่านคลาดเคลื่อนและแก้ตามอะไร" disabled={pending!==null||sourceMutationLocked}/>
      <span className="knowledge-hint">1–500 ตัวอักษร · ต้องมีข้อความที่เปลี่ยนจริงก่อนบันทึก</span>
     </label>
     <div className="knowledge-edit-actions"><p>{unresolvedEditConflict?'เลือกฉบับล่าสุดหรือยืนยันเก็บข้อความร่างที่เปลี่ยนก่อน แล้วจึงบันทึก':'การแก้จะสร้างฉบับใหม่และวิเคราะห์ความเสี่ยงอีกครั้ง คำเตือนเดิมยังคงอยู่'}</p><button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void saveEdit()} disabled={!canSave}>{pending==='edit'?'กำลังบันทึก…':'บันทึกข้อความแก้ไข'}</button></div>

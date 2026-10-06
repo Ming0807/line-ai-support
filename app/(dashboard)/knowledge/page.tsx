@@ -20,7 +20,7 @@ export default async function KnowledgePage(){
    <div><h1>คลังความรู้</h1><p>จัดเก็บและตรวจข้อความจากเอกสารก่อนเข้าสู่ขั้นตอนเผยแพร่</p></div>
    <Link className="knowledge-button knowledge-button-primary" href="/knowledge/import">นำเข้าเอกสาร</Link>
   </header>
-  <p className="knowledge-state">เอกสารที่นำเข้ายังไม่เผยแพร่และยังไม่ถูกใช้ตอบคำถาม</p>
+  <p className="knowledge-state">เปิดรายการเพื่อตรวจร่างและใบรับรองการอนุมัติ เอกสารจะใช้ตอบได้ตามขอบเขตและวันที่ที่ตรวจแล้ว</p>
   <section className="knowledge-job-section" aria-labelledby="knowledge-job-title">
    <div className="knowledge-section-heading"><h2 id="knowledge-job-title">รายการนำเข้า</h2><span>{jobs.length} รายการล่าสุด</span></div>
    {loadError?<p className="knowledge-message knowledge-message-error" role="alert">โหลดรายการไม่สำเร็จ ลองเปิดหน้านี้ใหม่อีกครั้ง</p>:jobs.length===0?

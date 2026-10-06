@@ -97,9 +97,11 @@ Chunks มี document/page/section/source provenance; citations สร้าง
 
 Document family/version streams มี current uniqueness และ history. Current replacement เปลี่ยน oldเป็น SUPERSEDED ไม่ delete; supplemental document ไม่แทน base. AMENDS ต้อง retrieve base+active amendments และ publication อนุมัติ relationships — schema มีแล้ว แต่ behavior/UI ยังเป็น IMP-03
 
-## Import และ fixed structured data — Planned
+## Import และ fixed structured data — Partial
 
 Target: PDF/DOCX/XLSX/CSV/URL → private original/checksum → bounded extraction → quality/sensitivity flags → family/department/date/authority/classification proposal → editable version-conflict preview → explicit approval → atomic version/chunks/dataset publication
+
+PUB-01…05 RAG path is component-accepted: complete saved review/located plan,exact atomic publication/immutable receipt,relationship/family/dispatch fences and private deliberate approval UI/API.10actual isolated browser groups and1439unit/type/lint/build pass;187PG/foundationRLS covers unchanged backend. [Approval evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md). Actual PDF400/409 recovery retains bytes/text/cells/row ordinals with explicit warnings;[recovery](../reports/IMP_PDF_RECOVERY_REPORT.md). Published family/current/history catalog remains PUB-06; M8 mapper preview and atomic STRUCTURED/BOTH are unimplemented. No real corpus/public approval/live generation claim.
 
 แผน M7 เดิมเริ่ม PDF/HTML slice; **ไม่ครบ V1 file types** จึงมี IMP-02 ต่อ DOCX/XLSX/CSV และ tests. Storage/encryption/access/retention ต้องมี plan ก่อน implementation ไม่อ้างว่ามี Supabase bucket พร้อมแล้ว. Low-quality/OCR/cohort/source warnings อยู่ PENDING_REVIEW จนคนตรวจ ไม่มี publish อัตโนมัติ
 

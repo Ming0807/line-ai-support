@@ -33,3 +33,7 @@
 
 
 6October PUB-03 requires no additional human setup. Complete synthetic relationship/date/legacy drift and actual paused-LINE publication fences passed locally; guardedDEVELOPMENT28migrations remain development evidence. Approval UI/API is agent work; real corpus review and live final flows remain pending. [Evidence](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md).
+
+6October IMP-PDF-01 requires no new configuration or re-upload. Both user-reported originals were re-analyzed successfully through authenticated APIs; reload the import page to see READY extraction. Check located table/page warnings against the original before approval. This is review of source quality, not a permission needed for independent implementation. [Recovery evidence](../reports/IMP_PDF_RECOVERY_REPORT.md).
+
+6October PUB-04/05 approval API/UI requires no additional setup: deliberate INTERNAL synthetic approval, unknown-response receipt recovery, exact replay/retained originals and three-role desktop/mobile checks passed in isolated QA. Current mode is reviewed RAG; STRUCTURED/BOTH stay unavailable until M8 implementation. Published catalog remains agent work, not a human task. Real university review/live free generation/OA/production items above remain deferred. [Evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md).

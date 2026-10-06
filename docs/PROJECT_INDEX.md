@@ -4,7 +4,9 @@
 
 ## อ่านตามลำดับนี้
 
-6October PUB-03 complete rule groups and pending-answer fences **COMPONENT_PASS**:1405unit/91files,187fullPG/foundationRLS,28isolated replay,0advisorWARN+ERROR/85INFO,lint/type/build; actual reviewed amendment publication waits for paused LINE HTTP with no open sender SQL transaction. Local+DEVELOPMENT28migrations/36RLS tables/9departments. Root integration/DB/auth/privacy/QA with actual Luna max pure helper and independent retrieval/caller scopes. [Rule-group report](reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). Current **PUB-04 IN_PROGRESS**: strict private approval API/completed receipts/minimal deliberate confirmation UI. FullM7/M8/V1 and real corpus/live/production evidence remain incomplete.
+6October latest checkpoint **PUB-04/05 + IMP-PDF-01 COMPONENT_PASS**: private approval/receipts/unknown-response recovery and10actual isolated browser groups;1439unit/93files,type/lint/build,187PG/foundationRLS before final parser-only refinement. Final authenticated Analyze200/Preview200 recover both retained PDFs, unchanged originals and no publication. [Approval report](reports/IMP_PUBLICATION_APPROVAL_REPORT.md), [PDF recovery](reports/IMP_PDF_RECOVERY_REPORT.md). Next published family/current/history catalog, then M8/M9/fullV1; no real source automatically approved.
+
+Parent6October PUB-03 checkpoint: complete rule groups/pending-answer fences,1405unit/187PG/28replay/advisors0/type/lint/build and actual paused-LINE publication barrier. Local+DEVELOPMENT28migrations/36RLS tables/9departments remain. [Rule-group report](reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md). Latest approval/recovery evidence above supersedes its pending-PUB-04 status; fullM7/M8/V1 remains incomplete.
 
 | เอกสาร | ใช้ตอบคำถาม |
 |---|---|

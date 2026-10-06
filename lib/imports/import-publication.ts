@@ -35,6 +35,17 @@ function replay(row:ReceiptRow,request:Request):ImportPublicationResult{
 }
 function checkSignal(options:ImportPublicationOptions){if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');}
 async function currentReceipt(client:PoolClient,id:string){return (await client.query<ReceiptRow>('select * from private.knowledge_import_publications where job_id=$1',[id])).rows[0];}
+/** Reads an immutable completion receipt only; never recovers source bytes or calls an embedding service. */
+export async function getImportPublication(actor:string,id:unknown,options:ImportStagingOptions={}):Promise<{receipt:ImportPublicationReceipt|null}>{
+ try{
+  await authorizeImportAdmin(actor,options);checkSignal(options);
+  const parsed=z.uuid().transform(value=>value.toLowerCase()).safeParse(id);if(!parsed.success)throw new ImportStagingError('NOT_FOUND');
+  return await withImportAdminTransaction(actor,options,async client=>{
+   if(!(await client.query('select id from private.knowledge_import_jobs where id=$1 for share',[parsed.data])).rows[0])throw new ImportStagingError('NOT_FOUND');
+   const row=await currentReceipt(client,parsed.data);checkSignal(options);return {receipt:row?receipt(row):null};
+  });
+ }catch(error){if(error instanceof ImportStagingError)throw error;throw new ImportStagingError('INTERNAL_ERROR');}
+}
 function assertAction(draft:ImportReviewDraft,choices:VersionChoices){
  if(choices.limitExceeded||choices.missingMetadata.length>0||draft.action===null)throw new ImportStagingError('CONFLICT');
  const required=draft.relationship==='CANCELS'?'CANCELS':draft.action;
@@ -129,7 +140,7 @@ async function finalize(actor:string,request:Request,checked:ValidatedPublicatio
   return {receipt:receipt(row),replayed:false};
  });
 }
-/** Explicit reviewed publication only. No HTTP route exposes this until relationship/delivery acceptance. */
+/** Explicit reviewed publication; the private approval route follows relationship/delivery acceptance. */
 export async function approveImport(actor:string,input:unknown,options:ImportPublicationOptions={}):Promise<ImportPublicationResult>{
  try{
   await authorizeImportAdmin(actor,options);checkSignal(options);
