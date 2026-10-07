@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+7October GEM-REV-05 clarification: [actual1ce04c0review](../reports/GEMINI_UI_UX_ROUND4_REVIEW.md) leaves CH012/038/041/042/047/049/050/051/066/070 and USR-UX/IMPORT-EASE/DASHBOARD combined acceptance pending. Two UI datasets do not match current strict Root registry; mapping exclusions/restore/ack/stale/mode flows and actual server q/pages remain incomplete. Five advanced pages remain UI_ONLY_SHELL. Root type/scopedlint/19helpertests PASS and committed whitespace FAIL do not change those requirements to COMPLETE. [Round5 assignment](../agents/GEMINI_UI_UX_ROUND5_PROMPT.md) closes frontend gaps while root retains schema/atomic modes/query/auth/acceptance; no additional user configuration is implied.
+
 อัปเดต 7 ตุลาคม 2026 ต่อจาก reread ต้นฉบับและคำยืนยันล่าสุดตั้งแต่4ตุลาคม. [แหล่งต้นฉบับ](sources/README.md), [Master](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [design](../architecture/YRU_V1_DESIGN.md), [board](../tasks/V1_TASK_BOARD.md)
 
 `CH000`–`CH074` map ทุก chapter ของ master; coverage ของ heading **ไม่เท่ากับทุก field/subcase ผ่านแล้ว**. Evidence columnเป็นที่ตรวจ componentและสิ่งที่ยังขาด; `PARTIAL/REOPENED/PLANNED` ห้ามนับเป็น complete. หน้าที่มีคำว่า test/mock ไม่ถือว่า live provider/OA ผ่าน

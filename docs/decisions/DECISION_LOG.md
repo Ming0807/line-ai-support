@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-048 — Round5 after actual Round4 workflow review
+
+7October latest human submits1ce04c0 and requests another substantial Gemini prompt while root continues backend work. [Actual fixed9aaab48..1ce04c0 review](../reports/GEMINI_UI_UX_ROUND4_REVIEW.md) resolves conflicting completion claims through production source: two unregistered dataset field sets, implicit source exclusions/ack, partial saved3 restore/stale downgrade, local100ticket search/pages and five static shells remain incomplete. Root typecheck/16-file lint/19helpertests PASS; committed whitespace FAIL. Actual Luna max spec/high workflow source reviewers have bounded provenance. Preserve approved palette/home/sidebar, assign [20 ordered Round5 packages](../agents/GEMINI_UI_UX_ROUND5_PROMPT.md) under [handoff plan](../ui/GEMINI_ROUND5_HANDOFF_PLAN.md); root10344da is read-only backend reference. Missing snapshot APIs are sync dependencies; unaccepted M9 actors/states/thresholds stay proposals, never production truth. Gemini local-only/no merge/push/deploy and root contract/auth/schema/integration ownership remain. No schema installation, mode readiness, live corpus/OA/Flow A–F or new human configuration is authorized or claimed by this UI planning task. Earlier Gemini decisions below remain historical checkpoints.
+
 อัปเดต 4 ตุลาคม 2026 ลำดับนี้แยกข้อกำหนดจากผู้ใช้กับวิธี implementation ที่ผู้พัฒนาเลือก รายการใหม่อ้าง task/requirement และเหตุผล; ไม่แก้ต้นฉบับให้เข้ากับโค้ด
 
 | ID | ข้อสรุปและที่มา | สถานะ/ผลต่อการทำงาน |

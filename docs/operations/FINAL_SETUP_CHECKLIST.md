@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+7October GEM-REV-05 adds no configuration requirement. User can relay the [20-package Round5 prompt](../agents/GEMINI_UI_UX_ROUND5_PROMPT.md) to Gemini in its existing worktree; [actual Round4 review](../reports/GEMINI_UI_UX_ROUND4_REVIEW.md) leaves frontend/backend synchronization and combined acceptance as agent work. No request for new LINE/provider/password/schema setup is made for this assignment. Existing real corpus/live OA/free-provider/production manual checks remain deferred; no live pass is implied by helper tests.
+
 นี่เป็น checklistสะสมตามคำสั่งให้ทำimplementationต่อแล้วรวมmanualstepsตอนท้าย **ยังไม่ใช่ final handoff**. Agentต้องทำtasksที่เป็นcode/testให้เสร็จเองก่อน ไม่โยนช่องว่างimplementationให้ผู้ใช้ตั้งค่าแทน
 
 7October STR-00Q-1 requires no new human setup: [pure query/reference preparation](../reports/STRUCTURED_QUERY_EVIDENCE_REPORT.md) has no runtime/SQL/mode-readiness change. [Gemini Round4 prompt](../agents/GEMINI_UI_UX_ROUND4_PROMPT.md) is prepared for the user's existing relay workflow; review fixes, backend snapshot synchronization, missing M9 contracts and final combined acceptance are agent implementation work. No new university key, upload, account or configuration is requested here; prior live/corpus/deployment rows remain deferred.
