@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+7October GEM-REV-06/STR-01C-0: relay the [bounded OpenCode ticket pilot](../agents/OPENCODE_UI_PILOT_PROMPT.md) when choosing that coding model; the existing Gemini worktree/immutable045daa5/localbranch are specified. No new provider/LINE/key/login/schema setup is required for the unused encrypted row-evidence component. Agent work still includes actual atomic publication/query/combined UI; existing real-source approval/live free-provider/OA/production checks stay deferred. Helper/crypto test passes are not manual/live acceptance.
+
 7October GEM-REV-05 adds no configuration requirement. User can relay the [20-package Round5 prompt](../agents/GEMINI_UI_UX_ROUND5_PROMPT.md) to Gemini in its existing worktree; [actual Round4 review](../reports/GEMINI_UI_UX_ROUND4_REVIEW.md) leaves frontend/backend synchronization and combined acceptance as agent work. No request for new LINE/provider/password/schema setup is made for this assignment. Existing real corpus/live OA/free-provider/production manual checks remain deferred; no live pass is implied by helper tests.
 
 นี่เป็น checklistสะสมตามคำสั่งให้ทำimplementationต่อแล้วรวมmanualstepsตอนท้าย **ยังไม่ใช่ final handoff**. Agentต้องทำtasksที่เป็นcode/testให้เสร็จเองก่อน ไม่โยนช่องว่างimplementationให้ผู้ใช้ตั้งค่าแทน
