@@ -59,7 +59,7 @@
 | CH048 | 48 ImportAPI | IMP-01/02 | COMPONENT_PASS: private staging/list/detail/original/extraction/review and strict sameorigin/auth/body/CAS approval/receipt,actualPG/Storage/browser/build. [Approval evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md) |
 | CH049 | 49 AnalyzeAPI | IMP-01/02, STR-01/02 | PARTIAL: retained PDF Analyze/Preview recovery and [authorized Mapping1 backend preview](../reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md) at imports/[id]/structured with saved3/CAS. Explicit mapping follows extraction, no inferred tables. Installed SQL/atomic modes, combined mapping UI/all-format corpus acceptance remain |
 | CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL: PUB-01…05 complete saved review/plan,all5actions/CANCELS atomic RAG/fresh locks/rollback/immutable receipt/API/UI/uncertain recovery component PASS; STRUCTURED/BOTH pending M8. [Approval evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md) |
-| CH051 | 51 TicketDashboard | M4, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; overviewanalyticsremaining |
+| CH051 | 51 TicketDashboard | M4, TKT-READ-02, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; [bounded q/pages/matching totals/private API/Bangkok days](../reports/TICKET_SEARCH_PAGINATION_REPORT.md); Gemini search/paging/combined UI and overviewanalytics remain |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
 | CH054 | 54 StaffOA | M3/M4, ADV-01 | PARTIAL: signedStaffingress/commands/scopedalertscomponent; bindingflow/liveUXpending |

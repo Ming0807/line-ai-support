@@ -2,6 +2,8 @@
 
 นี่เป็น checklistสะสมตามคำสั่งให้ทำimplementationต่อแล้วรวมmanualstepsตอนท้าย **ยังไม่ใช่ final handoff**. Agentต้องทำtasksที่เป็นcode/testให้เสร็จเองก่อน ไม่โยนช่องว่างimplementationให้ผู้ใช้ตั้งค่าแทน
 
+7October TKT-READ-02 scoped search/pagination requires no new user configuration, migration, key or account. Root owns backend acceptance; Gemini wiring and combined search/mobile/error flow are agent work. Matching scoped ticket totals do not replace analytics. [Evidence](../reports/TICKET_SEARCH_PAGINATION_REPORT.md).
+
 | สิ่งที่ต้องทำเอง | เมื่อระบบส่วนใดพร้อม | หลักฐานที่ต้องได้ |
 |---|---|---|
 | เลือก/create Zen/OpenRouter freeaccountและAPIkeys | PRV-01…04 | แอดprovider/keyผ่านDashboard ไม่ส่งkeyในlog |

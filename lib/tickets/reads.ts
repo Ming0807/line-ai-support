@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import type {Pool} from 'pg';
 import {transaction} from '../database/pool';
 import {loadActor,authorizeScope,eligibleScopeSql,isSupervisor} from './authorization';
 import {ticketFiltersSchema,type TicketFilters,type TicketListItem,type TicketListResult,type TicketDetail} from '../../types/tickets';
@@ -8,22 +9,30 @@ const selectTicket=`select t.id,t.ticket_no,t.department_id,d.name_th as departm
 type TicketRow=Omit<TicketListItem,'created_at'|'updated_at'>&{created_at:Date;updated_at:Date};
 const dto=(row:TicketRow):TicketListItem=>({...row,created_at:row.created_at.toISOString(),updated_at:row.updated_at.toISOString()});
 
-export async function listTickets(staffId:string,filters:TicketFilters={}):Promise<TicketListResult> {
+export async function listTickets(staffId:string,filters:TicketFilters={},options:{pool?:Pool}={}):Promise<TicketListResult> {
  const parsed=ticketFiltersSchema.parse(filters);
  return transaction(async client=>{
+  await client.query("set local statement_timeout='5000ms';set local lock_timeout='2000ms'");
   await loadActor(client,staffId);
   const conditions=['private.can_access_scope(t.department_id,t.sensitive_level)'];const values:unknown[]=[];
   for(const [field,column] of Object.entries({department:'department_id',status:'status',priority:'priority',assignee:'assigned_staff_id',sensitivity:'sensitive_level'})){
    const value=parsed[field as keyof TicketFilters];if(value){values.push(value);conditions.push(`t.${column}=$${values.length}`);}
   }
-  if(parsed.from){values.push(parsed.from);conditions.push(`t.created_at>=$${values.length}::date at time zone 'Asia/Bangkok'`);}
-  if(parsed.to){values.push(parsed.to);conditions.push(`t.created_at<($${values.length}::date+1) at time zone 'Asia/Bangkok'`);}
-  const tickets=await client.query<TicketRow>(`${selectTicket} where ${conditions.join(' and ')} order by t.created_at desc,t.id limit 100`,values);
+  if(parsed.from){values.push(parsed.from);conditions.push(`t.created_at>=$${values.length}::date::timestamp at time zone 'Asia/Bangkok'`);}
+  if(parsed.to){values.push(parsed.to);conditions.push(`t.created_at<($${values.length}::date+1)::timestamp at time zone 'Asia/Bangkok'`);}
+  if(parsed.q){values.push('%'+parsed.q.replace(/[!%_]/gu,value=>'!'+value)+'%');const parameter='$'+values.length;conditions.push(`(t.ticket_no ilike ${parameter} escape '!' or t.problem_summary ilike ${parameter} escape '!' or t.category ilike ${parameter} escape '!' or l.anonymous_code ilike ${parameter} escape '!')`);}
+  const page=parsed.page??1,pageSize=parsed.pageSize??100;values.push(pageSize,(page-1)*pageSize);
+  const tickets=await client.query<TicketRow&{matched_count:string}>(`with matching as materialized (${selectTicket} where ${conditions.join(' and ')}),
+   totals as (select count(*)::text matched_count from matching)
+   select p.*,n.matched_count from totals n left join lateral
+   (select * from matching order by created_at desc,id limit $${values.length-1} offset $${values.length}) p on true order by p.created_at desc,p.id`,values);
+  const total=Number(tickets.rows[0]?.matched_count);if(!Number.isSafeInteger(total)||total<0)throw new Error('TICKET_TOTAL_INVALID');
   const departments=(await client.query("select id,code,name_th from public.departments where active and private.can_access_scope(id,'GENERAL') order by code")).rows;
   const assignees=(await client.query(`select distinct s.id,s.display_name from public.staff_profiles s where s.active and
    (s.role='SUPER_ADMIN' or private.can_access_scope(s.department_id,'GENERAL') or exists(select 1 from public.staff_department_grants g where g.staff_id=s.id and private.can_access_scope(g.department_id,'GENERAL'))) order by s.display_name`)).rows;
-  return {tickets:tickets.rows.map(dto),departments,assignees};
- });
+  return {tickets:tickets.rows.filter(row=>row.id!==null).map(({matched_count,...row})=>{void matched_count;return dto(row);}),departments,assignees,
+   pagination:{page,pageSize,total,totalPages:Math.ceil(total/pageSize),hasNext:page*pageSize<total,hasPrevious:page>1}};
+ },options.pool);
 }
 
 export async function getTicketDetail(staffId:string,id:string):Promise<TicketDetail|null> {

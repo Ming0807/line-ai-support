@@ -38,10 +38,11 @@ async function fixture(work:(f:Awaited<ReturnType<typeof setup>>)=>Promise<void>
 async function setup(pool:Pool,actor:string,staff:string){
  for(const [id,role] of [[actor,'SUPER_ADMIN'],[staff,'STAFF']]){await pool.query('insert into auth.users(id) values($1)',[id]);await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1,$2,'Publication fixture',true,case when $2='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role]);}
  const familyCode='PUB_'+actor.replaceAll('-','').toUpperCase();let countCalls=0,embedCalls=0;const encoded:string[][]=[];
- const provider:LocalE5EmbeddingProvider={modelId:LOCAL_EMBEDDING_MODEL,revision:LOCAL_EMBEDDING_REVISION,dimension:384,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,
+ const providerFor=(requestPool:Pool,applicationName:string):LocalE5EmbeddingProvider=>({modelId:LOCAL_EMBEDDING_MODEL,revision:LOCAL_EMBEDDING_REVISION,dimension:384,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,
   countPassageTokens:async texts=>{countCalls++;return texts.map(()=>25);},
-  embedPassages:async texts=>{embedCalls++;encoded.push([...texts]);const tx=await pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",['publication-'+actor]);assert.equal(tx.rows[0].n,0,'no SQL transaction during passage encode');return texts.map(()=>[1,...Array(383).fill(0)]);},
-  embedQuery:async()=>{throw new Error('QUERY_EMBED_NOT_ALLOWED');},healthCheck:async()=>({healthy:true,model:LOCAL_EMBEDDING_MODEL,dimension:384,mode:'Local',observedAt:new Date().toISOString(),httpStatus:200})};
+  embedPassages:async texts=>{embedCalls++;encoded.push([...texts]);const tx=await requestPool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[applicationName]);assert.equal(tx.rows[0].n,0,'no SQL transaction during passage encode');return texts.map(()=>[1,...Array(383).fill(0)]);},
+  embedQuery:async()=>{throw new Error('QUERY_EMBED_NOT_ALLOWED');},healthCheck:async()=>({healthy:true,model:LOCAL_EMBEDDING_MODEL,dimension:384,mode:'Local',observedAt:new Date().toISOString(),httpStatus:200})});
+ const provider=providerFor(pool,'publication-'+actor);
  const options={pool,key:Buffer.alloc(32,95).toString('base64'),originalBackend:'PRIVATE_DATABASE' as const,provider,counter:provider};
  async function ready(change?:(draft:ImportReviewDraft)=>ImportReviewDraft){
   const source=createImportSource({bytes:new TextEncoder().encode(`<html><h1>Reviewed synthetic service ${randomUUID()}</h1><p>University service instructions.</p><table><tr><td>Service</td><td></td></tr><tr><td>Library</td><td>001.20</td></tr></table></html>`),filename:'publication.html',mimeType:'text/html',sourceUrl:null,acquiredFrom:'UPLOAD',fetchedAt:null});
@@ -55,7 +56,7 @@ async function setup(pool:Pool,actor:string,staff:string){
   const saved=await saveImportReview(actor,job.id,{expectedJobRevision:first.jobRevision,expectedExtractionRevision:first.extractionRevision,expectedReviewRevision:first.reviewRevision,draft},options);
   return {source,plan:snapshot.plan,saved,draft,input:{id:job.id,expectedJobRevision:saved.jobRevision,expectedExtractionRevision:saved.extractionRevision,expectedReviewRevision:saved.reviewRevision,confirmPublication:true as const}};
  }
- return {pool,actor,staff,options,provider,familyCode,ready,encoded,calls:()=>({countCalls,embedCalls})};
+ return {pool,actor,staff,options,provider,providerFor,familyCode,ready,encoded,calls:()=>({countCalls,embedCalls})};
 }
 test('atomic located publication persists exact immutable receipt and sequential retry does not count or encode again',()=>fixture(async f=>{
  const r=await f.ready();const result=await approveImport(f.actor,r.input,f.options);assert.equal(result.replayed,false);const calls=f.calls();
@@ -120,11 +121,17 @@ test('actual reviewed amendment publication waits for paused LINE dispatch, then
 }));
 test('same job concurrent preparations produce one document and one matching receipt',()=>fixture(async f=>{
  const r=await f.ready();let arrivals=0;let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
- const options={...f.options,beforeCommit:async()=>{if(++arrivals===2)release();await barrier;}};
- const results=await Promise.all([approveImport(f.actor,r.input,options),approveImport(f.actor,r.input,options)]);
- assert.deepEqual(results[0].receipt,results[1].receipt);assert.equal(results.filter(r=>!r.replayed).length,1);
- assert.equal((await f.pool.query('select count(*)::int n from public.documents where approved_by=$1',[f.actor])).rows[0].n,1);
- assert.equal((await f.pool.query('select count(*)::int n from private.knowledge_import_publications where job_id=$1',[r.input.id])).rows[0].n,1);
+ // Track each request separately: a sibling's short authorized read is allowed
+ // while this request embeds, but this request's own transaction must be closed.
+ const requests=['first','second'].map(name=>{const applicationName='publication-'+f.actor+'-'+name;const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3,application_name:applicationName});return {pool,provider:f.providerFor(pool,applicationName)};});
+ const beforeCommit=async()=>{if(++arrivals===2)release();await barrier;};
+ const approvals=requests.map(request=>approveImport(f.actor,r.input,{...f.options,...request,beforeCommit}));
+ try{
+  const results=await Promise.all(approvals);
+  assert.equal(arrivals,2);assert.deepEqual(results[0].receipt,results[1].receipt);assert.equal(results.filter(r=>!r.replayed).length,1);
+  assert.equal((await f.pool.query('select count(*)::int n from public.documents where approved_by=$1',[f.actor])).rows[0].n,1);
+  assert.equal((await f.pool.query('select count(*)::int n from private.knowledge_import_publications where job_id=$1',[r.input.id])).rows[0].n,1);
+ }finally{release();await Promise.allSettled(approvals);await Promise.all(requests.map(request=>request.pool.end()));}
 }));
 test('active administrator authorization precedes parsing and receipt access; ordinary staff and revoked admins denied',()=>fixture(async f=>{
  const r=await f.ready();await assert.rejects(approveImport(f.staff,new Proxy({}, {get(){throw new Error('INPUT_SHOULD_NOT_BE_READ');}}),f.options),/FORBIDDEN/);

@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October TKT-READ-02 backend checkpoint: [ticket search/pages design](architecture/TICKET_READ_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-ticket-search-pages.md), [evidence](reports/TICKET_SEARCH_PAGINATION_REPORT.md) and [updated frontend contracts](operations/BACKEND_UI_CONTRACTS.md). Actual scoped q/pages/totals/private HTTP and Bangkok-day correction support Gemini Round3. Current board/report distinguish final backend gates from pending UI and fullV1 acceptance.
+
 7October latest UI checkpoint: Gemini6271490 reviewed with actual Luna max/high independent assessments. [Round2 review](reports/GEMINI_UI_UX_ROUND2_REVIEW.md) records wrong registry/search/false health/placeholder/a11y gaps, typecheck/scopedlintPASS and full lint/commitdiffFAIL. [Round3 prompt](agents/GEMINI_UI_UX_ROUND3_PROMPT.md) assigns16continuous packages; [handoff plan](ui/GEMINI_ROUND3_HANDOFF_PLAN.md), DEC-043. Preserve human visual direction; no Gemini merge or wholeV1 acceptance.
 
 7October current runtime slice: [STR-01B-1 review3/private preview report](reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md), [design](architecture/STRUCTURED_REVIEW_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-review-preview.md). Source bootstrap/typed preview/encrypted canonical Mapping1/ack/CAS are integrated without new SQL or installed mode readiness. Remaining public schema/atomic BOTH/query/delivery/mapping UI/fullV1 gates remain pending. The earlier pure-component statements below are historical checkpoints.

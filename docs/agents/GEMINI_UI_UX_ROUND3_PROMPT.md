@@ -7,6 +7,7 @@
 - ทำงานใน `C:\Users\NOTEBOOK\.codex\worktrees\gemini-dashboard-ux\line-ai-yru` branch `codex/gemini-dashboard-ux`
 - Baseline รอบนี้ `6271490fb024a00b61aa9746ed12991824d8e01b`; อย่าย้อนกลับ443c227หรือเริ่มดีไซน์ใหม่
 - อ่านเอกสาร authoritative ปัจจุบันจาก `D:\project-next\line-ai-yru` แบบ read-only เพราะ backend ที่นี่เดินต่อจาก snapshot ของคุณแล้ว ล่าสุด structured review/preview อยู่ใน root commit `c99dbbc5764b0fdc6154657664bfb69b706929a7`
+- Root เพิ่ม TKT-READ-02 แล้ว: `/api/tickets` รองรับ q แบบ literal, page/pageSize และ matching pagination total ภายใต้สิทธิ์เดิม อ่าน frozen contract ใน `docs/operations/BACKEND_UI_CONTRACTS.md`/`TICKET_READ_DESIGN.md` และผลตรวจใน `TICKET_SEARCH_PAGINATION_REPORT.md` อย่าใช้ contract เก่าที่ไม่มี q หรือเดาจำนวนจาก loaded100; snapshot ของคุณยังต้อง `ROOT_BACKEND_SYNC_REQUIRED` โดย root เป็นผู้รวม backend ก่อน combined acceptance
 - ห้ามแก้ checkout หลักหรือ WIP ของ Codex ห้ามคัดลอก `.env`/บัญชีทดสอบ/ไฟล์ private original ไปเพิ่มในเอกสารหรือ git
 - ใช้ dev port3010 เฉพาะของ worktree เมื่อจำเป็น บันทึก PID/คำสั่งหยุด server ที่คุณเริ่มเอง ห้ามหยุด3000/3011/บริการของคนอื่น
 

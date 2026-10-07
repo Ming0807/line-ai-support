@@ -1,0 +1,41 @@
+# TKT-READ-02 — scoped ticket search and pagination
+
+7 October 2026. Parent e94d3ab. Status: BACKEND_COMPONENT_PASS. This report concerns the backend prerequisite for Gemini Round3, not whole Dashboard UI, V1 or production acceptance.
+
+## Result and source scope
+
+The existing Tickets read ignored q and capped results at100. GET `/api/tickets` now accepts literal q and numbered page/pageSize, returns matching totals, and retains existing active staff/department/sensitivity authorization. Rows and totals share one SQL snapshot; empty and out-of-range pages retain truthful totals. Default1/100 preserves legacy row population; same-time order is stable by id. Search covers ticket number, problem summary, category and anonymous code, without technical LINE identity or message-body search. Strict bounded unknown/duplicate/range/control-character checks apply. All handled responses carry private no-store/Cookie variation/nosniff. No write transition, schema, migration, LINE or provider change.
+
+An actual date-boundary RED exposed the pre-existing PostgreSQL DATE AT TIME ZONE overload problem. Explicit date-to-timestamp casts now turn the Bangkok civil day into UTC boundaries correctly. The regression includes the instant before midnight, exactly midnight, end-of-day and next midnight. This restores the intended existing date filter; it does not create an analytics policy.
+
+Source requirements: CH051, latest USR-UX and Gemini UX-R3-04/05, original Overview§30–31, master§51, existing system ticket/auth/privacy design. Root reads current project controls and installed Next16.3.8 route/caching guides before changing behavior. [Design](../architecture/TICKET_READ_DESIGN.md), [execution](../superpowers/plans/2026-10-07-yru-ticket-search-pages.md), [frontend contracts](../operations/BACKEND_UI_CONTRACTS.md).
+
+Root owns `types/tickets.ts`, `lib/tickets/reads.ts`, `app/api/tickets/route.ts`, five actual PostgreSQL tests, local database runner, compiled HTTP harness and integration/control documents. Actual Luna high `ticket_query_tests` owns the new eight route/query tests; actual Luna max `ticket_reads_audit` performs bounded read-only backend review. Its only initial control-character finding was reproduced and corrected with Unicode Cc validation and U+0085/U+009F tests. Final scoped source verdict has no remaining findings; that review did not independently run the backend unit/fullPG suites. No unavailable review is credited.
+
+## Verification
+
+- RED first: root actualPG tests failed for missing q/pages; Luna route tests failed for missing parser/private headers. Initial actualPG date boundary failed after implementation and was minimized in PostgreSQL before the cast fix.
+- Final affected route/query tests:8PASS, including legacy selectors/defaults, integer service inputs, strict/duplicate/unknown query, controls/ranges, auth before URL processing, direct response shape/private headers and safe503 logging.
+- Final `pnpm exec vitest run --maxWorkers=2`:1581tests/109files PASS, exit0, after the last Unicode-control refinement. Database integration files are a separate runner.
+- Full `pnpm typecheck` and `pnpm lint`:PASS, exit0. A subsequent fixture-only cleanup refinement is covered by final scoped checks and the fullPG runner below.
+- Actual scoped ticket PG suite:5PASS. It covers105rows/tie ordering/two pages/no duplicates/out-of-range; literal Thai/case/wildcards/injection-shaped input/anonymous code/ticket number; cross-department/sensitivity/revoked ADMIN grant/inactive actors; Bangkok date/filter totals; empty/unknown actors and no writes.
+- Final full `pnpm test:db`:213actual PostgreSQL tests across16runner groups plus foundation/RLS checks PASS, exit0. This includes the final five ticket-read and fifteen publication tests with request-scoped probe/settled cleanup. Existing earlier full207 acceptance is not substituted for this run.
+- Retained isolated QA default `pnpm build` (Turbopack):PASS after final runtime changes. All three runtime files are byte-equal to root; the later HTTP-harness header correction changes no runtime. This compiles the route against historical QA UI, not Gemini or main UI acceptance.
+- Compiled `pnpm exec tsx scripts/qa/ticket-reads-http.ts`:7groups PASS on owned localhost3011. Actual DEVELOPMENT Supabase SSR authentication for SUPER_ADMIN and two STAFF; anonymous401/private headers, strict400,105syntheticrows/stable pages/totals, department scope, safe DTO, literal escaped text and empty/out-of-range totals. Business data remains in guarded isolated local QA database; no remote business/provider/LINE calls. Cleanup is by generated session/marker. Only the verified own QA server PID22028 was stopped after the checks.
+- Exact18owned files staged; all243local links across10owned documents, staged diff and staged credential scan PASS. Authorized root commit/push follows this final recorded source checkpoint; Git history records the actual resulting identity. Unrelated UI/corpus WIP is excluded.
+
+## Failure diagnosis and corrections
+
+The first compiled HTTP harness expected exactly `Vary: Cookie`; actual Next responses append RSC/router variation tokens. Root read safe response headers and corrected the harness to require the Cookie token without rejecting valid framework tokens. The final seven compiled groups passed; headers were already correct in runtime.
+
+Initial fullDB and isolated15 publication-suite runs failed the existing concurrent preparation test with CHUNK_PLAN_UNAVAILABLE. A single named case passed. Root's temporary sanitized instrumentation reproduced an IMPORT_READ transaction during the encode probe; it printed only fixed stage/state, never SQL/private content. The fixture's shared application_name counted a sibling approval's legitimate short transaction as this request's transaction. The assertion threw and the embedding wrapper correctly mapped an unavailable error. No production timeout or publication race fix is claimed.
+
+Root restored the diagnostic bytes and corrected the fixture to distinct request pools/application names with matching embedding probes. Both approvals retain the same actor/job, two-preparation barrier, equal receipt, one non-replay, one document and one publication receipt. Root full15 publication suite passed. Actual Luna max source review independently confirmed the diagnosis and ran only the named concurrent case:1PASS before the final cleanup refinement. It found an early-rejection cleanup edge; root now releases the barrier, awaits both approvals with allSettled, then ends pools. Final static review found no remaining fixture issue; fullPG/final scoped checks cover the final source. Temporary diagnostic output remains ignored.
+
+One root build invocation accidentally targeted the main checkout. Root stopped only its verified own build PID14156 during TypeScript and reran in the correct isolated QA worktree, which passed. The aborted attempt is not a pass. It refreshed generated main `.next`/`next-env.d.ts`; no manual reset of unknown prior generated content was attempted. Main knowledge page/CSS/catalog-panel, corpus/output and Gemini branch remain outside staged scope. This report discloses the generated-artifact side effect rather than claiming the main build was untouched.
+
+## Remaining work
+
+Gemini consumes the [updated Round3 prompt](../agents/GEMINI_UI_UX_ROUND3_PROMPT.md) to connect q/URL filters/result scope/pagination and mobile/error states. Its snapshot requires root backend synchronization; no root UI or Gemini merge is included here. Overview aggregates remain separate contracts, not totals inferred from100loaded rows. Public structured schema/atomic BOTH/exact tools, advanced modules, real approved corpus/free generation/live OA FlowA–F and production acceptance remain pending. No additional human configuration is needed for this backend read slice; [setup checklist](../operations/FINAL_SETUP_CHECKLIST.md) preserves deferred manual items.
+
+Technical references checked: [PostgreSQL date/time functions](https://www.postgresql.org/docs/current/functions-datetime.html) and [WITH queries](https://www.postgresql.org/docs/current/queries-with.html). No database upgrade or schema change is performed.

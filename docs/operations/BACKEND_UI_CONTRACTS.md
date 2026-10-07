@@ -1,6 +1,14 @@
-# Dashboard knowledge backend contracts
+# Dashboard backend contracts
 
 6 October 2026. CAT-01 / UX-01A. These are backend contracts for the Gemini UI handoff; UI integration and usability acceptance remain separate. Read the [catalog design](../architecture/KNOWLEDGE_CATALOG_DESIGN.md), [assistance design](../architecture/IMPORT_ASSISTANCE_DESIGN.md) and [current board](../tasks/V1_TASK_BOARD.md). Root owns these API/server files. Gemini may consume these contracts without changing them.
+
+## Ticket search and pagination — TKT-READ-02
+
+7 October: GET `/api/tickets` returns the direct `{tickets,departments,assignees,pagination}` root. The browser-safe `types/tickets.ts` exports `parseTicketQuery` and existing DTOs. Keep existing selectors `department` (UUID), `status`, `priority`, `assignee` (UUID), `from`, `to`, `sensitivity`; add `q`, `page`, `pageSize`. Dates are Gregorian civil days in Asia/Bangkok, inclusive at both day endpoints. Unknown or duplicate keys are invalid, including duplicate q. q is trimmed, at most200 UTF-16 units before trimming, with no Unicode control characters; blank q means no search. It matches literal case-insensitive substrings of ticket number, problem summary, category or anonymous code. `%`, `_` and `!` are literal; technical LINE identities and message bodies are not searched.
+
+Canonical decimal pages1–10000 and page sizes1–100, default1/100. Pagination is `{page,pageSize,total,totalPages,hasNext,hasPrevious}`. A successful read always returns it; optional DTO typing accommodates older/failure UI values only. Missing pagination is unavailable, not a fabricated total. Rows and total use the same matching SQL snapshot after all department/sensitivity/filter predicates; it is not a university-wide aggregate. Stable ordering is created_at descending then id ascending. Out-of-range pages remain empty with the matching total; zero matches has totalPages0. Preserve filters in URL, reset page after filter changes and show honest scoped counts.
+
+Authenticated active staff authorization stays in the backend; the UI cannot widen it with selectors. Anonymous401, invalid query400, missing/inactive profile404, backend503; fixed safe errors. All handled responses are private/no-store/max-age0, Vary includes Cookie (Next may append other tokens), and nosniff. Preserve drafts and show retry/unavailable on failures. Root's backend evidence is separate from Gemini's search/pagination/mobile/user-flow acceptance. See [design](../architecture/TICKET_READ_DESIGN.md) and [report](../reports/TICKET_SEARCH_PAGINATION_REPORT.md). No schema/migration/configuration change.
 
 ## Private read APIs
 
