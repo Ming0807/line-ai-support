@@ -48,14 +48,18 @@ try {
   sql(database,'postgres',`begin;set local statement_timeout='10s';\n${await readFile(resolve(root,'supabase/migrations',name),'utf8')}\ncommit;`);
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
+ sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
  stage='structured_actual_PG';
  const output=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/structured-schema.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  // Only synthetic test output; never dump SQL fixtures, auth data or environment.
  console.log(output.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  assert.equal(sql(database,'supabase_admin',installedCount).trim(),'7','SEVEN_STRUCTURED_TABLES_REQUIRED');
+ stage='structured_publication_actual_PG';
+ const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-structured-publication.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(publicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='RAG_compatibility_actual_PG';
- sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
  const original=await readFile(resolve(root,'tests/database/import-publication.integration.ts'),'utf8');
  const normalConnection='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
  assert(original.includes(normalConnection),'RAG_FIXTURE_CONNECTION_REQUIRED');

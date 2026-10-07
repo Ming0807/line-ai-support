@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8 October current: [atomic STRUCTURED/BOTH evidence](reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md) is BACKEND_COMPONENT_PASS in an owned disposable database:30 migrations,165 actual PG cases,1646 unit tests, type/lint and controlled one-worker build PASS; normal structured tables remain0/7. [OpenCode Activities/Logs review and root repairs](reports/OPENCODE_OPERATOR_WORKFLOWS_ROOT_REVIEW.md) is FIXTURE_BEHAVIOR_PASS on external local-only458c76f, with1561 unit/type/lint/controlled build PASS. Exact SQL retrieval/readiness, combined UI/live endpoints and Flow A–F remain pending. Older checkpoints below are dated history.
+
 7 October latest: [OpenCode actual review and root small repairs](reports/OPENCODE_TICKET_PILOT_ROOT_REVIEW.md), local-only9437654; [ready12-package Activities/Logs prompt](agents/OPENCODE_OPERATOR_WORKFLOWS_PROMPT.md) for the human-selected next agent. Root [source-derived publication preparation](reports/STRUCTURED_PUBLICATION_PREPARATION_REPORT.md)/[design](architecture/STRUCTURED_PUBLICATION_PREPARATION_DESIGN.md)/[execution](superpowers/plans/2026-10-07-yru-structured-publication-preparation.md) is COMPONENT_PASS with1638unit/type/full lint. This private unused prerequisite does not enable normal schema/atomic modes/query/live readiness. Current board governs; older checkpoints below are history.
 
 อัปเดต 7 ตุลาคม 2026 ต่อจากการทบทวนสเปคและจัดแผนตามผู้ใช้ตั้งแต่4ตุลาคม เอกสารชุดนี้เป็นทางเข้าเดียวสำหรับคนและ agent; สถานะงานปัจจุบันอยู่ใน task board ไม่ต้องไล่อ่านประวัติแชต

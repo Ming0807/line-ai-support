@@ -5,7 +5,10 @@ import {authorizeImportAdmin,withImportAdminTransaction,ImportStagingError,type 
 import {getImportPreview} from './import-extraction';
 import {getImportReview} from './import-review';
 import {prepareImportChunkPlan,ImportChunkPlanError} from './chunk-preparation';
-import {validatePublicationReview,PublicationPolicyError,type ValidatedPublicationReview} from './publication-contract';
+import {validatePublicationReview,validateStructuredPublicationReview,PublicationPolicyError} from './publication-contract';
+import {readImportStructuredSource} from './structured-preparation';
+import {prepareStructuredPublication} from './structured-publication-preparation';
+import {persistStructuredRows,structuredEffectProof} from './structured-publication-persistence';
 import {getImportVersionResolution} from './version-resolver';
 import {buildVersionCandidates,type VersionChoices,type VersionDocument,type VersionFamily} from './version-candidates';
 import type {ImportReviewDraft} from './review-schema';
@@ -19,7 +22,9 @@ export interface ImportPublicationOptions extends ImportStagingOptions{
  provider?:LocalE5EmbeddingProvider;
  /** Internal deterministic seams only, never accepted from HTTP. */
  beforeCommit?:()=>Promise<void>;
- failureAt?:'DOCUMENT'|'CHUNKS'|'ACTIVITY'|'RECEIPT';
+ failureAt?:'DOCUMENT'|'STRUCTURED'|'CHUNKS'|'ACTIVITY'|'RECEIPT';
+ /** Owned disposable verification only. Never accepted from HTTP or environment. */
+ structuredVerificationDatabase?:string;
  preparationTimeoutMs?:number;
 }
 export interface ImportPublicationReceipt{
@@ -66,8 +71,13 @@ async function familyChoices(client:PoolClient,draft:ImportReviewDraft,family:Ve
  choices.currentStreamOccupied=(await client.query('select exists(select 1 from public.documents where document_family_id=$1 and version_stream=$2 and is_current) occupied',[family.id,draft.metadata.versionStream])).rows[0].occupied;
  return choices;
 }
-async function prepare(actor:string,request:Request,checksum:string,options:ImportPublicationOptions){
- const provider=options.provider??createLocalE5EmbeddingProvider();
+async function assertStructuredVerification(client:PoolClient,options:ImportPublicationOptions){
+ const name=options.structuredVerificationDatabase;
+ if(!name||!/^yru_structured_schema_[a-f0-9]{12}$/u.test(name))return false;
+ const row=(await client.query("select current_database() name,pg_get_userbyid(datdba) owner,to_regclass('private.structured_publication_effects') installed from pg_database where datname=current_database()")).rows[0];
+ return row?.name===name&&row.owner==='postgres'&&Boolean(row.installed);
+}
+async function prepare(actor:string,request:Request,checksum:string,documentId:string,options:ImportPublicationOptions){
  const timeout=options.preparationTimeoutMs??45_000;
  if(!Number.isSafeInteger(timeout)||timeout<1||timeout>45_000)throw new ImportStagingError('INVALID_REQUEST');
  const controller=new AbortController();let timedOut=false;const deadline=performance.now()+timeout;
@@ -81,21 +91,31 @@ async function prepare(actor:string,request:Request,checksum:string,options:Impo
    const currentOptions={...options,signal:controller.signal};
    const preview=await getImportPreview(actor,request.id,currentOptions),review=await getImportReview(actor,request.id,currentOptions);checkSignal(currentOptions);
    if(!review.saved||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
-   if(review.saved.draft.schemaVersion===3)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
-   const plan=await prepareImportChunkPlan(actor,preview,{...options,signal:controller.signal,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))});
-   const checked=validatePublicationReview(preview,review,plan,checksum);
+   const mode=review.saved.draft.metadata.storageMode,isStructured=review.saved.draft.schemaVersion===3&&['STRUCTURED','BOTH'].includes(mode??'');
+   if(review.saved.draft.schemaVersion===3&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+   if(mode!==null&&mode!=='RAG'&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+   if(isStructured&&!await withImportAdminTransaction(actor,currentOptions,c=>assertStructuredVerification(c,options)))throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+   const provider=mode==='STRUCTURED'?null:options.provider??createLocalE5EmbeddingProvider();
+   const plan=provider?await prepareImportChunkPlan(actor,preview,{...currentOptions,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))}):null;
+   const checked=isStructured?validateStructuredPublicationReview(preview,review,plan,checksum):validatePublicationReview(preview,review,plan,checksum);
+   let structured=null;
+   if(checked.draft.schemaVersion===3){
+    const source=await readImportStructuredSource(actor,preview,currentOptions),mapping=checked.draft.structuredMapping!;
+    try{structured=prepareStructuredPublication(source,preview.extraction,{jobId:request.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision},mapping.mapping,{documentId,documentRevision:0,acknowledgment:mapping.acknowledgment},options.key??process.env.ENCRYPTION_KEY??'');}
+    catch{throw new PublicationPolicyError('PUBLICATION_PLAN_MISMATCH');}
+   }
    const versions=await getImportVersionResolution(actor,request.id,{expectedJobRevision:request.expectedJobRevision,expectedExtractionRevision:request.expectedExtractionRevision,expectedReviewRevision:request.expectedReviewRevision},currentOptions);assertAction(checked.draft,versions);
    if(controller.signal.aborted)throw new ImportStagingError('CONFLICT');
    const left=Math.floor(deadline-performance.now());if(left<1)throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);
-   const embedded=await embedLocatedChunkPlan(checked.plan,provider,{signal:controller.signal,timeoutMs:left});
-   return {checked,embeddings:embedded.embeddings,mimeType:preview.job.mimeType};
+   const embedded=checked.plan&&provider?await embedLocatedChunkPlan(checked.plan,provider,{signal:controller.signal,timeoutMs:left}):null;
+   return {checked,structured,effect:structured?structuredEffectProof(structured,checked.plan):null,documentId,embeddings:embedded?.embeddings??[],mimeType:preview.job.mimeType};
   })()]);
   checkSignal(options);if(timedOut)throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);return result;
  }catch(error){if(timedOut)throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);throw error;}
  finally{clearTimeout(timer);options.signal?.removeEventListener('abort',abort);options.signal?.removeEventListener('abort',cancelCaller);controller.abort();}
 }
-async function finalize(actor:string,request:Request,checked:ValidatedPublicationReview,embeddings:number[][],mimeType:string,options:ImportPublicationOptions):Promise<ImportPublicationResult>{
- const documentId=randomUUID(),draft=checked.draft,m=draft.metadata;
+async function finalize(actor:string,request:Request,prepared:Awaited<ReturnType<typeof prepare>>,options:ImportPublicationOptions):Promise<ImportPublicationResult>{
+ const {checked,documentId,embeddings,mimeType,structured,effect}=prepared,draft=checked.draft,m=draft.metadata;
  return withImportAdminTransaction(actor,options,async client=>{
   // Lock first; a counter read in the waiting statement would have an old MVCC snapshot.
   if(!(await client.query('select id from private.knowledge_import_jobs where id=$1 for update',[request.id])).rows[0])throw new ImportStagingError('NOT_FOUND');
@@ -106,7 +126,8 @@ async function finalize(actor:string,request:Request,checked:ValidatedPublicatio
    (select payload_hash from private.knowledge_import_reviews where job_id=j.id order by review_revision desc limit 1) review_hash
    from private.knowledge_import_jobs j where j.id=$1`,[request.id])).rows[0];
   checkSignal(options);
-  if(!snapshot||snapshot.status!=='READY'||snapshot.publication_status!=='NOT_PUBLISHED'||snapshot.revision!==request.expectedJobRevision||snapshot.extraction_revision!==request.expectedExtractionRevision||snapshot.review_revision!==request.expectedReviewRevision||snapshot.checksum!==checked.plan.sourceChecksum||snapshot.review_hash!==checked.reviewHash)throw new ImportStagingError('CONFLICT');
+  if(!snapshot||snapshot.status!=='READY'||snapshot.publication_status!=='NOT_PUBLISHED'||snapshot.revision!==request.expectedJobRevision||snapshot.extraction_revision!==request.expectedExtractionRevision||snapshot.review_revision!==request.expectedReviewRevision||snapshot.checksum!==checked.sourceChecksum||snapshot.review_hash!==checked.reviewHash)throw new ImportStagingError('CONFLICT');
+  if(structured&&!await assertStructuredVerification(client,options))throw new ImportStagingError('CONFLICT');
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',['knowledge-family-code:'+m.familyCode]);
   let family=(await client.query<VersionFamily>('select id,code,name,category from public.document_families where code=$1',[m.familyCode])).rows[0]??null;
   if(family){await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(family.id)]);await client.query('select id from public.document_families where id=$1 for update',[family.id]);}
@@ -123,19 +144,25 @@ async function finalize(actor:string,request:Request,checked:ValidatedPublicatio
   await client.query(`insert into public.documents(id,document_family_id,department_id,title,document_type,version_name,version_stream,academic_year,semester,audience,student_type,program_code,curriculum_code,cohort,
    published_at,effective_from,effective_to,status,is_current,authority_level,approval_status,approved_by,approved_at,official_source,extraction_reviewed,requires_review,visibility,archive_only,source_url,source_page_url,mime_type,checksum,supersedes_document_id)
    values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'APPROVED',$21,clock_timestamp(),$22,true,false,$23,false,$24,$25,$26,$27,$28)`,
-   [documentId,family.id,department.id,m.title,m.documentType,m.versionName,m.versionStream,m.academicYear,m.scope.semester,m.scope.audience,m.scope.studentType,m.scope.programCode,m.scope.curriculumCode,m.scope.cohort,m.publishedAt,m.effectiveFrom,m.effectiveTo,historical?'SUPERSEDED':'ACTIVE',!instrument&&!historical,m.authorityLevel,actor,checked.officialSource,m.visibility,m.sourceUrl,m.sourcePageUrl,mimeType,checked.plan.sourceChecksum,draft.action==='REPLACE_CURRENT'?draft.target!.documentId:null]);
+   [documentId,family.id,department.id,m.title,m.documentType,m.versionName,m.versionStream,m.academicYear,m.scope.semester,m.scope.audience,m.scope.studentType,m.scope.programCode,m.scope.curriculumCode,m.scope.cohort,m.publishedAt,m.effectiveFrom,m.effectiveTo,historical?'SUPERSEDED':'ACTIVE',!instrument&&!historical,m.authorityLevel,actor,checked.officialSource,m.visibility,m.sourceUrl,m.sourcePageUrl,mimeType,checked.sourceChecksum,draft.action==='REPLACE_CURRENT'?draft.target!.documentId:null]);
   if(options.failureAt==='DOCUMENT')throw new ImportStagingError('INTERNAL_ERROR');
   if(draft.target){const relation=draft.relationship==='CANCELS'?'CANCELS':draft.action==='AMEND_EXISTING'?'AMENDS':'SUPERSEDES';await client.query('insert into public.document_relationships(source_document_id,target_document_id,relation_type) values($1,$2,$3)',[documentId,draft.target.documentId,relation]);}
+  const row=(await client.query<ReceiptRow>(`insert into private.knowledge_import_publications(job_id,job_revision,extraction_revision,review_revision,actor_id,document_id,family_id,storage_mode,action,relationship,source_checksum,review_hash,plan_digest,embedding_fingerprint)
+   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,[request.id,request.expectedJobRevision,request.expectedExtractionRevision,request.expectedReviewRevision,actor,documentId,family.id,m.storageMode,draft.action,draft.relationship,checked.sourceChecksum,checked.reviewHash,checked.plan?.digest??structured!.planDigest,checked.plan?.embeddingFingerprint??null])).rows[0];
+  if(structured&&effect){
+   await client.query(`insert into private.structured_publication_effects(job_id,document_id,storage_mode,dataset_code,published_document_revision,source_format,extraction_digest,mapping_digest,structured_plan_digest,acknowledgment_digest,registry_version,mapper_version,row_count,chunk_count,chunk_plan_digest,row_manifest,chunk_manifest)
+    values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,[request.id,documentId,m.storageMode,effect.dataset,effect.documentRevision,effect.sourceFormat,effect.extractionDigest,effect.mappingDigest,effect.structuredPlanDigest,effect.acknowledgmentDigest,effect.registryVersion,effect.mapperVersion,effect.rowCount,effect.chunkCount,effect.chunkPlanDigest,JSON.stringify(effect.rowManifest),JSON.stringify(effect.chunkManifest)]);
+   await persistStructuredRows(client,structured,department.id);
+  }
+  if(options.failureAt==='STRUCTURED')throw new ImportStagingError('INTERNAL_ERROR');
   // One bounded JSON recordset statement persists exact prepared canonical vectors and provenance.
-  const rows=checked.plan.chunks.map((c,i)=>({index:c.index,page:c.pageNumber,section:c.sectionTitle,content:c.content,locations:c.sourceLocations,tokens:c.passageTokenCount,vector:JSON.stringify(embeddings[i])}));
-  await client.query(`insert into public.knowledge_chunks(document_id,chunk_index,page_number,section_title,content,requires_review,embedding,embedding_dimensions,embedding_fingerprint,source_locations,passage_token_count)
+  const rows=checked.plan?.chunks.map((c,i)=>({index:c.index,page:c.pageNumber,section:c.sectionTitle,content:c.content,locations:c.sourceLocations,tokens:c.passageTokenCount,vector:JSON.stringify(embeddings[i])}))??[];
+  if(checked.plan)await client.query(`insert into public.knowledge_chunks(document_id,chunk_index,page_number,section_title,content,requires_review,embedding,embedding_dimensions,embedding_fingerprint,source_locations,passage_token_count)
    select $1,r.index,r.page,r.section,r.content,false,r.vector::extensions.vector,384,$3,r.locations,r.tokens from jsonb_to_recordset($2::jsonb) as r(index integer,page integer,section text,content text,locations jsonb,tokens integer,vector text)`,[documentId,JSON.stringify(rows),checked.plan.embeddingFingerprint]);
   if(options.failureAt==='CHUNKS')throw new ImportStagingError('INTERNAL_ERROR');
   await client.query('update public.document_families set rule_revision=rule_revision+1,updated_at=clock_timestamp() where id=$1',[family.id]);
-  await client.query('insert into private.activities(actor_id,action,metadata) values($1,$2,$3)',[actor,'KNOWLEDGE_IMPORT_PUBLISHED',{importJobId:request.id,documentId,familyId:family.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision,action:draft.action,relationship:draft.relationship,storageMode:m.storageMode,chunkCount:rows.length}]);
+  await client.query('insert into private.activities(actor_id,action,metadata) values($1,$2,$3)',[actor,'KNOWLEDGE_IMPORT_PUBLISHED',{importJobId:request.id,documentId,familyId:family.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision,action:draft.action,relationship:draft.relationship,storageMode:m.storageMode,chunkCount:rows.length,...(structured?{structuredRowCount:structured.rowCount,dataset:structured.dataset}:{})}]);
   if(options.failureAt==='ACTIVITY')throw new ImportStagingError('INTERNAL_ERROR');
-  const row=(await client.query<ReceiptRow>(`insert into private.knowledge_import_publications(job_id,job_revision,extraction_revision,review_revision,actor_id,document_id,family_id,storage_mode,action,relationship,source_checksum,review_hash,plan_digest,embedding_fingerprint)
-   values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,[request.id,request.expectedJobRevision,request.expectedExtractionRevision,request.expectedReviewRevision,actor,documentId,family.id,m.storageMode,draft.action,draft.relationship,checked.plan.sourceChecksum,checked.reviewHash,checked.plan.digest,checked.plan.embeddingFingerprint])).rows[0];
   if(options.failureAt==='RECEIPT')throw new ImportStagingError('INTERNAL_ERROR');
   checkSignal(options);await client.query("update private.knowledge_import_jobs set publication_status='COMPLETED' where id=$1",[request.id]);
   return {receipt:receipt(row),replayed:false};
@@ -151,8 +178,8 @@ export async function approveImport(actor:string,input:unknown,options:ImportPub
    const existing=await currentReceipt(client,request.id);return {checksum:job.checksum as string,result:existing?replay(existing,request):null};
   });
   if(before.result)return before.result;
-  const prepared=await prepare(actor,request,before.checksum,options);await options.beforeCommit?.();checkSignal(options);
-  return await finalize(actor,request,prepared.checked,prepared.embeddings,prepared.mimeType,options);
+  const prepared=await prepare(actor,request,before.checksum,randomUUID(),options);await options.beforeCommit?.();checkSignal(options);
+  return await finalize(actor,request,prepared,options);
  }catch(error){
   if(error instanceof ImportStagingError||error instanceof PublicationPolicyError||error instanceof ImportChunkPlanError)throw error;
   if(error instanceof LocatedEmbeddingPreparationError){if(error.code==='KNOWLEDGE_EMBEDDING_ABORTED')throw new ImportStagingError('CONFLICT');if(error.code==='KNOWLEDGE_EMBEDDING_TIMEOUT')throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);throw new ImportChunkPlanError('CHUNK_PLAN_UNAVAILABLE',503);}

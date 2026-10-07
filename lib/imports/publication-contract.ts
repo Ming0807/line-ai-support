@@ -9,7 +9,8 @@ import {locatedReviewApplies} from '../knowledge/located-chunk-plan';
 import type {LocatedChunkPlan} from '../knowledge/located-plan-types';
 export type PublicationPolicyCode='PUBLICATION_REVIEW_INCOMPLETE'|'PUBLICATION_PLAN_MISMATCH'|'PUBLICATION_WARNINGS_UNRESOLVED'|'PUBLICATION_QUALITY_REANALYSIS_REQUIRED'|'PUBLICATION_PUBLIC_SENSITIVE_DATA'|'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE';
 export class PublicationPolicyError extends Error{constructor(readonly code:PublicationPolicyCode){super(code);this.name='PublicationPolicyError';}}
-export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2}>;plan:LocatedChunkPlan;reviewHash:string;officialSource:boolean}
+export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
+export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 function fail(code:PublicationPolicyCode):never{throw new PublicationPolicyError(code);}
 function exactCoverage(preview:ImportPreview,plan:LocatedChunkPlan){
  const mismatch=()=>fail('PUBLICATION_PLAN_MISMATCH');
@@ -56,28 +57,47 @@ function checkQuality(preview:ImportPreview,draft:ImportReviewDraft){
  }
 }
 /** Complete private policy only. Target/family eligibility, active actor and counters still require final SQL locks. */
-export function validatePublicationReview(preview:ImportPreview,review:ImportReviewState,input:unknown,expectedSourceChecksum:string):ValidatedPublicationReview{
+function sharedPolicy(preview:ImportPreview,review:ImportReviewState){
  if(!review.saved)fail('PUBLICATION_REVIEW_INCOMPLETE');
  const saved=review.saved;
  if(preview.job.status!=='READY'||review.stale||review.jobId!==preview.job.id||review.jobRevision!==preview.job.revision||review.extractionRevision!==preview.extractionRevision||
   saved.jobRevision!==review.jobRevision||saved.extractionRevision!==review.extractionRevision||saved.reviewRevision!==review.reviewRevision||review.reviewRevision<1)fail('PUBLICATION_PLAN_MISMATCH');
  const parsed=reviewDraftSchema.safeParse(saved.draft);
- if(parsed.success&&parsed.data.schemaVersion===3)fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
- if(!parsed.success||parsed.data.schemaVersion!==2||parsed.data.chunkPlan===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if(!parsed.success||parsed.data.schemaVersion===1)fail('PUBLICATION_REVIEW_INCOMPLETE');
  const draft=parsed.data,metadata=draft.metadata;
  for(const field of ['title','familyCode','departmentCode','documentType','versionName','versionStream','publishedAt','effectiveFrom','authorityLevel','visibility','storageMode'] as const)if(metadata[field]===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
  if(metadata.scope.audience===null||metadata.scope.studentType===null||draft.action===null||Object.values(draft.attestations).some(v=>!v))fail('PUBLICATION_REVIEW_INCOMPLETE');
  if(draft.action==='NEW_FAMILY'&&(metadata.newFamily===null||metadata.newFamily.name===null||metadata.newFamily.category===null))fail('PUBLICATION_REVIEW_INCOMPLETE');
  const officialSource=metadata.sourceUrl!==null&&isOfficialYruUrl(metadata.sourceUrl);
  if(metadata.visibility==='PUBLIC'&&!officialSource)fail('PUBLICATION_REVIEW_INCOMPLETE');
- let plan:LocatedChunkPlan;try{plan=validateLocatedChunkPlan(input);}catch{return fail('PUBLICATION_PLAN_MISMATCH');}
- if(!/^[a-f0-9]{64}$/.test(expectedSourceChecksum)||plan.sourceChecksum!==expectedSourceChecksum||plan.binding.jobId!==preview.job.id||plan.binding.extractionRevision!==preview.extractionRevision||plan.digest!==draft.chunkPlan!.digest||plan.chunkerVersion!==draft.chunkPlan!.chunkerVersion)fail('PUBLICATION_PLAN_MISMATCH');
- exactCoverage(preview,plan);
  const warnings=buildReviewWarnings(preview);
  try{assertReviewWarningBindings(warnings,draft.warningDispositions);}catch{return fail('PUBLICATION_WARNINGS_UNRESOLVED');}
  if(warnings.some(w=>{const d=draft.warningDispositions.find(d=>d.warningKey===w.key);return !d||d.status==='UNRESOLVED'||d.reason===null;}))fail('PUBLICATION_WARNINGS_UNRESOLVED');
  checkQuality(preview,draft);
  if(metadata.visibility==='PUBLIC'&&(preview.analysis.sensitiveRisk||preview.analysis.sensitiveCategories.length>0||preview.analysis.flags.includes('SENSITIVE_DATA_REVIEW_REQUIRED')))fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
- if(metadata.storageMode!=='RAG')fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
- return {draft,plan,reviewHash:createHash('sha256').update(JSON.stringify(draft),'utf8').digest('hex'),officialSource};
+ return {draft,reviewHash:createHash('sha256').update(JSON.stringify(draft),'utf8').digest('hex'),officialSource};
+}
+function checkedChunks(preview:ImportPreview,draft:Exclude<ImportReviewDraft,{schemaVersion:1}>,input:unknown,checksum:string):LocatedChunkPlan{
+ if(draft.chunkPlan===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ let plan:LocatedChunkPlan;try{plan=validateLocatedChunkPlan(input);}catch{return fail('PUBLICATION_PLAN_MISMATCH');}
+ if(!/^[a-f0-9]{64}$/.test(checksum)||plan.sourceChecksum!==checksum||plan.binding.jobId!==preview.job.id||plan.binding.extractionRevision!==preview.extractionRevision||plan.digest!==draft.chunkPlan!.digest||plan.chunkerVersion!==draft.chunkPlan!.chunkerVersion)fail('PUBLICATION_PLAN_MISMATCH');
+ exactCoverage(preview,plan);return plan;
+}
+export function validatePublicationReview(preview:ImportPreview,review:ImportReviewState,input:unknown,expectedSourceChecksum:string):ValidatedPublicationReview{
+ if(review.saved?.draft.schemaVersion===3)fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+ const checked=sharedPolicy(preview,review);
+ if(checked.draft.schemaVersion!==2)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ const plan=checkedChunks(preview,checked.draft,input,expectedSourceChecksum);
+ if(checked.draft.metadata.storageMode!=='RAG')fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+ return {...checked,draft:checked.draft,plan,sourceChecksum:expectedSourceChecksum};
+}
+/** Internal mode policy; actual source assembly and final SQL readiness/authorization are separate. */
+export function validateStructuredPublicationReview(preview:ImportPreview,review:ImportReviewState,input:unknown,checksum:string):ValidatedStructuredReview{
+ const checked=sharedPolicy(preview,review),draft=checked.draft;
+ if(draft.schemaVersion!==3||!draft.structuredMapping?.acknowledgment||!['STRUCTURED','BOTH'].includes(draft.metadata.storageMode??''))fail('PUBLICATION_REVIEW_INCOMPLETE');
+ const source=draft.structuredMapping.mapping.source;
+ if(!/^[a-f0-9]{64}$/.test(checksum)||source.sourceChecksum!==checksum||source.jobId!==preview.job.id||source.jobRevision!==preview.job.revision||source.extractionRevision!==preview.extractionRevision)fail('PUBLICATION_PLAN_MISMATCH');
+ const plan=draft.metadata.storageMode==='BOTH'?checkedChunks(preview,draft,input,checksum):null;
+ if(plan===null&&(draft.chunkPlan!==null||input!==null))fail('PUBLICATION_PLAN_MISMATCH');
+ return {...checked,draft,plan,sourceChecksum:checksum};
 }

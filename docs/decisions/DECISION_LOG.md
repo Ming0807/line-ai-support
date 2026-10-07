@@ -1,5 +1,11 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-051 — continue atomic backend independently of OpenCode
+
+8October current human asks whether root can continue while OpenCode runs. Proceed under sustained authorization with STR-01C-2 [design](../architecture/STRUCTURED_ATOMIC_PUBLICATION_DESIGN.md)/[plan](../superpowers/plans/2026-10-08-yru-structured-atomic-publication.md): actual mode-aware service/additive proof, verified only in checked owned disposable database. Root owns contracts/SQL/locks/integration; actual Luna max authorship/review is recorded. Normal/remote application, registry readiness, HTTP activation and exact tools stay held. This narrows the prior atomic-service hold for isolated verification; existing RAG and external UI remain compatible/separate.
+
+Accepted isolated evidence: [STR-01C-2 report](../reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md),30 migrations/foundationRLS/165actualPG/1646unit/type/lint/controlled one-worker build. NULL proof bypass reproduced/fixed at actual COMMIT; final actual Luna max source verdict noP1/P2. Normal tables0/7 unchanged; this does not authorize normal readiness before exact-query/delivery acceptance. [OC-UI-02R](../reports/OPENCODE_OPERATOR_WORKFLOWS_ROOT_REVIEW.md) records six root repairs and external local-only458c76f; fixture pass is not live backend/browser integration or a model ranking. No external push/merge.
+
 ## DEC-050 — root repairs small pilot issues; substantial OpenCode continuation; source-derived row assembly
 
 7 October 2026. Latest human clarifies that root should directly repair small defects and assign OpenCode a substantial sequence of smaller tasks. Actual fixed045daa5..e5c022e reviews identify unknown-empty/parser/size/evidence gaps; parent dashboard layout already authenticates the route, so no real authentication bypass is claimed. Root owns OC-UI-01R fixes in the external local-only branch; no external push/merge. The next Activities/Logs assignment preserves unavailable production data until an accepted backend adapter exists, and exercises ready/loading/error/empty/stale/keyboard/privacy behavior through explicitly synthetic fixtures. Comparing completed task evidence is allowed; a model identity/global ranking is not inferred from an unverified harness label.

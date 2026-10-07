@@ -13,7 +13,7 @@ const requestSchema=z.object({documentId:uuid,documentRevision:z.number().int().
  acknowledgment:z.object({contentDigest:z.string().regex(/^[a-f0-9]{64}$/u),mapperVersion:z.literal('structured-mapper-v1')}).strict(),
 }).strict();
 
-/** Private unused assembly. Caller must load actual saved inputs and enforce the final atomic authorization/revision fence. */
+/** Private source-derived assembly. Caller loads actual saved inputs and enforces the final atomic authorization/revision fence. */
 export function prepareStructuredPublication(source:ImportSource,extraction:LocatedExtraction,binding:StructuredMappingBinding,mapping:unknown,request:unknown,key:string){
  try{
   const target=requestSchema.parse(copyStructuredJson(request,16*1024,256));
