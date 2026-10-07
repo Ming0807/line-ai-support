@@ -60,7 +60,8 @@ test('read tools validate context and fixed schemas; HUMAN, foreign identity, ar
   const department=await registry.execute({name:'route_department',arguments:{departmentCode:'IT'}},context,['route_department']);assert(department);
   await assert.rejects(registry.execute({name:'search_knowledge',arguments:{query:'x',scope,sql:'select * from private.line_identities'}},context,['search_knowledge']),{message:'INVALID_ARGUMENTS'});
   await assert.rejects(registry.execute({name:'search_structured',arguments:{dataset:'private.line_identities',query:'x',scope}},context,['search_structured']),{message:'INVALID_ARGUMENTS'});
-  await assert.rejects(registry.execute({name:'search_structured',arguments:{dataset:'academic_calendar_events',query:'x',scope}},context,['search_structured']),{message:'TOOL_EXECUTION_FAILED'});
+  await assert.rejects(registry.execute({name:'search_structured',arguments:{dataset:'academic_calendar_events',query:'x',scope}},context,['search_structured']),{message:'INVALID_ARGUMENTS'});
+  await assert.rejects(registry.execute({name:'search_structured',arguments:{query:{version:1,dataset:'academic_calendar_events',filters:{academic_year:2569,semester:'1',student_type:'ALL'},limit:20},scope}},context,['search_structured']),{message:'TOOL_EXECUTION_FAILED'});
   await assert.rejects(registry.execute({name:'route_department',arguments:{departmentCode:'IT'}},{...context,lineSessionId:randomUUID()},['route_department']),{message:'TOOL_EXECUTION_FAILED'});
   await client.query("update public.conversations set mode='HUMAN',revision=revision+1 where id=$1",[conversation]);
   await assert.rejects(registry.execute({name:'search_knowledge',arguments:{query:'x',scope}},context,['search_knowledge']),{message:'TOOL_EXECUTION_FAILED'});

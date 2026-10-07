@@ -38,9 +38,12 @@ export {run as withImportAdminTransaction};
 function keyFor(options:ImportStagingOptions):string{
  const key=options.key??process.env.ENCRYPTION_KEY;if(!key)throw new ImportStagingError('INTERNAL_ERROR');return key;
 }
+export function decodeStoredImportSourceMetadata(input:{jobId:string;checksum:string;encrypted:string},key:string){
+ return sourceMetadataSchema.parse(JSON.parse(decryptStagingValue(input.encrypted,
+  {jobId:input.jobId,checksum:input.checksum,revision:0,purpose:'SOURCE_METADATA'},key)));
+}
 function view(row:ImportRow,key:string):ImportJobView {
- const metadata=sourceMetadataSchema.parse(JSON.parse(decryptStagingValue(row.source_metadata_encrypted,
-  {jobId:row.id,checksum:row.checksum,revision:0,purpose:'SOURCE_METADATA'},key)));
+ const metadata=decodeStoredImportSourceMetadata({jobId:row.id,checksum:row.checksum,encrypted:row.source_metadata_encrypted},key);
  return {id:row.id,status:row.status,revision:row.revision,...metadata,format:row.format,byteLength:row.byte_length,
   createdAt:row.created_at.toISOString(),errorCode:row.error_code};
 }

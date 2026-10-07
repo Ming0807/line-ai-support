@@ -10,7 +10,8 @@ import {userEventSchema} from '../line/events';
 import {decryptValue,encryptValue,hashLineUserId} from '../security/identity';
 import {hashOpaqueToken} from '../conversation/quick-reply';
 import {searchKnowledge,knowledgeScopeSchema} from '../knowledge/retrieval';
-import type {KnowledgeScope} from '../knowledge/types';
+import {structuredQuerySchema} from '../knowledge/structured-query';
+import {searchStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
 
 export const structuredDatasetNames=['academic_calendar_events','tuition_fees','transfer_courses','university_services',
  'university_systems','service_forms','announcements'] as const;
@@ -30,8 +31,8 @@ async function authorizeAIContext(client:DbClient,context:ToolContext){
 }
 
 export interface KnowledgeToolOptions {
- vector:number[];fingerprint:string;
- structuredSearch?:(client:PoolClient,args:{dataset:StructuredDataset;query:string;scope:KnowledgeScope},context:ToolContext)=>Promise<unknown>;
+ vector?:number[];fingerprint?:string;key?:string;
+ structuredSearch?:(client:PoolClient,args:StructuredSearchRequest,context:ToolContext)=>Promise<unknown>;
 }
 /** The vector space is supplied by the backend embedding adapter, never model arguments. No network runs in these transactions. */
 export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptions):ToolRegistry{
@@ -40,6 +41,7 @@ export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptio
  },pool);
  return new ToolRegistry()
   .register('search_knowledge',z.object({query,scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,async client=>{
+   if(!options.vector||!options.fingerprint)throw new Error('KNOWLEDGE_EMBEDDING_REQUIRED');
    try{return await searchKnowledge(client,{scope:args.scope,vector:options.vector,fingerprint:options.fingerprint,limit:12});}
    catch(error){if(error instanceof Error&&error.message==='KNOWLEDGE_SCOPE_AMBIGUOUS')return {status:'SCOPE_AMBIGUOUS' as const};throw error;}
   }),
@@ -47,9 +49,10 @@ export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptio
   .register('route_department',z.object({departmentCode}).strict(),(args,context)=>withContext(context,async client=>{
    const department=await resolveDepartment(client,args.departmentCode);return {code:args.departmentCode,name:department.name_th};
   }),'Resolve an active university department. This recommendation cannot create or change a ticket.')
-  .register('search_structured',z.object({dataset:z.enum(structuredDatasetNames),query,scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,client=>{
-   if(!options.structuredSearch)throw new Error('STRUCTURED_SEARCH_UNAVAILABLE');return options.structuredSearch(client,args,context);
-  }),'Search one installed structured dataset through fixed backend mapping. Unavailable datasets cannot return invented records.');
+  .register('search_structured',z.object({query:structuredQuerySchema,scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,client=>{
+   if(options.structuredSearch)return options.structuredSearch(client,args,context);
+   if(!options.key)throw new Error('STRUCTURED_SEARCH_UNAVAILABLE');return searchStructured(client,args,options.key);
+  }),'Search exact reviewed PUBLIC values through strict Query1 and fixed selectors. Missing context is clarification; unavailable schemas cannot return invented records.');
 }
 
 /** Caller owns the verified inbox transaction. Confirmation is a consumed, owned opaque ESCALATE choice, never an AI argument. */

@@ -24,7 +24,7 @@ function safeSourceUrl(source:string|null):string|null {
  try{const url=new URL(source);if(url.protocol!=='https:'||url.username||url.password||url.port||/[\r\n]/.test(source))return invalid();return source;}
  catch{return invalid();}
 }
-function lineMessages(text:string):OutboundText[] {
+export function lineMessages(text:string):OutboundText[] {
  const messages:OutboundText[]=[];
  let current='';
  for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(text)){
@@ -36,7 +36,7 @@ function lineMessages(text:string):OutboundText[] {
  if(messages.length<1||messages.length>5)return invalid();
  return messages;
 }
-function locationLabel(location:SourceLocation):string {
+export function locationLabel(location:SourceLocation):string {
  const table=location.tableIndex===null?'':` · ตาราง ${location.tableIndex}`;
  switch(location.kind){
   case 'PDF':return `PDF หน้า ${location.pageNumber} · ช่วง ${location.blockStart}–${location.blockEnd}${table}`;

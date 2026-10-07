@@ -14,7 +14,7 @@ import {buildVersionCandidates,type VersionChoices,type VersionDocument,type Ver
 import type {ImportReviewDraft} from './review-schema';
 import {createLocalE5EmbeddingProvider,type LocalE5EmbeddingProvider} from '../knowledge/embedding-client';
 import {embedLocatedChunkPlan,LocatedEmbeddingPreparationError} from '../knowledge/located-embedding-preparation';
-import {knowledgeFamilyLock,knowledgeDocumentLock} from '../knowledge/delivery-fence';
+import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 const revision=z.number().int().min(1).max(999_999_999);
 export const publicationRequestSchema=z.object({id:z.uuid().transform(id=>id.toLowerCase()),expectedJobRevision:revision,expectedExtractionRevision:revision,expectedReviewRevision:revision,confirmPublication:z.literal(true)}).strict();
 type Request=z.infer<typeof publicationRequestSchema>;
@@ -128,6 +128,7 @@ async function finalize(actor:string,request:Request,prepared:Awaited<ReturnType
   checkSignal(options);
   if(!snapshot||snapshot.status!=='READY'||snapshot.publication_status!=='NOT_PUBLISHED'||snapshot.revision!==request.expectedJobRevision||snapshot.extraction_revision!==request.expectedExtractionRevision||snapshot.review_revision!==request.expectedReviewRevision||snapshot.checksum!==checked.sourceChecksum||snapshot.review_hash!==checked.reviewHash)throw new ImportStagingError('CONFLICT');
   if(structured&&!await assertStructuredVerification(client,options))throw new ImportStagingError('CONFLICT');
+  await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',['knowledge-family-code:'+m.familyCode]);
   let family=(await client.query<VersionFamily>('select id,code,name,category from public.document_families where code=$1',[m.familyCode])).rows[0]??null;
   if(family){await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(family.id)]);await client.query('select id from public.document_families where id=$1 for update',[family.id]);}

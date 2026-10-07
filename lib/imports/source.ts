@@ -11,7 +11,7 @@ const inputSchema=z.object({bytes:z.instanceof(Uint8Array).refine(value=>value.b
 }).strict();
 const mimes:Record<ImportFormat,string>={PDF:'application/pdf',DOCX:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
  XLSX:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',CSV:'text/csv',HTML:'text/html'};
-function provenanceUrl(value:string):string{
+export function provenanceUrl(value:string):string{
  try{
   if(/\s|\\|[\x00-\x1f\x7f]/.test(value))return invalid();
   const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password||url.port||url.hash||

@@ -270,8 +270,10 @@ test('row projection update cannot deadlock a concurrent document retirement',()
    await delay(10);
   }
   assert.equal(blocked,true,'DOCUMENT_RETIREMENT_MUST_REACH_ROW_LOCK');
-  await other.query('update public.tuition_fees set active=true,is_current=true where id=$1',[f.row]);
-  await other.query('commit');
+  // Catalog-first publication may hold the catalog while waiting for our row.
+  // The out-of-order direct writer must fail retryably rather than deadlock.
+  await assert.rejects(other.query('update public.tuition_fees set active=true,is_current=true where id=$1',[f.row]),{code:'40001',message:'STRUCTURED_SELECTION_RETRY'});
+  await other.query('rollback');
   const result=await retirement;
   if(result.error instanceof Error&&'code' in result.error)assert.fail(`CONCURRENT_RETIREMENT_${String(result.error.code)}`);
   assert.equal(result.error,null);

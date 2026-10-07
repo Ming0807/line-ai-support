@@ -6,6 +6,8 @@ import {encryptValue,decryptValue} from '../security/identity';
 import type {OutboundText} from '../queue/outbox';
 import {ragAnswerSchema,citationEvidenceSchema} from '../knowledge/citations';
 import {knowledgeScopeSchema} from '../knowledge/retrieval';
+import {structuredQuerySchema} from '../knowledge/structured-query';
+import {structuredAnswerSchema,structuredEvidenceListSchema} from '../knowledge/structured-citations';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
@@ -14,6 +16,8 @@ export const aiResultSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000)}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
   queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/)}).strict(),
+ z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema}).strict()
+  .refine(value=>Buffer.byteLength(JSON.stringify(value),'utf8')<=128*1024),
 ]);
 export type AIResult=z.infer<typeof aiResultSchema>;
 export interface AIJob {

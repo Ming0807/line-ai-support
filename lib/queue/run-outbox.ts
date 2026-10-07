@@ -4,7 +4,7 @@ import {decryptValue,hashLineUserId,hashStaffLineUserId} from '../security/ident
 import {deliverLine,type LineMessage} from '../line/delivery';
 import {eligibleScopeSql} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
-import {verifyAIOutboxEvidence} from '../knowledge/delivery-fence';
+import {verifyAIOutboxEvidence,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
 interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
@@ -74,7 +74,7 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     if(delivery.status==='SENT')result.sent++;else result.failed++;
     console.info('OUTBOX_DELIVERY',{channel,status:finalStatus});
    }finally{
-    try{for(const lock of [...locks].reverse())await client.query('select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
+    try{for(const lock of [...locks].reverse())await client.query(lock===knowledgeStructuredCatalogLock?'select pg_advisory_unlock_shared(hashtextextended($1,0))':'select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
     catch{discard=true;console.error('OUTBOX_UNLOCK_FAILED',{channel});}
     client.release(discard);
    }

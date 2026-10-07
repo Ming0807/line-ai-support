@@ -8,6 +8,7 @@ import {createKnowledgeToolRegistry} from '../ai/backend-tools';
 import type {AIWorkerOptions} from '../ai/run-worker';
 import {createKnowledgeProducer} from './answer-producer';
 import {citationEvidenceSchema} from './citations';
+import type {StructuredSearchResult} from './structured-search';
 
 /** Generation uses the dashboard registry; V1 embeddings use private local infrastructure. */
 export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{fetchImpl?:typeof fetch}={}):AIWorkerOptions['produce']{
@@ -17,6 +18,12 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
  return (snapshot,signal)=>createKnowledgeProducer({
   generate:input=>generate(input,{store,key,adapters:generation,priceReader}),
   embed:input=>embedLocalConfigured(input,embedding),
+  structuredSearch:async input=>{
+   const registry=createKnowledgeToolRegistry(pool,{key});
+   const result=await registry.execute({name:'search_structured',arguments:input},
+    {lineSessionId:snapshot.sessionId,conversationId:snapshot.conversationId,conversationRevision:snapshot.revision},['search_structured']);
+   return result as StructuredSearchResult;
+  },
   search:async input=>{
    const registry=createKnowledgeToolRegistry(pool,{vector:input.vector,fingerprint:input.fingerprint});
    const result=await registry.execute({name:'search_knowledge',arguments:{query:snapshot.question,scope:input.scope}},

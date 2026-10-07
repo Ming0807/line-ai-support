@@ -26,13 +26,25 @@ import type {LocalE5EmbeddingProvider} from '../../lib/knowledge/embedding-clien
 import {LOCAL_EMBEDDING_FINGERPRINT,LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION} from '../../lib/knowledge/embedding-space';
 import type {ImportFormat,ImportSource} from '../../lib/imports/types';
 import type {StructuredMappingPlan} from '../../lib/imports/structured-mapping-contract';
+import {searchStructured} from '../../lib/knowledge/structured-search';
+import {validateStructuredQuery} from '../../lib/knowledge/structured-query';
+import {structuredEvidenceStillMatches} from '../../lib/knowledge/structured-citations';
+import type {KnowledgeScope} from '../../lib/knowledge/types';
+import {transaction} from '../../lib/database/pool';
+import {prepareAIJob} from '../../lib/ai/jobs';
+import {runAICycle} from '../../lib/ai/run-worker';
+import {runOutboxCycle} from '../../lib/queue/run-outbox';
+import {encryptValue,hashLineUserId} from '../../lib/security/identity';
+import {createKnowledgeToolRegistry} from '../../lib/ai/backend-tools';
+import {buildRuleProof} from '../../lib/knowledge/rule-proof';
+import {knowledgeStructuredCatalogLock} from '../../lib/knowledge/delivery-fence';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_ISOLATED_DATABASE_REQUIRED');
 const key=Buffer.alloc(32,61).toString('base64');
 const databaseOptions={host:'127.0.0.1',port:54422,database,user:'postgres',password:'postgres'};
 type Mode='STRUCTURED'|'BOTH';
-type Action='NEW_FAMILY'|'REPLACE_CURRENT'|'ADD_HISTORICAL';
+type Action='NEW_FAMILY'|'REPLACE_CURRENT'|'ADD_HISTORICAL'|'AMEND_EXISTING'|'ADD_ADDITIONAL';
 type Counters={tokenBatches:number;embeddingBatches:number;embeddedTexts:string[][]};
 type ChunkPlan=Awaited<ReturnType<typeof getImportChunkPlan>>['plan'];
 type Fixture={pool:Pool;actor:string;staff:string;key:string;applicationName:string;provider:LocalE5EmbeddingProvider;counters:Counters;
@@ -52,8 +64,10 @@ function transformFor(kind:string){
  if(kind==='TIMESTAMP')return 'TIMESTAMP_UTC_V1';
  return 'TEXT_V1';
 }
-function sourceFor(dataset:StructuredDataset,format:ImportFormat,recordCount=1):ImportSource{
+function sourceFor(dataset:StructuredDataset,format:ImportFormat,recordCount=1,publicFixture=false):ImportSource{
  const values={...structuredMappingFixture(dataset,format).expectedPayload},fields=getStructuredRegistryEntry(dataset).fields;
+ // Public fixtures contain no contact identifiers; private fixtures retain all original phone/email coverage.
+ if(publicFixture&&dataset==='university_services'){values.phone=null;values.email=null;}
  const fixtureTag=`fixture-${randomUUID().replaceAll('-','').slice(0,16)}`;
  const uniqueText=fields.find(field=>field.kind==='TEXT'&&typeof values[field.name]==='string');
  assert(uniqueText,'SYNTHETIC_DATASET_NEEDS_TEXT_FIELD');values[uniqueText.name]=`${values[uniqueText.name]} ${fixtureTag}`;
@@ -94,8 +108,8 @@ function mappingFor(dataset:StructuredDataset,source:ImportSource,preview:Awaite
   source:{jobId,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,sourceChecksum:source.checksum,extractionDigest:computeStructuredExtractionDigest(source,preview.extraction)},
   tables:[{tableIndex:0,dataRanges:[{startRowIndex:1,endRowIndex:recordCount}],excludedRanges:[{startRowIndex:0,endRowIndex:0,reason:'HEADER',note:'Synthetic header row reviewed and excluded.'}],fields}],excludedTables:[]};
 }
-async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:ImportFormat='HTML',options:{familyCode?:string;action?:Action;target?:{documentId:string;revision:number};versionName?:string;academicYear?:number;recordCount?:number}={}):Promise<Ready>{
- const source=sourceFor(dataset,format,options.recordCount??1),{job}=await createImportJob(f.actor,source,f.options);
+async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:ImportFormat='HTML',options:{familyCode?:string;action?:Action;relationship?:'CANCELS';target?:{documentId:string;revision:number};versionName?:string;academicYear?:number;recordCount?:number;visibility?:'PUBLIC'|'INTERNAL'}={}):Promise<Ready>{
+ const source=sourceFor(dataset,format,options.recordCount??1,options.visibility==='PUBLIC'),{job}=await createImportJob(f.actor,source,f.options);
  const parse=async(value:ImportSource)=>format==='CSV'?parseCsvSource(value):parseHtmlSource(value);
  const preview=await analyzeImportJob(f.actor,job.id,0,{...f.options,parse});
  const mapping=mappingFor(dataset,source,preview,job.id,options.recordCount??1);
@@ -109,8 +123,8 @@ async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:Import
   metadata:{...base.metadata,title:`Reviewed synthetic ${dataset}`,familyCode,newFamily:action==='NEW_FAMILY'?{name:`Synthetic ${dataset} family`,category:'TEST'}:null,
    departmentCode:'IT',documentType:'DATASET',versionName:options.versionName??'2569',versionStream:'DEFAULT',academicYear:options.academicYear??2569,
    scope:{...base.metadata.scope,audience:'ALL',studentType:'ALL'},publishedAt:'2026-10-07',effectiveFrom:'2026-10-07',effectiveTo:null,
-   authorityLevel:90,visibility:'INTERNAL',storageMode:mode,datasetType:dataset},
-  action,target:options.target??null,relationship:null,
+   authorityLevel:90,visibility:options.visibility??'INTERNAL',sourceUrl:options.visibility==='PUBLIC'?'https://fixture.yru.ac.th/structured-test':base.metadata.sourceUrl,storageMode:mode,datasetType:dataset},
+  action,target:options.target??null,relationship:options.relationship??null,
   attestations:{sourceAuthorityReviewed:true,extractionReviewed:true,applicabilityReviewed:true,sensitivityReviewed:true,versionReviewed:true},
   warningDispositions:buildReviewWarnings(preview).map(warning=>({warningKey:warning.key,status:'CORRECTED',reason:'Reviewed synthetic integration source'})),
   structuredMapping:{mapping,acknowledgment:mapped.acknowledgment}});
@@ -416,4 +430,144 @@ test('missing or wrong isolated database verification leaves review3 unavailable
 for(const attack of ['NULL_PAYLOAD_DIGEST','MISSING_PROOF','WRONG_PAYLOAD','UNKNOWN_FIELD','WRONG_PROVENANCE_HASH','EXTRA_ROWS','EXTRA_CHUNK'] as const)test(`actual COMMIT rejects ${attack.toLowerCase()} structured effects`,()=>fixture(async f=>{
  const mode:Mode=attack==='EXTRA_CHUNK'?'BOTH':'STRUCTURED';const r=await ready(f,'tuition_fees',mode,'HTML',{recordCount:attack==='EXTRA_ROWS'?3:1});
  await assertCommitRejectsEffect(f,r,attack);await assertNoPublication(f,r);
+}));
+
+function exactRequest(r:Ready,patch:Record<string,unknown>={}){
+ const payload:Record<string,unknown>=r.plan.rows[0].payload;
+ const keys:Record<StructuredDataset,string[]>={academic_calendar_events:['academic_year','semester','student_type','title'],tuition_fees:['academic_year','program_name','student_group','study_type','fee_amount_min','fee_amount_max'],transfer_courses:['source_program','source_course_code','target_program'],university_services:['service_code'],university_systems:['code'],service_forms:['name'],announcements:['title']};
+ const filters=Object.fromEntries(keys[r.dataset].filter(key=>Object.hasOwn(payload,key)).map(key=>[key,payload[key]]));
+ if(r.dataset==='tuition_fees'){filters.fee_amount_min=payload.fee_amount;filters.fee_amount_max=payload.fee_amount;}
+ const query=validateStructuredQuery({version:1,dataset:r.dataset,filters:{...filters,...patch},limit:20});
+ const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[r.familyCode],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
+ return {query,scope};
+}
+async function exactSearch(f:Fixture,r:Ready,patch:Record<string,unknown>={}){
+ const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(r,patch),f.key,'2026-10-08');await client.query('commit');return result;}catch(error){await client.query('rollback');throw error;}finally{client.release();}
+}
+for(const dataset of STRUCTURED_DATASETS)test(`${dataset}: exact PUBLIC retrieval authenticates published source payload and row reference`,()=>fixture(async f=>{
+ const r=await ready(f,dataset,'STRUCTURED','HTML',{visibility:'PUBLIC'});const receipt=await publish(f,r);
+ const result=await exactSearch(f,r);assert.equal(result.status,'READY');if(result.status!=='READY')return;
+ assert.deepEqual(result.evidence[0].payload,r.plan.rows[0].payload);assert.equal(result.evidence[0].reference.documentId,receipt.receipt.documentId);
+ assert.equal(result.evidence[0].reference.sourceRow,r.plan.rows[0].sourceRow);assert.equal(result.evidence[0].reference.ruleProof.evaluationDate,'2026-10-08');
+ assert.equal(JSON.stringify(result).includes('evidenceEncrypted'),false);assert.equal(f.counters.embeddingBatches,0);
+ const changedField=dataset==='academic_calendar_events'?'title':dataset==='tuition_fees'?'program_name':dataset==='transfer_courses'?'source_course_code':dataset==='university_services'?'service_code':dataset==='university_systems'?'code':dataset==='service_forms'?'name':'title';
+ assert.equal((await exactSearch(f,r,{[changedField]:'not present in reviewed source'})).status,'EMPTY');
+}));
+test('student exact search excludes INTERNAL source and rejects wrong envelope key without exposing payload',()=>fixture(async f=>{
+ const internal=await ready(f,'university_services','STRUCTURED');await publish(f,internal);assert.equal((await exactSearch(f,internal)).status,'EMPTY');
+ const publicSource=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,publicSource);
+ const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(publicSource),Buffer.alloc(32,62).toString('base64'),'2026-10-08');assert.deepEqual(result,{status:'CONTEXT_INCOMPLETE'});await client.query('rollback');}finally{client.release();}
+}));
+test('exact result cap never hides additional matching records',()=>fixture(async f=>{
+ // All three rows differ only in service_code; name remains an exact shared source value.
+ const services=await ready(f,'university_services','STRUCTURED','CSV',{visibility:'PUBLIC',recordCount:3});await publish(f,services);
+ const servicesRequest=exactRequest(services);
+ const servicePayload:Record<string,unknown>=services.plan.rows[0].payload;
+ const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,{...servicesRequest,query:validateStructuredQuery({version:1,dataset:'university_services',filters:{name:servicePayload.name},limit:1})},f.key,'2026-10-08');assert.deepEqual(result,{status:'CONTEXT_INCOMPLETE'});await client.query('rollback');}finally{client.release();}
+}));
+test('fresh exact evidence changes after canonical document eligibility or revision changes',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),published=await publish(f,r),before=await exactSearch(f,r);assert.equal(before.status,'READY');
+ await f.pool.query('update public.documents set revision=revision+1 where id=$1',[published.receipt.documentId]);const after=await exactSearch(f,r);assert.equal(after.status,'READY');
+ if(before.status==='READY'&&after.status==='READY')assert.equal(structuredEvidenceStillMatches(before.evidence,after.evidence),false);
+ await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[published.receipt.documentId]);assert.equal((await exactSearch(f,r)).status,'EMPTY');
+}));
+
+test('unrelated amendment does not block an exact hit; relevant amendment requires clarification; cancellation preserves complete effect proof',()=>fixture(async f=>{
+ const a=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,a);
+ const b=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),base=await publish(f,b);
+ const amendment=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',familyCode:b.familyCode,action:'AMEND_EXISTING',versionName:'amendment',target:{documentId:base.receipt.documentId,revision:0}}),amended=await publish(f,amendment);
+ const client=await f.pool.connect();try{await client.query('begin');const request=exactRequest(a);request.scope.familyCodes=[];assert.equal((await searchStructured(client,request,f.key,'2026-10-08')).status,'READY');await client.query('rollback');}finally{client.release();}
+ assert.equal((await exactSearch(f,b)).status,'CONTEXT_INCOMPLETE');
+ const cancellation=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',familyCode:b.familyCode,action:'ADD_ADDITIONAL',relationship:'CANCELS',versionName:'cancel amendment',target:{documentId:amended.receipt.documentId,revision:0}});await publish(f,cancellation);
+ const current=await exactSearch(f,b);assert.equal(current.status,'READY');
+ if(current.status==='READY'){
+  const epoch=(await f.pool.query('select rule_revision::text from public.document_families where id=$1',[base.receipt.familyId])).rows[0].rule_revision;
+  const revision=(await f.pool.query('select revision from public.documents where id=$1',[base.receipt.documentId])).rows[0].revision;
+  const effects=(await f.pool.query(`select r.source_document_id "sourceDocumentId",r.target_document_id "targetDocumentId",r.relation_type "relationType",d.revision from public.document_relationships r join public.documents d on d.id=r.source_document_id where r.source_document_id=any($1::uuid[])`,[[amended.receipt.documentId,(await getImportPublication(f.actor,cancellation.jobId,f.options))!.receipt!.documentId]])).rows;
+  assert.equal(effects.length,2);assert.deepEqual(current.evidence[0].reference.ruleProof,buildRuleProof({familyId:base.receipt.familyId,baseDocumentId:base.receipt.documentId,versionStream:'DEFAULT',ruleRevision:epoch,evaluationDate:'2026-10-08',members:[{documentId:base.receipt.documentId,revision}],effects}));
+ }
+}));
+
+async function aiContext(f:Fixture){
+ const session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
+ const user='U'+randomUUID().replaceAll('-','');
+ await f.pool.query('insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)',[session,hashLineUserId(user,f.key),encryptValue(user,f.key)]);
+ const conversation=(await f.pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
+ const message=(await f.pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Synthetic exact library question') returning id",[conversation])).rows[0].id;
+ const job=await transaction(client=>prepareAIJob(client,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.key),f.pool);
+ return {session,conversation,job};
+}
+for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH','HUMAN'] as const)test(`actual structured AI worker/outbox fences ${timing.toLowerCase()} context`,()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),publication=await publish(f,r),context=await aiContext(f);
+ const initial=await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;
+ const request=exactRequest(r);
+ const result={kind:'STRUCTURED_ANSWER' as const,output:{answer:'Synthetic reviewed exact library answer',citationRowIds:[initial.evidence[0].rowId]},...request,evidence:initial.evidence};
+ const stats=await runAICycle(f.pool,f.key,{produce:async()=>{
+  const open=(await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.applicationName])).rows[0].n;assert.equal(open,0,'PRODUCER_OUTSIDE_SQL');
+  if(timing==='BEFORE_FINALIZE')await f.pool.query('update public.documents set revision=revision+1 where id=$1',[publication.receipt.documentId]);
+  if(timing==='HUMAN')await f.pool.query("update public.conversations set mode='HUMAN',revision=revision+1 where id=$1",[context.conversation]);
+  return result;
+ }});
+ if(timing==='HUMAN'){assert.equal(stats.suppressed,1);assert.equal((await f.pool.query('select count(*)::int n from private.message_outbox where conversation_id=$1',[context.conversation])).rows[0].n,0);return;}
+ assert.equal(stats.completed,1);assert.equal(stats.failed,0);
+ const metadata=(await f.pool.query("select metadata,content from public.messages where conversation_id=$1 and sender_type='AI'",[context.conversation])).rows[0];
+ if(timing==='BEFORE_FINALIZE'){assert.deepEqual(metadata.metadata.citations,[]);assert.match(metadata.content,/เอกสารอ้างอิงเปลี่ยนแปลง/u);}else assert.equal(metadata.metadata.citations[0].rowId,initial.evidence[0].rowId);
+ if(timing==='BEFORE_DISPATCH')await f.pool.query('update public.document_families set rule_revision=rule_revision+1 where id=$1',[publication.receipt.familyId]);
+ let sent=0;
+ const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  sent++;const open=(await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.applicationName])).rows[0].n;assert.equal(open,0,'LINE_MOCK_OUTSIDE_SQL');return new Response(null,{status:200});
+ }});
+ assert.equal(delivery.failed,0);assert.equal(sent,timing==='BEFORE_DISPATCH'?0:1);
+ assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0].status,timing==='BEFORE_DISPATCH'?'SUPPRESSED':'SENT');
+}));
+test('typed structured tool uses authenticated conversation context and rejects a fabricated principal or HUMAN session',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,r);const context=await aiContext(f);
+ const registry=createKnowledgeToolRegistry(f.pool,{key:f.key}),toolContext={lineSessionId:context.session,conversationId:context.conversation,conversationRevision:0};
+ const result=await registry.execute({name:'search_structured',arguments:exactRequest(r)},toolContext,['search_structured']);assert.equal((result as {status:string}).status,'READY');
+ await assert.rejects(registry.execute({name:'search_structured',arguments:{...exactRequest(r),role:'SUPER_ADMIN'}},toolContext,['search_structured']),{message:'INVALID_ARGUMENTS'});
+ await assert.rejects(registry.execute({name:'search_structured',arguments:exactRequest(r)},{...toolContext,lineSessionId:randomUUID()},['search_structured']),{message:'TOOL_EXECUTION_FAILED'});
+ await f.pool.query("update public.conversations set mode='HUMAN',revision=revision+1 where id=$1",[context.conversation]);
+ await assert.rejects(registry.execute({name:'search_structured',arguments:exactRequest(r)},toolContext,['search_structured']),{message:'TOOL_EXECUTION_FAILED'});
+ // This fixture only tests the tool; settle its intentionally unclaimed job before global worker tests.
+ await f.pool.query("update private.ai_jobs set status='SUPPRESSED',completed_at=clock_timestamp() where id=$1",[context.job]);
+}));
+
+test('LINE dispatch freezes new matching publication in a family absent from saved evidence',()=>fixture(async f=>{
+ const a=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,a);
+ const b=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),context=await aiContext(f);
+ const request=exactRequest(a);request.scope.familyCodes=[a.familyCode,b.familyCode];
+ const payload=a.plan.rows[0].payload;assert('name' in payload);
+ request.query=validateStructuredQuery({version:1,dataset:'university_services',filters:{name:payload.name},limit:20});
+ const client=await f.pool.connect();let initial;
+ try{await client.query('begin');initial=await searchStructured(client,request,f.key,'2026-10-08');await client.query('commit');}finally{client.release();}
+ assert.equal(initial.status,'READY');if(initial.status!=='READY')return;assert.equal(initial.evidence.length,1);
+ assert.equal((await runAICycle(f.pool,f.key,{produce:async()=>({kind:'STRUCTURED_ANSWER',output:{answer:'Synthetic exact answer',citationRowIds:[initial.evidence[0].rowId]},...request,evidence:initial.evidence})})).completed,1);
+ let finished=false,pending:ReturnType<typeof publish>|undefined;
+ const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  pending=publish(f,b).then(result=>{finished=true;return result;});
+  const deadline=performance.now()+2000;let blocked=false;
+  while(performance.now()<deadline&&!finished){
+   blocked=(await f.pool.query("select exists(select 1 from pg_stat_activity where application_name=$1 and wait_event='advisory' and cardinality(pg_blocking_pids(pid))>0) blocked",[f.applicationName])).rows[0].blocked;
+   if(blocked)break;await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.equal(finished,false,'NEW_FAMILY_PUBLICATION_MUST_WAIT_DURING_LINE_HTTP');assert.equal(blocked,true,'CATALOG_READER_MUST_BLOCK_NEW_MATCH');
+  return new Response(null,{status:200});
+ }});
+ if(pending)await pending;
+ assert.equal(delivery.sent,1);assert.equal(delivery.failed,0);assert.equal(finished,true,'SHARED_CATALOG_LOCK_RELEASED_AFTER_DELIVERY');
+ const reader=await f.pool.connect();try{await reader.query('begin');const fresh=await searchStructured(reader,request,f.key,'2026-10-08');assert.equal(fresh.status,'READY');if(fresh.status==='READY')assert.equal(fresh.evidence.length,2);await reader.query('rollback');}finally{reader.release();}
+ assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0].status,'SENT');
+}));
+
+test('service department code writer cannot change selector eligibility during a shared catalog fence',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),publication=await publish(f,r);
+ const reader=await f.pool.connect(),writer=await f.pool.connect();
+ try{
+  await reader.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+  await writer.query('begin');await writer.query('set local role service_role');
+  await assert.rejects(writer.query("update public.departments set code=code||'_FENCE_TEST' where id=(select department_id from public.documents where id=$1)",[publication.receipt.documentId]),{code:'40001',message:'STRUCTURED_SELECTION_RETRY'});
+ }finally{
+  await writer.query('rollback');writer.release();
+  await reader.query('select pg_advisory_unlock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);reader.release();
+ }
 }));

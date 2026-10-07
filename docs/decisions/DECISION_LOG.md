@@ -1,5 +1,11 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-052 — exact structured query and stale-delivery integration
+
+Accepted isolated component evidence: [report](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md),31 replay/foundationRLS/183actualPG/1664unit/type/lint/controlledbuild PASS. Actual Luna max source review found newly matching families, heading controls and department-code gaps; root reproduced/fixed them. Catalog-first shared reader/exclusive writer fence includes new families and all selector tables; statement try-lock40001 prevents out-of-order direct-writer deadlocks. Actual final source recheck has no remainingP1/P2 and claims no independent test execution. Normal readiness remains gated by review3 RAG and combined UI, which continue under the same human authorization.
+
+8October human asks to continue until V1 is complete. [STR-02B-1](../architecture/STRUCTURED_SEARCH_DELIVERY_DESIGN.md) narrows the isolated exact-query hold for actual service/job/delivery verification. Reuse unchanged RAG metadata/effect selection; authenticate persisted private row evidence; explicit literal Query1 selectors precede vector retrieval for exact questions. AMENDS/unsupported chains, incomplete context, truncated results and unresolved currencies return truthful clarification rather than invented precedence. Root owns contracts/SQL/auth/privacy/final acceptance; normal activation remains gated by combined publication/query/UI evidence. Network stays outside SQL and HUMAN fences remain. This is implementation authorization, not evidence of a finished V1 or live check.
+
 ## DEC-051 — continue atomic backend independently of OpenCode
 
 8October current human asks whether root can continue while OpenCode runs. Proceed under sustained authorization with STR-01C-2 [design](../architecture/STRUCTURED_ATOMIC_PUBLICATION_DESIGN.md)/[plan](../superpowers/plans/2026-10-08-yru-structured-atomic-publication.md): actual mode-aware service/additive proof, verified only in checked owned disposable database. Root owns contracts/SQL/locks/integration; actual Luna max authorship/review is recorded. Normal/remote application, registry readiness, HTTP activation and exact tools stay held. This narrows the prior atomic-service hold for isolated verification; existing RAG and external UI remain compatible/separate.

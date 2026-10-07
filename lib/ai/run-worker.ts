@@ -6,7 +6,9 @@ import {enqueueOutbound,type OutboundText} from '../queue/outbox';
 import {searchKnowledge} from '../knowledge/retrieval';
 import {buildCitedAnswer,evidenceStillMatches} from '../knowledge/citations';
 import {ruleContextsStillMatch} from '../knowledge/rule-proof';
-import {knowledgeFamilyLock,knowledgeDocumentLock} from '../knowledge/delivery-fence';
+import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
+import {searchStructured} from '../knowledge/structured-search';
+import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
 
 export interface AISnapshot {
@@ -57,7 +59,22 @@ async function finalize(pool:Pool,job:AIJob,key:string):Promise<'DONE'|'SUPPRESS
   const result=decodeAIResult(current,key);if(!result)throw new Error('AI_JOB_RESULT_MISSING');
   const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
   let messages:OutboundText[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|null=null;
-  if(result.kind==='ANSWER'){
+  if(result.kind==='STRUCTURED_ANSWER'){
+   try{
+    await client.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+    for(const familyId of [...new Set(result.evidence.map(e=>e.reference.ruleProof.familyId))].sort())
+     await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);
+    const ids=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
+    for(const id of ids)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(id)]);
+    await client.query('select id from public.documents where id=any($1::uuid[]) order by id for share',[ids]);
+    const fresh=await searchStructured(client,{query:result.query,scope:result.scope},key);
+    if(fresh.status!=='READY'||!structuredEvidenceStillMatches(result.evidence,fresh.evidence))throw new Error('EVIDENCE_CHANGED');
+    const answer=buildStructuredAnswer(result.output,result.evidence);messages=answer.messages;citations=answer.citations;
+   }catch(error){
+    if(!(error instanceof Error)||!['EVIDENCE_CHANGED','STRUCTURED_CITATION_INVALID','STRUCTURED_ROW_EVIDENCE_INVALID'].includes(error.message))throw error;
+    messages=[{type:'text',text:'เอกสารอ้างอิงเปลี่ยนแปลงระหว่างประมวลผลครับ กรุณาส่งคำถามอีกครั้งหรือติดต่อเจ้าหน้าที่'}];code='EVIDENCE_CHANGED';
+   }
+  }else if(result.kind==='ANSWER'){
    const citedIds=result.output.citationChunkIds;
    const cited=result.evidence.filter(e=>citedIds.includes(e.chunkId));
    try{

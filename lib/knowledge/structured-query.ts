@@ -14,7 +14,7 @@ const fee=structuredPayloadSchemas.tuition_fees.shape.fee_amount;
 const credits=structuredPayloadSchemas.transfer_courses.shape.source_credits;
 const priority=structuredPayloadSchemas.announcements.shape.priority;
 const request=<D extends StructuredDataset,S extends z.ZodRawShape>(dataset:D,shape:S)=>z.object({version:z.literal(1),dataset:z.literal(dataset),filters:z.object(shape).strict(),limit:z.number().int().min(1).max(STRUCTURED_QUERY_LIMITS.results)}).strict();
-const schema=z.discriminatedUnion('dataset',[
+export const structuredQuerySchema=z.discriminatedUnion('dataset',[
  request('academic_calendar_events',{academic_year:year.optional(),semester:text(80).optional(),student_type:text(80).optional(),event_type:text(200).optional(),title:text(500).optional(),occurs_on:date.optional(),start_date_from:date.optional(),start_date_to:date.optional()}),
  request('tuition_fees',{academic_year:year.optional(),program_name:text(500).optional(),major_name:text(500).nullable().optional(),student_group:text(200).optional(),study_type:text(200).optional(),currency:structuredPayloadSchemas.tuition_fees.shape.currency.optional(),fee_amount_min:fee.optional(),fee_amount_max:fee.optional(),effective_on:date.optional()}),
  request('transfer_courses',{source_program:text(500).optional(),source_course_code:text(200).optional(),target_program:text(500).optional(),target_course_code:text(200).optional(),source_credits_min:credits.optional(),source_credits_max:credits.optional(),target_credits_min:credits.optional(),target_credits_max:credits.optional()}),
@@ -23,6 +23,7 @@ const schema=z.discriminatedUnion('dataset',[
  request('service_forms',{name:text(500).optional(),form_url:structuredPayloadSchemas.service_forms.shape.form_url.refine(value=>!/\p{Cc}/u.test(value)).optional()}),
  request('announcements',{title:text(500).optional(),effective_at:instant.optional(),priority_min:priority.optional(),priority_max:priority.optional()}),
 ]);
+const schema=structuredQuerySchema;
 export type StructuredQuery=z.infer<typeof schema>;
 type Range={from:string;to:string;field:string;scale?:number};
 const ranges:Record<StructuredDataset,readonly Range[]>={
