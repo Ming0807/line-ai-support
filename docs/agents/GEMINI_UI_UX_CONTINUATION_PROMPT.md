@@ -1,5 +1,7 @@
 # Prompt สำหรับ Gemini — รอบ2: UX/UI ครบสเปคและใช้งานจริง
 
+Historical Round2 instruction. After6271490, continue with [Round3 prompt](GEMINI_UI_UX_ROUND3_PROMPT.md) and [actual Round2 review](../reports/GEMINI_UI_UX_ROUND2_REVIEW.md). Root private review3/structured preview now exists; earlier absent-API statements below refer to the historical snapshot, not current authority.
+
 7 October 2026. ผู้ใช้ชอบหน้าหลักและ sidebar จาก `443c227` และขอให้หน้าอื่นอ้างอิงดีไซน์นี้ พร้อมเติมส่วนที่ขาดตามสเปค ทำต่อเนื่องและส่ง local commits ให้ Codex ตรวจ ห้าม push. อ่าน [ผลตรวจและรายการหน้า](../reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md) คู่กับ prompt นี้ ห้ามถือรายงานรอบแรกเป็นหลักฐานว่าระบบครบแล้ว
 
 ---

@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October latest UI checkpoint: Gemini6271490 reviewed with actual Luna max/high independent assessments. [Round2 review](reports/GEMINI_UI_UX_ROUND2_REVIEW.md) records wrong registry/search/false health/placeholder/a11y gaps, typecheck/scopedlintPASS and full lint/commitdiffFAIL. [Round3 prompt](agents/GEMINI_UI_UX_ROUND3_PROMPT.md) assigns16continuous packages; [handoff plan](ui/GEMINI_ROUND3_HANDOFF_PLAN.md), DEC-043. Preserve human visual direction; no Gemini merge or wholeV1 acceptance.
+
 7October current runtime slice: [STR-01B-1 review3/private preview report](reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md), [design](architecture/STRUCTURED_REVIEW_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-review-preview.md). Source bootstrap/typed preview/encrypted canonical Mapping1/ack/CAS are integrated without new SQL or installed mode readiness. Remaining public schema/atomic BOTH/query/delivery/mapping UI/fullV1 gates remain pending. The earlier pure-component statements below are historical checkpoints.
 
 7October latest human UI steering: preserve Gemini443c227 home/sidebar and extend all remaining surfaces. [Review/all-page map](reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md) records13source modules/9page routes and actual4Standards/5Specfindings; [round2 prompt](agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md) is ready for independent local-only Gemini continuation. [Visualauthority](../DESIGN.md)/DEC-041 supersede the old green baseline. No Gemini merge/combined UI/wholeV1 pass.
