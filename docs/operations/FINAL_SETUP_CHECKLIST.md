@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+ADV-03A-1 adds no human setting. Actual Activities/Logs APIs and five owned PostgreSQL cases pass; UI adapters/combined browser gates and other M9 remain agent work. No private log data requires human relay.
+
 STR-01C-3 review3 RAG compatibility adds no configuration. UI/readiness/M9 remain agent work; official source approval/configured live services remain the deferred human checklist. No account picker is required for the verified root Git handoff.
 
 8October STR-02B-1 adds no human setting: [actual structured search/delivery](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md) passed183ownedPG/1664unit/type/lint/build. Normal activation, review3 RAG, combined UI and remaining M9 are agent work in progress. Configured free-provider/CPU/OA and official document approval stay deferred; controlled fixtures are not live acceptance. Root integrates approved presentation in a managed worktree without external push or account-picker request.

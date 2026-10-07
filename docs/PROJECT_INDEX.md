@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8October [real Activities/Logs backend](reports/OPERATIONS_READ_COMPONENT_REPORT.md) passes31focused/type/scopedlint/189ownedPG; no schema/environment change. Approved UI adapters/SSR are in progress separately. Other M9, normal structured activation and final Flow A–F remain agent work.
+
 8October STR-01C-3 [review3 RAG compatibility](reports/REVIEW3_RAG_COMPATIBILITY_REPORT.md),53focused/type/scopedlint/184ownedPG PASS. Root continues import readiness/approval and M9 while two managed-worktree UI slices run; previous full/build are a separate checkpoint until combined verification.
 
 8October latest: [STR-02B-1 exact search/delivery](reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md),183ownedPG/1664unit/type/full lint/controlledbuild PASS;31 migrations/foundationRLS, normal0/7 unchanged. Actual selectors/producer/citations/repeated worker/outbox selection are implemented; review3 RAG/normal activation/combined UI/M9/Flow A–F remain. Managed `codex/v1-dashboard-integration` integrates approved presentation against root contracts while preserving Knowledge WIP; its source audit is not live acceptance. Current board governs; older snapshots below are history.

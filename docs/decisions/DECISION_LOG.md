@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-054 — real Activities/Logs read boundary
+
+8October authorized continuous V1: [ADV-03A design](../architecture/OPERATIONS_READ_DESIGN.md) accepts scoped ticket journal/global SUPER_ADMIN journal and SUPER_ADMIN safe provider/LINE logs. External fixture vocabulary is adapted explicitly, not promoted wholesale to an API. Raw metadata/reasons/credentials/technical LINE IDs stay private; pages/counts are truthful and default Bangkok date range explicit. Other operations sources/metrics keep their own subsequent acceptance. Root owns SQL/auth/privacy/integration; no new schema, user setting or live pass is implied.
+
 ## DEC-053 — review3 RAG compatibility and approved UI integration
 
 8October continuous V1 authorization. [STR-01C-3 plan](../superpowers/plans/2026-10-08-yru-review3-rag-compatibility.md) permits reviewed RAG with schema3/null mapping/current chunks while keeping the schema floor and previous receipts. Schema number cannot force typed publication or make mode switching impossible. All review/authorization/CAS/receipt/embedding rules remain. Normal STRUCTURED/BOTH activation follows the combined UI/readiness gates; this is an engineering compatibility decision, not live acceptance. Managed `codex/v1-dashboard-integration` selectively ports the human-approved Gemini visual authority and root-compatible tickets; external backend and authoritative documents are not overwritten. Historical two-tree diffs are not three-way merge deletion evidence.

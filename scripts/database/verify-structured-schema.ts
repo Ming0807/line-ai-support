@@ -70,6 +70,10 @@ try {
   {cwd:root,encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(JSON.stringify({stage:'RAG_compatibility_actual_PG',source:'tests/database/import-publication.integration.ts',status:'PASS',networkSender:'MOCK',connectionOnlyRewritten:true}));
  console.log(ragOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='operations_reads_actual_PG';
+ const operationsOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/operations-reads.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(operationsOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  if(cli){
   stage='isolated_advisors';
   const version=execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true,timeout:10_000,stdio:['pipe','pipe','pipe']}).trim();

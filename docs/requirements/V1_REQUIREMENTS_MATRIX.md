@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+ADV-03A-1 [real Activities/Logs](../reports/OPERATIONS_READ_COMPONENT_REPORT.md) adds31focused/5new actual Operations PG within189owned tests for CH015/016/017/031/060. Scoped journal, Super Admin-only safe transport observations and truthful totals accepted at backend component scope. Browser/SSR UI and other M9 surfaces remain PARTIAL; no live/full V1 claim.
+
 STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPORT.md) supplies53focused/184ownedPG/type/scopedlint for CH041/042/047/050/060: retained schema floor/null mapping publishes only reviewed chunks with idempotent receipt. Normal structured readiness/combined UI/FlowF remain PARTIAL; no new live evidence.
 
 8October STR-02B-1 adds [actual exact search/delivery](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md) for CH012/018/031/041/050/060: seven PUBLIC proof-aware typed selectors, grounded Query1 before vectors, authenticated citations/full selection rechecks and actual new-family/department fences;183ownedPG/1664unit/type/lint/build PASS. Normal0/7/registry, review3 RAG and combined UI remain gated, so those requirements/FlowF stay PARTIAL. V1-UI-INTEGRATION-01 integrates approved presentation in an isolated managed branch; source audit is not browser/backend integration.
