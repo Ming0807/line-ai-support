@@ -4,6 +4,8 @@
 
 ## Fixed storage contract
 
+DEC-050 follow-up: [STR-01C-1 source-derived assembly](STRUCTURED_PUBLICATION_PREPARATION_DESIGN.md) rebuilds Mapping1, checks the stable review acknowledgment and prepares backend-owned row IDs with authenticated envelopes outside SQL. This private unused assembly does not enable schema application, persistence, atomic mode receipts or live authorization.
+
 DEC-049 follow-up: [STR-01C-0 row-envelope design](STRUCTURED_ROW_ENVELOPE_DESIGN.md) authorizes an unused authenticated evidence component only. It implements the bounded envelope/AAD prerequisite described below; actual mapper-source-derived persistence, atomic mode receipt/effect proof, installation and live retrieval remain deferred. The envelope itself does not certify approval/currentness or source truth.
 
 Seven exact master table names: academic_calendar_events, tuition_fees, transfer_courses, university_services, university_systems, service_forms, announcements. Every row has backend-owned UUID id, required document_id, generated constant dataset_code, active/is_current lifecycle projections and created_at/updated_at. Services/systems/forms/announcements additionally have nullable department_id equal to the owning document. Required source linkage for services/forms and the additive systems document link are explicit engineering decisions preserving imported version provenance. Source columns/nullability/bounds follow the accepted pure payload contract. opening_hours remains jsonb as in the master, containing a reviewed JSON string or SQL null, not an invented weekly schedule.

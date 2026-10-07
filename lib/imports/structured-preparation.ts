@@ -2,14 +2,8 @@ import {authorizeImportAdmin,ImportStagingError,readImportOriginal} from './impo
 import {createImportSource} from './source';
 import type {ImportPreview,ImportExtractionOptions} from './import-extraction';
 import {buildStructuredMappingPlan} from './structured-mapper';
-import {canonicalDigest,freezeStructuredData,type StructuredMappingPlan} from './structured-mapping-contract';
-
-export function computeStructuredAcknowledgment(plan:StructuredMappingPlan){
- const {digest:_digest,binding,...content}=plan;
- const {reviewRevision:_reviewRevision,...sourceBinding}=binding;
- void _digest;void _reviewRevision;
- return freezeStructuredData({contentDigest:canonicalDigest('structured-ack-v1',{...content,binding:sourceBinding}),mapperVersion:plan.mapperVersion});
-}
+import type {StructuredMappingPlan} from './structured-mapping-contract';
+export {computeStructuredAcknowledgment} from './structured-acknowledgment';
 
 /** Source preparation outside SQL; caller owns final authorization/revision fence. */
 export async function readImportStructuredSource(actor:string,preview:ImportPreview,options:ImportExtractionOptions={}){
