@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October latest backend checkpoint: [STR-01A-1 isolated schema evidence](reports/STRUCTURED_SCHEMA_COMPONENT_REPORT.md), [storage design](architecture/STRUCTURED_SCHEMA_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-schema.md). Seven exact tables/private provenance replay29migrations/foundationRLS/121actualPG +15RAGcompat/1621unit/type/lint/advisors; normal local0/7 unchanged. Normal installation/atomic modes/retrieval/combined Gemini UI still pending; root owns self-review and does not claim an unavailable independent review.
+
 7October current Gemini handoff: [actual Round3 source review](reports/GEMINI_UI_UX_ROUND3_REVIEW.md), [continuous18-package Round4 prompt](agents/GEMINI_UI_UX_ROUND4_PROMPT.md), [handoff plan](ui/GEMINI_ROUND4_HANDOFF_PLAN.md). Gemini9aaab48 remains NEEDS_REVISION/combined acceptance pending despite selected checks passing; root-owned review and failed Luna follow-up provenance are explicit. No Gemini merge or V1 readiness claim. Earlier Gemini checkpoints below are dated history.
 
 7October pure M8 checkpoint: [query/reference design](architecture/STRUCTURED_QUERY_EVIDENCE_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-query-evidence.md), [evidence](reports/STRUCTURED_QUERY_EVIDENCE_REPORT.md). Seven typed queries/exact predicates and internal row consistency pass40focused/1621unit/112files/type/full lint. No SQL/tool/public projection/mode readiness; live evidence and remaining M8 gates stay pending.
