@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+STR-01C-3 review3 RAG compatibility adds no configuration. UI/readiness/M9 remain agent work; official source approval/configured live services remain the deferred human checklist. No account picker is required for the verified root Git handoff.
+
 8October STR-02B-1 adds no human setting: [actual structured search/delivery](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md) passed183ownedPG/1664unit/type/lint/build. Normal activation, review3 RAG, combined UI and remaining M9 are agent work in progress. Configured free-provider/CPU/OA and official document approval stay deferred; controlled fixtures are not live acceptance. Root integrates approved presentation in a managed worktree without external push or account-picker request.
 
 8 October STR-01C-2/OC-UI-02R adds no human configuration: [atomic publication](../reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md) is verified only in an owned disposable database; normal database unchanged. [OpenCode review/root repairs](../reports/OPENCODE_OPERATOR_WORKFLOWS_ROOT_REVIEW.md) are committed local-only458c76f. Exact query/delivery, normal installation/readiness, advanced read endpoints and combined UI/browser verification are agent work. Existing real corpus review/live free-provider/OA/production acceptance remains deferred; fixture/PG/build success does not satisfy it. No external push or manual account selection is requested.

@@ -92,14 +92,13 @@ async function prepare(actor:string,request:Request,checksum:string,documentId:s
    const preview=await getImportPreview(actor,request.id,currentOptions),review=await getImportReview(actor,request.id,currentOptions);checkSignal(currentOptions);
    if(!review.saved||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
    const mode=review.saved.draft.metadata.storageMode,isStructured=review.saved.draft.schemaVersion===3&&['STRUCTURED','BOTH'].includes(mode??'');
-   if(review.saved.draft.schemaVersion===3&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    if(mode!==null&&mode!=='RAG'&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    if(isStructured&&!await withImportAdminTransaction(actor,currentOptions,c=>assertStructuredVerification(c,options)))throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    const provider=mode==='STRUCTURED'?null:options.provider??createLocalE5EmbeddingProvider();
    const plan=provider?await prepareImportChunkPlan(actor,preview,{...currentOptions,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))}):null;
    const checked=isStructured?validateStructuredPublicationReview(preview,review,plan,checksum):validatePublicationReview(preview,review,plan,checksum);
    let structured=null;
-   if(checked.draft.schemaVersion===3){
+   if(isStructured&&checked.draft.schemaVersion===3){
     const source=await readImportStructuredSource(actor,preview,currentOptions),mapping=checked.draft.structuredMapping!;
     try{structured=prepareStructuredPublication(source,preview.extraction,{jobId:request.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision},mapping.mapping,{documentId,documentRevision:0,acknowledgment:mapping.acknowledgment},options.key??process.env.ENCRYPTION_KEY??'');}
     catch{throw new PublicationPolicyError('PUBLICATION_PLAN_MISMATCH');}

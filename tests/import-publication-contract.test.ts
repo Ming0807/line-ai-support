@@ -7,6 +7,19 @@ import {buildReviewWarnings} from '../lib/imports/review-warnings';
 import {computeLocatedChunkPlanDigest,locatedReviewApplies} from '../lib/knowledge/located-chunk-plan';
 import {locatedPlanFixture} from './fixtures/located-plan';
 import {unfinishedReviewDraft} from './fixtures/import-review';
+it('publishes reviewed RAG at schema3 without downgrading its saved schema floor',async()=>{
+ const f=await fixture();f.review.saved!.draft={...f.draft,schemaVersion:3,structuredMapping:null};
+ const result=validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum);
+ expect(result.draft.schemaVersion).toBe(3);expect(result.plan).toEqual(f.plan);expect(result.draft.metadata.storageMode).toBe('RAG');
+});
+it('still requires a current acknowledged chunk plan for schema3 RAG',async()=>{
+ const f=await fixture();f.review.saved!.draft={...f.draft,schemaVersion:3,structuredMapping:null,chunkPlan:null};
+ expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_REVIEW_INCOMPLETE');
+});
+it('rejects schema3 RAG when its reviewed chunk digest has changed',async()=>{
+ const f=await fixture();f.review.saved!.draft={...f.draft,schemaVersion:3,structuredMapping:null,chunkPlan:{...f.draft.chunkPlan,digest:'a'.repeat(64)}};
+ expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PLAN_MISMATCH');
+});
 async function fixture(){
  const f=await locatedPlanFixture();
  const preview:ImportPreview={job:{id:f.plan.binding.jobId,status:'READY',revision:3,filename:f.source.filename,format:'HTML',mimeType:'text/html',sourceUrl:f.source.sourceUrl,acquiredFrom:'UPLOAD',fetchedAt:null,acquisition:null,byteLength:f.source.bytes.length,createdAt:'2026-10-06T00:00:00.000Z',errorCode:null},extractionRevision:2,kind:'PARSED',extraction:f.extraction,analysis:analyzeExtraction(f.source,f.extraction),edit:null};

@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8October STR-01C-3 [review3 RAG compatibility](reports/REVIEW3_RAG_COMPATIBILITY_REPORT.md),53focused/type/scopedlint/184ownedPG PASS. Root continues import readiness/approval and M9 while two managed-worktree UI slices run; previous full/build are a separate checkpoint until combined verification.
+
 8October latest: [STR-02B-1 exact search/delivery](reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md),183ownedPG/1664unit/type/full lint/controlledbuild PASS;31 migrations/foundationRLS, normal0/7 unchanged. Actual selectors/producer/citations/repeated worker/outbox selection are implemented; review3 RAG/normal activation/combined UI/M9/Flow A–F remain. Managed `codex/v1-dashboard-integration` integrates approved presentation against root contracts while preserving Knowledge WIP; its source audit is not live acceptance. Current board governs; older snapshots below are history.
 
 8 October current: [atomic STRUCTURED/BOTH evidence](reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md) is BACKEND_COMPONENT_PASS in an owned disposable database:30 migrations,165 actual PG cases,1646 unit tests, type/lint and controlled one-worker build PASS; normal structured tables remain0/7. [OpenCode Activities/Logs review and root repairs](reports/OPENCODE_OPERATOR_WORKFLOWS_ROOT_REVIEW.md) is FIXTURE_BEHAVIOR_PASS on external local-only458c76f, with1561 unit/type/lint/controlled build PASS. Exact SQL retrieval/readiness, combined UI/live endpoints and Flow A–F remain pending. Older checkpoints below are dated history.

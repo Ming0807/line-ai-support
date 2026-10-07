@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-053 — review3 RAG compatibility and approved UI integration
+
+8October continuous V1 authorization. [STR-01C-3 plan](../superpowers/plans/2026-10-08-yru-review3-rag-compatibility.md) permits reviewed RAG with schema3/null mapping/current chunks while keeping the schema floor and previous receipts. Schema number cannot force typed publication or make mode switching impossible. All review/authorization/CAS/receipt/embedding rules remain. Normal STRUCTURED/BOTH activation follows the combined UI/readiness gates; this is an engineering compatibility decision, not live acceptance. Managed `codex/v1-dashboard-integration` selectively ports the human-approved Gemini visual authority and root-compatible tickets; external backend and authoritative documents are not overwritten. Historical two-tree diffs are not three-way merge deletion evidence.
+
 ## DEC-052 — exact structured query and stale-delivery integration
 
 Accepted isolated component evidence: [report](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md),31 replay/foundationRLS/183actualPG/1664unit/type/lint/controlledbuild PASS. Actual Luna max source review found newly matching families, heading controls and department-code gaps; root reproduced/fixed them. Catalog-first shared reader/exclusive writer fence includes new families and all selector tables; statement try-lock40001 prevents out-of-order direct-writer deadlocks. Actual final source recheck has no remainingP1/P2 and claims no independent test execution. Normal readiness remains gated by review3 RAG and combined UI, which continue under the same human authorization.

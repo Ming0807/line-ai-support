@@ -9,7 +9,7 @@ import {locatedReviewApplies} from '../knowledge/located-chunk-plan';
 import type {LocatedChunkPlan} from '../knowledge/located-plan-types';
 export type PublicationPolicyCode='PUBLICATION_REVIEW_INCOMPLETE'|'PUBLICATION_PLAN_MISMATCH'|'PUBLICATION_WARNINGS_UNRESOLVED'|'PUBLICATION_QUALITY_REANALYSIS_REQUIRED'|'PUBLICATION_PUBLIC_SENSITIVE_DATA'|'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE';
 export class PublicationPolicyError extends Error{constructor(readonly code:PublicationPolicyCode){super(code);this.name='PublicationPolicyError';}}
-export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
+export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 function fail(code:PublicationPolicyCode):never{throw new PublicationPolicyError(code);}
 function exactCoverage(preview:ImportPreview,plan:LocatedChunkPlan){
@@ -84,11 +84,12 @@ function checkedChunks(preview:ImportPreview,draft:Exclude<ImportReviewDraft,{sc
  exactCoverage(preview,plan);return plan;
 }
 export function validatePublicationReview(preview:ImportPreview,review:ImportReviewState,input:unknown,expectedSourceChecksum:string):ValidatedPublicationReview{
- if(review.saved?.draft.schemaVersion===3)fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
  const checked=sharedPolicy(preview,review);
- if(checked.draft.schemaVersion!==2)fail('PUBLICATION_REVIEW_INCOMPLETE');
- const plan=checkedChunks(preview,checked.draft,input,expectedSourceChecksum);
  if(checked.draft.metadata.storageMode!=='RAG')fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
+ // A saved review3 stays3 after explicitly clearing its mapping; RAG needs only
+ // the reviewed chunk plan. A review schema number never selects persistence.
+ if(checked.draft.schemaVersion===3&&checked.draft.structuredMapping!==null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ const plan=checkedChunks(preview,checked.draft,input,expectedSourceChecksum);
  return {...checked,draft:checked.draft,plan,sourceChecksum:expectedSourceChecksum};
 }
 /** Internal mode policy; actual source assembly and final SQL readiness/authorization are separate. */

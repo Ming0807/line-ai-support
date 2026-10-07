@@ -58,6 +58,19 @@ async function setup(pool:Pool,actor:string,staff:string){
  }
  return {pool,actor,staff,options,provider,providerFor,familyCode,ready,encoded,calls:()=>({countCalls,embedCalls})};
 }
+
+test('schema3 RAG approval retains schema floor, creates only chunks and replays the same receipt',()=>fixture(async f=>{
+ const r=await f.ready();
+ const draft:ImportReviewDraft={...r.draft,schemaVersion:3,structuredMapping:null};
+ const saved=await saveImportReview(f.actor,r.input.id,{expectedJobRevision:r.saved.jobRevision,expectedExtractionRevision:r.saved.extractionRevision,expectedReviewRevision:r.saved.reviewRevision,draft},f.options);
+ const request={...r.input,expectedJobRevision:saved.jobRevision,expectedExtractionRevision:saved.extractionRevision,expectedReviewRevision:saved.reviewRevision};
+ const publication=await approveImport(f.actor,request,f.options);assert.equal(publication.receipt.storageMode,'RAG');
+ const calls=f.calls();assert(calls.embedCalls>0);assert.equal((await approveImport(f.actor,request,f.options)).replayed,true);assert.deepEqual(f.calls(),calls);
+ assert.equal((await getImportReview(f.actor,r.input.id,f.options)).saved?.draft.schemaVersion,3);
+ assert.equal((await f.pool.query('select count(*)::int n from public.knowledge_chunks where document_id=$1',[publication.receipt.documentId])).rows[0].n,r.plan.chunks.length);
+ if((await f.pool.query("select to_regclass('private.structured_publication_effects') installed")).rows[0].installed)
+  assert.equal((await f.pool.query('select count(*)::int n from private.structured_publication_effects where job_id=$1',[r.input.id])).rows[0].n,0);
+}));
 test('atomic located publication persists exact immutable receipt and sequential retry does not count or encode again',()=>fixture(async f=>{
  const r=await f.ready();const result=await approveImport(f.actor,r.input,f.options);assert.equal(result.replayed,false);const calls=f.calls();
  const again=await approveImport(f.actor,r.input,f.options);assert.equal(again.replayed,true);assert.deepEqual(again.receipt,result.receipt);assert.deepEqual(f.calls(),calls);
