@@ -58,4 +58,6 @@ expect(decryptStructuredRowEvidence(result.rows[0]!.evidenceEncrypted,result.row
 - [x] Run focused envelope/publication/ack review regressions, full `pnpm test -- --maxWorkers=1`, `pnpm typecheck`, `pnpm lint`; inspect actual exits. No SQL/HTTP/build/live acceptance claim.
 - [x] Obtain actual independent Luna max source verdict if available; record test author vs reviewer vs root execution distinctly.
 - [x] Update requirements and current task states with component limitations; resolve affected Markdown links.
-- [ ] Stage exact owned paths, run `node scripts/security/check-staged.mjs` and `git diff --cached --check`, commit root changes and push authorized root branch noninteractively; verify remote SHA. External UI branch stays local-only.
+- [x] Stage exact owned paths, run `node scripts/security/check-staged.mjs` and `git diff --cached --check`, commit root changes and push authorized root branch noninteractively; verify remote SHA. External UI branch stays local-only.
+
+Actual execution: root78d38cdf2d885026bc671de28f5d7934bebbd71c and remote SHA match after one transient HTTPS connectivity failure/retry. Root report records9preparation/36focused/1638unit/type/full lint, actual separate Luna max source verdict,15owned staged checks and338Markdown targets. External root repairs9437654 remain local-only. This follow-up ledger does not claim normal schema or atomic modes are enabled.
