@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October pure M8 checkpoint: [query/reference design](architecture/STRUCTURED_QUERY_EVIDENCE_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-query-evidence.md), [evidence](reports/STRUCTURED_QUERY_EVIDENCE_REPORT.md). Seven typed queries/exact predicates and internal row consistency pass40focused/1621unit/112files/type/full lint. No SQL/tool/public projection/mode readiness; live evidence and remaining M8 gates stay pending.
+
 7October TKT-READ-02 backend checkpoint: [ticket search/pages design](architecture/TICKET_READ_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-ticket-search-pages.md), [evidence](reports/TICKET_SEARCH_PAGINATION_REPORT.md) and [updated frontend contracts](operations/BACKEND_UI_CONTRACTS.md). Actual scoped q/pages/totals/private HTTP and Bangkok-day correction support Gemini Round3. Current board/report distinguish final backend gates from pending UI and fullV1 acceptance.
 
 7October latest UI checkpoint: Gemini6271490 reviewed with actual Luna max/high independent assessments. [Round2 review](reports/GEMINI_UI_UX_ROUND2_REVIEW.md) records wrong registry/search/false health/placeholder/a11y gaps, typecheck/scopedlintPASS and full lint/commitdiffFAIL. [Round3 prompt](agents/GEMINI_UI_UX_ROUND3_PROMPT.md) assigns16continuous packages; [handoff plan](ui/GEMINI_ROUND3_HANDOFF_PLAN.md), DEC-043. Preserve human visual direction; no Gemini merge or wholeV1 acceptance.

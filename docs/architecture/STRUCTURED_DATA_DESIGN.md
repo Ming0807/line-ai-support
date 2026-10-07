@@ -1,5 +1,7 @@
 # Fixed structured knowledge — STR-00
 
+7October supplement STR-00Q-1: [Query1/internal row-reference design](STRUCTURED_QUERY_EVIDENCE_DESIGN.md) and [component evidence](../reports/STRUCTURED_QUERY_EVIDENCE_REPORT.md) resolve pure per-dataset selectors/clarification/exact predicates and detached payload/location/hash consistency.1621unit/112files/type/full lint PASS. These unused modules do not resolve authorized live retrieval, complete contradictions, public citation disclosure, provenance grants/lifecycle, finalization/dispatch, SQL or atomic modes. Earlier preparation-only descriptions below remain historical scope; installed flags remain false.
+
 7 October 2026. Root contract design against parent `91be145`. Sources: [master](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md) §§12/18/37–42/49/50/60–62, [original versioning](../requirements/sources/original-document-versioning.th.md), DEC-027/028/030, [system](YRU_V1_DESIGN.md), [import](KNOWLEDGE_IMPORT_DESIGN.md), [M8 execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md). The types/bounds/representation choices below are **root engineering decisions**, not claims that these details appeared in the human's original specification. Status: pure payload/registry and [Mapping1 preparation](STRUCTURED_MAPPING_DESIGN.md) frozen for STR-01A-0/STR-01B-0; schema/publication/search integration is not implemented or accepted by this document.
 
 ## Implementation boundary and chosen approach
