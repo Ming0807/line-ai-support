@@ -1,0 +1,11 @@
+# Private structured review3 and preview
+
+Task STR-01B-1; CH038/041/042/047/049/050. [Frozen execution contract](../superpowers/plans/2026-10-07-yru-structured-review-preview.md) specifies exact DTO, acknowledgment domain, mode constraints, source preparation, CAS/authorization fences, errors and tests. This supplements [Mapping1](STRUCTURED_MAPPING_DESIGN.md), not its historical pure-component evidence.
+
+Mapping1 is canonicalized inside encrypted append-only existing review receipts. Review3 shares metadata/actions/attestations/warning checks with1/2 and adds nullable mapping/ack. Content acknowledgment excludes only the review counter and full plan digest; receipt counter remains an independent optimistic lock and full plan digest includes next counter. Source/extraction/mapping/payload/provenance/warnings remain covered. Every save re-prepares actual source. Null acknowledgments remain private drafts.
+
+Preview is active SUPER_ADMIN same-origin POST with bounded JSON, including before first saved review. It creates no public rows/documents/chunks and never increments job/extraction/review. Preparation occurs outside SQL; final job lock and fresh statement check status/checksum/revisions after waits. Existing authorization transaction locks active staff through final fence. Internal race seams are not request-configurable.
+
+GET on the same route supplies the exact current Mapping1 source binding plus current review counter, with no selectors. The server computes checksum/extraction digest from retained source; clients do not need original downloads or Node hashing imports. Identical final fences protect this bootstrap. Source hashes are private binding data, not source-authority approval.
+
+Legacy1/2 receipts remain readable and RAG approval unchanged. Legacy clients cannot overwrite3 with1/2. Explicit clear stays3 and previous receipts survive. Schema3 publication explicitly unavailable until atomic modes exist. Installed flags stay false. No migration/seven-table readiness claim.

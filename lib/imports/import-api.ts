@@ -1,5 +1,8 @@
 import {ImportStagingError} from './import-staging';
 import {OfficialUrlImportError} from './url-importer';
+import {StructuredMappingError} from './structured-mapping-contract';
+import {getStructuredRegistryEntry} from '../knowledge/structured-registry';
+import {STRUCTURED_DATASETS} from '../knowledge/structured-payload';
 export class ImportBodyError extends Error {
  constructor(readonly code:'INVALID_REQUEST'|'IMPORT_BODY_TOO_LARGE'|'IMPORT_BODY_TIMEOUT'|'IMPORT_BODY_CANCELLED',readonly status:number){super(code);this.name='ImportBodyError';}
 }
@@ -8,6 +11,12 @@ export function importPrivateHeaders():Headers {
 }
 export function importApiFailure(error:unknown):Response {
  if(error instanceof ImportBodyError)return importPrivateJson({error:error.code},error.status);
+ if(error instanceof StructuredMappingError){
+  const status=error.code==='STRUCTURED_MAPPING_LIMIT_EXCEEDED'?413:error.code==='STRUCTURED_MAPPING_BINDING_MISMATCH'?409:error.code==='STRUCTURED_MAPPING_INVALID'?400:422;
+  const candidate=error.location,allowedFields=new Set(STRUCTURED_DATASETS.flatMap(dataset=>getStructuredRegistryEntry(dataset).fields.map(field=>field.name)));
+  const location=candidate&&Number.isSafeInteger(candidate.tableIndex)&&candidate.tableIndex>=0&&candidate.tableIndex<=999&&Number.isSafeInteger(candidate.rowIndex)&&candidate.rowIndex>=0&&candidate.rowIndex<=9999&&(candidate.field===null||allowedFields.has(candidate.field))?{tableIndex:candidate.tableIndex,rowIndex:candidate.rowIndex,field:candidate.field}:undefined;
+  return importPrivateJson({error:error.code,...(location?{location}:{})},status);
+ }
  if(error instanceof OfficialUrlImportError){
   const status=error.code==='IMPORT_URL_TOO_LARGE'?413:error.code==='IMPORT_URL_TIMEOUT'||error.code==='IMPORT_URL_CANCELLED'?408:error.code==='IMPORT_URL_UNAVAILABLE'?503:400;
   return importPrivateJson({error:error.code},status);

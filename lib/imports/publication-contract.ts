@@ -62,6 +62,7 @@ export function validatePublicationReview(preview:ImportPreview,review:ImportRev
  if(preview.job.status!=='READY'||review.stale||review.jobId!==preview.job.id||review.jobRevision!==preview.job.revision||review.extractionRevision!==preview.extractionRevision||
   saved.jobRevision!==review.jobRevision||saved.extractionRevision!==review.extractionRevision||saved.reviewRevision!==review.reviewRevision||review.reviewRevision<1)fail('PUBLICATION_PLAN_MISMATCH');
  const parsed=reviewDraftSchema.safeParse(saved.draft);
+ if(parsed.success&&parsed.data.schemaVersion===3)fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
  if(!parsed.success||parsed.data.schemaVersion!==2||parsed.data.chunkPlan===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
  const draft=parsed.data,metadata=draft.metadata;
  for(const field of ['title','familyCode','departmentCode','documentType','versionName','versionStream','publishedAt','effectiveFrom','authorityLevel','visibility','storageMode'] as const)if(metadata[field]===null)fail('PUBLICATION_REVIEW_INCOMPLETE');

@@ -4,6 +4,8 @@
 
 ## อ่านตามลำดับนี้
 
+7October current runtime slice: [STR-01B-1 review3/private preview report](reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md), [design](architecture/STRUCTURED_REVIEW_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-review-preview.md). Source bootstrap/typed preview/encrypted canonical Mapping1/ack/CAS are integrated without new SQL or installed mode readiness. Remaining public schema/atomic BOTH/query/delivery/mapping UI/fullV1 gates remain pending. The earlier pure-component statements below are historical checkpoints.
+
 7October latest human UI steering: preserve Gemini443c227 home/sidebar and extend all remaining surfaces. [Review/all-page map](reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md) records13source modules/9page routes and actual4Standards/5Specfindings; [round2 prompt](agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md) is ready for independent local-only Gemini continuation. [Visualauthority](../DESIGN.md)/DEC-041 supersede the old green baseline. No Gemini merge/combined UI/wholeV1 pass.
 
 7October latest component: [Mapping1 report](reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md), [design](architecture/STRUCTURED_MAPPING_DESIGN.md), [plan](superpowers/plans/2026-10-07-yru-structured-mapping.md). Pure source-bound DTO/transforms/private rows for all7,1561unit/64focused/type/lint, installed:false; actual author/audit scope recorded. No saved-v3/SQL/preview/publication/query/delivery readiness. Gemini reported443c227 for separate review; combined acceptance remains pending.

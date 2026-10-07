@@ -4,6 +4,8 @@
 
 ## Implementation boundary and chosen approach
 
+7October STR-01B-1 runtime continuation: [private review3 design](STRUCTURED_REVIEW_DESIGN.md) and [report](../reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md) supersede earlier unimplemented-v3/private-preview statements for that bounded slice. Existing encrypted storage supports canonical Mapping1/nullable acknowledgment and source bootstrap/preview with final fences. Every installed flag remains false; fixed public schema, atomic modes, exact query/row proof and UI are still pending.
+
 Use seven fixed typed tables plus version-bound private row provenance. A generic JSON-only knowledge table would lose the master's exact field/query contracts; tables per year/document would violate versioning. All document changes are data/version updates in fixed schemas. Unknown types remain visibly unavailable for structured storage and may use only deliberately selected RAG. Backend selects constant registry entries; no caller/AI chooses SQL identifiers or executes DDL.
 
 The independent first slice is `lib/knowledge/structured-payload.ts` and `structured-registry.ts`: strict pure validators and allowlisted field metadata, with every entry **installed:false**. This does not change a route, tool, existing review receipt, schema, original or publication. It can be implemented and tested while Gemini owns presentation. The previous gate requiring combined UI integration before **all** M8 code unnecessarily held this inert preparation; only integration/mutation gates remain held. The new decision is recorded in the decision log before implementation.

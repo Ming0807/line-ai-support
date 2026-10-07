@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {isValidKnowledgeDate} from '../knowledge/metadata-filter';
 import {isOfficialYruUrl} from './source';
 import {datasetTypes} from './types';
+import {validateStructuredMapping,StructuredMappingError,type StructuredMapping} from './structured-mapping-contract';
 
 export const REVIEW_LIMITS={requestBytes:2*1024*1024,payloadBytes:1024*1024} as const;
 const revision=z.number().int().min(0).max(999_999_999);
@@ -27,12 +28,27 @@ const legacyDraft=z.object({
  warningDispositions:z.array(disposition).max(10_000),
 }).strict();
 const currentDraft=legacyDraft.extend({schemaVersion:z.literal(2),chunkPlan:z.object({digest:z.string().regex(/^[a-f0-9]{64}$/),chunkerVersion:z.literal('located-e5-v1')}).strict().nullable()});
-export const reviewDraftSchema=z.discriminatedUnion('schemaVersion',[legacyDraft,currentDraft]).superRefine((value,ctx)=>{
+export const structuredMappingSchema=z.unknown().transform((input,ctx):StructuredMapping=>{
+ try{return validateStructuredMapping(input);}catch(error){ctx.addIssue({code:'custom',message:'STRUCTURED_MAPPING_INVALID',params:{structuredMappingCode:error instanceof StructuredMappingError?error.code:'STRUCTURED_MAPPING_INVALID'}});return z.NEVER;}
+});
+/** Only a fixed mapper limit marker may leave request validation; never Zod issue contents. */
+export function hasStructuredMappingLimit(error:z.ZodError):boolean{return error.issues.some(issue=>issue.code==='custom'&&issue.params?.structuredMappingCode==='STRUCTURED_MAPPING_LIMIT_EXCEEDED');}
+const structuredDraft=currentDraft.extend({schemaVersion:z.literal(3),structuredMapping:z.object({mapping:structuredMappingSchema,
+ acknowledgment:z.object({contentDigest:z.string().regex(/^[a-f0-9]{64}$/),mapperVersion:z.literal('structured-mapper-v1')}).strict().nullable(),
+}).strict().nullable()});
+export const reviewDraftSchema=z.discriminatedUnion('schemaVersion',[legacyDraft,currentDraft,structuredDraft]).superRefine((value,ctx)=>{
  const issue=(path:(string|number)[])=>ctx.addIssue({code:'custom',message:'IMPORT_REVIEW_INVALID',path});
  const requiresTarget=value.action==='REPLACE_CURRENT'||value.action==='AMEND_EXISTING'||value.relationship==='CANCELS';
  if(requiresTarget!==(value.target!==null))issue(['target']);
  if(value.relationship==='CANCELS'&&value.action!=='ADD_ADDITIONAL')issue(['relationship']);
  if(value.metadata.newFamily!==null&&value.action!=='NEW_FAMILY')issue(['metadata','newFamily']);
+ if(value.schemaVersion===3){
+  if(value.metadata.storageMode==='STRUCTURED'&&value.chunkPlan!==null)issue(['chunkPlan']);
+  if(value.structuredMapping!==null){
+   if(value.metadata.storageMode!=='STRUCTURED'&&value.metadata.storageMode!=='BOTH')issue(['metadata','storageMode']);
+   if(value.metadata.datasetType!==value.structuredMapping.mapping.dataset)issue(['metadata','datasetType']);
+  }
+ }
  const keys=new Set<string>();for(const [index,item] of value.warningDispositions.entries()){
   if(keys.has(item.warningKey))issue(['warningDispositions',index,'warningKey']);keys.add(item.warningKey);
  }

@@ -39,4 +39,14 @@ These GETs do not mutate business job/extraction/review/document/publication sta
 
 ## Integration acceptance
 
+## Structured review3 private backend (STR-01B-1, acceptance in progress)
+
+GET `/api/knowledge/imports/[id]/structured` with no query returns `{source:{jobId,jobRevision,extractionRevision,reviewRevision,sourceChecksum,extractionDigest}}`, active SUPER_ADMIN/private no-store. Use source minus reviewRevision in the explicit Mapping1 DTO; don't import Node-only mapper/review validators into a client. Hashes bind retained source, not authority. GET changes no business state; original access audit is allowed.
+
+POST same path uses `{expectedJobRevision,expectedExtractionRevision,expectedReviewRevision,mapping}`; review0 is valid before first save. It returns `{snapshot:{jobId,jobRevision,extractionRevision,reviewRevision,nextReviewRevision,plan,acknowledgment,publicationAvailable:false}}`. The plan contains exact typed rows and labelled cell/constant evidence. All server-prepared warnings remain unresolved. Keep raw lexemes distinct from explicitly selected conversions. POST requires same origin; body2MiB, Mapping1 256KiB, plan16MiB/2000rows. Fixed errors:400invalid,409binding/stale,413limit,422row/unsafe/source,503internal. Only fixed row coordinates/field names leave errors.
+
+PUT existing review route with schemaVersion3 and common review2 fields plus required `structuredMapping:null|{mapping,acknowledgment:null|{contentDigest,mapperVersion:'structured-mapper-v1'}}`. Non-null mapping requires metadata.storageMode STRUCTURED/BOTH and exact dataset. STRUCTURED cannot carry chunkPlan. Null acknowledgment allows private incomplete draft. Saving re-prepares actual source; supplied ack must match. Mapping's source and current CAS tuple are separate. Re-save retains ack across review counters while data/source/mapping changes invalidate it.
+
+Do not silently convert3 to1/2: server rejects that downgrade409, including after explicit3 clearing. Old1/2 RAG remains supported. Schema3 publication explicitly unavailable until atomic modes exist; no success/fallback/current installed flag claim. Gemini owns future mapping presentation integration; root has not changed UI here. These server modules expose types only to clients; a browser-safe response parser/UI is a later integration task.
+
 Root supplies backend unit, actual PostgreSQL and compiled authenticated HTTP evidence in the [backend report](../reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md). Gemini still needs to implement the user workflow, exercise loading/error/stale/saved-draft handling, and submit its local commit report. Root then reviews and runs real combined desktop/mobile/keyboard acceptance. Existing source checkpoint reports cannot close those pending UI gates.

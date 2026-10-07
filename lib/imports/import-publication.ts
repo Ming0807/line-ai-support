@@ -81,6 +81,7 @@ async function prepare(actor:string,request:Request,checksum:string,options:Impo
    const currentOptions={...options,signal:controller.signal};
    const preview=await getImportPreview(actor,request.id,currentOptions),review=await getImportReview(actor,request.id,currentOptions);checkSignal(currentOptions);
    if(!review.saved||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
+   if(review.saved.draft.schemaVersion===3)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    const plan=await prepareImportChunkPlan(actor,preview,{...options,signal:controller.signal,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))});
    const checked=validatePublicationReview(preview,review,plan,checksum);
    const versions=await getImportVersionResolution(actor,request.id,{expectedJobRevision:request.expectedJobRevision,expectedExtractionRevision:request.expectedExtractionRevision,expectedReviewRevision:request.expectedReviewRevision},currentOptions);assertAction(checked.draft,versions);

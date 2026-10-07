@@ -1,5 +1,7 @@
 # STR-00 / STR-01B-0 — exact private mapping preparation
 
+7October continuation STR-01B-1: [review3/authorized preview design](STRUCTURED_REVIEW_DESIGN.md) and [plan](../superpowers/plans/2026-10-07-yru-structured-review-preview.md) permit private runtime integration under DEC-042. Pure-component evidence below is historical; public schema/publication/query/UI gates remain pending.
+
 7October2026, parentff4c3b9. Root engineering design, independent of Gemini presentation. Sources: [master](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md)§12/37–42/49/50, [original versioning](../requirements/sources/original-document-versioning.th.md), [structured payload design](STRUCTURED_DATA_DESIGN.md), [import design](KNOWLEDGE_IMPORT_DESIGN.md), [M8 plan](../superpowers/plans/2026-10-06-yru-structured-data.md), DEC-027/037/038. Status: freeze only the following pure mapping DTO/transforms/artifact; no saved schema3, installed SQL mapper, preview route or publication acceptance.
 
 ## Boundary and alternatives
