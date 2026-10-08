@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+8October RAG-01A [semantic routing evidence](../reports/SEMANTIC_CONTEXT_ROUTING_REPORT.md): production configured free proposal→fresh leased/source mapping, actual10routing/235ownedPG/33replay/RLS/advisors and1902unit/build component PASS. CH023/028/031/FLOW-E gain context-only evidence; semantic business intent and sourced/live FlowE remain pending. No migration/auto-ticket creation or HUMAN AI reply; root self-review only.
+
 8October ADV-05B-1 [internal Staff knowledge](../reports/STAFF_KNOWLEDGE_ASSISTANCE_REPORT.md):1897unit/225ownedPG/33replay/RLS/advisors/type/lint/build/8 new browser groups and5 old summary groups PASS. Authorized HUMAN lookup uses actual USER scope, fresh retrieval/source checks and canonical editable references; no Student auto-send. This closes the internal knowledge component of CH052/USR-STAFFASSIST, not external web/full/live V1. Root self-review; requested Luna verdict unavailable at usage limit.
 
 8October ADV-05A [Staff HUMAN assistance](../reports/STAFF_AI_ASSISTANCE_REPORT.md) adds summaries/editable draft/department-priority recommendations with fresh authorization/source fences and explicit human sending.1889unit/219ownedPG/type/full lint/build/5compiled-browser groups PASS; actual Luna high read-only review noP1/P2. CH052/USR-STAFFASSIST remain PARTIAL pending verified knowledge and full/live acceptance. USR-WEB remains pending accepted runtime implementation; optional RichMenu is explicitly deferred by DEC-059.
@@ -55,7 +57,7 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | CH020 | 20 ENVvalidation | M1, PRV-05, FINAL-01 | PARTIAL: Zod/modern+legacySupabase/envexampleมี; freeconfiguration/finalrunbookต้องalign |
 | CH021 | 21 Studentwebhook | M3, RAG-01, ADV-04 | PARTIAL: rawHMAC/validempty/commitACKมี; fullAI/loading/deadlineacceptancepending |
 | CH022 | 22 SpamGuard | M3/M4, PRV-05 | COMPONENT_EVIDENCE: arrivalrate/duplicatesbeforeAI; reproveproviderHTTP=0forspamafterintegration |
-| CH023 | 23 ConversationRouter | M4/M6, RAG-01 | PARTIAL: pure/PG/HTTPmulti-context+opaquechoices; semanticfreeproviderfullFlowEpending |
+| CH023 | 23 ConversationRouter | M4/M6, RAG-01 | PARTIAL: production semantic free-gateway proposal/current context fences and10actual routing PG pass; full sourced/free/OA FlowE remains |
 | CH024 | 24 QuickReply | M4/M6, FINAL-01 | COMPONENT_EVIDENCE: ownedopaqueexpire/dedupcontext/confirm choices; realOAflowpending |
 | CH025 | 25 StateMachine | M4 | COMPONENT_EVIDENCE: invalidtransitions/revision/history; noarbitrarystatus |
 | CH026 | 26 HumanTakeover | M4/M6, PRV-05 | COMPONENT_EVIDENCE: HUMANrace/outboxsuppressionfixture; freeflowregressionrequired |
@@ -144,7 +146,7 @@ Coverage ในตารางด้านบนเป็นสถานะข�
 | FLOW-B Troubleshooting | Wi-Fi → contextquestion → officialguide → solved → no ticket | producerclarificationcomponentsมี; actualmulti-turnfreeguide/solveconfirmationpending RAG-01/FINAL-01 |
 | FLOW-C Escalation | unresolvedWi-Fi → confirmedITticket → scopedStaffnotification | M4/receipts/notificationfixturesมี; freeAI→ticket+boundrealStaffOA pending ADV-01/FINAL-01 |
 | FLOW-D Human | staffaccept → HUMAN → staffquestion/userreplysamecase → resolve → close | actualPG/HTTP/browsercomponentflowsมี; realOAfullticketcyclepending FINAL-01 |
-| FLOW-E NewtopicduringHUMAN | Registrationcase remainsactive while libraryquestion gets newAIconversation | pure/controlledmulti-contexttestsมี; freecurrentlibrarycitation+realOAwhileHUMANpending RAG-01/FINAL-01 |
+| FLOW-E NewtopicduringHUMAN | Registrationcase remainsactive while libraryquestion gets newAIconversation | RAG-01A real worker/PG semantic new topic and unchanged HUMAN pass; full currentlibrarycitation/freegeneration+realOA pending FINAL-01 |
 | FLOW-F Documentupdate | calendar2568 → import2569→family/conflictpreview→approve→oldsuperseded→newcurrent→answer2569 | current/historyretrievalfixturesมี; completeimport/version/structured/BOTHapprovalpending IMP-03/STR-02/FINAL-01 |
 
 ## หลักการอัปเดต matrix

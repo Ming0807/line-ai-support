@@ -58,6 +58,8 @@ Actual SQL source อยู่ใน `supabase/migrations/`; ตัวอย่�
 
 ## Conversation และ ticket state
 
+8October RAG-01A [semantic context design](AI_CONTEXT_ROUTING_DESIGN.md)/[component evidence](../reports/SEMANTIC_CONTEXT_ROUTING_REPORT.md) binds the configured free gateway in the production inbox worker. Ephemeral labels and actual USER snapshots commit before HTTP; bounded proposals map only after fresh lease/context checks. Unknown/low-confidence/stale results retain explicit owned choices. Business intent/troubleshooting and full sourced/live FlowE remain separate acceptance.
+
 Router outcome: existing context, new AI conversation, context question หรือ blocked/spam. Context choice ใช้ opaque signed/owned/expiring tokens; ticket creation ต้อง confirmation backend-owned. AI classification เป็น structured proposal ที่ตรวจ against user text/applicability/active departments; ไม่ใช้ keyword เป็น final router
 
 State machine มี implementation ใน `lib/conversation/state-machine.ts`:

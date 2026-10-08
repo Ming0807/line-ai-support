@@ -1,0 +1,26 @@
+# RAG-01A — semantic context routing evidence
+
+8October2026; root baseline af0cfe70c9afe51dd5d20a87a490a154f3620f11, branch feat/yru-helpdesk-v1. [Design](../architecture/AI_CONTEXT_ROUTING_DESIGN.md), [execution](../superpowers/plans/2026-10-08-yru-semantic-context-routing.md); CH023/028/031, original§§17–19/21, master§§23/28/31/66/69 FlowE. Root owns implementation/source self-review. Requested Luna reviewers have exhausted their usage allowance; no independent verdict is credited.
+
+## Behavior
+
+The production inbox worker now binds the configured generation gateway to a bounded semantic proposal for eligible Student TEXT messages with existing contexts. It exposes ephemeral C1…C12 labels, minimized topic/problem and previous actual USER text, excluding explicit technical identities/IDs/ticket numbers/Staff text. Backend requires a strict consistent proposal, confidence>=.8 and an exact current candidate. Clear new topics create an independent AI conversation; same-case continuation reaches the exact AI/HUMAN context. Unavailable/low-confidence/unknown/malformed/stale proposals preserve the owned context prompt.
+
+Preflight validates owned30-second lease, encrypted typed payload/hash, active existing anonymous session, prior-arrival spam and LINE-message deduplication. Sorted conversation locks and complete context digest fence mode/revision/closure/topic/USER changes. Provider work occurs after the read transaction commits, with an8-second maximum and7-second lease reserve; final normal business processing rechecks lease and exact context before effects. A classifier that ignores cancellation cannot hold the worker indefinitely. Explicit postbacks bypass classification. HUMAN continuation creates no AI job/reply; old HUMAN tickets remain unchanged when a separate new topic opens. No schema/migration/AI ticket creation/UI/webhook signature changes.
+
+## Verification
+
+- RED unit: missing proposal module before implementation. Five focused cases pass for strict schema/private projection/server candidate mapping, bounded no-tools gateway/cancellation/failure output.
+- RED owned PG: missing runtime module before implementation; first runtime run6/7 passed, with the postback synthetic fixture incorrectly storing POSTBACK instead of the existing OTHER classification. Corrected the fixture without weakening schema. Final10/10 passed, including outsideSQL/multiple contexts/stale USER or mode/lost and reclaimed lease/spam/dedup/postback/cancellation bounds and real runInboxCycle claim→classification→commit.
+- First concurrent full unit run1901/1902 passed; the existing large PDF overflow test hit its20-second test budget. Serial PDF9/9 passed in14.95seconds with no implementation/test-timeout change. The concurrent owned replay passed routing9, Staff knowledge5, Staff summary5 and schema121, then the existing structured publication suite exceeded its120-second harness bound. Cleanup passed. These initial partial runs are not full acceptance.
+- Final serial full unit `pnpm exec vitest run --maxWorkers=1`:146files/1902tests PASS,305.30seconds. No test timeout or PDF implementation was changed. This checkpoint precedes the separate unused RAG-01B-1 tests.
+- Final serial owned runner `pnpm exec tsx scripts/database/verify-structured-schema.ts` with pinned Supabase CLI2.119.0:235actual PG cases PASS (10routing/5knowledge/5summary/121schema/49structured publication-search-delivery/16RAG/8operations/4loading/1readiness/8incidents/8binding);33migration replay/foundation RLS PASS. Advisors ERROR0/WARN0/INFO102; private RLS-with-no-public-policy and synthetic unused-index INFO observations preserve the existing private design. Cleanup PASS; normal seven-table schema unchanged, no auth data copied or existing database reset.
+- Fresh controlled `pnpm build` PASS (Next16.3.8, one page-data/static worker). Final `pnpm typecheck` and `pnpm lint` PASS, including the added actual worker-cycle fixture. Existing owned3012QA process was stopped by verified exact child/parent before rebuilding; normal3000/tunnel were untouched. No new UI/browser surface requires a browser fixture here. Staged whitespace/credentials and Git handoff are recorded after execution.
+
+Private logs are in .superpowers/staging/semantic-routing-*. They are not committed and contain no real provider/OA acceptance. No new browser surface was introduced; this slice's new behavior is actual PG/worker plus the configured proposal adapter, not browser fixture evidence.
+
+## Limits and remaining work
+
+No live free inference/Thai classifier quality/actual OA/library citation is claimed. Manual FlowE must retain an active Registration HUMAN case while a new library question gets a sourced answer in its own AI conversation; uncertainty must offer owned context choices. [Final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md) collects that deferred check.
+
+RAG-01B still implements business intent, relevant troubleshooting questions/history, confirmed escalation with collected context/category/priority/sensitivity, explicit solved outcomes and observed metrics. Source cascade/bounded web, verified incident system/location context, worker liveness and final FlowA–F also remain. This report does not complete V1.

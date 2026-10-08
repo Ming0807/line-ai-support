@@ -9,8 +9,9 @@ import {createEscalation} from '../tickets/create-ticket';
 import {applyUserReply} from '../tickets/human-takeover';
 import {prepareAIJob} from '../ai/jobs';
 import {createTicketToolRegistry} from '../ai/backend-tools';
+import {validateRoutingAdvice,type SemanticRoutingAdvice} from './semantic-routing';
 
-export interface StudentProcessingOptions {aiEnabled?:boolean}
+export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice}
 
 export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string,options:StudentProcessingOptions={}):Promise<string|null> {
  const {sessionId,eventId,event,receivedAt}=input;
@@ -29,7 +30,8 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    await respond('ส่งคำถามเรื่องใหม่มาได้เลยครับ แล้วเลือกเริ่มเรื่องใหม่เมื่อระบบถามบริบท');return null;
   }
  }
- const decision=routeConversation({candidates,selectedConversationId:selected,newTopic});
+ const semantic=event.type==='message'?await validateRoutingAdvice(client,input,options.routingAdvice):null;
+ const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId,newTopic:newTopic||semantic?.newTopic,confidence:semantic?.confidence});
  let conversationId=selected;
  if(choice?.action==='CONTACT'){
   conversationId=choice.conversationId;

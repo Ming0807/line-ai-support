@@ -1,0 +1,10 @@
+# RAG-01A execution plan
+
+Root owns design/contracts/auth/leases/privacy/integration; user continues V1 work. [Design](../../architecture/AI_CONTEXT_ROUTING_DESIGN.md), CH023/028/031, original§§17–19/21, master§§23/28/31/66/69. No migration. Existing explicit confirmations and all HUMAN/outbox/source invariants remain.
+
+- [x] RED unit tests `tests/semantic-context-routing.test.ts` for strict proposal/mapping/low-confidence/unknown/stale/private projection and free-adapter/no tools bounds. Contract files `lib/conversation/semantic-routing-contracts.ts` and `semantic-routing-provider.ts`.
+- [x] RED owned PG `tests/database/semantic-context-routing.integration.ts`: exact owned inbox/candidate/USER snapshots, outsideSQL generation; new topic while HUMAN, exact HUMAN continuation, multiple contexts, stale message/mode/lease, spam/dedup/postback no classification. Extend owned runner with this named suite before Staff assistance; final real cycle regression10/10 PASS.
+- [x] Implement `lib/conversation/semantic-routing.ts`: common bounded minimized context loader/fingerprint, leased preflight/committed HTTP/cancellation/strict server mapping; bind internal advice to event/session/question/context. Wire `lib/queue/run-inbox.ts` and `lib/conversation/student-processing.ts` to final fresh validation. Wire `scripts/worker.ts` to configured free adapter only when AI enabled. No UI/webhook/auth/schema/ticket mutation logic.
+- [ ] Focused tests/type/lint, owned replay/RLS/new actual PG + existing regressions, full unit/build; signed compiled controlled flow evidence where appropriate. Review root invariants and source contract; requested Luna reviewers currently unavailable at limit, no independent verdict claimed. Update task/matrix/design/decision/report/index/setup; exact staged scan/diff/root commit/push/remote verification.
+
+RAG-01B remains explicit: semantic business intent/department proposals, grounded troubleshooting questions/guide/history, confirmed escalation with collected context/category/priority, explicit solved outcome and metrics. This routing slice alone cannot close FlowB/C or whole FlowE/live V1.
