@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8October [ADV-01 Staff binding](reports/STAFF_LINE_BINDING_REPORT.md) COMPONENT_PASS / realOA MANUAL_PENDING: self Settings/one-use commands/signed inbox/delivery-fenced unlink;1883unit/214ownedPG/type/full lint/build/browser PASS. Local+DEVELOPMENT now33 migrations/52RLS tables. Root continues staff AI drafts/bounded search/context/outcomes and FlowA–F; earlier32-version references below are historical checkpoints.
+
 STR-ACT-01 [actual development activation](reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md): local+DEVELOPMENT32versions/51RLS tables, actual7dataset readinesstrue, normal40regressions PASS. No university document approved; below's isolated0/7 observations are historical checkpoints.
 
 8October current [combined Dashboard/readiness](reports/V1_COMBINED_UI_REPORT.md), [actual mapping browser](reports/V1_MAPPING_BROWSER_REPORT.md), [metrics](reports/OPERATIONS_METRICS_BACKEND_REPORT.md), [Incidents](reports/INCIDENT_BACKEND_REPORT.md), [loading integration](reports/LINE_LOADING_INTEGRATION_REPORT.md):206ownedPG/32migrations/advisors0ERROR0WARN,1873unit/type/lint/build and compiled3-role/36viewport checks. Root continues guarded development activation, authenticated Staff binding, staff AI drafts/bounded search and final FlowA–F. These component checks do not finish V1; current task board governs over historical snapshots below.

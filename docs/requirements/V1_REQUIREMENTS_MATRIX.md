@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+8October ADV-01 [actual binding component](../reports/STAFF_LINE_BINDING_REPORT.md) advances CH054/USR-DASHBOARD: self Settings/signed Staff lease/one-use challenges/unlink privacy and delivery fence pass. DEVELOPMENT/local33migrations/52RLS tables. Actual Staff OA notification/accept/FlowC–D remains MANUAL_PENDING, not a live pass.
+
 STR-ACT-01 [activation](../reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md) removes the normal-schema hold for CH012/018/041/050 only: local+DEVELOPMENT32versions/51RLS tables/readinesstrue/40normalPG pass. CH041/050/FlowF remain PARTIAL until final full flow/official approval evidence; current installation is not automatic publication.
 
 8October root [combined UI](../reports/V1_COMBINED_UI_REPORT.md)/[mapping](../reports/V1_MAPPING_BROWSER_REPORT.md)/[Incidents](../reports/INCIDENT_BACKEND_REPORT.md)/[metrics](../reports/OPERATIONS_METRICS_BACKEND_REPORT.md)/[loading](../reports/LINE_LOADING_INTEGRATION_REPORT.md) add actual source/type/lint/build/1873unit/206ownedPG/32migration/advisors and3-role compiled36viewport evidence. CH012/013/015/016/018/021/041/047/049/050/051/055/056/057/058/060 and USR-UX/IMPORT-EASE/DASHBOARD receive component evidence, not whole-flow completion. Normal activation, context enrichment, Staff binding/assistance/bounded web fallback and FlowA–F remain explicit pending requirements. No denominator-based V1 percentage is claimed.
@@ -80,7 +82,7 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | CH051 | 51 TicketDashboard | M4, TKT-READ-02, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; [bounded q/pages/matching totals/private API/Bangkok days](../reports/TICKET_SEARCH_PAGINATION_REPORT.md); Gemini search/paging/combined UI and overviewanalytics remain |
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
-| CH054 | 54 StaffOA | M3/M4, ADV-01 | PARTIAL: signedStaffingress/commands/scopedalertscomponent; bindingflow/liveUXpending |
+| CH054 | 54 StaffOA | M3/M4, ADV-01 | COMPONENT_PASS: self Settings/one-use binding/signed ingress/scoped alerts/unlink fence; actual OA notification/accept/live flow MANUAL_PENDING |
 | CH055 | 55 Similarissues | ADV-02 | PARTIAL: local384/pairwise/window/department/category/privacy and scoped Detail suggestions; verified system/location enrichment/liveE5 pending |
 | CH056 | 56 Incidentdetector | ADV-02 | COMPONENT_EVIDENCE: configurable thresholds/fresh revisions/lease/idempotency/concurrent and historical membership/status/UI checks; full flow pending |
 | CH057 | 57 Severity | ADV-02 | COMPONENT_EVIDENCE: deterministic aggregate/CRITICAL human verification note encrypted in immutable receipt; actualPG/UI pass, live operator flow pending |

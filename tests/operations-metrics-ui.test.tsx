@@ -36,6 +36,7 @@ import AnalyticsPage from '../app/(dashboard)/analytics/page';
 import UsagePage from '../app/(dashboard)/usage/page';
 import DepartmentsPage from '../app/(dashboard)/departments/page';
 import SettingsPage from '../app/(dashboard)/settings/page';
+vi.mock('@/lib/staff/line-binding',()=>({getBindingStatus:vi.fn(async()=>({bound:false,pending:false,expiresAt:null}))}));
 
 const staffId = '39f7e07f-7d76-433e-a83e-205297c60a83';
 const departmentId = '4fe5dd1d-28d5-4a2e-bb4a-48f6e4559d28';
@@ -106,10 +107,12 @@ describe('operations metrics server surfaces', () => {
     expect(markup).not.toContain('โควต้าเหลือ');
   });
 
-  it('rejects non-super-admin direct Usage and Settings access before protected reads', async () => {
+  it('rejects non-super-admin Usage and permits self Settings without protected administrative reads', async () => {
     mocks.role = 'STAFF';
     await expect(UsagePage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NOT_FOUND');
-    await expect(SettingsPage()).rejects.toThrow('NOT_FOUND');
+    const markup = html(await SettingsPage());
+    expect(markup).toContain('เชื่อมต่อ LINE เจ้าหน้าที่');
+    expect(markup).not.toContain('Worker liveness');
     expect(mocks.usage).not.toHaveBeenCalled();
     expect(mocks.settings).not.toHaveBeenCalled();
     expect(mocks.embedding).not.toHaveBeenCalled();

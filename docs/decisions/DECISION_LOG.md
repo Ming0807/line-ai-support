@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-058 — authenticated binding component acceptance
+
+8October root accepts [ADV-01 evidence](../reports/STAFF_LINE_BINDING_REPORT.md) and migration33 for explicitly selected DEVELOPMENT/local after owned replay/RLS/214PG/advisors. All active staff get self Settings; admin health stays SUPER_ADMIN-only. Inactive identities reserve their current owner until that owner explicitly replaces them; no automatic transfer. Exact setup/issuer-only network retry recovery uses purpose hashing/encryption; unlink invalidates binding/action tokens behind the delivery fence. Signed HTTP browser fixtures are component evidence, not real OA delivery. No independent unavailable-agent review/production migration/corpus approval. DEC-057's planned binding now has implemented component evidence.
+
 ## DEC-055 — combined operational UI and guarded runtime readiness
 
 8October continuous V1 authorization: accept real scoped full-population metric/read adapters and the human-approved presentation against root contracts. Unobserved outcome/quota/liveness remains unknown. Strict readiness observes installed columns/types/keys/RLS/triggers; normal development activation may proceed only after the combined source/ownedPG/browser gates in [STR-ACT-01](../superpowers/plans/2026-10-08-yru-development-activation.md). This narrows DEC-047/053's earlier normal-schema hold for the explicitly selected development/local databases only; production/corpus/live Flow gates are separate. Source/QA reports state exact checkpoints; no auto-publication or provider payment choice follows installation.

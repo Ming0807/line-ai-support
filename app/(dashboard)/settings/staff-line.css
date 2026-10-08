@@ -1,0 +1,10 @@
+.staff-line-panel { margin-bottom: 1.5rem; }
+.staff-line-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.staff-line-heading h2 { margin-top: 0; }
+.staff-line-actions { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1rem; }
+.staff-line-actions button { cursor: pointer; }
+.staff-line-actions button:disabled { cursor: wait; opacity: .6; }
+.staff-line-command { margin-top: 1rem; max-width: 42rem; }
+.staff-line-command label { display: block; margin-bottom: .5rem; font-weight: 600; }
+.staff-line-command textarea { width: 100%; max-width: 100%; box-sizing: border-box; padding: .75rem; border: 1px solid #d9d7d3; border-radius: .75rem; background: #f4f3ef; color: #141622; font: inherit; overflow-wrap: anywhere; resize: vertical; }
+.staff-line-panel button:focus-visible, .staff-line-command textarea:focus-visible { outline: 3px solid #f25c54; outline-offset: 3px; }

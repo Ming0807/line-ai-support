@@ -5,7 +5,7 @@
 | Current ID | Owner | State | Next acceptance/dependency |
 |---|---|---|---|
 | STR-ACT-01 | root DB/integration | DEVELOPMENT_COMPONENT_PASS | [actual activation](../reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md): local+DEVELOPMENT32versions/51RLS tables; DEVELOPMENT readinesstrue; normal40regressions pass. No source approval/production/live pass |
-| ADV-01 | root; requested Luna unavailable | PLANNED | [authenticated self-binding](../architecture/STAFF_LINE_BINDING_DESIGN.md)/[plan](../superpowers/plans/2026-10-08-yru-staff-line-binding.md); no implementation/live binding pass yet |
+| ADV-01 | root; requested Luna unavailable | COMPONENT_PASS / MANUAL_PENDING | [binding evidence](../reports/STAFF_LINE_BINDING_REPORT.md): self Settings/API/one-use commands/delivery-fenced unlink;1883unit/214ownedPG/type/full lint/build/signed browser PASS. Local+DEVELOPMENT33migrations/52RLS tables. Actual Staff OA notification/accept deferred |
 | ADV-02 | root backend + actual Luna high UI/source review | PARTIAL | current semantic worker/scoped APIs/UI and8actualPG pass; verified system/location enrichment/liveE5 still pending |
 | ADV-03 | root backend + actual Luna high UI | PARTIAL | real scoped read surfaces/component/browser pass; AI-resolution outcome and worker liveness stay unknown; final metrics/Flow requirements still accounted separately |
 | ADV-04 | actual Luna high transport + root integration | COMPONENT_PASS / MANUAL_PENDING |19transport/4actualPG; real OA animation/slow free generation/late reply still deferred |
