@@ -25,6 +25,8 @@ async function fixture(){
   await pool.query('delete from private.activities where ticket_id=$1',[ticket]);
   await pool.query('delete from public.ticket_history where ticket_id=$1',[ticket]);
   await pool.query('update public.conversations set active_ticket_id=null where id=$1',[conversation]);
+  await pool.query('delete from private.incident_detection_jobs where ticket_id=$1',[ticket]);
+  await pool.query('delete from private.incident_ticket_vectors where ticket_id=$1',[ticket]);
   await pool.query('delete from public.tickets where id=$1',[ticket]);await pool.query('delete from public.conversations where id=$1',[conversation]);
   await pool.query('delete from private.line_identities where line_session_id=$1',[session]);await pool.query('delete from public.line_sessions where id=$1',[session]);
   await pool.query('delete from public.staff_profiles where id=$1',[staff]);await pool.query('delete from auth.users where id=$1',[staff]);await pool.query('delete from public.departments where id=$1',[dept]);await pool.end();

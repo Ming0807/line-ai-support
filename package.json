@@ -17,7 +17,8 @@
     "test:db": "powershell -NoProfile -File scripts/database/test-local.ps1",
     "worker": "tsx scripts/worker.ts",
     "worker:outbox": "tsx scripts/outbox-worker.ts",
-    "worker:ai": "tsx scripts/ai-worker.ts"
+    "worker:ai": "tsx scripts/ai-worker.ts",
+    "worker:incidents": "tsx scripts/incident-worker.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

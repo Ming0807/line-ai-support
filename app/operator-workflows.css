@@ -1,0 +1,389 @@
+/* OC-UI-02 operator workflow styles. All classes are opw- scoped; no global,
+   home, sidebar, or design-token rules are touched here. Palette follows the
+   approved direction: ink #141622 on canvas, white cards, coral accent only
+   for primary attention. */
+
+.opw-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(10rem, 1fr));
+  align-items: end;
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.opw-filters label {
+  display: grid;
+  gap: 0.35rem;
+  color: #141622;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.opw-filters input,
+.opw-filters select {
+  min-height: 2.75rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #ebe8e1;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  color: #141622;
+  font: inherit;
+}
+
+.opw-filters input:focus,
+.opw-filters select:focus {
+  border-color: #f25c54;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(242, 92, 84, 0.18);
+}
+
+.opw-filter-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 2.75rem;
+  flex-wrap: wrap;
+}
+
+.opw-btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.opw-btn:focus-visible,
+.opw-page-btn:focus-visible,
+.opw-row-btn:focus-visible,
+.opw-dialog-close:focus-visible,
+.opw-reset:focus-visible {
+  outline: 3px solid #f25c54;
+  outline-offset: 3px;
+}
+
+.opw-btn-primary {
+  background: #141622;
+  color: #fff;
+}
+
+.opw-btn-primary:hover {
+  background: #232738;
+}
+
+.opw-btn-secondary {
+  border-color: #ebe8e1;
+  background: #ffffff;
+  color: #141622;
+}
+
+.opw-btn-secondary:hover {
+  background: #f4f3ef;
+}
+
+.opw-reset {
+  color: #70757d;
+  font-size: 0.93rem;
+}
+
+.opw-reset:hover {
+  color: #141622;
+}
+
+.opw-error {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fca5a5;
+  border-radius: 0.75rem;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.opw-error a {
+  color: #991b1b;
+}
+
+.opw-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: clamp(2rem, 6vw, 3.5rem) 1.2rem;
+  border: 1px dashed #d8d4c9;
+  border-radius: 1.15rem;
+  background: #ffffff;
+  text-align: center;
+}
+
+.opw-state p {
+  max-width: 52ch;
+  margin: 0;
+  color: #70757d;
+  line-height: 1.6;
+}
+
+.opw-state-title {
+  color: #141622 !important;
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+
+.opw-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.opw-count {
+  margin: 0 0 0.9rem;
+  color: #70757d;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.opw-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.opw-row {
+  margin: 0;
+  padding: 0;
+}
+
+.opw-row-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid #ebe8e1;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #141622;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.opw-row-btn:hover {
+  border-color: #d8d4c9;
+  background: #faf9f6;
+}
+
+.opw-row-main {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.opw-row-main strong {
+  font-size: 0.98rem;
+}
+
+.opw-row-summary {
+  color: #141622;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.opw-row-meta {
+  color: #70757d;
+  font-size: 0.83rem;
+  overflow-wrap: anywhere;
+}
+
+.opw-pager {
+  margin-top: 0.5rem;
+}
+
+.opw-pager-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.opw-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid #ebe8e1;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #141622;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.opw-page-btn:hover:not(.is-disabled) {
+  background: #f4f3ef;
+}
+
+.opw-page-btn.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.opw-page-indicator {
+  padding: 0 0.4rem;
+  color: #141622;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.opw-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem 1rem;
+  background: rgba(20, 22, 34, 0.55);
+  overflow-y: auto;
+}
+
+.opw-dialog {
+  width: min(100%, 34rem);
+  max-width: 100%;
+  padding: 1.4rem;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  color: #141622;
+  box-shadow: 0 18px 60px rgba(20, 22, 34, 0.3);
+}
+
+.opw-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.opw-dialog-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.opw-dialog-close {
+  flex: none;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #ebe8e1;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #141622;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.opw-dialog-close:hover {
+  background: #f4f3ef;
+}
+
+.opw-facts {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0 1rem;
+}
+
+.opw-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #f4f3ef;
+}
+
+.opw-facts > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.opw-facts dt {
+  flex: none;
+  color: #70757d;
+}
+
+.opw-facts dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.opw-dialog-summary {
+  margin: 0 0 1.1rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.opw-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 64rem) {
+  .opw-filters {
+    grid-template-columns: repeat(2, minmax(10rem, 1fr));
+  }
+}
+
+@media (max-width: 36rem) {
+  .opw-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .opw-dialog-backdrop {
+    padding: 2vh 0.5rem 0.5rem;
+  }
+
+  .opw-dialog {
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  .opw-facts > div {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .opw-facts dd {
+    text-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opw-dialog-backdrop,
+  .opw-dialog,
+  .opw-row-btn,
+  .opw-btn,
+  .opw-page-btn {
+    transition-duration: 0.01ms !important;
+  }
+}

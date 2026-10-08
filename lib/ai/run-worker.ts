@@ -10,12 +10,16 @@ import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock
 import {searchStructured} from '../knowledge/structured-search';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
+import {startLineLoading} from '../line/loading';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
  history:{role:'user'|'assistant';content:string}[];
 }
-export interface AIWorkerOptions {produce(snapshot:AISnapshot,signal:AbortSignal):Promise<AIResult>}
+export interface AIWorkerOptions {
+ produce(snapshot:AISnapshot,signal:AbortSignal):Promise<AIResult>;
+ loading?:{accessToken?:string;fetchImpl?:typeof fetch};
+}
 async function eligible(client:PoolClient,job:AIJob):Promise<boolean>{
  return (await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
   join public.messages m on m.id=$4 and m.conversation_id=c.id and m.sender_type='USER' and m.message_type='TEXT'
@@ -50,6 +54,30 @@ async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promi
  const timeout=new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('AI_JOB_DEADLINE'));},60_000);});
  try{return await Promise.race([Promise.resolve().then(()=>options.produce(snapshot,controller.signal)),timeout]);}
  finally{if(timer)clearTimeout(timer);}
+}
+/** Private preflight commits before HTTP; never include a technical identity in AISnapshot. */
+async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOptions):Promise<void>{
+ if(!options.loading?.accessToken||job.attempts!==1||job.result_encrypted!==null)return;
+ try{
+  const recipient=await transaction(async client=>{
+   await client.query("set local statement_timeout='5s'");await client.query("set local lock_timeout='2s'");
+   await lockConversation(client,job.conversation_id);const current=await lockedAIJob(client,job);
+   if(current.attempts!==1||current.result_encrypted!==null||!await eligible(client,current))return null;
+   const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
+   if(!request.replyToken)return null;
+   const identity=(await client.query(`select i.user_id_encrypted,clock_timestamp() now from private.line_identities i
+    join public.line_sessions s on s.id=i.line_session_id and s.active where i.line_session_id=$1`,[job.line_session_id])).rows[0];
+   if(!identity)return null;
+   const age=identity.now.getTime()-new Date(request.receivedAt).getTime();
+   // Leave 1.5s within the original conservative reply window; never refresh it.
+   if(age<0||age>18_500)return null;
+   return decryptValue(identity.user_id_encrypted,key);
+  },pool);
+  if(recipient)await startLineLoading({recipientId:recipient,loadingSeconds:20},{...options.loading,timeoutMs:1000});
+ }catch{
+  // A decorative side effect cannot turn generation into a failed/retried job.
+  console.warn('LINE_LOADING_UNAVAILABLE');
+ }
 }
 async function finalize(pool:Pool,job:AIJob,key:string):Promise<'DONE'|'SUPPRESSED'>{
  return transaction(async client=>{
@@ -108,8 +136,13 @@ export async function runAICycle(pool:Pool,key:string,options:AIWorkerOptions):P
  const stats={claimed:0,completed:0,suppressed:0,failed:0};let job:AIJob|null=null;
  try{
   job=await claimAIJob(pool);if(!job)return stats;stats.claimed=1;
-  const context=await snapshot(pool,job);if(!context){stats.suppressed=1;return stats;}
-  if(job.result_encrypted===null)await saveAIResult(pool,job,await produceBounded(context,options),key);
+  let context=await snapshot(pool,job);if(!context){stats.suppressed=1;return stats;}
+  if(job.result_encrypted===null){
+   await showLoading(pool,job,key,options);
+   // Takeover/revision/lease may change while the animation HTTP call runs.
+   context=await snapshot(pool,job);if(!context){stats.suppressed=1;return stats;}
+   await saveAIResult(pool,job,await produceBounded(context,options),key);
+  }
   const status=await finalize(pool,job,key);if(status==='DONE')stats.completed=1;else stats.suppressed=1;
   console.info('AI_JOB_FINISHED',{status});
  }catch{

@@ -15,6 +15,7 @@ import type {ImportReviewDraft} from './review-schema';
 import {createLocalE5EmbeddingProvider,type LocalE5EmbeddingProvider} from '../knowledge/embedding-client';
 import {embedLocatedChunkPlan,LocatedEmbeddingPreparationError} from '../knowledge/located-embedding-preparation';
 import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
+import {structuredInfrastructureReady} from '../knowledge/structured-readiness';
 const revision=z.number().int().min(1).max(999_999_999);
 export const publicationRequestSchema=z.object({id:z.uuid().transform(id=>id.toLowerCase()),expectedJobRevision:revision,expectedExtractionRevision:revision,expectedReviewRevision:revision,confirmPublication:z.literal(true)}).strict();
 type Request=z.infer<typeof publicationRequestSchema>;
@@ -73,9 +74,12 @@ async function familyChoices(client:PoolClient,draft:ImportReviewDraft,family:Ve
 }
 async function assertStructuredVerification(client:PoolClient,options:ImportPublicationOptions){
  const name=options.structuredVerificationDatabase;
- if(!name||!/^yru_structured_schema_[a-f0-9]{12}$/u.test(name))return false;
- const row=(await client.query("select current_database() name,pg_get_userbyid(datdba) owner,to_regclass('private.structured_publication_effects') installed from pg_database where datname=current_database()")).rows[0];
- return row?.name===name&&row.owner==='postgres'&&Boolean(row.installed);
+ if(name){
+  if(!/^yru_structured_schema_[a-f0-9]{12}$/u.test(name))return false;
+  const row=(await client.query("select current_database() name,pg_get_userbyid(datdba) owner from pg_database where datname=current_database()")).rows[0];
+  if(row?.name!==name||row.owner!=='postgres')return false;
+ }
+ return structuredInfrastructureReady(client);
 }
 async function prepare(actor:string,request:Request,checksum:string,documentId:string,options:ImportPublicationOptions){
  const timeout=options.preparationTimeoutMs??45_000;

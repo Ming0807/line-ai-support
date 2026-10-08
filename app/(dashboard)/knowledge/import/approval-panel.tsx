@@ -5,6 +5,8 @@ import type {ImportReviewState} from '@/lib/imports/import-review';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {ImportPublicationReceipt} from '@/lib/imports/import-publication';
 import {isPublicationResult,isReceiptEnvelope} from '@/lib/imports/publication-response';
+import {structuredAvailabilitySchema} from '@/lib/knowledge/structured-availability';
+import {reviewPublicationEvidence} from './review-state';
 
 type ApprovalPanelProps={
  review:ImportReviewState;
@@ -23,7 +25,6 @@ const actions:Record<NonNullable<ImportReviewDraft['action']>,string>={
  NEW_FAMILY:'เริ่มกลุ่มเอกสารใหม่',ADD_ADDITIONAL:'เพิ่มเอกสารในกลุ่ม',REPLACE_CURRENT:'แทนฉบับปัจจุบัน',ADD_HISTORICAL:'เพิ่มฉบับย้อนหลัง',AMEND_EXISTING:'แก้ไขเอกสารเดิม',
 };
 const attestations:readonly (keyof ImportReviewDraft['attestations'])[]=['sourceAuthorityReviewed','extractionReviewed','applicabilityReviewed','sensitivityReviewed','versionReviewed'];
-const digest=/^[a-f0-9]{64}$/;
 async function request(url:string,init:RequestInit):Promise<Result>{
  const response=await fetch(url,{...init,cache:'no-store',credentials:'same-origin'});
  let body:unknown=null;try{body=await response.json();}catch{/* strict callers fail closed */}
@@ -52,14 +53,15 @@ function statusMessage(status:number){
 export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onReceiptChange}:ApprovalPanelProps){
  const binding=`${review.jobId}:${review.jobRevision}:${review.extractionRevision}:${review.reviewRevision}`;
  const saved=review.saved?.draft??null;
- const savedV2=saved?.schemaVersion===2?saved:null;
+ const savedV2=saved&&(saved.schemaVersion===2||saved.schemaVersion===3)?saved:null;
  const savedBinding=review.saved?`${review.saved.jobRevision}:${review.saved.extractionRevision}:${review.saved.reviewRevision}`:'';
  const expectedBinding=`${review.jobRevision}:${review.extractionRevision}:${review.reviewRevision}`;
- const matchingSaved=Boolean(review.saved&&savedBinding===expectedBinding&&!review.stale&&savedV2?.chunkPlan?.chunkerVersion==='located-e5-v1'&&digest.test(savedV2.chunkPlan.digest));
+ const matchingSaved=Boolean(review.saved&&savedBinding===expectedBinding&&!review.stale&&savedV2);
  const attestationsComplete=Boolean(saved&&attestations.every(key=>saved.attestations[key]));
- const plan=savedV2?.chunkPlan;
- const planAcknowledged=plan!==null&&plan!==undefined&&plan.chunkerVersion==='located-e5-v1'&&digest.test(plan.digest);
  const storageMode=saved?.metadata.storageMode??null;
+ const [availability,setAvailability]=useState<{binding:string;available:boolean|null}|null>(null);
+ const structuredAvailable=availability?.binding===binding&&availability.available===true;
+ const evidence=reviewPublicationEvidence(saved,structuredAvailable);
  const [refresh,setRefresh]=useState(0);
  const currentReadKey=`${binding}:${refresh}`;
  const [readResult,setReadResult]=useState<ReadResult|null>(null);
@@ -83,13 +85,23 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
  const pendingCallback=useRef(onPendingChange);
  const childPending=readState==='loading'||publishing;
  const requestBinding=useMemo(()=>({id:review.jobId,expectedJobRevision:review.jobRevision,expectedExtractionRevision:review.extractionRevision,expectedReviewRevision:review.reviewRevision}),[review.jobId,review.jobRevision,review.extractionRevision,review.reviewRevision]);
- const canStart=Boolean(matchingSaved&&attestationsComplete&&planAcknowledged&&!dirty&&!disabled&&!childPending&&readState==='ready'&&!completed&&storageMode==='RAG');
+ const warningsReviewed=Boolean(saved&&saved.warningDispositions.every(item=>item.status!=='UNRESOLVED'&&Boolean(item.reason?.trim())));
+ const canStart=Boolean(matchingSaved&&attestationsComplete&&warningsReviewed&&evidence.ready&&!dirty&&!disabled&&!childPending&&readState==='ready'&&!completed);
  const setApprovalMessage=(value:Omit<Message,'binding'>|null)=>setMessage(value?{...value,binding}:null);
 
  useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;activePost.current?.abort();pendingCallback.current(false);};},[]);
  useEffect(()=>{pendingCallback.current=onPendingChange;},[onPendingChange]);
  useEffect(()=>{onPendingChange(childPending);},[onPendingChange,childPending]);
  useEffect(()=>{if(open)confirmationHeading.current?.focus();},[open,confirmationKey]);
+ useEffect(()=>{
+  const controller=new AbortController();let active=true;
+  void request('/api/knowledge/structured/status',{method:'GET',signal:controller.signal}).then(({response,body})=>{
+   if(!active||controller.signal.aborted)return;
+   const value=typeof body==='object'&&body!==null&&'structured' in body?structuredAvailabilitySchema.safeParse(body.structured):null;
+   setAvailability({binding,available:response.ok&&value?.success?value.data.available:null});
+  }).catch(()=>{if(active&&!controller.signal.aborted)setAvailability({binding,available:null});});
+  return()=>{active=false;controller.abort();};
+ },[binding,refresh]);
  useEffect(()=>{
   const controller=new AbortController();const serial=++requestSerial.current;let active=true;
   void request(`/api/knowledge/imports/${encodeURIComponent(review.jobId)}/publication`,{method:'GET',headers:{accept:'application/json'},signal:controller.signal})
@@ -147,15 +159,16 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
 
  return <section className="knowledge-review knowledge-approval" aria-labelledby="knowledge-approval-title">
   <div className="knowledge-review-heading"><div><h3 id="knowledge-approval-title">อนุมัติและเผยแพร่</h3><p>ตรวจข้อมูลฉบับที่บันทึกแล้วก่อนยืนยัน</p></div></div>
-  {storageMode!==null&&storageMode!=='RAG'&&<p className="knowledge-review-stale" role="status">รูปแบบ {storageMode} ยังไม่มีตัวเชื่อมที่รองรับ จึงยังอนุมัติรายการนี้ไม่ได้</p>}
+  {storageMode!==null&&storageMode!=='RAG'&&!structuredAvailable&&<p className="knowledge-review-stale" role="status">{availability?.binding!==binding||availability.available===null?'ยังยืนยันความพร้อมของการจัดเก็บตารางไม่ได้ กรุณาตรวจสถานะอีกครั้ง':'ระบบจัดเก็บตารางยังไม่พร้อม จึงยังเผยแพร่รูปแบบนี้ไม่ได้'}</p>}
   {readState==='loading'&&<p className="knowledge-review-pending" role="status">กำลังตรวจใบรับรอง…</p>}
   {readState==='error'&&<div className="knowledge-review-conflict" role="alert"><p>{readResult?.key===currentReadKey?readResult.message:'ยังตรวจใบรับรองไม่ได้ ระบบปิดการอนุมัติไว้จนกว่าจะตรวจสถานะได้'}</p><button className="knowledge-button knowledge-button-secondary" type="button" onClick={checkReceipt} disabled={disabled||childPending}>ตรวจใบรับรองอีกครั้ง</button></div>}
-  {readState==='ready'&&!matchingSaved&&<p className="knowledge-review-stale" role="status">ต้องบันทึกร่างตรวจทานปัจจุบัน รุ่น 2 พร้อมแผนแบ่งส่วนที่ตรงกับเอกสารก่อน</p>}
+  {readState==='ready'&&(!matchingSaved||!evidence.ready)&&<p className="knowledge-review-stale" role="status">บันทึกร่างปัจจุบันพร้อมแผนที่ตรวจครบตามรูปแบบจัดเก็บก่อนเผยแพร่</p>}
   {readState==='ready'&&matchingSaved&&savedV2&&<>
    {!attestationsComplete&&<p className="knowledge-review-stale" role="status">กรุณาตรวจและยืนยันหัวข้อทบทวนทั้งห้าข้อในร่างที่บันทึกแล้วก่อน</p>}
+   {!warningsReviewed&&<p className="knowledge-review-stale" role="status">กรุณาตรวจคำเตือนทุกข้อพร้อมเหตุผล และบันทึกร่างก่อนเผยแพร่</p>}
    {dirty&&<p className="knowledge-review-stale" role="status">มีการแก้ไขที่ยังไม่บันทึก กรุณาบันทึกฉบับตรวจทานก่อนอนุมัติ</p>}
    {disabled&&<p className="knowledge-review-pending" role="status">กำลังบันทึกหรือโหลดข้อมูลตรวจทาน</p>}
-   {storageMode==='RAG'&&attestationsComplete&&matchingSaved&&<p className="knowledge-review-state">แผนเอกสารตรงกับฉบับตรวจทานที่บันทึกไว้แล้ว · {savedV2.chunkPlan?.digest.slice(0,12)}…</p>}
+   {evidence.ready&&attestationsComplete&&matchingSaved&&<p className="knowledge-review-state">แผนตรงกับฉบับตรวจทานที่บันทึกไว้แล้ว · รูปแบบ {storageMode==='RAG'?'ถามตอบจากข้อความ':storageMode==='STRUCTURED'?'ตารางข้อมูล':'ข้อความและตาราง'}</p>}
    {open&&<div className="knowledge-approval-confirm" role="region" aria-labelledby="knowledge-approval-confirm-title">
     <h4 id="knowledge-approval-confirm-title" tabIndex={-1} ref={confirmationHeading}>ตรวจทานข้อมูลก่อนยืนยัน</h4>
     <dl className="knowledge-approval-grid">
@@ -166,7 +179,7 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
      {savedV2.target&&<div className="knowledge-approval-wide"><dt>เป้าหมาย (รหัสและรุ่น)</dt><dd>{savedV2.target.documentId} · รุ่น {savedV2.target.revision}</dd></div>}
      <div className="knowledge-approval-wide"><dt>แหล่งที่มา</dt><dd>{display(savedV2.metadata.sourceUrl)}</dd></div>
      {scopeSummary(savedV2).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}
-     <div className="knowledge-approval-wide"><dt>แผนเอกสารที่ตรวจแล้ว</dt><dd>{savedV2.chunkPlan?.digest}</dd></div>
+     <div className="knowledge-approval-wide"><dt>แผนที่ตรวจแล้ว</dt><dd>{evidence.chunkReady?'ข้อความตรวจครบ':''}{evidence.chunkReady&&evidence.mappingReady?' · ':''}{evidence.mappingReady?'ตารางตรวจครบ':''}</dd></div>
     </dl>
     <label className="knowledge-approval-check"><input type="checkbox" checked={Boolean(checked)} onChange={event=>setConfirmation({key:confirmationKey,open:true,checked:event.currentTarget.checked})} disabled={disabled||childPending}/><span>ฉันตรวจข้อมูลและยืนยันให้นำฉบับที่บันทึกไว้นี้เข้าสู่การอนุมัติ</span></label>
     <div className="knowledge-review-actions">

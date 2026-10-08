@@ -4,6 +4,7 @@ import {after,test} from 'node:test';
 import {Pool} from 'pg';
 import {readActivities,readLogs} from '../../lib/operations/reads';
 import {parseActivityQuery,parseLogQuery} from '../../lib/operations/contracts';
+import {readOperationsSummary,readOperationsAnalytics,readOperationsUsage,readOperationsDepartments,readOperationsSettings} from '../../lib/operations/metrics';
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_DISPOSABLE_DATABASE_REQUIRED');
 const pool=new Pool({host:'127.0.0.1',port:54422,database,user:'postgres',password:'postgres',max:3});
@@ -66,4 +67,32 @@ test('logs require active SUPER_ADMIN and expose only fixed source observations'
  const accepted=await f.logs(f.superAdmin,'component=line-delivery&severity=INFO');assert.equal(accepted.pagination.total,1);assert.equal(accepted.items[0].code,'LINE_DELIVERED');assert.equal(accepted.items[0].httpStatus,409);
  const serialized=JSON.stringify(await f.logs(f.superAdmin));for(const privateValue of ['NEVER_PUBLIC',provider,model,outbox,f.session])assert(!serialized.includes(privateValue));
  await pool.query('update public.staff_profiles set active=false where id=$1',[f.superAdmin]);await assert.rejects(f.logs(f.superAdmin),{code:'NOT_FOUND'});
+});
+test('summary aggregates every visible ticket beyond100 rows and bounds future intake',async()=>{
+ const f=await fixture(),now=()=>new Date('2026-10-08T12:00:00Z'),ids=[];
+ for(let i=0;i<105;i++){const id=await f.ticket();ids.push(id);await pool.query("update public.tickets set created_at='2026-10-07T18:00:00Z' where id=$1",[id]);}
+ await f.ticket(f.a,'RESTRICTED');await f.ticket(f.b);const future=await f.ticket();await pool.query("update public.tickets set created_at='2040-01-01T00:00:00Z' where id=$1",[future]);
+ const filters={from:'2026-10-08',to:'2026-10-08'};
+ const own=await readOperationsSummary(f.staff,filters,{pool,now});assert.equal(own.counts.total,105);assert.equal(own.counts.open,105);assert.deepEqual(own.intake,[{date:'2026-10-08',count:105}]);
+ assert.equal((await readOperationsSummary(f.staff,{...filters,department:f.b},{pool,now})).counts.total,0);
+ const departments=await readOperationsDepartments(f.staff,{pool,now});assert.deepEqual(departments.items.map(d=>d.id),[f.a]);assert.equal(departments.items[0].totalTickets,105);assert(departments.items[0].activeStaff>=3);
+ await pool.query('update public.staff_profiles set active=false where id=$1',[f.staff]);await assert.rejects(readOperationsSummary(f.staff,filters,{pool,now}),{code:'NOT_FOUND'});
+});
+test('analytics use actual first staff/resolve events with sample counts and unknown missing metrics',async()=>{
+ const f=await fixture(),ticket=await f.ticket(),other=await f.ticket(),now=()=>new Date('2026-10-08T12:00:00Z');
+ await pool.query("update public.tickets set created_at='2026-10-07T18:00:00Z' where id=any($1::uuid[])",[[ticket,other]]);
+ const conversation=(await pool.query('select conversation_id from public.tickets where id=$1',[ticket])).rows[0].conversation_id;
+ await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,sender_staff_id,message_type,content,created_at) values($1,$2,'STAFF',$3,'TEXT','NEVER_PUBLIC','2026-10-07T18:01:00Z'),($1,$2,'STAFF',$3,'TEXT','NEVER_PUBLIC','2026-10-07T18:02:00Z'),($1,$2,'STAFF',$3,'TEXT','NEVER_PUBLIC','2040-01-01T00:00:00Z')",[conversation,ticket,f.staff]);
+ await pool.query("insert into public.ticket_history(ticket_id,action,actor_type,actor_id,created_at) values($1,'RESOLVED','STAFF',$2,'2026-10-07T18:03:00Z'),($1,'RESOLVED','STAFF',$2,'2026-10-07T18:05:00Z')",[ticket,f.staff]);
+ const result=await readOperationsAnalytics(f.staff,{from:'2026-10-08',to:'2026-10-08'},{pool,now});assert.deepEqual(result.firstStaffResponse,{samples:1,averageSeconds:60});assert.deepEqual(result.resolution,{samples:1,averageSeconds:180});assert.equal(result.aiResolutionRate,null);assert.equal(result.distribution[0].count,2);assert(!JSON.stringify(result).includes('NEVER_PUBLIC'));
+ const empty=await readOperationsAnalytics(f.staff,{from:'2026-10-09',to:'2026-10-09'},{pool,now});assert.deepEqual(empty.resolution,{samples:0,averageSeconds:null});
+});
+test('usage preserves unknown token/cost observations and settings do not infer worker liveness',async()=>{
+ const f=await fixture(),now=()=>new Date('2026-10-08T12:00:00Z'),filters={from:'2026-10-08',to:'2026-10-08'};
+ for(const actor of [f.staff,f.admin]){await assert.rejects(readOperationsUsage(actor,filters,{pool,now}),{code:'FORBIDDEN'});await assert.rejects(readOperationsSettings(actor,{pool}),{code:'FORBIDDEN'});}
+ const provider=(await pool.query("insert into private.ai_providers(name,adapter,base_url,api_key_encrypted) values($1,'OPENAI','https://api.openai.com/v1',$2) returning id",[randomUUID(),'v1.'+'x'.repeat(80)])).rows[0].id;
+ const model=(await pool.query("insert into private.ai_models(provider_id,model_id,display_name) values($1,'metrics-test','Metrics test') returning id",[provider])).rows[0].id;
+ await pool.query("insert into private.ai_usage_logs(provider_id,model_id,request_type,latency_ms,input_tokens,output_tokens,estimated_cost,status,fallback_used,created_at) values($1,$2,'TEST',100,12,20,0,'SUCCESS',false,'2026-10-07T18:00:00Z'),($1,$2,'TEST',300,null,null,null,'ERROR',true,'2026-10-07T18:01:00Z'),($1,$2,'TEST',300,999,999,999,'ERROR',true,'2040-01-01T00:00:00Z')",[provider,model]);
+ const result=await readOperationsUsage(f.superAdmin,filters,{pool,now}),item=result.models.find(m=>m.modelName==='Metrics test');assert(item);assert.deepEqual(item.totals.inputTokens,{knownTotal:12,unknownCalls:1});assert.deepEqual(item.totals.outputTokens,{knownTotal:20,unknownCalls:1});assert.equal(item.totals.cost.unknownCalls,1);assert.equal(Number(item.totals.cost.knownTotal),0);assert.equal(item.totals.calls,2);assert.equal(item.totals.meanLatencyMs,200);assert(!JSON.stringify(result).includes(provider));assert(!JSON.stringify(result).includes(model));
+ const settings=await readOperationsSettings(f.superAdmin,{pool});assert.equal(settings.workerLiveness,'UNKNOWN');assert.equal(settings.database,'OBSERVED_OK');assert(!JSON.stringify(settings).includes('postgresql'));assert(!JSON.stringify(settings).includes('NEVER_PUBLIC'));
 });

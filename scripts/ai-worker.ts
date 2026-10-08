@@ -11,7 +11,7 @@ if(process.env.YRU_AI_ENABLED==='true'){
  let running=true;
  process.once('SIGINT',()=>{running=false;});process.once('SIGTERM',()=>{running=false;});
  try{do{
-  const result=await runAICycle(pool,key,{produce});
+  const result=await runAICycle(pool,key,{produce,loading:{accessToken:process.env.LINE_STUDENT_CHANNEL_ACCESS_TOKEN}});
   if(process.argv.includes('--once')){if(result.failed)process.exitCode=1;break;}
   if(!result.claimed||result.failed)await delay(1000);
  }while(running);}finally{await pool.end();}

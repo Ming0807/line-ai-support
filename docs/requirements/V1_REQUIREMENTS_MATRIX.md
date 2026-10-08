@@ -1,5 +1,9 @@
 # V1 Requirements coverage matrix
 
+STR-ACT-01 [activation](../reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md) removes the normal-schema hold for CH012/018/041/050 only: local+DEVELOPMENT32versions/51RLS tables/readinesstrue/40normalPG pass. CH041/050/FlowF remain PARTIAL until final full flow/official approval evidence; current installation is not automatic publication.
+
+8October root [combined UI](../reports/V1_COMBINED_UI_REPORT.md)/[mapping](../reports/V1_MAPPING_BROWSER_REPORT.md)/[Incidents](../reports/INCIDENT_BACKEND_REPORT.md)/[metrics](../reports/OPERATIONS_METRICS_BACKEND_REPORT.md)/[loading](../reports/LINE_LOADING_INTEGRATION_REPORT.md) add actual source/type/lint/build/1873unit/206ownedPG/32migration/advisors and3-role compiled36viewport evidence. CH012/013/015/016/018/021/041/047/049/050/051/055/056/057/058/060 and USR-UX/IMPORT-EASE/DASHBOARD receive component evidence, not whole-flow completion. Normal activation, context enrichment, Staff binding/assistance/bounded web fallback and FlowA–F remain explicit pending requirements. No denominator-based V1 percentage is claimed.
+
 ADV-03A-1 [real Activities/Logs](../reports/OPERATIONS_READ_COMPONENT_REPORT.md) adds31focused/5new actual Operations PG within189owned tests for CH015/016/017/031/060. Scoped journal, Super Admin-only safe transport observations and truthful totals accepted at backend component scope. Browser/SSR UI and other M9 surfaces remain PARTIAL; no live/full V1 claim.
 
 STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPORT.md) supplies53focused/184ownedPG/type/scopedlint for CH041/042/047/050/060: retained schema floor/null mapping publishes only reviewed chunks with idempotent receipt. Normal structured readiness/combined UI/FlowF remain PARTIAL; no new live evidence.
@@ -35,7 +39,7 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | CH010 | 10 Knowledgechunks | M6, IMP-01/03 | PARTIAL: all5format exact located plans, pinned512token/6000byte bounds, review-v2 consent and locations→retrieval/citation/delivery equality COMPONENT_PASS; newly approved realimport vectors/publication pending; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
 | CH011 | 11 Importjobs/staging | IMP-01…03 | PARTIAL: privateimmutableencryptedjob/metadata/original/uploadreceipt/auth/duplicate/failure/readStorage+PG GREEN; persistedextraction/review/publication states pending |
 | CH012 | 12 Sevenstructuredtables | STR-00/01/02 | PARTIAL: [isolated fixed7schema/provenance](../reports/STRUCTURED_SCHEMA_COMPONENT_REPORT.md)29migration replay/foundationRLS/121actualPG+15RAGcompat/1621unit/type/lint/advisors; all7/all5 source identities/retention/exact decimals tested. Normal local0/7 unchanged7October, installed:false. Normal installation/atomicBOTH/authorized exact search remain |
-| CH013 | 13 Incidents/ticketlinks | ADV-02 | PLANNED: schema/permissions/aggregation/UX |
+| CH013 | 13 Incidents/ticketlinks | ADV-02 | PARTIAL: fixed schema/scoped membership/API/UI/8actualPG; [evidence](../reports/INCIDENT_BACKEND_REPORT.md). Context enrichment/live flow remain |
 | CH014 | 14 Provider/modeltables | PRV-01…04 | AUTOMATED_ACCEPTANCE/MANUAL_PENDING: free/order/pricing/HTTP/quota/probes/cooldown/compatible PG+UI GREEN ดู[acceptance](../reports/PRV_COMPATIBLE_ACCEPTANCE_REPORT.md); live account/quality pending |
 | CH015 | 15 Usage/errors | M5, PRV-04, ADV-03 | PARTIAL: attempts/errors/actualHTTP/probe separation/cooldown GREEN; complete usage/log/analytics UI remaining |
 | CH016 | 16 Activities/audit | M1/M4/M5, IMP-03, ADV-03 | PARTIAL: ticket/provider/import/extraction/review safe auditsมี; review12PG atomic rollback PASS; publication/settings/fullUIยังpending |
@@ -77,10 +81,10 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
 | CH054 | 54 StaffOA | M3/M4, ADV-01 | PARTIAL: signedStaffingress/commands/scopedalertscomponent; bindingflow/liveUXpending |
-| CH055 | 55 Similarissues | ADV-02 | PLANNED: meaning/context/department/time/privacy thresholds |
-| CH056 | 56 Incidentdetector | ADV-02 | PLANNED: backendrules/grouping/status/linkedtickettests |
-| CH057 | 57 Severity | ADV-02 | PARTIAL: priorityenum/validationมี; deterministicaggregaterules/UIpending |
-| CH058 | 58 Loadingindicator | ADV-04 | PLANNED: LINEloadingHTTPbounds/permission/firstreplytests |
+| CH055 | 55 Similarissues | ADV-02 | PARTIAL: local384/pairwise/window/department/category/privacy and scoped Detail suggestions; verified system/location enrichment/liveE5 pending |
+| CH056 | 56 Incidentdetector | ADV-02 | COMPONENT_EVIDENCE: configurable thresholds/fresh revisions/lease/idempotency/concurrent and historical membership/status/UI checks; full flow pending |
+| CH057 | 57 Severity | ADV-02 | COMPONENT_EVIDENCE: deterministic aggregate/CRITICAL human verification note encrypted in immutable receipt; actualPG/UI pass, live operator flow pending |
+| CH058 | 58 Loadingindicator | ADV-04 | COMPONENT_PASS / MANUAL_PENDING: bounded transport19tests/fresh first-attempt worker4PG/outsideSQL/HUMAN takeover; live OA animation pending |
 | CH059 | 59 ReplyvsPush | M4/M6, ADV-04 | PARTIAL: expiry/outboxdispatchมี; deadline/freeprovider/latehumanliveflowpending |
 | CH060 | 60 Privacy | all | COMPONENT_EVIDENCE: anonymouscode/encryptedidentity/rolefixtures; imports/newUIcontinuechecks |
 | CH061 | 61 Sensitiveimport | IMP-01/03 | PARTIAL: categorydetector/qualitywarnings/privateencryptedoriginals/Storageanon+authenticateddenialGREEN; redaction/reanalysis/publicapprovalgateandallformatsintegration pending |

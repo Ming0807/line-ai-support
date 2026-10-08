@@ -1,0 +1,73 @@
+.incident-page { width: 100%; max-width: 1440px; min-width: 0; margin: 0 auto; padding: 2rem clamp(1rem, 3vw, 2.5rem) 3rem; color: var(--ink); }
+.incident-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; min-width: 0; }
+.incident-heading h1 { margin: .35rem 0 .35rem; font-size: 1.75rem; line-height: 1.25; overflow-wrap: anywhere; }
+.incident-heading p { margin: 0; color: var(--muted); }
+.incident-back-link { color: var(--ink); font-weight: 650; text-underline-offset: 3px; }
+.incident-panel { min-width: 0; padding: clamp(1rem, 2.5vw, 1.5rem); margin: 0 0 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--soft-shadow); }
+.incident-section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 1rem; }
+.incident-section-heading h2 { margin: 0; font-size: 1.15rem; }
+.incident-section-heading p { margin: 0; color: var(--muted); font-size: .9rem; }
+.incident-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: .75rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.incident-filters label, .incident-action-form label, .incident-rules-form label { display: grid; gap: .35rem; min-width: 0; color: var(--ink); font-size: .85rem; font-weight: 600; }
+.incident-filters input, .incident-filters select, .incident-action-form select, .incident-action-form textarea, .incident-rules-form input { width: 100%; min-width: 0; min-height: 2.7rem; padding: .5rem .65rem; color: var(--ink); background: white; border: 1px solid var(--line); border-radius: .5rem; }
+.incident-action-form details { min-width: 0; }
+.incident-action-form details label { display: flex; align-items: center; margin-block: .6rem; font-weight: 400; }
+.incident-action-form details label:has(textarea) { display: grid; }
+.incident-action-form details input[type="checkbox"] { flex: 0 0 auto; }
+.incident-primary-button, .incident-secondary-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.65rem; padding: .55rem .9rem; border-radius: .5rem; font: inherit; font-weight: 650; text-decoration: none; cursor: pointer; }
+.incident-primary-button { color: var(--ink); background: var(--focus); border: 1px solid var(--focus); }
+.incident-primary-button:hover { filter: brightness(.92); }
+.incident-secondary-link { color: var(--ink); background: #fff; border: 1px solid var(--line); }
+.incident-primary-button:disabled { opacity: .65; cursor: wait; }
+.incident-heading :focus-visible, .incident-panel :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.incident-list { display: grid; }
+.incident-row { display: grid; grid-template-columns: minmax(12rem, 1.4fr) minmax(10rem, .9fr) minmax(10rem, .8fr) auto; align-items: center; gap: .75rem; min-width: 0; padding: 1rem .1rem; border-bottom: 1px solid var(--line); }
+.incident-row-main, .incident-row-status, .incident-row-counts { display: flex; min-width: 0; flex-wrap: wrap; gap: .45rem .65rem; }
+.incident-row-main { display: block; }
+.incident-title { color: var(--ink); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.incident-row-main p { margin: .35rem 0 0; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+.incident-row-counts, .incident-row time { color: var(--ink); font-size: .83rem; }
+.incident-row time { text-align: right; }
+.incident-badge { display: inline-flex; align-items: center; min-height: 1.7rem; padding: .2rem .55rem; color: var(--ink); background: var(--paper); border-radius: .5rem; font-size: .78rem; font-weight: 650; white-space: nowrap; }
+.incident-severity-critical { background: var(--focus); }
+.incident-severity-high, .incident-severity-medium { border: 1px solid var(--line); }
+.incident-state { padding: 2rem 1rem; text-align: center; color: var(--muted); }
+.incident-state h3 { margin: 0 0 .5rem; color: var(--ink); }
+.incident-state p { max-width: 55ch; margin: 0 auto 1rem; line-height: 1.55; }
+.incident-error { color: var(--ink); }
+.incident-error h3, .incident-error h1 { color: var(--ink); }
+.incident-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding-top: 1rem; color: var(--muted); }
+.incident-pagination > div { display: flex; flex-wrap: wrap; gap: .5rem; }
+.incident-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin: 0; }
+.incident-facts > div { min-width: 0; padding: .7rem 0; }
+.incident-facts dt { color: var(--muted); font-size: .85rem; }
+.incident-facts dd { margin: .25rem 0 0; font-weight: 650; overflow-wrap: anywhere; }
+.incident-ticket-list { list-style: none; margin: 0; padding: 0; }
+.incident-ticket-list li { border-top: 1px solid var(--line); }
+.incident-ticket-list a { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .85rem .25rem; text-decoration: none; }
+.incident-ticket-list a:hover strong { text-decoration: underline; }
+.incident-ticket-list span { color: var(--muted); font-size: .88rem; }
+.incident-action-form, .incident-rules-form { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+.incident-action-form label { min-width: 13rem; }
+.incident-action-form p, .incident-rules-form p, .incident-inline-error { flex-basis: 100%; margin: .25rem 0 0; color: var(--ink); }
+.incident-rules-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.incident-rules-form button { justify-self: start; }
+@media (max-width: 800px) {
+ .incident-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .incident-row { grid-template-columns: minmax(0, 1fr) auto; }
+ .incident-row time { text-align: left; }
+ .incident-facts, .incident-rules-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+ .incident-page { padding: 1rem .75rem 2rem; }
+ .incident-heading { display: grid; }
+ .incident-heading h1 { font-size: 1.4rem; }
+ .incident-filters, .incident-rules-form { grid-template-columns: minmax(0, 1fr); }
+ .incident-filters > button { width: 100%; }
+ .incident-row { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+ .incident-row-status { order: 1; }
+ .incident-row-counts { order: 2; }
+ .incident-row time { order: 3; }
+ .incident-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .incident-pagination { align-items: flex-start; }
+}

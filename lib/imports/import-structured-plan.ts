@@ -5,6 +5,7 @@ import {structuredMappingSchema,hasStructuredMappingLimit} from './review-schema
 import {StructuredMappingError} from './structured-mapping-contract';
 import {prepareImportStructuredPlan,computeStructuredAcknowledgment,readImportStructuredSource} from './structured-preparation';
 import {computeStructuredExtractionDigest} from './structured-mapper';
+import {getStructuredAvailability} from '../knowledge/structured-readiness';
 
 const revision=z.number().int().min(0).max(999_999_999);
 export const structuredPlanRequestSchema=z.object({expectedJobRevision:revision,expectedExtractionRevision:revision.min(1),expectedReviewRevision:revision.max(999_999_998),mapping:structuredMappingSchema}).strict();
@@ -46,7 +47,8 @@ export async function getImportStructuredPlan(actor:string,id:string,input:unkno
   if(review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
   const nextReviewRevision=review.reviewRevision+1,plan=await prepareImportStructuredPlan(actor,preview,nextReviewRevision,request.mapping,options),acknowledgment=computeStructuredAcknowledgment(plan);
   if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');await options.beforeRead?.();
+  const availability=await getStructuredAvailability(actor,options);
   await finalFence(actor,id,{...review,sourceChecksum:plan.sourceChecksum},options);
-  return {jobId:id,jobRevision:review.jobRevision,extractionRevision:review.extractionRevision,reviewRevision:review.reviewRevision,nextReviewRevision,plan,acknowledgment,publicationAvailable:false as const};
+  return {jobId:id,jobRevision:review.jobRevision,extractionRevision:review.extractionRevision,reviewRevision:review.reviewRevision,nextReviewRevision,plan,acknowledgment,publicationAvailable:availability.available};
  }catch(error){if(error instanceof ImportStagingError||error instanceof StructuredMappingError)throw error;throw new ImportStagingError('INTERNAL_ERROR');}
 }

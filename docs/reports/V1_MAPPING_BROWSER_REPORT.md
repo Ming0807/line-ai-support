@@ -1,0 +1,9 @@
+# Mapping UI — actual browser checkpoint
+
+8October2026. Requested Luna high prepared `scripts/qa/v1-mapping-browser.mjs` and inspected controls, then hit usage limits; root completed the selectors, target guards and actual browser execution. Do not credit an unavailable independent final QA verdict.
+
+Compiled root production server3012, guarded retained local32-migration QA database, existing actual SUPER_ADMIN Supabase login and a synthetic CSV original. Actual source preview/structured/review HTTP200; dataset/table selection and explicit HEADER note, prepare acknowledgment, private schema3 draft save and reload/revalidation PASS. An explicitly intercepted503 on the saved-plan restore kept the persisted acknowledgment byte-equal and disabled publication. No university document was approved; the fixture lacks full human approval metadata/attestations, so publication was already unavailable independently of the fault.
+
+Initial QA failures were corrected against actual controls: use the creation note before adding an excluded range, navigate from restored first step to review, change a note on repeated runs so the draft is dirty, and inspect the real `review.saved.draft` response. These selector/state assumptions were not product failures. The root transient preservation/verified-publication fence itself was implemented after a separate actual source review.
+
+Root extended the actual regression after that first checkpoint: following the503, expand metadata, edit the fixture title, save via real PUT200, then GET200 proves the same acknowledgment remains in the newly persisted schema3 draft with chunkPlan=null. This closes the save-after-fault client-retention gap. Publication was already unavailable for incomplete approval metadata, so this fixture alone does not isolate the verified-publication fence from all other conditions. Real-source STRUCTURED/BOTH approval and complete FlowF are separate from this safe draft test.

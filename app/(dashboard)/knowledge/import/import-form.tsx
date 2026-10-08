@@ -238,10 +238,33 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
    setJobs(current=>[job,...current.filter(item=>item.id!==job.id)].slice(0,50));
    setSelectedId(job.id);setPreview(null);setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);
    setPageIndex(0);setTableIndex(0);setRowWindow(0);setColumnWindow(0);
-   setNotice(result.response.status===200?'พบไฟล์ซ้ำ ระบบคงต้นฉบับเดิมไว้ เลือกรายการเพื่อดูผล':'รับต้นฉบับแล้ว กด “วิเคราะห์เอกสาร” เพื่อดูข้อความที่อ่านได้');
+   setNotice(result.response.status===200?'พบไฟล์เดิมในระบบ เปิดผลอ่านที่บันทึกไว้โดยไม่เริ่มการวิเคราะห์ใหม่':'รับต้นฉบับแล้ว กำลังเตรียมวิเคราะห์…');
    if(mode==='FILE'){setFile(null);setProvenanceUrl('');}
    else setSourceUrl('');
    await refreshJobs();
+   if(result.response.status===200){
+    await loadPreview(job.id,null);
+   }else if(result.response.status===201){
+    setPending('analyze');
+    setNotice('รับต้นฉบับแล้ว กำลังวิเคราะห์โครงสร้างเอกสารอัตโนมัติ…');
+    try{
+     const pubCheck=await requestJson(`/api/knowledge/imports/${encodeURIComponent(job.id)}/publication`);
+     if(pubCheck.response.ok&&isReceiptEnvelope(pubCheck.body,job.id)&&pubCheck.body.publication.receipt===null){
+      const analyzeResult=await requestJson('/api/knowledge/analyze',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:job.id,revision:job.revision})});
+      const next=getPreview(analyzeResult);
+      if(next){
+       acceptPreview(next,true);
+       setNotice('นำเข้าและวิเคราะห์เสร็จสมบูรณ์ ตรวจสอบสรุปและข้อมูลที่ระบบจัดเตรียมด้านล่าง');
+      }else{
+       setFailure(errorMessage(analyzeResult,'วิเคราะห์เอกสารไม่สำเร็จ กด “วิเคราะห์เอกสาร” เพื่อลองใหม่'));
+      }
+     }else{
+      setNotice('รับต้นฉบับแล้ว กด “วิเคราะห์เอกสาร” เพื่อเริ่มอ่านไฟล์');
+     }
+    }catch{
+     setFailure('เชื่อมต่อระบบเพื่อวิเคราะห์อัตโนมัติไม่ได้ กด “วิเคราะห์เอกสาร” เพื่อลองใหม่');
+    }
+   }
   }catch{setFailure('เชื่อมต่อระบบไม่ได้ ตรวจเครือข่ายแล้วลองอัปโหลดอีกครั้ง');}
   finally{setPending(null);}
  }
@@ -353,7 +376,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
      <input type="url" value={sourceUrl} onChange={event=>setSourceUrl(event.target.value)} placeholder="https://www.yru.ac.th/…" required disabled={pending!==null}/>
      <span className="knowledge-hint">ระบบจะตรวจโดเมนและอ่านหน้าเว็บที่เข้าถึงได้โดยไม่ใช้บัญชีผู้ใช้</span>
     </label>}
-    <button className="knowledge-button knowledge-button-primary" type="submit" disabled={pending!==null}>{pending==='stage'?'กำลังรับต้นฉบับ…':'รับต้นฉบับเพื่อเตรียมตรวจ'}</button>
+    <button className="knowledge-button knowledge-button-primary" type="submit" disabled={pending!==null}>{pending==='stage'?'กำลังนำเข้าและประมวลผล…':pending==='analyze'?'กำลังวิเคราะห์เอกสาร…':mode==='FILE'?'นำเข้าเอกสาร':'นำเข้าจาก URL'}</button>
    </form>
   </section>
 

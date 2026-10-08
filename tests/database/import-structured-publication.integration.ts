@@ -117,7 +117,7 @@ async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:Import
  const action=options.action??'NEW_FAMILY';
  const structured=getImportStructuredPlan(f.actor,job.id,{expectedJobRevision:preview.job.revision,expectedExtractionRevision:preview.extractionRevision,expectedReviewRevision:0,mapping},f.options);
  const mapped=await structured;
- assert.equal(mapped.publicationAvailable,false,'PRIVATE_REVIEW_PREVIEW_DOES_NOT_GRANT_PUBLICATION');
+ assert.equal(mapped.publicationAvailable,true,'INSTALLED_INFRASTRUCTURE_IS_AVAILABLE_BUT_PREVIEW_DOES_NOT_APPROVE');
  const base=unfinishedReviewDraft();
  let draft=reviewDraftSchema.parse({...base,schemaVersion:3,chunkPlan:null,
   metadata:{...base.metadata,title:`Reviewed synthetic ${dataset}`,familyCode,newFamily:action==='NEW_FAMILY'?{name:`Synthetic ${dataset} family`,category:'TEST'}:null,
@@ -417,14 +417,20 @@ test('ordinary staff authorization precedes parsing and structured approval',()=
  await assertNoPublication(f,r);
 }));
 
-test('missing or wrong isolated database verification leaves review3 unavailable and performs no E5 work',()=>fixture(async f=>{
+test('missing catalog fence or wrong isolated target fails readiness with no E5 work',()=>fixture(async f=>{
  const r=await ready(f,'university_systems','STRUCTURED');
- const {structuredVerificationDatabase:_verification,...withoutVerification}=f.options;
- void _verification;
- await assert.rejects(approveImport(f.actor,r.request,withoutVerification),{code:'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE'});
  await assert.rejects(publish(f,r,{structuredVerificationDatabase:'postgres'}),{code:'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE'});
+ await f.pool.query('alter table public.departments disable trigger structured_selection_catalog');
+ try{await assert.rejects(publish(f,r),{code:'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE'});}
+ finally{await f.pool.query('alter table public.departments enable trigger structured_selection_catalog');}
  assert.equal(f.counters.tokenBatches,0);assert.equal(f.counters.embeddingBatches,0);await assertNoPublication(f,r);
- assert(STRUCTURED_DATASETS.every(dataset=>getStructuredRegistryEntry(dataset).installed===false),'NORMAL_REGISTRY_READINESS_REMAINS_DISABLED');
+ assert(STRUCTURED_DATASETS.every(dataset=>getStructuredRegistryEntry(dataset).installed===false),'STATIC_REGISTRY_METADATA_IS_NOT_DEPLOYMENT_OBSERVATION');
+}));
+test('installed complete infrastructure permits the normal publication caller without a disposable-only switch',()=>fixture(async f=>{
+ const r=await ready(f,'university_systems','STRUCTURED');
+ const {structuredVerificationDatabase:_verification,...normalCaller}=f.options;void _verification;
+ const result=await approveImport(f.actor,r.request,normalCaller);assert.equal(result.receipt.storageMode,'STRUCTURED');assert.equal(result.replayed,false);assert.equal(f.counters.embeddingBatches,0);
+ const replay=await approveImport(f.actor,r.request,normalCaller);assert.equal(replay.replayed,true);assert.equal(replay.receipt.documentId,result.receipt.documentId);
 }));
 
 for(const attack of ['NULL_PAYLOAD_DIGEST','MISSING_PROOF','WRONG_PAYLOAD','UNKNOWN_FIELD','WRONG_PROVENANCE_HASH','EXTRA_ROWS','EXTRA_CHUNK'] as const)test(`actual COMMIT rejects ${attack.toLowerCase()} structured effects`,()=>fixture(async f=>{

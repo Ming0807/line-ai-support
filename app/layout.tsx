@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './operations-metrics.css';
 
 export const metadata: Metadata = {
   title: 'ระบบงานบริการบุคลากร มหาวิทยาลัยราชภัฏยะลา',

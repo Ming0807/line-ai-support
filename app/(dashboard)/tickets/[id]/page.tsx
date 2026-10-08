@@ -4,6 +4,7 @@ import { requireStaff } from '@/lib/auth/staff';
 import { getTicketDetail } from '@/lib/tickets/reads';
 import type { TicketDetail, TicketListItem } from '@/types/tickets';
 import TicketActions from './ticket-actions';
+import {getSimilarIssues,type SimilarIssuesView} from '@/lib/incidents/reads';
 import '@/app/tickets.css';
 
 const statusLabels: Record<TicketListItem['status'], string> = {
@@ -36,6 +37,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   if (!detail) notFound();
 
   const { ticket } = detail;
+  let similar:SimilarIssuesView|null=null;
+  try{similar=await getSimilarIssues(staff.id,id);}catch{/* A monitoring read cannot hide the primary authorized ticket. */}
   return (
     <main className="ticket-page ticket-detail-page">
       <Link className="ticket-back-link" href="/tickets">← กลับไปงานรับเรื่อง</Link>
@@ -61,7 +64,17 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <ol className="ticket-message-list">
                 {detail.messages.map(message => (
                   <li className={`ticket-message ticket-message-${message.sender_type.toLowerCase()}`} key={message.id}>
-                    <div className="ticket-message-meta"><strong>{message.sender_type === 'STAFF' && message.staff_name ? message.staff_name : senderLabels[message.sender_type]}</strong><time dateTime={message.created_at}>{dateTime(message.created_at)}</time></div>
+                    <div className="ticket-message-meta">
+                      <div className="ticket-sender-info">
+                        <span className={`ticket-sender-pill ticket-sender-${message.sender_type.toLowerCase()}`}>
+                          {senderLabels[message.sender_type]}
+                        </span>
+                        {message.sender_type === 'STAFF' && message.staff_name && (
+                          <strong className="ticket-staff-name">{message.staff_name}</strong>
+                        )}
+                      </div>
+                      <time dateTime={message.created_at}>{dateTime(message.created_at)}</time>
+                    </div>
                     <p>{message.content}</p>
                   </li>
                 ))}
@@ -99,6 +112,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             </dl>
           </section>
           <TicketActions id={ticket.id} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} />
+          <section className="ticket-panel" aria-labelledby="similar-issues-heading">
+            <h2 id="similar-issues-heading">เรื่องที่ใกล้เคียง</h2>
+            {!similar?<p className="ticket-muted">ยังอ่านเรื่องที่ใกล้เคียงไม่ได้ โปรดลองโหลดหน้าอีกครั้ง</p>:similar.status==='PENDING'?<p className="ticket-muted">ระบบกำลังเตรียมข้อมูลสำหรับค้นหาเรื่องที่ใกล้เคียง</p>:similar.items.length===0?<p className="ticket-muted">ไม่พบเรื่องที่ใกล้เคียงในช่วงเวลาที่ตั้งไว้และขอบเขตที่คุณดูได้</p>:<ul>{similar.items.map(item=><li key={item.id}><Link href={`/tickets/${item.id}`}>{item.ticketCode}</Link> · {statusLabels[item.status as TicketListItem['status']]??'อยู่ระหว่างดูแล'}</li>)}</ul>}
+          </section>
           {detail.deliveries.length > 0 && <section className="ticket-panel ticket-delivery-panel" aria-labelledby="delivery-heading">
             <h2 id="delivery-heading">สถานะการส่งข้อความ</h2>
             <ul>{detail.deliveries.map((delivery, index) => <li key={`${delivery.created_at}-${index}`}><span>{delivery.status === 'SENT' ? 'ส่งแล้ว' : delivery.status === 'RETRY' ? 'กำลังลองส่งอีกครั้ง' : delivery.status === 'UNKNOWN' ? 'กำลังตรวจสอบผลการส่ง' : 'ยังส่งไม่สำเร็จ'}</span><time dateTime={delivery.created_at}>{dateTime(delivery.created_at)}</time></li>)}</ul>

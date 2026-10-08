@@ -1,5 +1,17 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-055 — combined operational UI and guarded runtime readiness
+
+8October continuous V1 authorization: accept real scoped full-population metric/read adapters and the human-approved presentation against root contracts. Unobserved outcome/quota/liveness remains unknown. Strict readiness observes installed columns/types/keys/RLS/triggers; normal development activation may proceed only after the combined source/ownedPG/browser gates in [STR-ACT-01](../superpowers/plans/2026-10-08-yru-development-activation.md). This narrows DEC-047/053's earlier normal-schema hold for the explicitly selected development/local databases only; production/corpus/live Flow gates are separate. Source/QA reports state exact checkpoints; no auto-publication or provider payment choice follows installation.
+
+## DEC-056 — complete incident membership and accountable critical verification
+
+8October [incident design](../architecture/INCIDENTS_DESIGN.md) uses configurable engineering defaults5independent sessions/5tickets/15minutes/.85 and pairwise current E5 vectors; unknown context is null. Existing membership outside the window must pass complete current context/vector compatibility before extension. Backend enforces actual persisted thresholds, never merely the SQL minimum2. Critical staff verification requires a human note encrypted in actor/request-bound immutable receipts; raw notes/identities/vectors stay out of public DTOs/logs. Root's race test passed; a source-review allegation of reading membership before its lock was rejected against the actual ordering. Context enrichment/live acceptance remains pending.
+
+## DEC-057 — scoped loading and authenticated Staff binding design
+
+8October first-attempt Student loading is a best-effort outsideSQL call with fresh eligibility/original time and a post-call HUMAN fence; no extra interim text or token refresh. Staff setup uses active authenticated self-service one-use10minute hashed/encrypted challenge and existing delivery lock before binding/unlinking; no public self-enrollment or role/identity disclosure. [Binding design](../architecture/STAFF_LINE_BINDING_DESIGN.md)/[plan](../superpowers/plans/2026-10-08-yru-staff-line-binding.md) records engineering syntax/lifetime separately from original§46–48; it is planned, not implemented evidence. Existing human authorization covers independent implementation while live configuration remains deferred.
+
 ## DEC-054 — real Activities/Logs read boundary
 
 8October authorized continuous V1: [ADV-03A design](../architecture/OPERATIONS_READ_DESIGN.md) accepts scoped ticket journal/global SUPER_ADMIN journal and SUPER_ADMIN safe provider/LINE logs. External fixture vocabulary is adapted explicitly, not promoted wholesale to an API. Raw metadata/reasons/credentials/technical LINE IDs stay private; pages/counts are truthful and default Bangkok date range explicit. Other operations sources/metrics keep their own subsequent acceptance. Root owns SQL/auth/privacy/integration; no new schema, user setting or live pass is implied.

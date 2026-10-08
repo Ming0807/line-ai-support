@@ -83,6 +83,8 @@ async function cleanupFixture(fixture:Omit<Fixture,'cleanup'>):Promise<void> {
    await client.query('delete from public.ticket_history where ticket_id=$1',[fixture.ticketId]);
    await client.query('delete from public.messages where ticket_id=$1 or conversation_id=$2',[fixture.ticketId,fixture.conversationId]);
    if(fixture.conversationId)await client.query('update public.conversations set active_ticket_id=null where id=$1',[fixture.conversationId]);
+   await client.query('delete from private.incident_detection_jobs where ticket_id=$1',[fixture.ticketId]);
+   await client.query('delete from private.incident_ticket_vectors where ticket_id=$1',[fixture.ticketId]);
    await client.query('delete from public.tickets where id=$1',[fixture.ticketId]);
   }
   if(fixture.conversationId)await client.query('delete from public.conversations where id=$1',[fixture.conversationId]);

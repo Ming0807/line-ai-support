@@ -432,7 +432,7 @@ function FallbackPreview({ providers, purpose }: { providers: ProviderView[]; pu
     else if (result) setPreviewError('รูปแบบข้อมูลตัวอย่างไม่ตรงกับที่คาดไว้ กรุณาลองโหลดอีกครั้ง');
   }
   const modelMap = new Map(providers.flatMap(provider => provider.models.map(model => [`${provider.id}:${model.id}`, { provider, model }] as const)));
-  return <section className="provider-preview" aria-labelledby="provider-preview-title">
+  return <section id="fallback" tabIndex={-1} className="provider-preview" aria-labelledby="provider-preview-title">
     <div className="provider-preview-heading"><div><h2 id="provider-preview-title">ลำดับสำรองสำหรับ{purpose === 'GENERATION' ? 'สร้างคำตอบ' : 'เอกสารใหม่'}</h2><p>อิงการตั้งค่าที่บันทึกและราคาที่ตรวจล่าสุด</p></div>
       {purpose === 'GENERATION' && <div className="provider-preview-options"><span className="provider-preview-fixed">ตรวจ JSON output</span><CheckField id="preview-tools" name="requiresTools" label="ต้องการ Tools" checked={requiresTools} onChange={event => { setRequiresTools(event.target.checked); setPreview(null); }} /></div>}
       <button className="provider-button provider-button-secondary" type="button" onClick={load} disabled={api.pending('preview')}>{api.pending('preview') ? 'กำลังจัดลำดับ…' : 'ดูตัวอย่างลำดับ'}</button>
@@ -462,7 +462,7 @@ export default function ProviderForms({ providers, choices, loadError = false }:
       : providers.length === 0 ? <section className="provider-empty" aria-labelledby="provider-empty-title"><h2 id="provider-empty-title">ยังไม่มีผู้ให้บริการ AI</h2><p>เพิ่ม OpenCode Zen หรือ OpenRouter แล้วบันทึกคีย์ของผู้ให้บริการเพื่อเริ่มตั้งค่า Model</p><button className="provider-button provider-button-primary" type="button" onClick={() => document.querySelector<HTMLDetailsElement>('.provider-add-panel')?.setAttribute('open', '')}>เพิ่มผู้ให้บริการ</button></section>
       : <>
         <FallbackPreview key={purpose} providers={providers} purpose={purpose} />
-        <section id="provider-purpose-panel" className="provider-list" aria-label={`ผู้ให้บริการสำหรับ${purposeLabels[purpose]}`}>
+        <section id="models" tabIndex={-1} className="provider-list" aria-label={`ผู้ให้บริการสำหรับ${purposeLabels[purpose]}`}>
           <div className="provider-list-title"><h2>ผู้ให้บริการและ Models สำหรับสร้างคำตอบ</h2><span>ใช้กับ Chat และ Reasoning</span></div>
           <OrderEditor key={`providers:${scopeKey}`} rows={globalRows} label={provider => provider.name} onSave={async ordered => {
             const result = await api.send('/api/providers/reorder', 'POST', { order: ordered.map(provider => ({ id: provider.id, revision: provider.revision })) }, 'บันทึกลำดับผู้ให้บริการแล้ว', 'provider-order');

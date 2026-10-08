@@ -1,0 +1,7 @@
+# ADV-03B — scoped operational aggregates
+
+8October2026, root backend/auth/SQL/privacy/API; actual Luna high approved UI integration. Requirements CH015/016/051/060 and USR-DASHBOARD. See [design](../architecture/OPERATIONS_METRICS_DESIGN.md), [execution](../superpowers/plans/2026-10-08-yru-operations-metrics.md), [UI evidence](OPERATIONS_METRICS_UI_REPORT.md).
+
+Real scoped summaries, analytics and department loads count the full matching population, independently of the100-row ticket list. Same-window sample sizes accompany averages; empty samples are unknown. AI-resolution rate is unknown until the system records that outcome. Usage is Super Admin-only and reports observed calls/errors/fallback/token/cost with unknown counts instead of invented quotas. Settings reports actual DB/inbox/outbox/AI-queue observations, configured LINE credentials as presence only and E5 health outsideSQL; worker liveness remains unknown.
+
+Private routes: `/api/operations/summary`, `/api/analytics`, `/api/departments`, `/api/usage`, `/api/settings/status`. Root pure/routes and delegated UI tests passed;8 actual Operations PostgreSQL cases (including5 existing Activities/Logs cases) pass within the206-case owned replay. Current source type/lint/build gates passed. Browser/three-role responsive acceptance is separate; configuration presence is not successful LINE delivery, historical observations are not live quotas and unknown AI-resolution outcome is not0%.

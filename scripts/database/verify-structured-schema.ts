@@ -74,6 +74,18 @@ try {
  const operationsOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/operations-reads.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(operationsOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='LINE_loading_worker_actual_PG';
+ const loadingOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/line-loading-worker.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(loadingOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='structured_readiness_actual_PG';
+ const readinessOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/structured-readiness.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(readinessOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='incidents_actual_PG';
+ const incidentOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incidents.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(incidentOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  if(cli){
   stage='isolated_advisors';
   const version=execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true,timeout:10_000,stdio:['pipe','pipe','pipe']}).trim();

@@ -255,6 +255,8 @@ async function cleanupCommittedFixture(client: PoolClient, fixture: FixtureIds):
       [fixture.tickets, fixture.conversations, fixture.staff],
     );
     await client.query('update public.conversations set active_ticket_id=null where id=any($1::uuid[])', [fixture.conversations]);
+    await client.query('delete from private.incident_detection_jobs where ticket_id=any($1::uuid[])', [fixture.tickets]);
+    await client.query('delete from private.incident_ticket_vectors where ticket_id=any($1::uuid[])', [fixture.tickets]);
     await client.query('delete from public.tickets where id=any($1::uuid[])', [fixture.tickets]);
     await client.query('delete from public.conversations where id=any($1::uuid[])', [fixture.conversations]);
     await client.query('delete from private.line_identities where line_session_id=any($1::uuid[])', [fixture.sessions]);

@@ -8,6 +8,7 @@ import {createImportSource} from './source';
 import {decryptStagingValue,encryptStagingValue} from './staging-envelope';
 import {getImportJob,readImportOriginal,markImportFailed,withImportAdminTransaction,ImportStagingError,type ImportJobView,type ImportStagingOptions} from './import-staging';
 import {datasetTypes,extractionFlags,sensitiveCategories,type ImportSource,type LocatedExtraction,type ImportAnalysis} from './types';
+import {getStructuredAvailability} from '../knowledge/structured-readiness';
 
 export interface ImportExtractionOptions extends ImportStagingOptions {
  signal?:AbortSignal;
@@ -71,7 +72,8 @@ export async function getImportPreview(actor:string,id:string,options:ImportExtr
 async function appendRevision(actor:string,loaded:Awaited<ReturnType<typeof loadSource>>,extraction:LocatedExtraction,kind:ImportPreview['kind'],baseRevision:number|null,edit:ExtractionEditEvidence|null,options:ImportExtractionOptions):Promise<ImportPreview>{
  const {job,source}=loaded;checkRevision(job.revision);checkSignal(options.signal);
  const revision=job.revision+1,checked=validateLocatedExtraction(source,extraction),serialized=JSON.stringify(checked);
- const analysis=analysisSchema.parse(analyzeExtraction(source,checked));
+ const availability=await getStructuredAvailability(actor,options);
+ const analysis=analysisSchema.parse(analyzeExtraction(source,checked,{installedDatasets:availability.datasets}));
  const context={jobId:job.id,checksum:source.checksum,revision};
  const encrypted=encryptStagingValue(serialized,{...context,purpose:'EXTRACTION'},keyFor(options));
  const analysisEncrypted=encryptStagingValue(JSON.stringify(analysis),{...context,purpose:'ANALYSIS'},keyFor(options));

@@ -1,5 +1,9 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+STR-ACT-01 root completed local+DEVELOPMENT32migrations/51RLS tables/readinesstrue; no manual schema installation is needed for this development environment. No official source was approved. Staff binding/remaining Advanced/full automatic flows stay agent implementation work; the human's corpus/OA/free-provider/production checklist stays deferred.
+
+8October combined UI/readiness/metrics/Incidents/loading require no new human key or manual database action. Root owns guarded DEVELOPMENT activation, Staff binding implementation, context enrichment, staff AI drafts/bounded web tools and full automated FlowA–F. Compiled3-role browser/36viewports and206ownedPG are component evidence; real university approvals/free-provider/OA/deployment remain deferred rows below. The planned Settings binding command will be issuer-only/temporary; raw LINE IDs or commands never belong in reports. No live animation, incident, delivery or corpus approval is inferred from fixtures.
+
 ADV-03A-1 adds no human setting. Actual Activities/Logs APIs and five owned PostgreSQL cases pass; UI adapters/combined browser gates and other M9 remain agent work. No private log data requires human relay.
 
 STR-01C-3 review3 RAG compatibility adds no configuration. UI/readiness/M9 remain agent work; official source approval/configured live services remain the deferred human checklist. No account picker is required for the verified root Git handoff.

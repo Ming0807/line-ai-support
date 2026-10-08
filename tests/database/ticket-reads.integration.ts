@@ -26,6 +26,8 @@ async function fixture(run:(f:{a:string;b:string;staff:string;sensitive:string;a
   };
   await run({a:departments[0],b:departments[1],staff:actors[0],sensitive:actors[1],admin:actors[2],session,marker,seed,read:(actor,filters={})=>listTickets(actor,filters,{pool})});
  }finally{
+  await pool.query('delete from private.incident_detection_jobs where ticket_id in(select id from public.tickets where line_session_id=$1)',[session]);
+  await pool.query('delete from private.incident_ticket_vectors where ticket_id in(select id from public.tickets where line_session_id=$1)',[session]);
   await pool.query('delete from public.tickets where line_session_id=$1',[session]);
   await pool.query('delete from public.conversations where line_session_id=$1',[session]);
   await pool.query('delete from public.line_sessions where id=$1 and anonymous_code=$2',[session,marker]);

@@ -3,6 +3,7 @@ import {notFound} from 'next/navigation';
 import {requireStaff} from '@/lib/auth/staff';
 import {listImportJobs} from '@/lib/imports/import-staging';
 import type {ImportJobView} from '@/lib/imports/import-staging';
+import {CatalogPanel} from './catalog-panel';
 import '@/app/knowledge.css';
 
 const statusLabel:Record<ImportJobView['status'],string>={READY:'รับต้นฉบับแล้ว',FAILED:'ต้องตรวจการวิเคราะห์'};
@@ -15,12 +16,23 @@ export default async function KnowledgePage(){
  let jobs:ImportJobView[]=[],loadError=false;
  try{jobs=await listImportJobs(staff.id);}catch{loadError=true;}
  return <main className="knowledge-page">
-  <nav className="knowledge-breadcrumb" aria-label="เส้นทางนำทาง"><Link href="/dashboard">กลับหน้าหลัก</Link></nav>
+  <nav className="knowledge-breadcrumb" aria-label="เส้นทางนำทาง"><Link href="/dashboard">← กลับหน้าหลัก</Link></nav>
   <header className="knowledge-heading">
    <div><h1>คลังความรู้</h1><p>จัดเก็บและตรวจข้อความจากเอกสารก่อนเข้าสู่ขั้นตอนเผยแพร่</p></div>
    <Link className="knowledge-button knowledge-button-primary" href="/knowledge/import">นำเข้าเอกสาร</Link>
   </header>
+  <nav className="activity-tabs-header" style={{ marginBottom: '1.25rem' }} aria-label="หมวดหมู่คลังความรู้">
+    <div className="activity-tabs-group">
+      <span className="activity-tab is-active" aria-current="page">
+        คลังความรู้ที่เผยแพร่ (Catalog)
+      </span>
+      <Link href="/knowledge/import" className="activity-tab">
+        นำเข้าเอกสารใหม่ (Import)
+      </Link>
+    </div>
+  </nav>
   <p className="knowledge-state">เปิดรายการเพื่อตรวจร่างและใบรับรองการอนุมัติ เอกสารจะใช้ตอบได้ตามขอบเขตและวันที่ที่ตรวจแล้ว</p>
+  <CatalogPanel />
   <section className="knowledge-job-section" aria-labelledby="knowledge-job-title">
    <div className="knowledge-section-heading"><h2 id="knowledge-job-title">รายการนำเข้า</h2><span>{jobs.length} รายการล่าสุด</span></div>
    {loadError?<p className="knowledge-message knowledge-message-error" role="alert">โหลดรายการไม่สำเร็จ ลองเปิดหน้านี้ใหม่อีกครั้ง</p>:jobs.length===0?
