@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+8October RAG-01B-1 [support proposal evidence](../reports/AI_SUPPORT_PROPOSAL_REPORT.md):16focused/1918unit/type/lint preparation PASS for CH027/028/031/057 and FlowB/C. Actual USER quotes and canonical active directory constrain interpreted intent/priority/privacy; no ticket/outcome/action authority. Modules are unused; durable context/explicit outcomes/producer/escalation/Analytics and live/full flows remain pending.
+
 8October RAG-01A [semantic routing evidence](../reports/SEMANTIC_CONTEXT_ROUTING_REPORT.md): production configured free proposal→fresh leased/source mapping, actual10routing/235ownedPG/33replay/RLS/advisors and1902unit/build component PASS. CH023/028/031/FLOW-E gain context-only evidence; semantic business intent and sourced/live FlowE remain pending. No migration/auto-ticket creation or HUMAN AI reply; root self-review only.
 
 8October ADV-05B-1 [internal Staff knowledge](../reports/STAFF_KNOWLEDGE_ASSISTANCE_REPORT.md):1897unit/225ownedPG/33replay/RLS/advisors/type/lint/build/8 new browser groups and5 old summary groups PASS. Authorized HUMAN lookup uses actual USER scope, fresh retrieval/source checks and canonical editable references; no Student auto-send. This closes the internal knowledge component of CH052/USR-STAFFASSIST, not external web/full/live V1. Root self-review; requested Luna verdict unavailable at usage limit.
