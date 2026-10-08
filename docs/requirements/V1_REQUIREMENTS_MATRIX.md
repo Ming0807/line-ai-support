@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+8October ADV-05A [Staff HUMAN assistance](../reports/STAFF_AI_ASSISTANCE_REPORT.md) adds summaries/editable draft/department-priority recommendations with fresh authorization/source fences and explicit human sending.1889unit/219ownedPG/type/full lint/build/5compiled-browser groups PASS; actual Luna high read-only review noP1/P2. CH052/USR-STAFFASSIST remain PARTIAL pending verified knowledge and full/live acceptance. USR-WEB remains pending accepted runtime implementation; optional RichMenu is explicitly deferred by DEC-059.
+
 8October ADV-01 [actual binding component](../reports/STAFF_LINE_BINDING_REPORT.md) advances CH054/USR-DASHBOARD: self Settings/signed Staff lease/one-use challenges/unlink privacy and delivery fence pass. DEVELOPMENT/local33migrations/52RLS tables. Actual Staff OA notification/accept/FlowC–D remains MANUAL_PENDING, not a live pass.
 
 STR-ACT-01 [activation](../reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md) removes the normal-schema hold for CH012/018/041/050 only: local+DEVELOPMENT32versions/51RLS tables/readinesstrue/40normalPG pass. CH041/050/FlowF remain PARTIAL until final full flow/official approval evidence; current installation is not automatic publication.
@@ -80,7 +82,7 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | CH049 | 49 AnalyzeAPI | IMP-01/02, STR-01/02 | PARTIAL: retained PDF Analyze/Preview recovery and [authorized Mapping1 backend preview](../reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md) at imports/[id]/structured with saved3/CAS. Explicit mapping follows extraction, no inferred tables. Installed SQL/atomic modes, combined mapping UI/all-format corpus acceptance remain |
 | CH050 | 50 ApproveAPI | IMP-03, STR-02 | PARTIAL: PUB-01…05 complete saved review/plan,all5actions/CANCELS atomic RAG/fresh locks/rollback/immutable receipt/API/UI/uncertain recovery component PASS; STRUCTURED/BOTH pending M8. [Approval evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md) |
 | CH051 | 51 TicketDashboard | M4, TKT-READ-02, ADV-03 | COMPONENT_EVIDENCE: scopedfilters/list/browser; [bounded q/pages/matching totals/private API/Bangkok days](../reports/TICKET_SEARCH_PAGINATION_REPORT.md); Gemini search/paging/combined UI and overviewanalytics remain |
-| CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/deliverypermissionsมี; AIstaffassist/similarissuespending |
+| CH052 | 52 TicketDetail | M4, ADV-05 | PARTIAL: messages/history/actions/delivery permissions, scoped related-issue suggestions and on-demand HUMAN summaries/editable draft/recommendations have component evidence. [Staff assistance](../reports/STAFF_AI_ASSISTANCE_REPORT.md); verified knowledge and final live/full-flow checks remain |
 | CH053 | 53 StaffReply | M4 | COMPONENT_EVIDENCE: authorization/state/message/outbox/audit/idempotency |
 | CH054 | 54 StaffOA | M3/M4, ADV-01 | COMPONENT_PASS: self Settings/one-use binding/signed ingress/scoped alerts/unlink fence; actual OA notification/accept/live flow MANUAL_PENDING |
 | CH055 | 55 Similarissues | ADV-02 | PARTIAL: local384/pairwise/window/department/category/privacy and scoped Detail suggestions; verified system/location enrichment/liveE5 pending |
@@ -122,8 +124,8 @@ STR-01C-3 [review3 RAG compatibility](../reports/REVIEW3_RAG_COMPATIBILITY_REPOR
 | USR-IMPORT5 | master§0(17): PDF/DOCX/XLSX/CSV/URL ทั้งหมด ไม่จบที่PDF+HTMLslice | PARTIAL: supervised all5format parser→lossless located plan→exact final passage count→local normalized384 QA PASS; source locations persist/retrieve/cite, private preview and review consent browser PASS. Approved publication/OCR/real corpus/M8 remain; [located preparation report](../reports/IMP_LOCATED_PREPARATION_REPORT.md) |
 | USR-AMENDS | versioning§16 + master§40: base+allactiveamendments; additional≠replace | IMP-03 PARTIALschemaonly |
 | USR-WEB | ภาพรวม§27: universityDB→RAG→officialsite→Internet; noforeignuniversityrules/noarbitrarycrawl | ADV-05 PLANNED; exacttoolscopeplanก่อนcode |
-| USR-RICHMENU | ภาพรวม§20เป็น source proposal: primaryLINEentry/menu แยกcontextquickreply; V1 inclusion ยังต้อง decision | ADV-05: OPTIONAL / UNDECIDED ไม่ถือเป็นconfirmedmandatoryrequirement |
-| USR-STAFFASSIST | ภาพรวม§14: AIสรุป/ค้น/แนะนำระหว่างHUMANแต่staffกดส่งเอง | ADV-05 PLANNED; noautomaticstudentreply |
+| USR-RICHMENU | ภาพรวม§20เป็น source proposal: primaryLINEentry/menu แยกcontextquickreply | OPTIONAL / DEFERRED FOR V1 by DEC-059; direct text/context quick replies preserved; not a silently omitted mandatory requirement |
+| USR-STAFFASSIST | ภาพรวม§14: AIสรุป/ค้น/แนะนำระหว่างHUMANแต่staffกดส่งเอง | PARTIAL: ADV-05A summaries/editable draft/route-priority recommendations implemented, no automatic Student reply; verified knowledge search remains ADV-05B/C. [Evidence](../reports/STAFF_AI_ASSISTANCE_REPORT.md) |
 | USR-DASHBOARD | ภาพรวม§30–31: Overviewรวม8metrics + Tickets/Incidents/Departments/Knowledge/Activities/Providers/Models/Fallback/Usage/Analytics/Logs/Settings รวม13modules | ADV-01…05 PARTIAL; currenttickets/providersonlyไม่ครบ |
 
 | USR-UI-R2 | 7Octoberlatest: user likesGemini443c227 home/sidebar; remainingpagesconsistent, mapallspecandcontinuousGeminiassignment | GEM-REV-02 review/planPASS: [13modules/9routes/two-axis findings](../reports/GEMINI_UI_UX_REVIEW_AND_PAGE_MAP.md), [ready prompt](../agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md). Gemini21selectedtests/type/lintPASS; whitespace/metrics/keyboard/recovery/modulecoverage open. No merge/combined UI/fullV1 acceptance |

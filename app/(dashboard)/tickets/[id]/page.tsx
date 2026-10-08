@@ -111,7 +111,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <div><dt>อัปเดตล่าสุด</dt><dd>{dateTime(ticket.updated_at)}</dd></div>
             </dl>
           </section>
-          <TicketActions id={ticket.id} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} />
+          <TicketActions id={ticket.id} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} assistAvailable={ticket.mode==='HUMAN'&&['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)} />
           <section className="ticket-panel" aria-labelledby="similar-issues-heading">
             <h2 id="similar-issues-heading">เรื่องที่ใกล้เคียง</h2>
             {!similar?<p className="ticket-muted">ยังอ่านเรื่องที่ใกล้เคียงไม่ได้ โปรดลองโหลดหน้าอีกครั้ง</p>:similar.status==='PENDING'?<p className="ticket-muted">ระบบกำลังเตรียมข้อมูลสำหรับค้นหาเรื่องที่ใกล้เคียง</p>:similar.items.length===0?<p className="ticket-muted">ไม่พบเรื่องที่ใกล้เคียงในช่วงเวลาที่ตั้งไว้และขอบเขตที่คุณดูได้</p>:<ul>{similar.items.map(item=><li key={item.id}><Link href={`/tickets/${item.id}`}>{item.ticketCode}</Link> · {statusLabels[item.status as TicketListItem['status']]??'อยู่ระหว่างดูแล'}</li>)}</ul>}

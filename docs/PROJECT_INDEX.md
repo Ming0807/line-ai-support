@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8October [ADV-05A Staff HUMAN assistance](reports/STAFF_AI_ASSISTANCE_REPORT.md): summaries/editable draft/recommendations with fresh source/scope fencing;1889unit/219ownedPG/type/full lint/build and5compiled-browser groups PASS. Actual Luna high read-only review found no P1/P2. Advice has not searched knowledge; verified knowledge/bounded web/context/outcomes/final FlowA–F remain. This component checkpoint is not whole V1 or live-provider/OA acceptance.
+
 8October [ADV-01 Staff binding](reports/STAFF_LINE_BINDING_REPORT.md) COMPONENT_PASS / realOA MANUAL_PENDING: self Settings/one-use commands/signed inbox/delivery-fenced unlink;1883unit/214ownedPG/type/full lint/build/browser PASS. Local+DEVELOPMENT now33 migrations/52RLS tables. Root continues staff AI drafts/bounded search/context/outcomes and FlowA–F; earlier32-version references below are historical checkpoints.
 
 STR-ACT-01 [actual development activation](reports/STRUCTURED_DEVELOPMENT_ACTIVATION_REPORT.md): local+DEVELOPMENT32versions/51RLS tables, actual7dataset readinesstrue, normal40regressions PASS. No university document approved; below's isolated0/7 observations are historical checkpoints.

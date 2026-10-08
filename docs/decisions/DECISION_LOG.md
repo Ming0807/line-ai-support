@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-059 — scoped HUMAN AI drafts and optional menu scope
+
+8October continuous authorization: [ADV-05A design](../architecture/STAFF_AI_ASSISTANCE_DESIGN.md) permits explicit staff-only minimized HUMAN snapshot→outsideSQL gateway→fresh source/scope recheck→ephemeral editable advice. No automatic reply/state change or invented knowledge evidence; staff uses the existing explicit reply action. Summaries/drafts do not complete bounded universityDB→RAG→officialYRU→Internet acceptance, which stays ADV-05B/C. Original§20 proposes an optional Rich Menu; root defers it for V1 while preserving direct text and contextual quick replies. It is not a mandatory source requirement silently dropped. No provider payment/configuration or live acceptance follows this plan.
+
 ## DEC-058 — authenticated binding component acceptance
 
 8October root accepts [ADV-01 evidence](../reports/STAFF_LINE_BINDING_REPORT.md) and migration33 for explicitly selected DEVELOPMENT/local after owned replay/RLS/214PG/advisors. All active staff get self Settings; admin health stays SUPER_ADMIN-only. Inactive identities reserve their current owner until that owner explicitly replaces them; no automatic transfer. Exact setup/issuer-only network retry recovery uses purpose hashing/encryption; unlink invalidates binding/action tokens behind the delivery fence. Signed HTTP browser fixtures are component evidence, not real OA delivery. No independent unavailable-agent review/production migration/corpus approval. DEC-057's planned binding now has implemented component evidence.

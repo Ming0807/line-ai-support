@@ -49,6 +49,10 @@ try {
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
  sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
+ stage='staff_assistance_actual_PG';
+ const assistOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-ai-assistance.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(assistOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='structured_actual_PG';
  const output=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/structured-schema.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
@@ -105,7 +109,13 @@ try {
 } catch(error) {
  // node:test labels are synthetic and useful; migration stderr can contain SQL values and is suppressed.
  if(stage.endsWith('actual_PG')&&error&&typeof error==='object'&&'stdout' in error&&typeof error.stdout==='string')console.error(error.stdout.split(/\r?\n/u).filter(line=>/^(✖|ℹ|  error:|  AssertionError|    code:)/u.test(line)).slice(0,90).join('\n'));
- console.error(JSON.stringify({stage,status:'FAIL'}));process.exitCode=1;
+ const processFailure=error&&typeof error==='object'?error as {code?:unknown;signal?:unknown;status?:unknown;killed?:unknown}:{};
+ console.error(JSON.stringify({stage,status:'FAIL',
+  processCode:typeof processFailure.code==='string'&&/^[A-Z0-9_]{1,32}$/u.test(processFailure.code)?processFailure.code:undefined,
+  processSignal:typeof processFailure.signal==='string'&&/^SIG[A-Z0-9]{1,16}$/u.test(processFailure.signal)?processFailure.signal:undefined,
+  processStatus:typeof processFailure.status==='number'?processFailure.status:undefined,
+  processKilled:typeof processFailure.killed==='boolean'?processFailure.killed:undefined,
+ }));process.exitCode=1;
 } finally {
  if(ragFixtureCreated){
   try{
