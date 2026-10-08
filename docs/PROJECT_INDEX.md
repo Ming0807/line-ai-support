@@ -1,5 +1,7 @@
 # YRU AI Helpdesk — จุดเริ่มอ่านของโปรเจกต์
 
+8October [ADV-05B-1 internal Staff knowledge](reports/STAFF_KNOWLEDGE_ASSISTANCE_REPORT.md) COMPONENT_PASS: explicit HUMAN lookup with actual USER scope, reviewed RAG/authenticated structured citations, fresh Staff/source fences and editable canonical references.1897unit/225ownedPG/type/full lint/fresh build/8 new and5 old compiled browser groups PASS;33migration replay/RLS/advisors0ERROR0WARN. Root self-review; requested Luna review hit limit. No new setup/migration or Student auto-send. Full cascade/web, semantic routing/troubleshooting/outcomes, incident context and FlowA–F remain; V1 is incomplete.
+
 8October [ADV-05A Staff HUMAN assistance](reports/STAFF_AI_ASSISTANCE_REPORT.md): summaries/editable draft/recommendations with fresh source/scope fencing;1889unit/219ownedPG/type/full lint/build and5compiled-browser groups PASS. Actual Luna high read-only review found no P1/P2. Advice has not searched knowledge; verified knowledge/bounded web/context/outcomes/final FlowA–F remain. This component checkpoint is not whole V1 or live-provider/OA acceptance.
 
 8October [ADV-01 Staff binding](reports/STAFF_LINE_BINDING_REPORT.md) COMPONENT_PASS / realOA MANUAL_PENDING: self Settings/one-use commands/signed inbox/delivery-fenced unlink;1883unit/214ownedPG/type/full lint/build/browser PASS. Local+DEVELOPMENT now33 migrations/52RLS tables. Root continues staff AI drafts/bounded search/context/outcomes and FlowA–F; earlier32-version references below are historical checkpoints.

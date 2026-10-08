@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TicketDetail, StaffTicketAction } from '@/types/tickets';
 import StaffAiPanel from './staff-ai-panel';
+import StaffKnowledgePanel from './staff-knowledge-panel';
 
 type Props = Pick<TicketDetail, 'permissions' | 'assignees'> & { id: string; revision: number; assistAvailable?:boolean };
 type ActionDraft = { action: StaffTicketAction; fields: Record<string, string> };
@@ -96,15 +97,17 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
       void execute({ action, fields: fields() });
     };
   }
+  function applyDraft(text:string){
+    if(!permissions.reply||pending)return;
+    if(replyText.trim()&&!window.confirm('แทนที่ข้อความที่คุณพิมพ์ไว้ด้วยร่างจาก AI?'))return;
+    setReplyText(text);setRetryPayload(null);
+  }
 
   return (
     <section className="ticket-action-panel" aria-labelledby="action-heading">
       <div className="ticket-section-heading"><div><h2 id="action-heading">การดำเนินการ</h2></div></div>
-      {assistAvailable&&<StaffAiPanel key={`${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={text=>{
-        if(!permissions.reply||pending)return;
-        if(replyText.trim()&&!window.confirm('แทนที่ข้อความที่คุณพิมพ์ไว้ด้วยร่างจาก AI?'))return;
-        setReplyText(text);setRetryPayload(null);
-      }}/>}
+      {assistAvailable&&<><StaffAiPanel key={`summary:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/>
+        <StaffKnowledgePanel key={`knowledge:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/></>}
       {notice && <p className={`ticket-action-notice ticket-action-notice-${noticeKind}`} role="status">{notice}</p>}
       {retryPayload && noticeKind === 'error' && notice.startsWith('การเชื่อมต่อขาดหาย') && <button className="ticket-button ticket-button-secondary" type="button" disabled={pending} onClick={() => void execute(retryPayload)}>ลองส่งซ้ำ</button>}
       {!hasAnyPermission ? (

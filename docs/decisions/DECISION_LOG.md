@@ -1,5 +1,9 @@
 # YRU V1 — Decisions และการแก้ความคลาดเคลื่อน
 
+## DEC-060 — staff-owned internal retrieval and explicit cited drafts
+
+8October root accepts [ADV-05B-1 component evidence](../reports/STAFF_KNOWLEDGE_ASSISTANCE_REPORT.md). Reuse pure grounded knowledge production with fresh staff-owned read adapters; do not borrow Student LINE/AI authorization or mutating worker execution. Latest actual USER text supplies question/scope; Staff/AI summaries cannot supply identity/year/cohort. Shared catalog locks precede conversation locks, all provider/E5 network is outsideSQL, and exact fresh source evidence must still match before returning. Browser references are server-built PUBLIC projections; oversized canonical references disable insertion instead of truncating. Staff sends through the existing explicit permission/CAS path. Missing/ambiguous sources stay unverified. No new migration/free-service configuration or auto-publication. Runtime official webpage evidence is distinct from persistent import approval; that unaccepted web proposal still needs root contracts/implementation. Requested Luna review hit limit, so only root self-review is credited for this slice.
+
 ## DEC-059 — scoped HUMAN AI drafts and optional menu scope
 
 8October continuous authorization: [ADV-05A design](../architecture/STAFF_AI_ASSISTANCE_DESIGN.md) permits explicit staff-only minimized HUMAN snapshot→outsideSQL gateway→fresh source/scope recheck→ephemeral editable advice. No automatic reply/state change or invented knowledge evidence; staff uses the existing explicit reply action. Summaries/drafts do not complete bounded universityDB→RAG→officialYRU→Internet acceptance, which stays ADV-05B/C. Original§20 proposes an optional Rich Menu; root defers it for V1 while preserving direct text and contextual quick replies. It is not a mandatory source requirement silently dropped. No provider payment/configuration or live acceptance follows this plan.

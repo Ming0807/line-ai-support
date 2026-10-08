@@ -7,7 +7,8 @@ import {ImportStagingError} from '../imports/import-staging';
 import {AssistError,assistInputSchema} from './ai-assistance-contracts';
 import {createStaffAssistance} from './ai-assistance';
 function response(body:unknown,status=200){return Response.json(body,{status,headers:{'Cache-Control':'private, no-store, max-age=0',Vary:'Cookie','X-Content-Type-Options':'nosniff'}});}
-export async function staffAssistHandler(request:Request,id:string){
+type StaffAdviceService=(actorId:string,id:string,input:{revision:number},options:{signal:AbortSignal})=>Promise<unknown>;
+export async function staffAdviceHandler(request:Request,id:string,service:StaffAdviceService,logCode:'STAFF_ASSIST_FAILED'|'STAFF_KNOWLEDGE_FAILED'){
  if(!isSameOrigin(request))return response({error:'INVALID_ORIGIN'},403);
  const actor=await apiStaffId();if(!actor)return response({error:'UNAUTHENTICATED'},401);
  try{
@@ -16,12 +17,13 @@ export async function staffAssistHandler(request:Request,id:string){
   const bytes=await readImportRequestBody(request,1024);let text:string;
   try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new AssistError('INVALID_REQUEST');}
   const input=assistInputSchema.parse(JSON.parse(text));
-  return response(await createStaffAssistance(actor,id,input,{signal:request.signal}));
+  return response(await service(actor,id,input,{signal:request.signal}));
  }catch(error){
   if(error instanceof ImportBodyError)return response({error:'INVALID_REQUEST'},error.status);
   if(error instanceof TicketError&&error.code==='NOT_FOUND')return response({error:'NOT_FOUND'},404);
   if(error instanceof AssistError)return response({error:error.code},{INVALID_REQUEST:400,NOT_FOUND:404,CONFLICT:409,UNAVAILABLE:503}[error.code]);
   if(error instanceof z.ZodError||error instanceof SyntaxError||(error instanceof ImportStagingError&&error.code==='INVALID_REQUEST'))return response({error:'INVALID_REQUEST'},400);
-  console.error('STAFF_ASSIST_FAILED',{code:'UNAVAILABLE'});return response({error:'UNAVAILABLE'},503);
+  console.error(logCode,{code:'UNAVAILABLE'});return response({error:'UNAVAILABLE'},503);
  }
 }
+export const staffAssistHandler=(request:Request,id:string)=>staffAdviceHandler(request,id,createStaffAssistance,'STAFF_ASSIST_FAILED');

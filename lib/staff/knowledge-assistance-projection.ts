@@ -1,0 +1,15 @@
+import {aiResultSchema,type AIResult} from '../ai/jobs';
+import {buildCitedAnswer,locationLabel} from '../knowledge/citations';
+import {buildStructuredAnswer} from '../knowledge/structured-citations';
+import {staffKnowledgeAdviceSchema,type StaffKnowledgeAdvice} from './knowledge-assistance-contracts';
+/** Server-only: citation IDs/URLs are chosen by the existing canonical builders. */
+export function projectStaffKnowledgeAdvice(input:AIResult,revision:number):StaffKnowledgeAdvice{
+ const result=aiResultSchema.parse(input);
+ if(result.kind==='CLARIFY')return staffKnowledgeAdviceSchema.parse({revision,status:'NOT_VERIFIED',answer:result.text,draftText:null,sources:[]});
+ const cited=result.kind==='ANSWER'?buildCitedAnswer(result.output,result.evidence):buildStructuredAnswer(result.output,result.evidence);
+ const text=cited.messages.map(message=>message.text).join('');
+ const sources=result.kind==='ANSWER'?buildCitedAnswer(result.output,result.evidence).citations.map(c=>({title:c.title,academicYear:c.academicYear,url:c.sourceUrl,
+  location:c.sourceLocations?.length?c.sourceLocations.map(locationLabel).join(' · '):c.pageNumber===null?null:`หน้า ${c.pageNumber}`})):
+  buildStructuredAnswer(result.output,result.evidence).citations.map(c=>({title:c.title,academicYear:c.academicYear,url:c.sourceUrl,location:`${locationLabel(c.sourceLocation)} · แถว ${c.sourceRow}`}));
+ return staffKnowledgeAdviceSchema.parse({revision,status:'VERIFIED',answer:result.output.answer,draftText:text.length<=5000?text:null,sources});
+}

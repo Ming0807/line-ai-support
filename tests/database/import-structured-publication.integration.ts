@@ -38,6 +38,7 @@ import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {createKnowledgeToolRegistry} from '../../lib/ai/backend-tools';
 import {buildRuleProof} from '../../lib/knowledge/rule-proof';
 import {knowledgeStructuredCatalogLock} from '../../lib/knowledge/delivery-fence';
+import {createStaffKnowledgeAssistance} from '../../lib/staff/knowledge-assistance';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_ISOLATED_DATABASE_REQUIRED');
@@ -450,6 +451,22 @@ function exactRequest(r:Ready,patch:Record<string,unknown>={}){
 async function exactSearch(f:Fixture,r:Ready,patch:Record<string,unknown>={}){
  const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(r,patch),f.key,'2026-10-08');await client.query('commit');return result;}catch(error){await client.query('rollback');throw error;}finally{client.release();}
 }
+test('HUMAN staff advice revalidates actual approved structured envelopes without E5 or delivery',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),receipt=await publish(f,r);
+ const initial=await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;
+ const session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',['STAFF_STRUCTURED_'+randomUUID()])).rows[0].id;
+ const conversation=(await f.pool.query("insert into public.conversations(line_session_id,mode,conversation_type) values($1,'HUMAN','TICKET') returning id",[session])).rows[0].id;
+ const ticket=(await f.pool.query("insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,category,mode,status) values($1,$2,(select id from public.departments where code='IT'),'Owned structured question','IT_NETWORK','HUMAN','STAFF_HANDLING') returning id",[session,conversation])).rows[0].id;
+ await f.pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content) values($1,$2,'USER','TEXT','ขอข้อมูลบริการที่ตรวจแล้ว')",[conversation,ticket]);
+ const result={kind:'STRUCTURED_ANSWER' as const,output:{answer:'ข้อมูลบริการที่ผ่านการตรวจแล้ว',citationRowIds:[initial.evidence[0].rowId]},...exactRequest(r),evidence:initial.evidence};
+ const view=await createStaffKnowledgeAssistance(f.staff,ticket,{revision:0},{pool:f.pool,key:f.key,produce:async()=>result});
+ assert.equal(view.status,'VERIFIED');assert(view.draftText?.includes('แหล่งอ้างอิง'));assert(view.sources[0].location?.includes('แถว'));
+ assert(!JSON.stringify(view).includes(receipt.receipt.documentId));assert.equal(f.counters.embeddingBatches,0);
+ assert.equal((await f.pool.query('select count(*)::int n from private.message_outbox where ticket_id=$1',[ticket])).rows[0].n,0);
+ await assert.rejects(createStaffKnowledgeAssistance(f.staff,ticket,{revision:0},{pool:f.pool,key:f.key,produce:async()=>{
+  await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[receipt.receipt.documentId]);return result;
+ }}),{code:'CONFLICT'});
+}));
 for(const dataset of STRUCTURED_DATASETS)test(`${dataset}: exact PUBLIC retrieval authenticates published source payload and row reference`,()=>fixture(async f=>{
  const r=await ready(f,dataset,'STRUCTURED','HTML',{visibility:'PUBLIC'});const receipt=await publish(f,r);
  const result=await exactSearch(f,r);assert.equal(result.status,'READY');if(result.status!=='READY')return;

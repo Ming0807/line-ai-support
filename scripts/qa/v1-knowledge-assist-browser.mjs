@@ -1,0 +1,42 @@
+import 'dotenv/config';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {resolve} from 'node:path';
+import {Pool} from 'pg';
+const output=resolve('.superpowers/staging/v1-ui-qa');
+const runtime=JSON.parse(await readFile(resolve(output,'runtime.json'),'utf8')),target=new URL(runtime.connectionString);
+assert.equal(runtime.baseUrl,'http://127.0.0.1:3012');assert.equal(target.hostname,'127.0.0.1');assert.equal(target.port,'54422');assert(/^yru_publication_ui_qa_[a-f0-9]{12}$/.test(runtime.database));assert.equal(decodeURIComponent(target.pathname.slice(1)),runtime.database);assert.equal(runtime.migrations,33);
+const credentials=JSON.parse(await readFile('.superpowers/staging/dev-staff-credentials.json','utf8'));assert.equal(credentials.projectRef,process.env.DEV_SUPABASE_PROJECT_REF);
+const account=credentials.accounts.find(a=>a.role==='STAFF');assert(account);
+const pool=new Pool({connectionString:runtime.connectionString});
+const profile=(await pool.query('select department_id from public.staff_profiles where id=$1 and active',[account.id])).rows[0];assert(profile?.department_id);
+const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',['KNOWLEDGE_BROWSER_'+randomUUID()])).rows[0].id;
+const conversation=(await pool.query("insert into public.conversations(line_session_id,mode,conversation_type) values($1,'HUMAN','TICKET') returning id",[session])).rows[0].id;
+const id=(await pool.query("insert into public.tickets(line_session_id,conversation_id,department_id,assigned_staff_id,problem_summary,category,mode,status) values($1,$2,$3,$4,'กรณีทดสอบเอกสารประกอบ','IT_NETWORK','HUMAN','STAFF_HANDLING') returning id",[session,conversation,profile.department_id,account.id])).rows[0].id;
+const {chromium}=createRequire(resolve(process.env.YRU_QA_PLAYWRIGHT_PACKAGE))('playwright');const browser=await chromium.launch({headless:true,executablePath:process.env.YRU_QA_BROWSER_EXECUTABLE});let stage='start';const checks=[];
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:900}}),page=await context.newPage(),errors=[];page.on('pageerror',()=>errors.push('PAGE_ERROR'));let replies=0;page.on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/reply'))replies++;});
+ stage='login';await page.goto(runtime.baseUrl+'/login');await page.locator('input[name="email"]').fill(account.email);await page.locator('input[name="password"]').fill(account.password);await page.locator('button[type="submit"]').click();await page.waitForURL(url=>url.pathname==='/dashboard',{timeout:45000});
+ stage='actual_private_API';const endpoint=runtime.baseUrl+`/api/tickets/${id}/knowledge-assistance`,headers={origin:runtime.baseUrl};
+ assert.equal((await context.request.post(endpoint,{headers,data:{revision:0,question:'override'}})).status(),400);
+ const noQuestion=await context.request.post(endpoint,{headers,data:{revision:0}});assert.equal(noQuestion.status(),200);assert.equal((await noQuestion.json()).status,'NO_USER_QUESTION');assert.equal(noQuestion.headers()['cache-control'],'private, no-store, max-age=0');
+ await page.goto(runtime.baseUrl+`/tickets/${id}`);const search=page.getByRole('button',{name:'ค้นเอกสารประกอบ',exact:true});await search.click();await page.getByText('ยังไม่มีข้อความคำถามจากผู้แจ้งให้ค้นเอกสารประกอบ',{exact:true}).waitFor();checks.push('actual_private_revision_API_and_no_USER_no_provider');
+ await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content) values($1,$2,'USER','TEXT','ขอเอกสารประกอบ')",[conversation,id]);
+ assert.equal((await context.request.post(endpoint,{headers,data:{revision:0}})).status(),503);checks.push('actual_disabled_AI_guard');
+ stage='network_failure';await page.locator('#staff-reply').fill('ข้อความเจ้าหน้าที่ที่ต้องเก็บไว้');
+ await page.route('**/api/tickets/*/knowledge-assistance',route=>route.abort('failed'),{times:1});await search.click();await page.getByRole('alert').filter({hasText:'การเชื่อมต่อขาดหาย'}).waitFor();assert.equal(await page.locator('#staff-reply').inputValue(),'ข้อความเจ้าหน้าที่ที่ต้องเก็บไว้');checks.push('failed_lookup_preserves_composer');
+ const fixture={revision:0,status:'VERIFIED',answer:'คำตอบจากเอกสาร fixture สำหรับตรวจ UI',draftText:'คำตอบจากเอกสาร fixture\n\nแหล่งอ้างอิง:\n1. คู่มือ fixture หน้า 2\nhttps://yru.ac.th/fixture',sources:[{title:'คู่มือ fixture',academicYear:2569,url:'https://yru.ac.th/fixture',location:'หน้า 2'}]};
+ stage='fixture_citations';await page.route('**/api/tickets/*/knowledge-assistance',route=>{assert.deepEqual(route.request().postDataJSON(),{revision:0});return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)});},{times:1});await search.click();await page.getByText(fixture.answer,{exact:true}).waitFor();
+ const source=page.getByRole('link',{name:'คู่มือ fixture',exact:true});assert.equal(await source.getAttribute('href'),fixture.sources[0].url);assert.equal(await source.getAttribute('rel'),'noopener noreferrer');
+ const insert=page.getByRole('button',{name:'นำคำตอบพร้อมอ้างอิงไปแก้ไข',exact:true});page.once('dialog',d=>d.dismiss());await insert.click();assert.equal(await page.locator('#staff-reply').inputValue(),'ข้อความเจ้าหน้าที่ที่ต้องเก็บไว้');
+ page.once('dialog',d=>d.accept());await insert.click();assert.equal(await page.locator('#staff-reply').inputValue(),fixture.draftText);assert.equal(replies,0);checks.push('fixture_citations_explicit_overwrite_and_no_send');
+ stage='responsive';for(const width of [1440,390,320]){await page.setViewportSize({width,height:width===1440?900:844});await page.evaluate(()=>window.scrollTo(0,0));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);await page.screenshot({path:resolve(output,'screenshots',`staff_knowledge_${width}.png`),fullPage:true});}checks.push('fixture_1440_390_320_no_overflow');
+ stage='stale_revision';await page.route('**/api/tickets/*/knowledge-assistance',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({...fixture,revision:1})}),{times:1});await search.click();await page.getByRole('alert').filter({hasText:'เคสมีข้อมูลใหม่'}).waitFor();assert.equal(await insert.count(),0);assert.equal(await page.locator('#staff-reply').inputValue(),fixture.draftText);checks.push('stale_response_discarded');
+ stage='limitation';await page.route('**/api/tickets/*/knowledge-assistance',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({revision:0,status:'NOT_VERIFIED',answer:'ยังไม่พบเอกสารยืนยัน fixture',draftText:null,sources:[]})}),{times:1});await search.click();await page.getByText('ยังยืนยันข้อมูลไม่ได้',{exact:true}).waitFor();assert.equal(await insert.count(),0);assert.equal(await source.count(),0);checks.push('unverified_result_has_no_fake_citations_or_insert');
+ stage='unsafe_source';await page.route('**/api/tickets/*/knowledge-assistance',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({...fixture,sources:[{...fixture.sources[0],url:'javascript:alert(1)'}]})}),{times:1});await search.click();stage='unsafe_source_alert';await page.getByRole('alert').filter({hasText:'การเชื่อมต่อขาดหาย'}).waitFor();stage='unsafe_source_links';assert.equal(await source.count(),0);checks.push('invalid_response_never_renders_unsafe_link');
+ assert.equal(replies,0);assert.equal(errors.length,0);assert.equal((await pool.query('select count(*)::int n from private.message_outbox where ticket_id=$1',[id])).rows[0].n,0);
+ await writeFile(resolve(output,'knowledge-assist-browser-result.json'),JSON.stringify({status:'PASS',checks,UIAdvice:'FIXTURE',actualPrivateHTTP:true,liveProvider:false,liveLINE:false},null,2));console.log(JSON.stringify({status:'PASS',checks,UIAdvice:'FIXTURE',actualPrivateHTTP:true,liveProvider:false,liveLINE:false}));await context.close();
+}catch(error){console.error(JSON.stringify({status:'FAIL',stage,checks,errorClass:error?.name}));process.exitCode=1;}
+finally{await browser.close();await pool.end();}

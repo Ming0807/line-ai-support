@@ -6,9 +6,9 @@
 
 ## สถานะ
 
-M1–M4 มี automated evidence. M5/M6 **reopened**: gateway/RAG components มีแล้ว แต่ free provider และ Provider UI ยังไม่ครบ. Import/structured/incidents/full Flow A–F ยังอยู่ในแผน ไม่ใช่ระบบ production ที่เสร็จแล้ว. ดู [provider audit](docs/reports/AI_PROVIDER_SPEC_AUDIT.md)
+8 ตุลาคม 2026: LINE สอง OA, Ticket/HUMAN, Staff login, Provider/Model UI, FREE_ONLY gateway, RAG/ข้อมูลตาราง, นำเข้าและอนุมัติเอกสาร, Dashboard และการผูก Staff OA มีโค้ดและหลักฐานทดสอบระดับ component แล้ว ฐานข้อมูล local/DEVELOPMENT มี 33 migrations และข้อมูลตาราง 7 ชนิด ระบบใช้ local CPU E5-small/384 สำหรับ embedding แยกจากหน้า Provider
 
-Current pricing test เป็น RED เพราะยังไม่มี `lib/ai/pricing.ts`; ผล unit/build ที่ผ่านก่อนหน้านั้นเป็น checkpoint ตาม [M6 report](docs/reports/M6_RAG_REPORT.md). ห้ามอ่าน README แล้วถือว่าสถานะปัจจุบัน all-green
+V1 ยังไม่จบ: ต้องปิดการจำแนกบริบท/ส่งต่อด้วย AI และ troubleshooting หลายรอบ, ค้นเว็บตามลำดับแหล่งข้อมูล, บริบท system/location ของ Incidents และทดสอบ Flow A–F รวมทั้งหมด ส่วนช่วยเจ้าหน้าที่ค้นเอกสารพร้อมอ้างอิงกำลังตรวจรับ ดูสถานะและหลักฐานล่าสุดที่ [task board](docs/tasks/V1_TASK_BOARD.md) การทดสอบกับ provider/OA จริง การอนุมัติเอกสารทางการ และ production deployment ยังแยกจากผลทดสอบอัตโนมัติ
 
 ## เริ่มพัฒนา
 
@@ -36,6 +36,6 @@ pnpm build
 
 ## Knowledge และการส่งต่อ
 
-เอกสารที่ดาวน์โหลดอยู่ใน [documents/yru](documents/yru/README.md), [catalog](documents/yru/CATALOG.md), [completeness](documents/yru/COMPLETENESS.md). 187 resources และ shortlist15 เป็นแหล่งที่รวบรวมไว้ ยังไม่ใช่ approved knowledge. M7 จะเพิ่ม Upload/URL→Preview→Approve สำหรับ PDF/DOCX/XLSX/CSV/URL; ตอนนี้ยังไม่มี import UI/API ให้ใช้งานจริง
+เอกสารที่ดาวน์โหลดอยู่ใน [documents/yru](documents/yru/README.md), [catalog](documents/yru/CATALOG.md), [completeness](documents/yru/COMPLETENESS.md). 187 resources และ shortlist15 เป็นแหล่งที่รวบรวมไว้ ยังไม่ใช่ approved knowledge. หน้า `/knowledge/import` รองรับ PDF/DOCX/XLSX/CSV/URL พร้อม Preview/Review และอนุมัติ RAG/STRUCTURED/BOTH ตามความพร้อมและหลักฐานของแหล่งข้อมูล เอกสารตารางต้องตรวจ mapping และยืนยันแถวที่ใช้ก่อนอนุมัติ ระบบไม่สร้าง schema ใหม่ตามปีและไม่เผยแพร่เอง
 
 ดู [final setup checklist](docs/operations/FINAL_SETUP_CHECKLIST.md) สำหรับสิ่งที่ผู้ใช้ต้องเลือก/ตั้งค่าเอง และ production notes. การ deployต้องมี worker lifecycle, stable HTTPS domain, schema/role gates และ approved corpus ไม่ถือว่า `next build` ผ่านแล้ว deployครบ
