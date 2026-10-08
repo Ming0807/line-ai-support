@@ -631,3 +631,22 @@ test('only canonical reviewed guidance delivered by the actual outbox grants the
  assert.equal((await transaction(c=>loadSupportSnapshot(c,supportContext,f.key),f.pool))?.input.deliveredGuidance,false,'ALTERED_CANONICAL_MESSAGE_IS_NOT_GUIDANCE');
  assert.equal((await f.pool.query('select count(*)::int n from private.ai_support_outcomes where conversation_id=$1',[context.conversation])).rows[0].n,0,'DELIVERY_IS_NOT_A_SOLVED_OUTCOME');
 }));
+
+for(const changed of [false,true])test(`actual support-enabled worker preserves canonical structured guidance with source ${changed?'retired':'unchanged'} at dispatch`,()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),published=await publish(f,r),context=await aiContext(f);
+ const found=await exactSearch(f,r);assert.equal(found.status,'READY');if(found.status!=='READY')return;
+ const stats=await runAICycle(f.pool,f.key,{supportEnabled:true,produce:async s=>{
+  assert(s.support);return {kind:'STRUCTURED_ANSWER',output:{answer:'Synthetic reviewed exact library answer',citationRowIds:[found.evidence[0].rowId]},...exactRequest(r),evidence:found.evidence,
+   support:{version:1,sourceDigest:s.support.sourceDigest,directoryDigest:s.support.directoryDigest,minimumSensitivity:s.support.minimumSensitivity,deliveredGuidance:s.support.input.deliveredGuidance,
+    proposal:{intent:'INFORMATION',category:'LIBRARY',subcategory:'SERVICE',needsTicket:false,department:'LIBRARY',urgency:'low',needsKnowledgeSearch:false,needsStructuredSearch:true,needsWebSearch:false,
+     confidence:.99,missingContext:null,impact:'SINGLE_USER',sensitivity:'GENERAL',facts:[{field:'PROBLEM',source:'U0',quote:'Synthetic exact library question'}]}}};
+ }});assert.equal(stats.completed,1);assert.equal(stats.failed,0);
+ const state=(await f.pool.query('select last_message_id,guidance_outbox_id from private.ai_support_state where conversation_id=$1',[context.conversation])).rows[0];assert(state?.guidance_outbox_id);
+ const owned={sessionId:context.session,conversationId:context.conversation,messageId:state.last_message_id,revision:0};
+ assert.equal((await transaction(c=>loadSupportSnapshot(c,owned,f.key),f.pool))?.input.deliveredGuidance,false);
+ if(changed)await f.pool.query('update public.documents set revision=revision+1 where id=$1',[published.receipt.documentId]);
+ let calls=0;const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{calls++;return new Response(null,{status:200});}});
+ assert.equal(delivery.failed,0);assert.equal(calls,changed?0:1);
+ assert.equal((await transaction(c=>loadSupportSnapshot(c,owned,f.key),f.pool))?.input.deliveredGuidance,!changed);
+ assert.equal((await f.pool.query('select count(*)::int n from private.ai_support_outcomes where conversation_id=$1',[context.conversation])).rows[0].n,0);
+}));

@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+9October RAG-01B-3A [producer/worker evidence](../reports/AI_SUPPORT_PRODUCER_REPORT.md) adds actual USER continuation/full year scope, private advice/source fences and ticket sensitivity for CH023/027/028/031/057 and FlowB/C/E.255ownedPG/1928unit/type/full lint/build; local+DEVELOPMENT34versions/55RLS tables/actual grants/53normalPG PASS. Appropriate consumed actions, outcome transitions, copied ticket context and observed Analytics remain B3B; component/activation evidence does not complete these flows or V1.
+
 8October RAG-01B-2 [private support storage evidence](../reports/AI_SUPPORT_STATE_REPORT.md):243ownedPG/34replay/RLS/advisors0ERROR0WARN; encrypted literal context/fresh source/directory/lease/owner/privacy/department and canonical delivered-guidance boundary for CH027/028/031/057, FlowB/C. Fixed immutable outcome/ticket-copy tables alone do not prove confirmation, transitions, production producer or observed Analytics. Normal/DEVELOPMENT activation and B3 integration remain root work; no live/fullV1 pass.
 
 8October RAG-01B-1 [support proposal evidence](../reports/AI_SUPPORT_PROPOSAL_REPORT.md):16focused/1918unit/type/lint preparation PASS for CH027/028/031/057 and FlowB/C. Actual USER quotes and canonical active directory constrain interpreted intent/priority/privacy; no ticket/outcome/action authority. Modules are unused; durable context/explicit outcomes/producer/escalation/Analytics and live/full flows remain pending.

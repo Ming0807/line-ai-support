@@ -53,6 +53,10 @@ try {
  const supportOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ai-support-state.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(supportOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='support_worker_actual_PG';
+ const supportWorkerOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ai-support-worker.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(supportWorkerOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='semantic_routing_actual_PG';
  const semanticOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/semantic-context-routing.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

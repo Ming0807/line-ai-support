@@ -15,6 +15,10 @@ export const supportProposalSchema=routerOutputSchema.extend({
 export type SupportProposal=z.infer<typeof supportProposalSchema>;
 export type SupportFact=z.infer<typeof supportFactSchema>;
 export type SupportSensitivity=z.infer<typeof sensitivity>;
+/** Private durable metadata added by the backend, never supplied as action authority by a model. */
+export const supportMetadataSchema=z.strictObject({version:z.literal(1),sourceDigest:z.string().regex(/^[a-f0-9]{64}$/u),
+ directoryDigest:z.string().regex(/^[a-f0-9]{64}$/u),minimumSensitivity:sensitivity,deliveredGuidance:z.boolean(),proposal:supportProposalSchema});
+export type SupportMetadata=z.infer<typeof supportMetadataSchema>;
 export interface SupportSnapshot {question:string;history:{role:string;content:string}[];deliveredGuidance?:boolean}
 export interface SupportDepartment {code:string;name:string}
 const departmentSchema=z.strictObject({code:z.string().regex(/^[A-Z_]{2,40}$/u),name:z.string().min(1).max(200)});

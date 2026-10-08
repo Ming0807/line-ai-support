@@ -6,6 +6,7 @@ import {evidenceStillMatches} from './citations';
 import {ruleContextsStillMatch} from './rule-proof';
 import {searchStructured} from './structured-search';
 import {structuredEvidenceStillMatches} from './structured-citations';
+import {loadSupportSnapshot} from '../ai/support-state';
 
 /** M7 writers acquire sorted family locks, then sorted document locks, before publishing or changing eligibility. */
 export const knowledgeDocumentLock=(documentId:string)=>`knowledge-document:${documentId}`;
@@ -19,7 +20,18 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:{idempotenc
  const job=(await client.query(`select * from private.ai_jobs where id=$1 and conversation_id=$2 and line_session_id=$3 and status='DONE'`,
   [jobId,input.conversationId,input.sessionId])).rows[0] as AIJob|undefined;
  if(!job)return false;
- const result=decodeAIResult(job,key);if(!result)return false;if(result.kind==='CLARIFY')return true;
+ const result=decodeAIResult(job,key);if(!result)return false;
+ if(result.support){
+  await client.query('begin');
+  try{
+   const fresh=await loadSupportSnapshot(client,{sessionId:job.line_session_id,conversationId:job.conversation_id,messageId:job.message_id,revision:job.expected_conversation_revision},key);
+   const saved=(await client.query('select conversation_id from private.ai_support_state where conversation_id=$1 and ai_job_id=$2 and source_digest=$3 and directory_digest=$4',
+    [job.conversation_id,job.id,result.support.sourceDigest,result.support.directoryDigest])).rowCount===1;
+   const allowed=saved&&fresh?.sourceDigest===result.support.sourceDigest&&fresh.directoryDigest===result.support.directoryDigest;
+   await client.query('commit');if(!allowed)return false;
+  }catch(error){await client.query('rollback');throw error;}
+ }
+ if(result.kind==='CLARIFY')return true;
  // A source-changing clarification carries no citations and must not reuse the obsolete result.
  const metadata=(await client.query(`select metadata from public.messages where conversation_id=$1 and metadata->>'ai_job_id'=$2
   and sender_type='AI' order by created_at desc,id limit 1`,[input.conversationId,jobId])).rows[0]?.metadata;

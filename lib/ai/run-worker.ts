@@ -11,14 +11,18 @@ import {searchStructured} from '../knowledge/structured-search';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
 import {startLineLoading} from '../line/loading';
+import {loadSupportSnapshot,saveSupportState,type SupportStateSnapshot} from './support-state';
+import {interpretSupportProposal} from './support-contracts';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
  history:{role:'user'|'assistant';content:string}[];
+ support?:SupportStateSnapshot;
 }
 export interface AIWorkerOptions {
  produce(snapshot:AISnapshot,signal:AbortSignal):Promise<AIResult>;
  loading?:{accessToken?:string;fetchImpl?:typeof fetch};
+ supportEnabled?:boolean;
 }
 async function eligible(client:PoolClient,job:AIJob):Promise<boolean>{
  return (await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
@@ -32,11 +36,14 @@ async function finish(client:PoolClient,job:AIJob,status:'DONE'|'SUPPRESSED',cod
   where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()`,[job.id,job.lease_token,status,code]);
  if(result.rowCount!==1)throw new Error('AI_JOB_LEASE_LOST');
 }
-async function snapshot(pool:Pool,job:AIJob):Promise<AISnapshot|null>{
+async function snapshot(pool:Pool,job:AIJob,key:string,options:AIWorkerOptions):Promise<AISnapshot|null>{
  return transaction(async client=>{
   await client.query("set local statement_timeout='5s'");
   await lockConversation(client,job.conversation_id);await lockedAIJob(client,job);
   if(!await eligible(client,job)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}
+  const support=options.supportEnabled?await loadSupportSnapshot(client,{sessionId:job.line_session_id,conversationId:job.conversation_id,
+   messageId:job.message_id,revision:job.expected_conversation_revision},key):undefined;
+  if(options.supportEnabled&&!support){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}
   const message=(await client.query('select content,created_at from public.messages where id=$1',[job.message_id])).rows[0];
   const previous=(await client.query(`select m.sender_type,m.content from public.messages m where m.conversation_id=$1 and m.id<>$2
    and m.created_at<$3 and m.sender_type in ('USER','AI') and m.message_type='TEXT'
@@ -46,7 +53,7 @@ async function snapshot(pool:Pool,job:AIJob):Promise<AISnapshot|null>{
   [job.conversation_id,job.message_id,message.created_at])).rows.reverse();
   return {jobId:job.id,sessionId:job.line_session_id,conversationId:job.conversation_id,messageId:job.message_id,
    revision:job.expected_conversation_revision,question:message.content,
-   history:previous.map(m=>({role:m.sender_type==='USER'?'user' as const:'assistant' as const,content:m.content.slice(0,3000)}))};
+   history:previous.map(m=>({role:m.sender_type==='USER'?'user' as const:'assistant' as const,content:m.content.slice(0,3000)})),...(support?{support}:{})};
  },pool);
 }
 async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promise<AIResult>{
@@ -79,12 +86,23 @@ async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOption
   console.warn('LINE_LOADING_UNAVAILABLE');
  }
 }
-async function finalize(pool:Pool,job:AIJob,key:string):Promise<'DONE'|'SUPPRESSED'>{
+async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promise<'DONE'|'SUPPRESSED'>{
  return transaction(async client=>{
   await client.query("set local statement_timeout='5s'");await lockConversation(client,job.conversation_id);
   const current=await lockedAIJob(client,job);
   if(!await eligible(client,current)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
   const result=decodeAIResult(current,key);if(!result)throw new Error('AI_JOB_RESULT_MISSING');
+  let support:SupportStateSnapshot|undefined;
+  if(result.support||before.support){
+   const fresh=await loadSupportSnapshot(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
+    messageId:current.message_id,revision:current.expected_conversation_revision},key),expected=result.support??before.support!;
+   if(!fresh||fresh.sourceDigest!==expected.sourceDigest||fresh.directoryDigest!==expected.directoryDigest||
+    result.support&&(fresh.minimumSensitivity!==result.support.minimumSensitivity||fresh.input.deliveredGuidance!==result.support.deliveredGuidance||
+     !interpretSupportProposal(result.support.proposal,fresh.input,fresh.minimumSensitivity))){
+    await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';
+   }
+   support=fresh;
+  }
   const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
   let messages:OutboundText[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|null=null;
   if(result.kind==='STRUCTURED_ANSWER'){
@@ -128,6 +146,8 @@ async function finalize(pool:Pool,job:AIJob,key:string):Promise<'DONE'|'SUPPRESS
   if(!outbox){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata)
    values($1,'AI','TEXT',$2,$3)`,[job.conversation_id,messages.map(m=>m.text).join('\n'),{ai_job_id:job.id,citations}]);
+  if(result.support&&support)await saveSupportState(client,current,support,result.support.proposal,key,
+   code===null&&result.kind!=='CLARIFY'?{guidanceOutboxId:outbox}:{});
   await finish(client,job,'DONE',code);return 'DONE';
  },pool);
 }
@@ -136,14 +156,14 @@ export async function runAICycle(pool:Pool,key:string,options:AIWorkerOptions):P
  const stats={claimed:0,completed:0,suppressed:0,failed:0};let job:AIJob|null=null;
  try{
   job=await claimAIJob(pool);if(!job)return stats;stats.claimed=1;
-  let context=await snapshot(pool,job);if(!context){stats.suppressed=1;return stats;}
+  let context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
   if(job.result_encrypted===null){
    await showLoading(pool,job,key,options);
    // Takeover/revision/lease may change while the animation HTTP call runs.
-   context=await snapshot(pool,job);if(!context){stats.suppressed=1;return stats;}
+   context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
    await saveAIResult(pool,job,await produceBounded(context,options),key);
   }
-  const status=await finalize(pool,job,key);if(status==='DONE')stats.completed=1;else stats.suppressed=1;
+  const status=await finalize(pool,job,key,context);if(status==='DONE')stats.completed=1;else stats.suppressed=1;
   console.info('AI_JOB_FINISHED',{status});
  }catch{
   stats.failed=1;console.error('AI_JOB_PROCESSING_FAILED');

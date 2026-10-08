@@ -20,6 +20,10 @@ export interface KnowledgeProducerOptions {
  embed:BoundEmbed;
  search:BoundSearch;
  structuredSearch?:(input:StructuredSearchRequest)=>Promise<StructuredSearchResult>;
+ /** Canonical active department from a source-validated backend support proposal. No identity/applicability inference. */
+ acceptedDepartmentCode?:string|null;
+ /** Bounded actual USER problem/details for embeddings; scope/answer still consume the full grounded question. */
+ retrievalQuery?:string;
 }
 
 const SCOPE_TIMEOUT_MS=15_000;
@@ -152,9 +156,10 @@ function groundedLabel(field:'audience'|'studentType'|'departmentCode',value:str
  return (aliases[value]??[]).some(alias=>normalized.includes(normalizedText(alias)));
 }
 
-function scopeIsGrounded(scope:KnowledgeScope,snapshot:AISnapshot,time:QueryTime):boolean {
+function scopeIsGrounded(scope:KnowledgeScope,snapshot:AISnapshot,time:QueryTime,acceptedDepartment?:string|null):boolean {
  const text=scopeContext(snapshot);
- if(!groundedLabel('departmentCode',scope.departmentCode,text)||!groundedLabel('audience',scope.audience,text)||
+ const departmentMatches=scope.departmentCode===null||(acceptedDepartment?scope.departmentCode===acceptedDepartment:groundedLabel('departmentCode',scope.departmentCode,text));
+ if(!departmentMatches||!groundedLabel('audience',scope.audience,text)||
   !groundedLabel('studentType',scope.studentType,text)||!explicitlyMentioned(scope.semester,text)||
   !explicitlyMentioned(scope.programCode,text)||!explicitlyMentioned(scope.curriculumCode,text))return false;
  const scopedCohorts=temporalParts(text).cohorts;
@@ -194,10 +199,10 @@ function promptHistory(snapshot:AISnapshot):Array<{role:'user'|'assistant';conte
  return snapshot.history.slice(-4).map(message=>({role:message.role,content:message.content.slice(-750)}));
 }
 
-function scopeMessages(snapshot:AISnapshot):AIMessage[] {
+function scopeMessages(snapshot:AISnapshot,acceptedDepartmentCode?:string|null):AIMessage[] {
  return [
-  {role:'system',content:SCOPE_PROMPT},
-  {role:'user',content:JSON.stringify({question:snapshot.question,history:promptHistory(snapshot)})},
+  {role:'system',content:SCOPE_PROMPT+(acceptedDepartmentCode?' The supplied acceptedDepartmentCode is already source-validated against the active backend directory; you may use that exact department only. It supplies no student identity, year, cohort or applicability.':'')},
+  {role:'user',content:JSON.stringify({question:snapshot.question,history:promptHistory(snapshot),...(acceptedDepartmentCode?{acceptedDepartmentCode}:{})})},
  ];
 }
 
@@ -242,11 +247,13 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
   if(isCallerCancellation(signal))throw cancelled();
   if(typeof snapshot.question!=='string'||snapshot.question.trim().length===0||snapshot.question.length>MAX_QUERY_BYTES||
    encoder.encode(snapshot.question).byteLength>MAX_QUERY_BYTES)return clarify(PROVIDER_HANDOFF);
+  const retrievalQuery=options.retrievalQuery??snapshot.question;
+  if(typeof retrievalQuery!=='string'||!retrievalQuery.trim()||retrievalQuery.length>MAX_QUERY_BYTES||encoder.encode(retrievalQuery).byteLength>MAX_QUERY_BYTES)return clarify(PROVIDER_HANDOFF);
   const requestedTime=timeInQuestion(snapshot.question,snapshot.history);
   if(requestedTime.ambiguousHistorical||requestedTime.years.length>1||requestedTime.dates.length>1||
    requestedTime.cohorts.length>1||(requestedTime.mentioned&&requestedTime.years.length===0&&requestedTime.dates.length===0))
    return clarify(HISTORICAL_CLARIFICATION);
-  const scopePrompt=scopeMessages(snapshot);
+  const scopePrompt=scopeMessages(snapshot,options.acceptedDepartmentCode);
   if(!promptFits(scopePrompt))return clarify(PROVIDER_HANDOFF);
 
   let scope:KnowledgeScope;
@@ -258,7 +265,7 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
    const parsed=knowledgeScopeSchema.safeParse(classified.output);
    if(!parsed.success||classified.toolCalls.length>0)return clarify(PROVIDER_HANDOFF);
    if(!temporalScopeMatches(parsed.data,requestedTime))return clarify(requestedTime.cohorts.length?SCOPE_CLARIFICATION:HISTORICAL_CLARIFICATION);
-   if(!scopeIsGrounded(parsed.data,snapshot,requestedTime))return clarify(SCOPE_CLARIFICATION);
+   if(!scopeIsGrounded(parsed.data,snapshot,requestedTime,options.acceptedDepartmentCode))return clarify(SCOPE_CLARIFICATION);
    scope=parsed.data;
   }catch{if(signal.aborted)throw cancelled();return clarify(PROVIDER_HANDOFF);}
 
@@ -286,7 +293,7 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
 
   let embedded:EmbedResult;
   try{
-   embedded=await bounded(stageSignal=>options.embed({input:[snapshot.question],requestType:'EMBEDDING_QUERY',
+   embedded=await bounded(stageSignal=>options.embed({input:[retrievalQuery],requestType:'EMBEDDING_QUERY',
     conversationId:snapshot.conversationId,timeoutMs:EMBEDDING_TIMEOUT_MS,signal:stageSignal}),EMBEDDING_TIMEOUT_MS,signal);
    if(signal.aborted)throw cancelled();
    if(!validEmbedding(embedded))return clarify(PROVIDER_HANDOFF);

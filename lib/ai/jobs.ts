@@ -8,15 +8,16 @@ import {ragAnswerSchema,citationEvidenceSchema} from '../knowledge/citations';
 import {knowledgeScopeSchema} from '../knowledge/retrieval';
 import {structuredQuerySchema} from '../knowledge/structured-query';
 import {structuredAnswerSchema,structuredEvidenceListSchema} from '../knowledge/structured-citations';
+import {supportMetadataSchema} from './support-contracts';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
  quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action}).strict()).min(1).max(13)}).strict().optional()}).strict();
 export const aiResultSchema=z.discriminatedUnion('kind',[
- z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000)}).strict(),
+ z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
-  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/)}).strict(),
- z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema}).strict()
+  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),support:supportMetadataSchema.optional()}).strict(),
+ z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema,support:supportMetadataSchema.optional()}).strict()
   .refine(value=>Buffer.byteLength(JSON.stringify(value),'utf8')<=128*1024),
 ]);
 export type AIResult=z.infer<typeof aiResultSchema>;

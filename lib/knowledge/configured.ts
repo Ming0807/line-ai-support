@@ -6,7 +6,7 @@ import {createProviderRegistry} from '../ai/provider-registry';
 import {createPriceReader} from '../ai/pricing';
 import {createKnowledgeToolRegistry} from '../ai/backend-tools';
 import type {AIWorkerOptions} from '../ai/run-worker';
-import {createKnowledgeProducer} from './answer-producer';
+import {createSupportProducer} from '../ai/support-producer';
 import {citationEvidenceSchema} from './citations';
 import type {StructuredSearchResult} from './structured-search';
 
@@ -15,7 +15,7 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
  const store=createAIStore(pool);
  const generation=createProviderRegistry(options),embedding=createLocalE5EmbeddingProvider(options);
  const priceReader=createPriceReader(options);
- return (snapshot,signal)=>createKnowledgeProducer({
+ return (snapshot,signal)=>createSupportProducer({
   generate:input=>generate(input,{store,key,adapters:generation,priceReader}),
   embed:input=>embedLocalConfigured(input,embedding),
   structuredSearch:async input=>{
