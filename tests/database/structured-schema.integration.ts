@@ -36,7 +36,13 @@ async function fixture(dataset:DatasetType,format:ImportFormat='CSV'):Promise<Fi
  }catch(error){await client.query('rollback').catch(()=>{});await client.end();throw error;}
 }
 async function using(dataset:DatasetType,run:(f:Fixture)=>Promise<void>){
- const f=await fixture(dataset);try{await run(f);}finally{await f.client.query('rollback');await f.client.end();}
+ const f=await fixture(dataset);try{await run(f);}finally{
+  await f.client.query('rollback');
+  // Two COMMIT tests retain immutable evidence. Retire only their owned synthetic directory entry.
+  // It is not a university unit and must not contaminate later support snapshots in this disposable DB.
+  await f.client.query('update public.departments set active=false where id=$1',[f.department]);
+  await f.client.end();
+ }
 }
 async function rejected(client:Client,run:()=>Promise<unknown>,code:string,message?:string){
  await client.query('savepoint expected_failure');

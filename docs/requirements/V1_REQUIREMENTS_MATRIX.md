@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+8October RAG-01B-2 [private support storage evidence](../reports/AI_SUPPORT_STATE_REPORT.md):243ownedPG/34replay/RLS/advisors0ERROR0WARN; encrypted literal context/fresh source/directory/lease/owner/privacy/department and canonical delivered-guidance boundary for CH027/028/031/057, FlowB/C. Fixed immutable outcome/ticket-copy tables alone do not prove confirmation, transitions, production producer or observed Analytics. Normal/DEVELOPMENT activation and B3 integration remain root work; no live/fullV1 pass.
+
 8October RAG-01B-1 [support proposal evidence](../reports/AI_SUPPORT_PROPOSAL_REPORT.md):16focused/1918unit/type/lint preparation PASS for CH027/028/031/057 and FlowB/C. Actual USER quotes and canonical active directory constrain interpreted intent/priority/privacy; no ticket/outcome/action authority. Modules are unused; durable context/explicit outcomes/producer/escalation/Analytics and live/full flows remain pending.
 
 8October RAG-01A [semantic routing evidence](../reports/SEMANTIC_CONTEXT_ROUTING_REPORT.md): production configured free proposal→fresh leased/source mapping, actual10routing/235ownedPG/33replay/RLS/advisors and1902unit/build component PASS. CH023/028/031/FLOW-E gain context-only evidence; semantic business intent and sourced/live FlowE remain pending. No migration/auto-ticket creation or HUMAN AI reply; root self-review only.

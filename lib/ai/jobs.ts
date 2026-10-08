@@ -1,4 +1,4 @@
-import type {Pool,PoolClient} from 'pg';
+import type {Pool} from 'pg';
 import {z} from 'zod';
 import {transaction} from '../database/pool';
 import {lockConversation,type DbClient} from '../tickets/authorization';
@@ -47,7 +47,7 @@ export async function prepareAIJob(client:DbClient,input:PrepareAIJob,key:string
 }
 export async function claimAIJob(pool:Pool):Promise<AIJob|null>{return (await pool.query('select * from private.claim_ai_job()')).rows[0]??null;}
 
-export async function lockedAIJob(client:PoolClient,job:AIJob):Promise<AIJob>{
+export async function lockedAIJob(client:DbClient,job:AIJob):Promise<AIJob>{
  const row=(await client.query(`select * from private.ai_jobs where id=$1 and status='PROCESSING' and lease_token=$2
   and lease_until>clock_timestamp() for update`,[job.id,job.lease_token])).rows[0];
  if(!row)throw new Error('AI_JOB_LEASE_LOST');return row;

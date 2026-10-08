@@ -1,0 +1,29 @@
+# RAG-01B-2 — private source-bound support storage
+
+8October2026 root, prerequisite B1 accepted68bf470f268c7091841824ec9277d5246daa7c70. [Workflow](AI_SUPPORT_WORKFLOW_DESIGN.md) and [execution](../superpowers/plans/2026-10-08-yru-support-workflow.md), CH027/028/031/057/FlowB–C. This is fixed infrastructure, never a per-document/year migration. Root owns schema/source/lease/privacy and actual PG acceptance. B3 remains responsible for production actions, state transitions and scoped metrics.
+
+## Exact storage contract
+
+`private.ai_support_state`: one row per conversation; owned session, last actual USER TEXT message, contributing AI job, conversation revision, source digest, directory digest, state digest, encrypted version1 envelope, optional guidance outbox, nullable accepted department and sensitivity. The encrypted envelope contains only interpreted bounded support facts/proposal and source identifiers; no plaintext facts in SQL columns. Source digest covers the current question plus bounded prior actual USER source IDs/content/times. Directory digest covers the actual active code/name/ID list. State digest binds these hashes, revision, canonical interpreted payload, exact department ID and guidance reference. Decrypt/validate the envelope and compare its ownership/source/privacy/department/guidance mirrors before using a stored minimum or guidance flag; corrupt/mismatched state fails closed. Do not reuse stale advice for a newly arrived USER message.
+
+Use exact composite ownership FKs: conversation/session; message/conversation; AI job/conversation/message; optional guidance outbox/conversation/session. Add narrow composite UNIQUE constraints on the referenced existing message/job/outbox keys only where PostgreSQL requires a matching candidate key. A nullable guidance ID uses the normal optional composite FK, while the owned conversation/session columns remain NOT NULL. No data rewrites/deletes, extra public policy or model-selected schema.
+
+`private.ticket_support_contexts`: one immutable row per confirmed ticket, exact ticket/conversation FK, session ownership, source/state digests and encrypted version1 ticket-bound copy. The server can project fact labels/quotes only after fresh Staff ticket/sensitivity authorization; technical source/job/session identifiers stay private. An unclassified legacy escalation has no row and retains existing safe behavior.
+
+`private.ai_support_outcomes`: one immutable outcome per conversation and unique confirmation inbox event; exact owned conversation/session, last source message, state digest, nullable accepted department, sensitivity, kind USER_CONFIRMED_SOLVED or USER_CONFIRMED_ESCALATED, nullable ticket FK and observation time. SOLVED requires ticket_id=NULL; ESCALATED requires an exact same-conversation ticket. A delivery job is not an outcome. Rows are backend-only evidence for B3's explicit denominator and scoped metrics.
+
+All three tables: private schema, RLS enabled, public/anon/authenticated privileges revoked, service backend grants only. Immutable ticket/outcome UPDATE/DELETE raise fixed errors through private invoker triggers with empty search_path. Index actual session/department/date and source/job FK lookups; no raw fact text indexes. Source hashes contain no raw identifiers for browser use and must never be logged as a public handle.
+
+## Helpers and runtime fence
+
+`loadSupportSnapshot(client,context,key)` is a private, short transaction helper with the existing conversation lock. Require exact active AI owner/revision, current actual USER TEXT message, no HUMAN ticket and no newer routed USER message. Read bounded prior USER sources, active directory and current server sensitivity minimum; return a projected B1 input plus private source/directory hashes and IDs. No HTTP or mutating business effect.
+
+`saveSupportState(client,job,expectedSnapshot,proposal,key,options)` is called only during an owned eligible finalization. Recheck owned live AI lease, exact source/directory/revision and interpret the strict raw proposal against the fresh actual input/minimum. Reject stale or invalid advice. An optional guidance reference must belong to a successful same-conversation AI answer and its owned outbox; a clarification/failed-evidence result cannot grant a solved action. Upsert encrypted advice idempotently; do not record outcome, create ticket or send anything.
+
+Ticket copy and outcome helpers are separate B3 integration gates: consumed owned expiring postback, exact current state/source, delivered verified guidance for SOLVED, exact confirmed created ticket for ESCALATED, sensitivity/department and receipt replay checks. They run in the same transaction as the existing transition/tool receipt/outbox effects. No public API may call storage helpers without the corresponding authorization. B2 storage tests do not certify B3 confirmation or transitions.
+
+## Verification and activation
+
+Write actual owned PG RED tests before migration/helpers: private roles/immutability/FK ownership and NULL behavior, encrypted actual USER support snapshot, successful save, new USER or directory or mode/lease changes, malformed/invented facts, retries and invalid guidance. Extend only the random owned schema runner; preserve normal schema count, auth-data isolation and cleanup. Replay/RLS/advisors and complete relevant regressions precede normal local/DEVELOPMENT activation. Never claim production or FlowB/C acceptance from schema/helper tests.
+
+Primary references checked8October: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [PostgreSQL composite constraints](https://www.postgresql.org/docs/17/ddl-constraints.html). Supabase changelog.md fetchedHTTP200; no Supabase SDK/auth/API contract is changed by these private fixed tables. Composite nullable-key semantics and privilege/RLS isolation are tested on the installed database rather than assumed.

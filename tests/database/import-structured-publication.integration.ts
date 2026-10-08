@@ -28,10 +28,12 @@ import type {ImportFormat,ImportSource} from '../../lib/imports/types';
 import type {StructuredMappingPlan} from '../../lib/imports/structured-mapping-contract';
 import {searchStructured} from '../../lib/knowledge/structured-search';
 import {validateStructuredQuery} from '../../lib/knowledge/structured-query';
-import {structuredEvidenceStillMatches} from '../../lib/knowledge/structured-citations';
+import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../../lib/knowledge/structured-citations';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {transaction} from '../../lib/database/pool';
-import {prepareAIJob} from '../../lib/ai/jobs';
+import {prepareAIJob,claimAIJob,saveAIResult} from '../../lib/ai/jobs';
+import {loadSupportSnapshot,saveSupportState} from '../../lib/ai/support-state';
+import {enqueueOutbound} from '../../lib/queue/outbox';
 import {runAICycle} from '../../lib/ai/run-worker';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 import {encryptValue,hashLineUserId} from '../../lib/security/identity';
@@ -593,4 +595,39 @@ test('service department code writer cannot change selector eligibility during a
   await writer.query('rollback');writer.release();
   await reader.query('select pg_advisory_unlock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);reader.release();
  }
+}));
+
+test('only canonical reviewed guidance delivered by the actual outbox grants the private guidance flag',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,r);
+ const context=await aiContext(f),evidence=await exactSearch(f,r);assert.equal(evidence.status,'READY');if(evidence.status!=='READY')return;
+ const job=await claimAIJob(f.pool);assert(job,'GUIDANCE_JOB_REQUIRED');assert.equal(job.id,context.job);
+ const supportContext={sessionId:context.session,conversationId:context.conversation,messageId:job.message_id,revision:0};
+ const directory=(await f.pool.query('select code from public.departments where active')).rows;
+ assert(directory.every(d=>/^[A-Z_]{2,40}$/u.test(d.code)),'GUIDANCE_DIRECTORY_CONTRACT');
+ const snapshot=await transaction(c=>loadSupportSnapshot(c,supportContext,f.key),f.pool);assert(snapshot,'GUIDANCE_SNAPSHOT_REQUIRED');assert.equal(snapshot.input.deliveredGuidance,false);
+ const result={kind:'STRUCTURED_ANSWER' as const,output:{answer:'Synthetic reviewed exact library answer',citationRowIds:[evidence.evidence[0].rowId]},...exactRequest(r),evidence:evidence.evidence};
+ await saveAIResult(f.pool,job,result,f.key);const canonical=buildStructuredAnswer(result.output,result.evidence);
+ const proposal={intent:'INFORMATION',category:'LIBRARY',subcategory:'SERVICE',needsTicket:false,department:'LIBRARY',urgency:'low',
+  needsKnowledgeSearch:false,needsStructuredSearch:true,needsWebSearch:false,confidence:.99,missingContext:null,impact:'SINGLE_USER',sensitivity:'GENERAL',
+  facts:[{field:'PROBLEM',source:'U0',quote:'Synthetic exact library question'}]};
+ // Exercise the private finalization storage boundary; production support integration is a separate B3 gate.
+ const outbox=await transaction(async c=>{
+  const id=await enqueueOutbound(c,{idempotencyKey:`ai-job:${job.id}`,kind:'AI',channel:'STUDENT',lineSessionId:context.session,
+   conversationId:context.conversation,conversationRevision:0,messages:canonical.messages},f.key);assert(id,'GUIDANCE_OUTBOX_REQUIRED');
+  await c.query("insert into public.messages(conversation_id,sender_type,message_type,content,metadata) values($1,'AI','TEXT',$2,$3)",
+   [context.conversation,canonical.messages.map(m=>m.text).join('\n'),{ai_job_id:job.id,citations:canonical.citations}]);
+  await saveSupportState(c,job,snapshot,proposal,f.key,{guidanceOutboxId:id});
+  await c.query("update private.ai_jobs set status='DONE',last_error_code=null,lease_token=null,lease_until=null,completed_at=clock_timestamp() where id=$1",[job.id]);
+  return id;
+ },f.pool);
+ assert.equal((await transaction(c=>loadSupportSnapshot(c,supportContext,f.key),f.pool))?.input.deliveredGuidance,false,'PENDING_IS_NOT_DELIVERED');
+ const sent=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  assert.equal((await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.applicationName])).rows[0].n,0);
+  return new Response(null,{status:200});
+ }});assert.equal(sent.sent,1);assert.equal(sent.failed,0);
+ assert.equal((await f.pool.query('select status from private.message_outbox where id=$1',[outbox])).rows[0].status,'SENT');
+ assert.equal((await transaction(c=>loadSupportSnapshot(c,supportContext,f.key),f.pool))?.input.deliveredGuidance,true);
+ await f.pool.query("update public.messages set content=content||' altered' where conversation_id=$1 and sender_type='AI'",[context.conversation]);
+ assert.equal((await transaction(c=>loadSupportSnapshot(c,supportContext,f.key),f.pool))?.input.deliveredGuidance,false,'ALTERED_CANONICAL_MESSAGE_IS_NOT_GUIDANCE');
+ assert.equal((await f.pool.query('select count(*)::int n from private.ai_support_outcomes where conversation_id=$1',[context.conversation])).rows[0].n,0,'DELIVERY_IS_NOT_A_SOLVED_OUTCOME');
 }));
