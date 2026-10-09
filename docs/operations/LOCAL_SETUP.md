@@ -78,9 +78,12 @@ pnpm dev
 pnpm worker
 pnpm worker:outbox
 pnpm worker:ai
+pnpm worker:incidents
 ```
 
 เปิดแต่ละ process ใน terminal แยกหรือ managed service. AI worker จะคง disabled เมื่อ `YRU_AI_ENABLED` ไม่ใช่ `true`; อย่าเปลี่ยนค่านี้เพื่อข้ามการตั้งค่า free model, dimension และการตรวจ safety. เมื่อเปลี่ยน env ให้ restart process ที่เกี่ยวข้อง; Next reload ไม่ได้ restart worker ทุกตัว
+
+หลัง migration35 หน้า Settings ของ SUPER_ADMIN แสดงเวลาที่พบ worker เข้ารอบล่าสุด (เวลาไทย) จากฐานข้อมูล ส่วนที่ยังไม่มีข้อมูลจะแสดงตามจริง เวลาดังกล่าวไม่ยืนยันว่า process ยังทำงานอยู่หรือส่ง LINE สำเร็จ ต้องใช้ process supervisor และตรวจ queue/delivery ประกอบ AI ที่ยัง disabled จะไม่มี check-in ใหม่ ไม่มี secret หรือ process identity ใน API นี้ ดู [worker observation design](../architecture/WORKER_OBSERVATIONS_DESIGN.md).
 
 ## Current evidence and checks
 

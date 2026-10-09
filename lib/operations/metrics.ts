@@ -70,10 +70,15 @@ export async function readOperationsDepartments(staffId:string,options:Options={
 }
 export async function readOperationsSettings(staffId:string,options:Options={}){
  const pool=options.pool??getDatabasePool();return transaction(async client=>{
-  await start(client,staffId,true);const row=(await client.query(`select clock_timestamp() observed_at,
+  await start(client,staffId,true);const row=(await client.query(`with observation as materialized(select clock_timestamp() observed_at)
+   select o.observed_at,
    (select coalesce(jsonb_agg(x),'[]'::jsonb) from (select status,channel,count(*)::int count from private.webhook_inbox group by status,channel) x) inbox,
    (select coalesce(jsonb_agg(x),'[]'::jsonb) from (select status,null::text channel,count(*)::int count from private.ai_jobs group by status) x) ai,
-   (select coalesce(jsonb_agg(x),'[]'::jsonb) from (select status,channel,count(*)::int count from private.message_outbox group by status,channel) x) outbox`)).rows[0];
-  return safe(settingsStatusSchema,{observedAt:row.observed_at.toISOString(),database:'OBSERVED_OK',pool:{total:pool.totalCount,idle:pool.idleCount,waiting:pool.waitingCount},queues:{inbox:row.inbox,ai:row.ai,outbox:row.outbox},workerLiveness:'UNKNOWN',line:{studentConfigured:Boolean(process.env.LINE_STUDENT_CHANNEL_SECRET&&process.env.LINE_STUDENT_CHANNEL_ACCESS_TOKEN),staffConfigured:Boolean(process.env.LINE_STAFF_CHANNEL_SECRET&&process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN)}});
+   (select coalesce(jsonb_agg(x),'[]'::jsonb) from (select status,channel,count(*)::int count from private.message_outbox group by status,channel) x) outbox,
+   (select jsonb_agg(jsonb_build_object('worker',codes.worker,'lastObservedAt',case when w.observed_at<=o.observed_at then w.observed_at end) order by codes.ordinal)
+    from (values('INBOX',1),('OUTBOX',2),('AI',3),('INCIDENT',4)) codes(worker,ordinal)
+    left join private.worker_observations w on w.worker=codes.worker) worker_observations from observation o`)).rows[0];
+  const workerObservations=(row.worker_observations as {worker:string;lastObservedAt:string|null}[]).map(item=>({...item,lastObservedAt:item.lastObservedAt===null?null:new Date(item.lastObservedAt).toISOString()}));
+  return safe(settingsStatusSchema,{observedAt:row.observed_at.toISOString(),database:'OBSERVED_OK',pool:{total:pool.totalCount,idle:pool.idleCount,waiting:pool.waitingCount},queues:{inbox:row.inbox,ai:row.ai,outbox:row.outbox},workerLiveness:'UNKNOWN',workerObservations,line:{studentConfigured:Boolean(process.env.LINE_STUDENT_CHANNEL_SECRET&&process.env.LINE_STUDENT_CHANNEL_ACCESS_TOKEN),staffConfigured:Boolean(process.env.LINE_STAFF_CHANNEL_SECRET&&process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN)}});
  },pool);
 }

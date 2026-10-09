@@ -1,5 +1,7 @@
 # Dashboard backend contracts
 
+9October additions: Analytics now requires `aiOutcomes:{confirmedSolved,confirmedEscalated,samples}` and consistent nullable `aiResolutionRate`; see [confirmed outcome evidence](../reports/AI_SUPPORT_CONFIRMATION_REPORT.md). Active SUPER_ADMIN Settings appends `workerObservations` with exactly four unique `{worker:'INBOX'|'OUTBOX'|'AI'|'INCIDENT',lastObservedAt:ISO|null}`. Times are actual nonfuture observations; missing data is null. `workerLiveness:'UNKNOWN'` remains, with no healthy/stale threshold inferred. Staff self Settings must not request this administrative endpoint. Existing private/no-store and fresh active role checks remain; [worker contract](../architecture/WORKER_OBSERVATIONS_DESIGN.md).
+
 6 October 2026. CAT-01 / UX-01A. These are backend contracts for the Gemini UI handoff; UI integration and usability acceptance remain separate. Read the [catalog design](../architecture/KNOWLEDGE_CATALOG_DESIGN.md), [assistance design](../architecture/IMPORT_ASSISTANCE_DESIGN.md) and [current board](../tasks/V1_TASK_BOARD.md). Root owns these API/server files. Gemini may consume these contracts without changing them.
 
 ## Ticket search and pagination — TKT-READ-02

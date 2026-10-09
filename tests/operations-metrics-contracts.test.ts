@@ -1,6 +1,12 @@
 import {expect,it} from 'vitest';
-import {parseMetricQuery,parseUsageQuery,summarySchema,usageSchema,analyticsSchema} from '../lib/operations/metrics-contracts';
+import {parseMetricQuery,parseUsageQuery,summarySchema,usageSchema,analyticsSchema,settingsStatusSchema} from '../lib/operations/metrics-contracts';
 const now=new Date('2026-10-07T18:00:00Z');
+it('requires four unique worker observations with real nonfuture timestamps or null',()=>{
+ const workerObservations=['INBOX','OUTBOX','AI','INCIDENT'].map(worker=>({worker,lastObservedAt:worker==='INBOX'?'2026-10-08T11:59:00.000Z':null}));
+ const base={observedAt:'2026-10-08T12:00:00.000Z',database:'OBSERVED_OK',pool:{total:0,idle:0,waiting:0},queues:{inbox:[],ai:[],outbox:[]},workerLiveness:'UNKNOWN',line:{studentConfigured:false,staffConfigured:false}};
+ expect(settingsStatusSchema.safeParse({...base,workerObservations}).success).toBe(true);
+ for(const value of [undefined,[],workerObservations.slice(0,3),[...workerObservations.slice(0,3),workerObservations[0]],workerObservations.map(row=>({...row,lastObservedAt:'2026-10-08T12:00:00.001Z'})),[...workerObservations,{worker:'OTHER',lastObservedAt:null}]])expect(settingsStatusSchema.safeParse({...base,workerObservations:value}).success).toBe(false);
+});
 it('accepts only bounded date windows and a narrowing UUID department',()=>{
  expect(parseMetricQuery(new URLSearchParams(),now)).toEqual({from:'2026-10-02',to:'2026-10-08'});
  expect(parseMetricQuery(new URLSearchParams('department=39f7e07f-7d76-433e-a83e-205297c60a83'),now).department).toBe('39f7e07f-7d76-433e-a83e-205297c60a83');

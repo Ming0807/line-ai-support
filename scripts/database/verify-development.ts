@@ -27,7 +27,7 @@ try {
   where n.nspname in ('public','private') and c.relkind='r'
    and not (n.nspname||'.'||c.relname=any($1::text[]))
    and not has_table_privilege('service_role',c.oid,privilege)`,[
-    ['private.knowledge_import_jobs',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
+    ['private.knowledge_import_jobs','private.worker_observations',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
  const revisionGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') as can_read,
   has_table_privilege('service_role',c.oid,'INSERT') as can_append,
@@ -41,6 +41,15 @@ try {
   has_table_privilege('service_role','private.knowledge_import_jobs','UPDATE') as can_update,
   has_table_privilege('service_role','private.knowledge_import_jobs','DELETE') as can_delete`);
  const workerPermission=await client.query("select has_function_privilege('service_role','private.claim_inbox(text)','EXECUTE') as allowed");
+ const observationGrants=await client.query(`select
+  has_table_privilege('service_role','private.worker_observations','SELECT') can_read,
+  has_table_privilege('service_role','private.worker_observations','INSERT') can_append,
+  has_table_privilege('service_role','private.worker_observations','UPDATE') can_update,
+  has_table_privilege('service_role','private.worker_observations','DELETE') can_delete,
+  has_column_privilege('service_role','private.worker_observations','observed_at','UPDATE') update_timestamp,
+  has_column_privilege('service_role','private.worker_observations','worker','UPDATE') update_worker`);
+ const observation=observationGrants.rows[0];
+ if(!observation.can_read||!observation.can_append||observation.can_update||observation.can_delete||!observation.update_timestamp||observation.update_worker)throw new Error('DEVELOPMENT_OBSERVATION_GRANT_VERIFICATION_FAILED');
  const supportGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
   has_table_privilege('service_role',c.oid,'UPDATE') can_update,has_table_privilege('service_role',c.oid,'DELETE') can_delete
@@ -67,7 +76,7 @@ try {
  console.log(JSON.stringify({stage:'development_security',tableCount:tables.rows[0].count,allRls:true,
   rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,appendOnlyImportReviews:true,
   immutablePublicationReceipts:true,appendOnlySupportContexts:true,appendOnlySupportOutcomes:true,structuredLifecycleColumnsOnly:true,
-  incidentRetention:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
+  incidentRetention:true,workerObservationTimestampOnly:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
 } catch(error) {
  await client.query('rollback').catch(()=>undefined);
  const message=error instanceof Error?error.message:'';

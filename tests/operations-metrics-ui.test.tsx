@@ -62,7 +62,7 @@ const usage = {
 const settings = {
   observedAt: summary.observedAt, database: 'OBSERVED_OK' as const, pool: { total: 5, idle: 2, waiting: 1 },
   queues: { inbox: [{ status: 'PENDING' as const, channel: 'STUDENT' as const, count: 3 }], ai: [], outbox: [] },
-  workerLiveness: 'UNKNOWN' as const, line: { studentConfigured: true, staffConfigured: false },
+  workerLiveness: 'UNKNOWN' as const, workerObservations:[{worker:'INBOX',lastObservedAt:'2026-10-08T04:55:00.000Z'},{worker:'OUTBOX',lastObservedAt:null},{worker:'AI',lastObservedAt:null},{worker:'INCIDENT',lastObservedAt:null}],line: { studentConfigured: true, staffConfigured: false },
 };
 
 function html(node: ReactNode) { return renderToStaticMarkup(node); }
@@ -142,6 +142,14 @@ describe('operations metrics server surfaces', () => {
     expect(markup).toContain('กำหนดค่าแล้ว');
     expect(markup).toContain('ยังไม่ได้กำหนดค่า');
     expect(markup).not.toContain('LINE_STUDENT_CHANNEL_SECRET');
+  });
+
+  it('shows only observed worker times, and missing observations remain unknown',async()=>{
+    const markup=html(await SettingsPage());
+    expect(markup).toContain('การทำงานล่าสุดของ worker');
+    expect(markup).toContain('dateTime="2026-10-08T04:55:00.000Z"');
+    expect(markup).toContain('พบการทำงานล่าสุด');expect(markup).toContain('ยังไม่มีข้อมูลการทำงาน');
+    expect(markup).not.toContain('worker ทำงานปกติ');expect(markup).not.toContain('worker หยุดทำงาน');
   });
 
   it('renders backend read failures as unavailable rather than successful empty data', async () => {

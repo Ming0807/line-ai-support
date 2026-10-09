@@ -97,6 +97,23 @@ test('usage preserves unknown token/cost observations and settings do not infer 
  const settings=await readOperationsSettings(f.superAdmin,{pool});assert.equal(settings.workerLiveness,'UNKNOWN');assert.equal(settings.database,'OBSERVED_OK');assert(!JSON.stringify(settings).includes('postgresql'));assert(!JSON.stringify(settings).includes('NEVER_PUBLIC'));
 });
 
+test('settings expose four private observed timestamps without future or inferred health claims',async()=>{
+ const f=await fixture(),prior=(await pool.query('select worker,observed_at from private.worker_observations')).rows as {worker:string;observed_at:Date}[];
+ try{
+  await pool.query('delete from private.worker_observations');
+  const empty=await readOperationsSettings(f.superAdmin,{pool});
+  assert.deepEqual(empty.workerObservations.map(row=>row.worker),['INBOX','OUTBOX','AI','INCIDENT']);assert(empty.workerObservations.every(row=>row.lastObservedAt===null));
+  await pool.query("insert into private.worker_observations(worker,observed_at) values('INBOX','2026-10-01T02:03:04Z'),('AI',clock_timestamp()+interval '1 day')");
+  const observed=await readOperationsSettings(f.superAdmin,{pool});
+  assert.equal(observed.workerLiveness,'UNKNOWN');assert.equal(observed.workerObservations[0].lastObservedAt,'2026-10-01T02:03:04.000Z');assert.equal(observed.workerObservations[2].lastObservedAt,null);
+  for(const actor of [f.staff,f.sensitive,f.admin])await assert.rejects(readOperationsSettings(actor,{pool}),{code:'FORBIDDEN'});
+  await pool.query('update public.staff_profiles set active=false where id=$1',[f.superAdmin]);await assert.rejects(readOperationsSettings(f.superAdmin,{pool}),{code:'NOT_FOUND'});await assert.rejects(readOperationsSettings(randomUUID(),{pool}),{code:'NOT_FOUND'});
+ }finally{
+  await pool.query('delete from private.worker_observations');
+  for(const row of prior)await pool.query('insert into private.worker_observations(worker,observed_at) values($1,$2)',[row.worker,row.observed_at]);
+ }
+});
+
 test('analytics count only scoped immutable confirmed outcomes within Bangkok bounds and observed time',async()=>{
  const f=await fixture(),now=()=>new Date('2026-10-08T12:00:00Z'),filters={from:'2026-10-08',to:'2026-10-08'};
  const outcome=async(kind:'USER_CONFIRMED_SOLVED'|'USER_CONFIRMED_ESCALATED',department:string|null=f.a,risk='GENERAL',at='2026-10-08T12:00:00Z')=>{
