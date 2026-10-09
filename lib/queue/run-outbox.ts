@@ -4,7 +4,7 @@ import {decryptValue,hashLineUserId,hashStaffLineUserId} from '../security/ident
 import {deliverLine,type LineMessage} from '../line/delivery';
 import {eligibleScopeSql} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
-import {verifyAIOutboxEvidence,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
+import {verifyAIOutboxEvidence,aiOutboxNeedsStructuredCatalog,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
 interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
@@ -19,9 +19,14 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
    job=(await pool.query('select * from private.claim_outbox($1)',[channel])).rows[0];if(!job)continue;result.claimed++;
    const client=await pool.connect(),locks:string[]=[];let discard=false;
    try{
-    if(job.conversation_id)locks.push(`conversation:${job.conversation_id}`);
-    locks.push(`delivery:${channel}:${job.line_session_id??job.recipient_staff_id}`);
-    for(const lock of locks)await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);
+    // Acquire the catalog before conversation locks, and retain it across outside-SQL delivery.
+    if(job.kind==='AI'&&await aiOutboxNeedsStructuredCatalog(client,{idempotencyKey:job.idempotency_key,
+     conversationId:job.conversation_id,sessionId:job.line_session_id},key)){
+     await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+     locks.push(knowledgeStructuredCatalogLock);
+    }
+    const contextLocks=[...(job.conversation_id?[`conversation:${job.conversation_id}`]:[]),`delivery:${channel}:${job.line_session_id??job.recipient_staff_id}`];
+    for(const lock of contextLocks){await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);locks.push(lock);}
     const current=(await client.query("select * from private.message_outbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()",[job.id,job.lease_token])).rows[0] as OutboxJob|undefined;
     if(!current)continue;job=current;
     validateOutboxTarget({channel:job.channel,kind:job.kind,lineSessionId:job.line_session_id,

@@ -64,6 +64,10 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
   unchanged(current);if(options.signal?.aborted)throw new AssistError('UNAVAILABLE');
   const advice=projectStaffKnowledgeAdvice(result,current.revision);
   if(result.kind==='ANSWER'){
+   if(result.structuredMiss){
+    if(!key)throw new AssistError('UNAVAILABLE');
+    if((await searchStructured(c,{query:result.structuredMiss,scope:result.scope},key)).status!=='EMPTY')throw new AssistError('CONFLICT');
+   }
    const fresh=await searchKnowledge(c,{scope:result.scope,vector:result.queryVector,fingerprint:result.fingerprint,limit:12});
    const cited=result.evidence.filter(e=>result.output.citationChunkIds.includes(e.chunkId));
    if(!ruleContextsStillMatch(result.evidence,fresh)||!evidenceStillMatches(cited,fresh))throw new AssistError('CONFLICT');

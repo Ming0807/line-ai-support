@@ -9,7 +9,7 @@ import {ruleContextsStillMatch} from '../knowledge/rule-proof';
 import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 import {searchStructured} from '../knowledge/structured-search';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
-import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
+import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,requiresStructuredCatalog,aiRequestSchema,type AIJob,type AIResult} from './jobs';
 import {startLineLoading} from '../line/loading';
 import {loadSupportSnapshot,loadSupportActionState,saveSupportState,type SupportStateSnapshot} from './support-state';
 import {createSupportActions} from './support-actions';
@@ -89,10 +89,16 @@ async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOption
 }
 async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promise<'DONE'|'SUPPRESSED'>{
  return transaction(async client=>{
-  await client.query("set local statement_timeout='5s'");await lockConversation(client,job.conversation_id);
+  await client.query("set local statement_timeout='5s'");
+  const saved=(await client.query('select * from private.ai_jobs where id=$1',[job.id])).rows[0] as AIJob|undefined;
+  const result=saved?decodeAIResult(saved,key):null;if(!result)throw new Error('AI_JOB_RESULT_MISSING');
+  // Match Staff/dispatch ordering: a queued publisher must not form a catalog/conversation cycle.
+  if(requiresStructuredCatalog(result))await client.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+  await lockConversation(client,job.conversation_id);
   const current=await lockedAIJob(client,job);
   if(!await eligible(client,current)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
-  const result=decodeAIResult(current,key);if(!result)throw new Error('AI_JOB_RESULT_MISSING');
+  // Result persistence is write-once. Still fail closed if privileged corruption races the pre-read.
+  if(current.result_encrypted!==saved!.result_encrypted)throw new Error('AI_JOB_RESULT_CHANGED');
   let support:SupportStateSnapshot|undefined;
   if(result.support||before.support){
    const fresh=await loadSupportSnapshot(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
@@ -108,7 +114,6 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
   let messages:OutboundText[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|null=null;
   if(result.kind==='STRUCTURED_ANSWER'){
    try{
-    await client.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
     for(const familyId of [...new Set(result.evidence.map(e=>e.reference.ruleProof.familyId))].sort())
      await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);
     const ids=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
@@ -126,6 +131,7 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    const cited=result.evidence.filter(e=>citedIds.includes(e.chunkId));
    try{
     if(result.evidence.some(e=>!e.ruleProof))throw new Error('EVIDENCE_CHANGED');
+    if(result.structuredMiss&&(await searchStructured(client,{query:result.structuredMiss,scope:result.scope},key)).status!=='EMPTY')throw new Error('EVIDENCE_CHANGED');
     // Fence every group supplied to the model, including context it did not explicitly cite.
     for(const familyId of [...new Set(result.evidence.map(e=>e.ruleProof!.familyId))].sort())
      await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);

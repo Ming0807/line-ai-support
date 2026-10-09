@@ -16,11 +16,14 @@ export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).opt
 export const aiResultSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
-  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),support:supportMetadataSchema.optional()}).strict(),
+  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),structuredMiss:structuredQuerySchema.optional(),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema,support:supportMetadataSchema.optional()}).strict()
   .refine(value=>Buffer.byteLength(JSON.stringify(value),'utf8')<=128*1024),
 ]);
 export type AIResult=z.infer<typeof aiResultSchema>;
+export function requiresStructuredCatalog(result:AIResult):boolean{
+ return result.kind==='STRUCTURED_ANSWER'||result.kind==='ANSWER'&&result.structuredMiss!==undefined;
+}
 export interface AIJob {
  id:string;line_session_id:string;conversation_id:string;message_id:string;expected_conversation_revision:number;
  lease_token:string;lease_until:Date;request_encrypted:string;result_encrypted:string|null;attempts:number;

@@ -2,6 +2,8 @@
 
 เอกสารรวม architecture วันที่ 4 ตุลาคม 2026 ใช้กับ [master guide](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](../requirements/sources/README.md), [matrix](../requirements/V1_REQUIREMENTS_MATRIX.md) และ [task board](../tasks/V1_TASK_BOARD.md). แยก **มี implementation/evidence** ออกจาก **planned** ไม่ถือว่า diagram คือสิ่งที่ทำเสร็จทั้งหมด
 
+9October current source contract: [source cascade](SOURCE_CASCADE_DESIGN.md) closes only the internal Structured EMPTY→reviewed RAG ordering and its higher-tier freshness proof. Official/general web remains root implementation. Current [board](../tasks/V1_TASK_BOARD.md) and linked dated reports supersede older planned-status examples below; deployment/live corpus/provider/OA/combined FlowA–F remain separate acceptance.
+
 ## System boundaries
 
 5 October human update: default embeddings are local CPU `intfloat/multilingual-e5-small` / 384, through private FastAPI called only by Next.js backend. [Embedding design](EMBEDDING_SERVICE_DESIGN.md) owns cache/offline/prefix/configuration/typed-vector contracts. Normal Provider UI configures generation/reasoning; embedding health is read-only. Historical external adapters are compatibility code. Generation remains FREE_ONLY; foundation/import/publication/full-flow acceptance stays explicit.
@@ -32,7 +34,7 @@ flowchart TD
   AP --> K
 ```
 
-Diagram เป็น target flow: ingestion/queues/ticket/fenced RAG มี component evidence; free adapters/Provider UX, import/structured/full binding/incidents ยังมีงาน pending ตาม board. ไม่มี unrestricted SQL/search/publish จาก AI
+Diagram summarizes runtime boundaries with component evidence for ingestion/queues/tickets, free generation adapters/Provider UX, all-format import/structured publication, Staff binding/assistance and scoped incident detection. Remaining system/location enrichment, official/general web and final combined/live acceptance are tracked in the current board. AI has no unrestricted SQL/search/publication authority.
 
 ## Anonymous identity และ persistence
 
@@ -83,7 +85,7 @@ Schema ยังมี NEW/AI_HANDLING/CANCELLED แต่ service ไม่อ�
 - Inbox/outbox/AI jobs ใช้ leases/order/retry/idempotency; classify unsupported events โดยไม่สร้าง Student identity จาก Staff OA
 - AI worker snapshot ใน short transaction → generation/embedding/search HTTP นอก transaction → stored result → reauthorize/revision/evidence checks → atomic message/outbox/job finalization. Retry ที่มี saved result ไม่ regenerate
 - LINE dispatch revalidates HUMAN/revision และ eligible citations. Publication ใช้ sorted family locks ก่อน document locks ก่อน row locks; delivery ใช้ matching session/family/document fence ตาม M6 plan/report. ห้ามข้าม fence เมื่อ M7 เพิ่ม version/amendment
-- Runtime tools มี allowlisted parameters/owned confirmation/atomic receipts. Structured seven-dataset tool ตอนนี้ fail explicit จน M8; web/similarity ยัง planned ไม่ถือว่า stub ผ่านแล้ว
+- Runtime tools have allowlisted parameters/owned confirmation/atomic receipts. Seven installed datasets use authenticated exact queries/provenance and repeated source fences. Scoped semantic similarity is implemented; verified system/location enrichment and bounded external web remain pending.
 
 ## AI Provider
 
@@ -97,21 +99,21 @@ Metadata scope: PUBLIC/reviewed/approved, official source, current/effective, fa
 
 Chunks มี document/page/section/source provenance; citations สร้างจาก IDs ที่ retrieval ส่งจริงไม่รับ URL/title/page ที่ model แต่ง. Embedding cohort แยก fingerprint/dimension/provider/model configuration ไม่ผสมเวกเตอร์ข้ามรุ่น. Exact prefiltered distance ใช้กับ shortlist; ANN ยังต้องเลือก cohort/วัด recall
 
-Document family/version streams มี current uniqueness และ history. Current replacement เปลี่ยน oldเป็น SUPERSEDED ไม่ delete; supplemental document ไม่แทน base. AMENDS ต้อง retrieve base+active amendments และ publication อนุมัติ relationships — schema มีแล้ว แต่ behavior/UI ยังเป็น IMP-03
+Document family/version streams preserve current uniqueness and history. Current replacement marks the old version SUPERSEDED without deletion; supplemental instruments never replace the base. Accepted relationship retrieval resolves complete base/amendment/cancellation groups before similarity, with reviewed publication/approval/catalog UI and delivery fences. See [relationship evidence](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md); real university corpus approval remains separate.
 
-## Import และ fixed structured data — Partial
+## Import และ fixed structured data — component evidence
 
 Target: PDF/DOCX/XLSX/CSV/URL → private original/checksum → bounded extraction → quality/sensitivity flags → family/department/date/authority/classification proposal → editable version-conflict preview → explicit approval → atomic version/chunks/dataset publication
 
-PUB-01…05 RAG path is component-accepted: complete saved review/located plan,exact atomic publication/immutable receipt,relationship/family/dispatch fences and private deliberate approval UI/API.10actual isolated browser groups and1439unit/type/lint/build pass;187PG/foundationRLS covers unchanged backend. [Approval evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md). Actual PDF400/409 recovery retains bytes/text/cells/row ordinals with explicit warnings;[recovery](../reports/IMP_PDF_RECOVERY_REPORT.md). Published family/current/history catalog remains PUB-06; M8 mapper preview and atomic STRUCTURED/BOTH are unimplemented. No real corpus/public approval/live generation claim.
+The private all-five-format import/review/catalog and atomic RAG/STRUCTURED/BOTH components are accepted at their dated checkpoints. RAG persists prepared chunks/vectors, STRUCTURED persists authenticated typed rows without embeddings, BOTH persists both atomically with the same immutable receipt/version/relationship effects. Review3 preserves source mapping and deliberate approval. [Atomic evidence](../reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md), [search/delivery](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md), [combined UI](../reports/V1_COMBINED_UI_REPORT.md). Actual PDF400/409 recovery retains original bytes/located text/rows and unresolved warnings; [recovery](../reports/IMP_PDF_RECOVERY_REPORT.md). Local+DEVELOPMENT now35versions/56RLS application tables, seven runtime-ready datasets; no real university source was approved automatically. Final combined calendar/current/history/import flow and live corpus acceptance remain pending.
 
 แผน M7 เดิมเริ่ม PDF/HTML slice; **ไม่ครบ V1 file types** จึงมี IMP-02 ต่อ DOCX/XLSX/CSV และ tests. Storage/encryption/access/retention ต้องมี plan ก่อน implementation ไม่อ้างว่ามี Supabase bucket พร้อมแล้ว. Low-quality/OCR/cohort/source warnings อยู่ PENDING_REVIEW จนคนตรวจ ไม่มี publish อัตโนมัติ
 
 M8 registry จำกัด 7 datasets: `academic_calendar_events`, `tuition_fees`, `transfer_courses`, `university_services`, `university_systems`, `service_forms`, `announcements`. Exact dates/fees ใช้ validated structured query และ citation/version. Unknown dataset → RAG proposal/manual schema change ภายหลัง ไม่ AI DDL และไม่มีตารางรายปี
 
-## Advanced และ operations — Planned / partial
+## Advanced และ operations — component evidence / remaining integration
 
-Staff alerts ส่งเฉพาะ active/bound/authorized staff ที่เข้า ticket scope; general/sensitive payload แยกให้เหมาะสม. M4 มี bound-recipient notification component แต่ binding management/complete OA UX ยัง ADV-01. Similar issue → incident/severity rules, loading indicator, official-first web fallback และ usage/log/analytics/settings/departments ยังต้อง acceptance ตาม board
+Staff alerts target active/bound/authorized staff in the exact department/sensitivity scope. Self binding, HUMAN manual AI drafts/internal cited knowledge, scoped incidents/operational reads/metrics/UI, loading transport and private worker observation components have dated acceptance in the board. Observed timestamps never imply process health; unknown remains explicit. Verified system/location context, official/general web and final combined FlowA–F are remaining root implementation/acceptance. Real OA/account/corpus/deployment checks remain deferred human setup.
 
 Staff-only AI assistanceระหว่างHUMANต้องแยกflow: authorizedstaffขอสรุป/แนะนำreply/knowledge/similartickets/route/severity → validatedgateway/tools → draftในDashboard. Studentไม่รับผลจนstaffกดส่งผ่านStaffReplyAPIตามstate machine. Master§52ต้องมีsummary/relatedtickets/knowledgecoverage ไม่ถือว่ามีmessagehistoryแล้วครบ
 

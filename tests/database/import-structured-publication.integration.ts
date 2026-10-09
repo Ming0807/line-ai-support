@@ -45,6 +45,7 @@ import {processStudentContent} from '../../lib/conversation/student-processing';
 import {createChoices} from '../../lib/conversation/quick-reply';
 import {loadCandidates,candidateSnapshot} from '../../lib/conversation/context-resolver';
 import {confirmSupportSolved} from '../../lib/ai/support-actions';
+import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import {decryptValue} from '../../lib/security/identity';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
@@ -76,7 +77,8 @@ function sourceFor(dataset:StructuredDataset,format:ImportFormat,recordCount=1,p
  const values={...structuredMappingFixture(dataset,format).expectedPayload},fields=getStructuredRegistryEntry(dataset).fields;
  // Public fixtures contain no contact identifiers; private fixtures retain all original phone/email coverage.
  if(publicFixture&&dataset==='university_services'){values.phone=null;values.email=null;}
- const fixtureTag=`fixture-${randomUUID().replaceAll('-','').slice(0,16)}`;
+ // Keep random identifiers distinct without accidentally resembling a phone number.
+ const fixtureTag=`fixture-${randomUUID().replaceAll('-','').slice(0,16).replace(/[0-9]/gu,digit=>String.fromCharCode(107+Number(digit)))}`;
  const uniqueText=fields.find(field=>field.kind==='TEXT'&&typeof values[field.name]==='string');
  assert(uniqueText,'SYNTHETIC_DATASET_NEEDS_TEXT_FIELD');values[uniqueText.name]=`${values[uniqueText.name]} ${fixtureTag}`;
  const header=fields.map(field=>field.name),records=Array.from({length:recordCount},(_,index)=>fields.map(field=>{
@@ -551,6 +553,68 @@ for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH','HUMAN'] as
  assert.equal(delivery.failed,0);assert.equal(sent,timing==='BEFORE_DISPATCH'?0:1);
  assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0].status,timing==='BEFORE_DISPATCH'?'SUPPRESSED':'SENT');
 }));
+async function cascadeFallbackFixture(f:Fixture){
+ const rag=await ready(f,'university_services','BOTH','HTML',{visibility:'PUBLIC'});await publish(f,rag);
+ const higher=await ready(f,'university_systems','STRUCTURED','HTML',{visibility:'PUBLIC'}),request=exactRequest(higher);
+ request.scope.familyCodes=[rag.familyCode,higher.familyCode];
+ const queryVector=[1,...Array(383).fill(0)],fingerprint=LOCAL_EMBEDDING_FINGERPRINT;
+ const evidence=await transaction(async client=>{
+  assert.equal((await searchStructured(client,request,f.key)).status,'EMPTY','INITIAL_HIGHER_TIER_MUST_TRULY_MISS');
+  return searchKnowledge(client,{scope:request.scope,vector:queryVector,fingerprint,limit:12});
+ },f.pool);assert(evidence.length>0);
+ return {higher,result:{kind:'ANSWER' as const,output:{answer:'Synthetic reviewed fallback answer',citationChunkIds:[evidence[0].chunkId]},scope:request.scope,evidence,queryVector,fingerprint,structuredMiss:request.query}};
+}
+for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH'] as const)test(`RAG fallback retains fresh Structured miss ${timing.toLowerCase()}`,()=>fixture(async f=>{
+ const setup=await cascadeFallbackFixture(f),context=await aiContext(f);
+ const stats=await runAICycle(f.pool,f.key,{produce:async()=>{if(timing==='BEFORE_FINALIZE')await publish(f,setup.higher);return setup.result;}});
+ assert.equal(stats.completed,1);assert.equal(stats.failed,0);
+ const message=(await f.pool.query("select metadata,content from public.messages where conversation_id=$1 and sender_type='AI'",[context.conversation])).rows[0];
+ if(timing==='BEFORE_FINALIZE'){assert.deepEqual(message.metadata.citations,[]);assert.match(message.content,/เอกสารอ้างอิงเปลี่ยนแปลง/u);}else assert(message.metadata.citations.length>0);
+ if(timing==='BEFORE_DISPATCH')await publish(f,setup.higher);
+ let sent=0;const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{sent++;return new Response(null,{status:200});}});
+ assert.equal(delivery.failed,0);assert.equal(sent,timing==='BEFORE_DISPATCH'?0:1);
+ assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0].status,timing==='BEFORE_DISPATCH'?'SUPPRESSED':'SENT');
+}));
+test('RAG fallback dispatch holds higher-tier catalog through outside-SQL LINE HTTP',()=>fixture(async f=>{
+ const setup=await cascadeFallbackFixture(f),context=await aiContext(f);
+ assert.equal((await runAICycle(f.pool,f.key,{produce:async()=>setup.result})).completed,1);
+ let finished=false,pending:ReturnType<typeof publish>|undefined;
+ const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  assert.equal((await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.applicationName])).rows[0].n,0,'LINE_HTTP_OUTSIDE_SQL');
+  pending=publish(f,setup.higher).then(result=>{finished=true;return result;});
+  let blocked=false;for(let attempt=0;attempt<100&&!finished;attempt++){
+   blocked=(await f.pool.query("select exists(select 1 from pg_stat_activity where application_name=$1 and wait_event='advisory' and cardinality(pg_blocking_pids(pid))>0) blocked",[f.applicationName])).rows[0].blocked;
+   if(blocked)break;await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.equal(finished,false,'HIGHER_TIER_PUBLICATION_MUST_WAIT_DURING_FALLBACK_DISPATCH');assert.equal(blocked,true);return new Response(null,{status:200});
+ }});if(pending)await pending;assert.equal(delivery.sent,1);assert.equal(delivery.failed,0);assert.equal(finished,true);
+ assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0].status,'SENT');
+}));
+for(const kind of ['PLAIN_RAG','CLARIFY'] as const)test(`non-Structured ${kind} dispatch does not hold the global catalog`,()=>fixture(async f=>{
+ const setup=await cascadeFallbackFixture(f);await aiContext(f);
+ const {structuredMiss,...plain}=setup.result;void structuredMiss;
+ assert.equal((await runAICycle(f.pool,f.key,{produce:async()=>kind==='PLAIN_RAG'?plain:{kind:'CLARIFY',text:'Synthetic clarification'}})).completed,1);
+ let finished=false,blocked=false,pending:ReturnType<typeof publish>|undefined;
+ const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  pending=publish(f,setup.higher).then(result=>{finished=true;return result;});
+  for(let attempt=0;attempt<100&&!finished;attempt++){
+   blocked=(await f.pool.query("select exists(select 1 from pg_stat_activity where application_name=$1 and wait_event='advisory' and cardinality(pg_blocking_pids(pid))>0) blocked",[f.applicationName])).rows[0].blocked;
+   if(blocked)break;await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  return new Response(null,{status:200});
+ }});if(pending)await pending;
+ assert.equal(delivery.sent,1);assert.equal(delivery.failed,0);assert.equal(finished,true);assert.equal(blocked,false,'UNRELATED_AI_DELIVERY_MUST_NOT_BLOCK_STRUCTURED_PUBLICATION');
+}));
+for(const changed of [false,true])test(`HUMAN Staff fallback rechecks higher tier ${changed?'changed':'unchanged'} without auto-send`,()=>fixture(async f=>{
+ const setup=await cascadeFallbackFixture(f),session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
+ const conversation=(await f.pool.query("insert into public.conversations(line_session_id,mode,conversation_type) values($1,'HUMAN','TICKET') returning id",[session])).rows[0].id;
+ const ticket=(await f.pool.query("insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,category,mode,status) values($1,$2,(select id from public.departments where code='IT'),'Fallback question','IT_SUPPORT','HUMAN','STAFF_HANDLING') returning id",[session,conversation])).rows[0].id;
+ await f.pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content) values($1,$2,'USER','TEXT','Synthetic fallback question')",[conversation,ticket]);
+ const advice=createStaffKnowledgeAssistance(f.staff,ticket,{revision:0},{pool:f.pool,key:f.key,produce:async()=>{if(changed)await publish(f,setup.higher);return setup.result;}});
+ if(changed)await assert.rejects(advice,{code:'CONFLICT'});else{const view=await advice;assert.equal(view.status,'VERIFIED');assert(!JSON.stringify(view).includes('structuredMiss'));}
+ assert.equal((await f.pool.query('select count(*)::int n from private.message_outbox where ticket_id=$1',[ticket])).rows[0].n,0);
+}));
+
 test('typed structured tool uses authenticated conversation context and rejects a fabricated principal or HUMAN session',()=>fixture(async f=>{
  const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,r);const context=await aiContext(f);
  const registry=createKnowledgeToolRegistry(f.pool,{key:f.key}),toolContext={lineSessionId:context.session,conversationId:context.conversation,conversationRevision:0};
