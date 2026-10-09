@@ -38,7 +38,7 @@ pnpm local:test --no-tunnel
 
 1. เข้าหน้า `/login` บัญชี development ที่มีอยู่เก็บใน `.superpowers/staging/dev-staff-credentials.json` บนเครื่องเดิม เปิดไฟล์เองเพื่อดูบัญชี SUPER_ADMIN/เจ้าหน้าที่ ไม่ส่งรหัสผ่านในแชตหรือรายงาน
 2. เปิด **Providers** กดทดสอบโมเดลฟรีที่ตั้งไว้ ตรวจ HTTP/ผลลัพธ์จริง แล้วจัดลำดับขึ้น/ลงตามต้องการ สคริปต์เปิด `YRU_AI_ENABLED=true` กับ `LINE_WEBHOOK_MODE=durable` เฉพาะ process รอบนี้ ค่า `.env` ไม่เปลี่ยน ระบบ generation ยังรักษา FREE_ONLY และค้นเว็บภายนอกยังปิดอยู่
-3. เปิด **Settings** ตรวจ E5 และเวลาที่พบ Inbox/AI/Outbox/Incidents หลังเริ่มรัน เวลา check-in เป็นเพียงสิ่งที่สังเกตได้ ให้ตรวจการทำงานจริงประกอบ
+3. เปิด **Settings** ตรวจ E5 และเวลาที่พบ Inbox/AI/Outbox/Incidents หลังเริ่มรัน เวลา check-in เป็นเพียงสิ่งที่สังเกตได้ ให้ตรวจการทำงานจริงประกอบ ดู **Logs/Usage/Tickets** เพื่อตามผลประมวลผลและการส่งข้อความด้วย Workers ไม่พิมพ์เนื้อหาส่วนตัวหรือผลทุก cycle ลง terminal
 4. เปิด **Knowledge → Import** นำเข้าเอกสารทางการที่ได้รับอนุญาตจาก `documents/yru/` หรือเอกสารของคุณ กดวิเคราะห์ ตรวจข้อความ/ตาราง/ข้อเสนอ/ปี/ขอบเขต/คำเตือน เลือกวิธีจัดเก็บและแก้ส่วนที่ยังไม่ครบ แล้วอนุมัติอย่างชัดเจน การดาวน์โหลดไว้ยังไม่ทำให้เอกสารเป็น approved
 5. ใน LINE Developers ตั้ง Student และ Staff **Messaging API → Webhook URL** ตาม `[READY]` ที่แสดงใน terminal กด **Verify** ทั้งสอง เปิด Use webhook และปิด auto-reply ที่ตอบซ้ำ ตัวรันได้ทดสอบ signed `events: []` และ invalid signature แล้ว แต่ยังต้อง Verify จาก LINE จริง
 6. ให้เจ้าหน้าที่เข้าบัญชีของตนที่ Dashboard → Settings → สร้างรหัสเชื่อมต่อ → ส่งคำสั่งนั้นเข้า **Staff OA** ภายใน10นาที แล้วกลับมาตรวจว่าเชื่อมต่อแล้ว
