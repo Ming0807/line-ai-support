@@ -21,6 +21,8 @@ This table is current authority. Dated checkpoints and the older decomposition b
 
 ## Dated checkpoint ledger
 
+9 October source handoff: `1c4f9703dd62edeb0a61e357d8e43062f5cc315c` on `feat/yru-helpdesk-v1`, 41 owned files; staged credentials/diff PASS, noninteractive push succeeded and exact remote HEAD verified. [Git receipt](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) links source scope and deferred live setup. This status receipt is documentation-only.
+
 9 October **FINAL-01-CTL / FINAL-01-DOC / ADV-05C-3D AUTOMATED_COMPLETE**: [final acceptance](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) accounts for required implementation and preserves actual failed gates/fixes. Root executed 2,087 unit / 389 owned PG in 25 groups / 53 normal PG / A–F 8 / 11 compiled Staff browser groups; typecheck, full lint and build PASS. Final owned replay38/RLS/advisors0ERROR0WARN/exact cleanup PASS. No new migration/env/live enablement. [Human setup](../operations/FINAL_SETUP_CHECKLIST.md) and [production runbook](../operations/PRODUCTION_RUNBOOK.md) consolidate the deferred real account/corpus/E5/OA/host/restore checks; no live-V1 pass is claimed. Earlier entries below are historical.
 
 9October **ADV-05C-3D IN_PROGRESS**: root [procedural/general cascade plan](../superpowers/plans/2026-10-09-yru-procedural-web-cascade.md)/[design](../architecture/PROCEDURAL_WEB_CASCADE_DESIGN.md). C3C e03e4597dadc050c8991de0cfef6de989509a2f4 passed staged security/diff, committed/pushed and exact remote verified. Root now implements source-grounded Structured NOT_APPLICABLE and successful official-empty→closed general troubleshooting, then FINAL-01 combined FlowA–F. Current normal/local+DEVELOPMENT38versions/59RLS remain; no new human action/live search/V1 completion.
