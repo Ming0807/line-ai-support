@@ -9,6 +9,7 @@ import type {AIWorkerOptions} from '../ai/run-worker';
 import {createSupportProducer} from '../ai/support-producer';
 import {citationEvidenceSchema} from './citations';
 import type {StructuredSearchResult} from './structured-search';
+import {createStudentWebFallback} from './owned-web-fallback';
 
 /** Generation uses the dashboard registry; V1 embeddings use private local infrastructure. */
 export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{fetchImpl?:typeof fetch}={}):AIWorkerOptions['produce']{
@@ -16,6 +17,7 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
  const generation=createProviderRegistry(options),embedding=createLocalE5EmbeddingProvider(options);
  const priceReader=createPriceReader(options);
  return (snapshot,signal)=>createSupportProducer({
+  webFallback:createStudentWebFallback(pool,key,snapshot),
   generate:input=>generate(input,{store,key,adapters:generation,priceReader}),
   embed:input=>embedLocalConfigured(input,embedding),
   structuredSearch:async input=>{

@@ -15,6 +15,6 @@ Execution9October: first three checks below PASS, actual missing-module and two 
 - [x] Author `tests/database/internal-miss.integration.ts`, run owned actual missing-module RED.
 - [x] Implement module and observe actual EMPTY→sealed proof→fresh repeat, source/owner/question/history/vector/policy/key/day rejection, real new RAG match, unheld lock, incomplete query, guard disable/column/event/body/grant corruption (all rollback), restored readiness. No successful TRUNCATE/delete of retained evidence.
 - [x] Register the owned group; fresh compiler/lint/unit and registered full owned replay/regressions/advisors/normal unchanged/cleanup. Source review before acceptance.
-- [ ] Update design/report/board/matrix/decisions/setup with exact limitations; staged security/diff/Git evidence. Then wire source plan, official proof/leads and Student/Staff runtime/finalization/dispatch, followed by final combined FlowA–F.
+- [x] Update design/report/board/matrix/decisions/setup with exact limitations; staged security/diff PASS and56ff15cb14a6471d1840e68c1fd76b30d851696d committed/pushed/exact remote verified. Subsequent C3C wires explicit-miss unverified YRU leads; semantic NOT_APPLICABLE/general/final flows remain required.
 
 Design: [complete internal miss](../../architecture/INTERNAL_MISS_DESIGN.md). Report: `docs/reports/INTERNAL_MISS_REPORT.md`. Root owns all listed files and shared status/runner changes; no unavailable independent verdict is credited.

@@ -53,13 +53,15 @@ test('base identity is immutable and attempts cannot be deleted or truncated eve
 }));
 
 test('observations permit one checked UNKNOWN to SUCCESS or ERROR transition and never a refund',async()=>rollback(async c=>{
+ const before=(await c.query('select count(*)::int n from private.web_search_attempts')).rows[0].n;
  const a=(await insert(c)).rows[0],b=(await insert(c)).rows[0];await c.query('set local role service_role');
  await c.query("update private.web_search_attempts set observation='SUCCESS',http_status=200,provider_request_id=$2,credits=1 where attempt_id=$1",[a.attempt_id,randomUUID()]);
  await c.query("update private.web_search_attempts set observation='ERROR',http_status=429 where attempt_id=$1",[b.attempt_id]);
  await c.query('savepoint denial');
  await assert.rejects(c.query("update private.web_search_attempts set observation='UNKNOWN',http_status=null,provider_request_id=null,credits=null where attempt_id=$1",[a.attempt_id]),/WEB_SEARCH_ATTEMPT_IMMUTABLE/u);
  await c.query('rollback to savepoint denial');
- assert.equal((await c.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,2);
+ assert.equal((await c.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,before+2);
+ assert.deepEqual((await c.query('select observation from private.web_search_attempts where attempt_id=any($1::uuid[]) order by observation',[[a.attempt_id,b.attempt_id]])).rows,[{observation:'ERROR'},{observation:'SUCCESS'}]);
 }));
 
 test('closed purpose/topic/year and success payload constraints reject contradictory rows',async()=>rollback(async c=>{

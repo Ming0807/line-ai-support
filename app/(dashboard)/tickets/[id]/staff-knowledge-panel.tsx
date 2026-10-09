@@ -25,12 +25,12 @@ export default function StaffKnowledgePanel({id,revision,canReply,onDraft}:{id:s
   {error&&<p role="alert">{error}</p>}
   {view&&<div className="ticket-ai-result" aria-live="polite">
    {view.status==='NO_USER_QUESTION'?<p>ยังไม่มีข้อความคำถามจากผู้แจ้งให้ค้นเอกสารประกอบ</p>:<>
-    <h4>{view.status==='VERIFIED'?'คำตอบจากเอกสาร':'ยังยืนยันข้อมูลไม่ได้'}</h4><p className="ticket-ai-draft">{view.answer}</p>
-    {view.status==='VERIFIED'&&<><h4>แหล่งอ้างอิง</h4><ol className="ticket-knowledge-sources">{view.sources.map((source,i)=><li key={i}>
+    <h4>{view.status==='VERIFIED'?'คำตอบจากเอกสาร':view.status==='WEB_LEADS'?'ลิงก์ที่อาจเกี่ยวข้อง · ยังไม่ได้ยืนยัน':'ยังยืนยันข้อมูลไม่ได้'}</h4><p className="ticket-ai-draft">{view.answer}</p>
+    {(view.status==='VERIFIED'||view.status==='WEB_LEADS')&&<><h4>{view.status==='WEB_LEADS'?'ผลค้นจากเว็บไซต์มหาวิทยาลัย':'แหล่งอ้างอิง'}</h4><ol className="ticket-knowledge-sources">{view.sources.map((source,i)=><li key={i}>
      {source.url?<a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>:<span>{source.title}</span>}
      {source.academicYear!==null&&<span> · ปีการศึกษา {source.academicYear}</span>}{source.location&&<span> · {source.location}</span>}
-    </li>)}</ol><p className="ticket-muted">ตรวจว่าคำตอบตรงกรณีของผู้แจ้งก่อนใช้</p>
-     {view.draftText===null?<p className="ticket-muted">คำตอบพร้อมอ้างอิงยาวเกินข้อความตอบกลับ กรุณาเรียบเรียงพร้อมแหล่งอ้างอิงเอง</p>:canReply&&<button className="ticket-button ticket-button-secondary" type="button" onClick={()=>onDraft(view.draftText!)}>นำคำตอบพร้อมอ้างอิงไปแก้ไข</button>}
+    </li>)}</ol><p className="ticket-muted">{view.status==='WEB_LEADS'?'เปิดเอกสารต้นทางเพื่อตรวจความถูกต้องและความเป็นปัจจุบันก่อนส่งให้ผู้แจ้ง':'ตรวจว่าคำตอบตรงกรณีของผู้แจ้งก่อนใช้'}</p>
+     {view.draftText===null?<p className="ticket-muted">คำตอบพร้อมอ้างอิงยาวเกินข้อความตอบกลับ กรุณาเรียบเรียงพร้อมแหล่งอ้างอิงเอง</p>:canReply&&<button className="ticket-button ticket-button-secondary" type="button" onClick={()=>onDraft(view.draftText!)}>{view.status==='WEB_LEADS'?'นำลิงก์พร้อมคำอธิบายไปแก้ไข':'นำคำตอบพร้อมอ้างอิงไปแก้ไข'}</button>}
     </>}
    </>}
   </div>}

@@ -44,7 +44,7 @@ export async function loadSupportActionState(client:DbClient,sessionId:string,co
   const prior=(await client.query(`select j.* from private.ai_jobs j join private.message_outbox o on o.idempotency_key='ai-job:'||j.id::text
    where o.id=$1 and j.conversation_id=$2`,[envelope.guidanceOutboxId,conversationId])).rows[0];
   try{const result=prior?decodeAIResult(prior,key):null;
-   canConfirmSolved=!!result?.support&&result.kind!=='CLARIFY'&&result.support.proposal.intent==='TROUBLESHOOT'&&
+   canConfirmSolved=!!result?.support&&(result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER')&&result.support.proposal.intent==='TROUBLESHOOT'&&
     result.support.proposal.facts.find(fact=>fact.field==='PROBLEM')?.quote===interpreted.problemText;
   }catch{return null;}
  }
@@ -60,7 +60,7 @@ async function guidanceMatches(client:DbClient,id:string,context:SupportContext,
  if(!row||options.mustBeSent&&(row.outbox_status!=='SENT'||row.status!=='DONE'||row.last_error_code!==null)||
   !options.mustBeSent&&(row.status!=='PROCESSING'||row.id!==options.jobId)||options.jobId&&row.id!==options.jobId)return false;
  try{
-  const result=decodeAIResult(row,key);if(!result||result.kind==='CLARIFY')return false;
+  const result=decodeAIResult(row,key);if(!result||(result.kind!=='ANSWER'&&result.kind!=='STRUCTURED_ANSWER'))return false;
   const expected=result.kind==='ANSWER'?buildCitedAnswer(result.output,result.evidence):buildStructuredAnswer(result.output,result.evidence);
   const payload=JSON.parse(decryptValue(row.outbox_payload,key));
   if(!Array.isArray(payload.messages)||JSON.stringify(payload.messages.map((m:{text?:unknown})=>m.text))!==JSON.stringify(expected.messages.map(m=>m.text)))return false;

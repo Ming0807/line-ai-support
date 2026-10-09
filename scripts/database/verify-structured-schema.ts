@@ -49,6 +49,10 @@ try {
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
  sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
+ stage='owned_web_leads_actual_PG';
+ const ownedWebOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/owned-web-fallback.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(ownedWebOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='web_search_admission_actual_PG';
  const webSearchOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/web-search-admission.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

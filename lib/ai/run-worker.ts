@@ -14,18 +14,21 @@ import {startLineLoading} from '../line/loading';
 import {loadSupportSnapshot,loadSupportActionState,saveSupportState,type SupportStateSnapshot} from './support-state';
 import {createSupportActions} from './support-actions';
 import {interpretSupportProposal} from './support-contracts';
+import {readAIKnowledgeSnapshot} from './knowledge-snapshot';
+import {verifyWebLeads,buildWebLeadReply} from '../knowledge/web-leads';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
  history:{role:'user'|'assistant';content:string}[];
  support?:SupportStateSnapshot;
+ leaseToken?:string;
 }
 export interface AIWorkerOptions {
  produce(snapshot:AISnapshot,signal:AbortSignal):Promise<AIResult>;
  loading?:{accessToken?:string;fetchImpl?:typeof fetch};
  supportEnabled?:boolean;
 }
-async function eligible(client:PoolClient,job:AIJob):Promise<boolean>{
+export async function eligibleAIJob(client:PoolClient,job:AIJob):Promise<boolean>{
  return (await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
   join public.messages m on m.id=$4 and m.conversation_id=c.id and m.sender_type='USER' and m.message_type='TEXT'
   where c.id=$1 and c.line_session_id=$2 and c.revision=$3 and c.mode='AI' and c.status in ('ACTIVE','WAITING') and s.active
@@ -41,20 +44,9 @@ async function snapshot(pool:Pool,job:AIJob,key:string,options:AIWorkerOptions):
  return transaction(async client=>{
   await client.query("set local statement_timeout='5s'");
   await lockConversation(client,job.conversation_id);await lockedAIJob(client,job);
-  if(!await eligible(client,job)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}
-  const support=options.supportEnabled?await loadSupportSnapshot(client,{sessionId:job.line_session_id,conversationId:job.conversation_id,
-   messageId:job.message_id,revision:job.expected_conversation_revision},key):undefined;
-  if(options.supportEnabled&&!support){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}
-  const message=(await client.query('select content,created_at from public.messages where id=$1',[job.message_id])).rows[0];
-  const previous=(await client.query(`select m.sender_type,m.content from public.messages m where m.conversation_id=$1 and m.id<>$2
-   and m.created_at<$3 and m.sender_type in ('USER','AI') and m.message_type='TEXT'
-   and (m.sender_type='USER' or exists(select 1 from private.message_outbox o where o.conversation_id=m.conversation_id
-    and o.idempotency_key='ai-job:'||(m.metadata->>'ai_job_id') and o.kind='AI' and o.status='SENT'))
-   order by m.created_at desc,m.id desc limit 8`,
-  [job.conversation_id,job.message_id,message.created_at])).rows.reverse();
-  return {jobId:job.id,sessionId:job.line_session_id,conversationId:job.conversation_id,messageId:job.message_id,
-   revision:job.expected_conversation_revision,question:message.content,
-   history:previous.map(m=>({role:m.sender_type==='USER'?'user' as const:'assistant' as const,content:m.content.slice(0,3000)})),...(support?{support}:{})};
+  if(!await eligibleAIJob(client,job)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}
+  const source=await readAIKnowledgeSnapshot(client,job,key,options.supportEnabled);
+  if(!source){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return null;}return source;
  },pool);
 }
 async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promise<AIResult>{
@@ -70,7 +62,7 @@ async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOption
   const recipient=await transaction(async client=>{
    await client.query("set local statement_timeout='5s'");await client.query("set local lock_timeout='2s'");
    await lockConversation(client,job.conversation_id);const current=await lockedAIJob(client,job);
-   if(current.attempts!==1||current.result_encrypted!==null||!await eligible(client,current))return null;
+   if(current.attempts!==1||current.result_encrypted!==null||!await eligibleAIJob(client,current))return null;
    const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
    if(!request.replyToken)return null;
    const identity=(await client.query(`select i.user_id_encrypted,clock_timestamp() now from private.line_identities i
@@ -96,7 +88,7 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
   if(requiresStructuredCatalog(result))await client.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
   await lockConversation(client,job.conversation_id);
   const current=await lockedAIJob(client,job);
-  if(!await eligible(client,current)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
+  if(!await eligibleAIJob(client,current)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
   // Result persistence is write-once. Still fail closed if privileged corruption races the pre-read.
   if(current.result_encrypted!==saved!.result_encrypted)throw new Error('AI_JOB_RESULT_CHANGED');
   let support:SupportStateSnapshot|undefined;
@@ -112,7 +104,12 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
   }
   const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
   let messages:OutboundText[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|null=null;
-  if(result.kind==='STRUCTURED_ANSWER'){
+  if(result.kind==='WEB_LEADS'){
+   const fresh=await readAIKnowledgeSnapshot(client,current,key);
+   if(!fresh||!await verifyWebLeads(client,result,fresh,key)){
+    messages=[{type:'text',text:'เอกสารอ้างอิงเปลี่ยนแปลงระหว่างประมวลผลครับ กรุณาส่งคำถามอีกครั้งหรือติดต่อเจ้าหน้าที่'}];code='EVIDENCE_CHANGED';
+   }else{const reply=buildWebLeadReply(result);messages=reply.messages;citations=reply.citations;}
+  }else if(result.kind==='STRUCTURED_ANSWER'){
    try{
     for(const familyId of [...new Set(result.evidence.map(e=>e.reference.ruleProof.familyId))].sort())
      await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);
@@ -154,9 +151,10 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata)
    values($1,'AI','TEXT',$2,$3)`,[job.conversation_id,messages.map(m=>m.text).join('\n'),{ai_job_id:job.id,citations}]);
   if(result.support&&support){
-   await saveSupportState(client,current,support,result.support.proposal,key,code===null&&result.kind!=='CLARIFY'?{guidanceOutboxId:outbox}:{});
+   const verifiedGuidance=code===null&&(result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER');
+   await saveSupportState(client,current,support,result.support.proposal,key,verifiedGuidance?{guidanceOutboxId:outbox}:{});
    const state=await loadSupportActionState(client,current.line_session_id,current.conversation_id,key);if(!state)throw new Error('SUPPORT_STATE_INVALID');
-   const quickReply=await createSupportActions(client,state,key,{canonicalTroubleshooting:code===null&&result.kind!=='CLARIFY'&&state.interpreted.intent==='TROUBLESHOOT'});
+   const quickReply=await createSupportActions(client,state,key,{canonicalTroubleshooting:verifiedGuidance&&state.interpreted.intent==='TROUBLESHOOT'});
    if(quickReply){messages[messages.length-1]={...messages[messages.length-1],quickReply};
     await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
    }

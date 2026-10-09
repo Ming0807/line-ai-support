@@ -19,6 +19,8 @@ import {assistInputSchema,AssistError} from './ai-assistance-contracts';
 import {withStaffAssistanceSnapshot,type StaffAssistanceSnapshot} from './ai-assistance-snapshot';
 import {projectStaffKnowledgeAdvice} from './knowledge-assistance-projection';
 import type {StaffKnowledgeAdvice} from './knowledge-assistance-contracts';
+import {createStaffWebFallback} from '../knowledge/owned-web-fallback';
+import {verifyWebLeads} from '../knowledge/web-leads';
 
 async function produceBounded(produce:AIWorkerOptions['produce'],snapshot:AISnapshot,outer?:AbortSignal):Promise<AIResult>{
  if(outer?.aborted)throw new AssistError('UNAVAILABLE');
@@ -49,6 +51,7 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
   key=key??readServerEnv().encryptionKey;if(!key)throw new AssistError('UNAVAILABLE');
   const configuredKey=key,store=createAIStore(pool),adapters=createProviderRegistry(),priceReader=createPriceReader();
   produce=createKnowledgeProducer({
+   webFallback:createStaffWebFallback(pool,configuredKey,actorId,id,parsed.data.revision,before),
    generate:call=>gateway({...call,ticketId:id},{store,key:configuredKey,adapters,priceReader}),
    embed:call=>embedLocalConfigured(call),
    search:call=>snapshot(async(c,current)=>{unchanged(current);return searchKnowledge(c,call);}),
@@ -63,7 +66,9 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
  return snapshot(async(c,current)=>{
   unchanged(current);if(options.signal?.aborted)throw new AssistError('UNAVAILABLE');
   const advice=projectStaffKnowledgeAdvice(result,current.revision);
-  if(result.kind==='ANSWER'){
+  if(result.kind==='WEB_LEADS'){
+   if(!key||!current.knowledge||!await verifyWebLeads(c,result,current.knowledge,key))throw new AssistError('CONFLICT');
+  }else if(result.kind==='ANSWER'){
    if(result.structuredMiss){
     if(!key)throw new AssistError('UNAVAILABLE');
     if((await searchStructured(c,{query:result.structuredMiss,scope:result.scope},key)).status!=='EMPTY')throw new AssistError('CONFLICT');

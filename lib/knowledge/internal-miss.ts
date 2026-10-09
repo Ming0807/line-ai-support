@@ -22,7 +22,7 @@ export type InternalMissResult={status:'EMPTY';proof:InternalMissProof}|{status:
 const sourceSchema=z.object({jobId:z.uuid(),sessionId:z.uuid(),conversationId:z.uuid(),messageId:z.uuid(),revision:z.number().int().min(0),
  question:z.string().min(1).max(6000).refine(value=>value.trim().length>0&&Buffer.byteLength(value,'utf8')<=6000),
  history:z.array(z.object({role:z.enum(['user','assistant']),content:z.string().max(3000)}).strict()).max(8)});
-function sourceDigest(snapshot:AISnapshot):string{
+export function internalMissSourceDigest(snapshot:AISnapshot):string{
  return canonicalDigest('internal-miss-source-v1',sourceSchema.parse(copyStructuredJson(snapshot,128*1024,6000)));
 }
 function receiptKey(key:string):Buffer{
@@ -103,7 +103,7 @@ async function complete(client:PoolClient,input:z.infer<typeof candidateSchema>,
 /** Caller owns a short authorized transaction and catalog-before-conversation lock order. No network here. */
 export async function proveInternalMiss(client:PoolClient,input:unknown,snapshot:AISnapshot,key:string):Promise<InternalMissResult>{
  try{
-  const derived=receiptKey(key),parsed=candidate(input),source=sourceDigest(snapshot);
+  const derived=receiptKey(key),parsed=candidate(input),source=internalMissSourceDigest(snapshot);
   const result=await complete(client,parsed,key);if(result.status!=='EMPTY')return result;
   const body={...parsed,version:1 as const,policy,evaluatedOn:result.day,sourceDigest:source};
   return freezeStructuredData({status:'EMPTY' as const,proof:{...body,signature:sign(body,derived)}});
@@ -115,7 +115,7 @@ export async function internalMissStillApplies(client:PoolClient,input:unknown,s
  try{
   const derived=receiptKey(key),parsed=internalMissProofSchema.parse(copyStructuredJson(input,64*1024,2200));
   const {signature,...body}=parsed;
-  if(!timingSafeEqual(Buffer.from(signature,'hex'),Buffer.from(sign(body,derived),'hex'))||parsed.sourceDigest!==sourceDigest(snapshot))return false;
+  if(!timingSafeEqual(Buffer.from(signature,'hex'),Buffer.from(sign(body,derived),'hex'))||parsed.sourceDigest!==internalMissSourceDigest(snapshot))return false;
   const selected=candidate({scope:parsed.scope,structuredQuery:parsed.structuredQuery,queryVector:parsed.queryVector,fingerprint:parsed.fingerprint});
   return (await complete(client,selected,key,parsed.evaluatedOn)).status==='EMPTY';
  }catch{return false;}

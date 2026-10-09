@@ -27,7 +27,7 @@ try {
   where n.nspname in ('public','private') and c.relkind='r'
    and not (n.nspname||'.'||c.relname=any($1::text[]))
    and not has_table_privilege('service_role',c.oid,privilege)`,[
-    ['private.knowledge_import_jobs','private.worker_observations','private.structured_selection_epoch','private.incident_context_proofs',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
+    ['private.knowledge_import_jobs','private.worker_observations','private.structured_selection_epoch','private.incident_context_proofs','private.web_search_attempts',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
  const revisionGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') as can_read,
   has_table_privilege('service_role',c.oid,'INSERT') as can_append,
@@ -49,6 +49,14 @@ try {
   has_column_privilege('service_role','private.worker_observations','observed_at','UPDATE') update_timestamp,
   has_column_privilege('service_role','private.worker_observations','worker','UPDATE') update_worker`);
  const observation=observationGrants.rows[0];
+ const webGrants=(await client.query(`select
+  has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
+  has_table_privilege('service_role',c.oid,'UPDATE,DELETE,TRUNCATE') can_rewrite,
+  not has_any_column_privilege('anon',c.oid,'SELECT,INSERT,UPDATE') and not has_any_column_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE') browser_denied,
+  (select bool_and(has_column_privilege('service_role',c.oid,a.attname,'UPDATE')=(a.attname=any(array['observation','http_status','provider_request_id','credits'])))
+   from pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) observation_columns_only
+  from pg_class c where c.oid='private.web_search_attempts'::regclass`)).rows[0];
+ if(!webGrants?.can_read||!webGrants.can_append||webGrants.can_rewrite||!webGrants.browser_denied||!webGrants.observation_columns_only)throw new Error('DEVELOPMENT_WEB_ADMISSION_GRANT_VERIFICATION_FAILED');
  if(!observation.can_read||!observation.can_append||observation.can_update||observation.can_delete||!observation.update_timestamp||observation.update_worker)throw new Error('DEVELOPMENT_OBSERVATION_GRANT_VERIFICATION_FAILED');
  const contextGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
@@ -84,7 +92,7 @@ try {
  console.log(JSON.stringify({stage:'development_security',tableCount:tables.rows[0].count,allRls:true,
   rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,appendOnlyImportReviews:true,
   immutablePublicationReceipts:true,appendOnlySupportContexts:true,appendOnlySupportOutcomes:true,structuredLifecycleColumnsOnly:true,
-  incidentRetention:true,workerObservationTimestampOnly:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
+  incidentRetention:true,workerObservationTimestampOnly:true,webAdmissionObservationColumnsOnly:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
 } catch(error) {
  await client.query('rollback').catch(()=>undefined);
  const message=error instanceof Error?error.message:'';

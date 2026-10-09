@@ -7,6 +7,8 @@ import {ruleContextsStillMatch} from './rule-proof';
 import {searchStructured} from './structured-search';
 import {structuredEvidenceStillMatches} from './structured-citations';
 import {loadSupportSnapshot} from '../ai/support-state';
+import {readAIKnowledgeSnapshot} from '../ai/knowledge-snapshot';
+import {verifyWebLeads} from './web-leads';
 
 /** M7 writers acquire sorted family locks, then sorted document locks, before publishing or changing eligibility. */
 export const knowledgeDocumentLock=(documentId:string)=>`knowledge-document:${documentId}`;
@@ -47,6 +49,13 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
  const metadata=(await client.query(`select metadata from public.messages where conversation_id=$1 and metadata->>'ai_job_id'=$2
   and sender_type='AI' order by created_at desc,id limit 1`,[input.conversationId,jobId])).rows[0]?.metadata;
  if(Array.isArray(metadata?.citations)&&metadata.citations.length===0)return true;
+ if(result.kind==='WEB_LEADS'){
+  await client.query('begin');
+  try{
+   const fresh=await readAIKnowledgeSnapshot(client,job,key);
+   const allowed=!!fresh&&await verifyWebLeads(client,result,fresh,key);await client.query('commit');return allowed;
+  }catch(error){await client.query('rollback');throw error;}
+ }
  if(result.kind==='STRUCTURED_ANSWER'){
   const documentIds=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
   const documents=(await client.query('select id,document_family_id from public.documents where id=any($1::uuid[])',[documentIds])).rows;

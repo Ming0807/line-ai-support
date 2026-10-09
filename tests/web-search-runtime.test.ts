@@ -23,6 +23,54 @@ function fixture(overrides:Record<string,unknown>={}){
 }
 afterEach(async()=>{await Promise.all(pools.splice(0).map(p=>p.end()));});
 
+it('fresh actor/source preflight denial or failure prevents even usage HTTP',async()=>{
+ for(const preflight of [async()=>false,async()=>{throw new Error('PRIVATE_ACTOR_DETAIL');}]){
+  const f=fixture({preflight});expect((await f.run(input(),new AbortController().signal)).status).toBe('UNAVAILABLE');
+  expect(f.adapter.usage).not.toHaveBeenCalled();expect(f.reserve).not.toHaveBeenCalled();expect(f.adapter.search).not.toHaveBeenCalled();
+ }
+});
+it('source changes during usage stop before reservation',async()=>{
+ const preflight=vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false),f=fixture({preflight});
+ expect((await f.run(input(),new AbortController().signal)).status).toBe('UNAVAILABLE');
+ expect(f.adapter.usage).toHaveBeenCalledTimes(1);expect(f.reserve).not.toHaveBeenCalled();expect(f.adapter.search).not.toHaveBeenCalled();
+});
+it('source changes after committed admission consume the attempt without search or refund',async()=>{
+ const preflight=vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false),f=fixture({preflight});
+ expect((await f.run(input(),new AbortController().signal)).status).toBe('UNAVAILABLE');
+ expect(f.reserve).toHaveBeenCalledTimes(1);expect(f.adapter.search).not.toHaveBeenCalled();expect(f.observe).not.toHaveBeenCalled();
+});
+it('source changes during search discard results after recording the real provider observation',async()=>{
+ const preflight=vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false),f=fixture({preflight});
+ expect((await f.run(input(),new AbortController().signal)).status).toBe('UNAVAILABLE');
+ expect(f.adapter.search).toHaveBeenCalledTimes(1);expect(f.observe).toHaveBeenCalledWith(expect.any(String),{kind:'SUCCESS',httpStatus:200,providerRequestId:expect.any(String),credits:1});
+});
+it('a private preflight ignoring cancellation is bounded to five seconds and cannot reach usage later',async()=>{
+ vi.useFakeTimers();let release:(value:boolean)=>void=()=>{};let inner:AbortSignal|undefined;
+ try{
+  const preflight=vi.fn(async(_request,signal)=>{inner=signal;return new Promise<boolean>(resolve=>{release=resolve;});}),f=fixture({preflight});
+  const pending=f.run(input(),new AbortController().signal);await vi.advanceTimersByTimeAsync(5001);
+  expect(await pending).toEqual({status:'UNAVAILABLE'});expect(inner?.aborted).toBe(true);
+  release(true);await Promise.resolve();expect(f.adapter.usage).not.toHaveBeenCalled();expect(f.reserve).not.toHaveBeenCalled();
+ }finally{vi.useRealTimers();}
+});
+it('outer cancellation fences an ignored private preflight without waiting for its result',async()=>{
+ const controller=new AbortController();let release:(value:boolean)=>void=()=>{};
+ const preflight=vi.fn(async()=>new Promise<boolean>(resolve=>{release=resolve;})),f=fixture({preflight});
+ const pending=f.run(input(),controller.signal);await Promise.resolve();controller.abort();
+ expect(await pending).toEqual({status:'UNAVAILABLE'});release(true);await Promise.resolve();
+ expect(f.adapter.usage).not.toHaveBeenCalled();expect(f.reserve).not.toHaveBeenCalled();
+});
+it('valid configured caller preflights before each HTTP boundary and after result without exposing ownership',async()=>{
+ const order:string[]=[],request=input();
+ const preflight=vi.fn(async(value,signal)=>{expect(value).toEqual(request);expect(signal).toBeInstanceOf(AbortSignal);order.push('preflight');return true;});
+ const f=fixture({preflight});f.adapter.usage.mockImplementation(async()=>{order.push('usage');return usage();});
+ f.reserve.mockImplementation(async()=>{order.push('reserve');return {status:'RESERVED',attemptId:randomUUID()};});
+ f.adapter.search.mockImplementation(async()=>{order.push('search');return success();});
+ const result=await f.run(request,new AbortController().signal);expect(result.status).toBe('READY');
+ expect(order).toEqual(['preflight','usage','preflight','reserve','preflight','search','preflight']);
+ expect(JSON.stringify(result)).not.toContain(request.ownerId);expect(JSON.stringify(result)).not.toContain(request.operationId);
+});
+
 it('defaults disabled and refuses absent or malformed configuration before usage or reservation',async()=>{
  for(const c of [undefined,{}, {...config(),enabled:false},{...config(),apiKey:''},{...config(),apiKey:'bad key'},
   {...config(),attestation:null}]){

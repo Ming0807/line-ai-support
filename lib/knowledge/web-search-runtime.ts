@@ -15,6 +15,7 @@ interface Options {
  // Server-only seams for deterministic tests; never sourced from a request/model.
  reserve?:(request:WebSearchRequest)=>Promise<WebSearchAdmission>;
  observe?:(attemptId:string,value:WebSearchObservation)=>Promise<boolean>;
+ preflight?:(request:WebSearchRequest,signal:AbortSignal)=>Promise<boolean>;
 }
 function attested(config:Config,now:number):boolean{
  const value=config.attestation,stamp=Date.parse(value.attestedAt);
@@ -36,6 +37,20 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
  const adapter=options.adapter??createTavilySearchAdapter(),now=options.now??Date.now;
  const reserve=options.reserve??((request:WebSearchRequest)=>reserveWebSearch(options.pool,request,options.encryptionKey));
  const observe=options.observe??((attemptId:string,value:WebSearchObservation)=>observeWebSearch(options.pool,attemptId,value));
+ const preflight=options.preflight;
+ async function allowed(request:WebSearchRequest,signal:AbortSignal):Promise<boolean>{
+  if(signal.aborted)return false;if(!preflight)return true;
+  const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+  let abort:()=>void=()=>{};
+  const stop=new Promise<boolean>(resolve=>{
+   abort=()=>{controller.abort();resolve(false);};signal.addEventListener('abort',abort,{once:true});timer=setTimeout(abort,5000);
+  });
+  try{
+   if(signal.aborted){abort();return false;}
+   return await Promise.race([stop,Promise.resolve().then(()=>preflight(request,controller.signal)).then(value=>value===true)])&&!signal.aborted;
+  }catch{return false;}
+  finally{if(timer)clearTimeout(timer);signal.removeEventListener('abort',abort);controller.abort();}
+ }
  return async(input,signal)=>{
   let attemptId:string|undefined;
   const record=async(value:WebSearchObservation)=>{if(attemptId)try{await observe(attemptId,value);}catch{/* No refund, retry or raw error log. */}};
@@ -44,18 +59,22 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
    if(!(signal instanceof AbortSignal)||signal.aborted)return {status:'UNAVAILABLE'};
    if(!config)return {status:'NOT_CONFIGURED'};
    if(!attested(config,now()))return {status:'FREE_ONLY_UNVERIFIABLE'};
+   if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
    const observed=eligible(await adapter.usage(config.apiKey,signal));
    if(signal.aborted)return {status:'UNAVAILABLE'};
    if(observed!=='READY')return {status:observed};
    if(!attested(config,now()))return {status:'FREE_ONLY_UNVERIFIABLE'};
+   if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
    const admission=await reserve(request);
    if(admission.status!=='RESERVED')return {status:admission.status==='DUPLICATE'?'ALREADY_ATTEMPTED':admission.status==='EXHAUSTED'?'QUOTA_EXHAUSTED':'UNAVAILABLE'};
    attemptId=admission.attemptId;
    if(signal.aborted)return {status:'UNAVAILABLE'};
    if(!attested(config,now()))return {status:'FREE_ONLY_UNVERIFIABLE'};
+   if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
    const result=await adapter.search({version:1,purpose:request.purpose,topic:request.topic,academicYear:request.academicYear},config.apiKey,signal);
    await record({kind:'SUCCESS',httpStatus:200,providerRequestId:result.requestId,credits:1});
    if(signal.aborted)return {status:'UNAVAILABLE'};
+   if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
    return freezeStructuredData({status:'READY' as const,result});
   }catch(error){
    await record({kind:'ERROR',httpStatus:error instanceof TavilySearchError?error.httpStatus??null:null});

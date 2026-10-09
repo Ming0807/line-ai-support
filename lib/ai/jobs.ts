@@ -9,11 +9,13 @@ import {knowledgeScopeSchema} from '../knowledge/retrieval';
 import {structuredQuerySchema} from '../knowledge/structured-query';
 import {structuredAnswerSchema,structuredEvidenceListSchema} from '../knowledge/structured-citations';
 import {supportMetadataSchema} from './support-contracts';
+import {webLeadsResultSchema} from '../knowledge/web-leads';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
  quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action}).strict()).min(1).max(13)}).strict().optional()}).strict();
 export const aiResultSchema=z.discriminatedUnion('kind',[
+ webLeadsResultSchema.safeExtend({support:supportMetadataSchema.optional()}),
  z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
   queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),structuredMiss:structuredQuerySchema.optional(),support:supportMetadataSchema.optional()}).strict(),
@@ -22,7 +24,7 @@ export const aiResultSchema=z.discriminatedUnion('kind',[
 ]);
 export type AIResult=z.infer<typeof aiResultSchema>;
 export function requiresStructuredCatalog(result:AIResult):boolean{
- return result.kind==='STRUCTURED_ANSWER'||result.kind==='ANSWER'&&result.structuredMiss!==undefined;
+ return result.kind==='WEB_LEADS'||result.kind==='STRUCTURED_ANSWER'||result.kind==='ANSWER'&&result.structuredMiss!==undefined;
 }
 export interface AIJob {
  id:string;line_session_id:string;conversation_id:string;message_id:string;expected_conversation_revision:number;

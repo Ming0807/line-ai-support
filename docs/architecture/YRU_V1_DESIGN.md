@@ -1,5 +1,7 @@
 # YRU V1 — System design
 
+9October current: [owned web-lead integration](WEB_LEAD_INTEGRATION_DESIGN.md)/[evidence](../reports/WEB_LEAD_INTEGRATION_REPORT.md) is component-accepted through Student worker/dispatch and HUMAN Staff drafts, with fresh complete internal misses and five-minute unverified canonical links. Local+selected DEVELOPMENT38versions/59RLS tables/least grants/catalog readiness/retention verified. Default search/AI configuration remains disabled. Semantic procedural NOT_APPLICABLE/general fallback, final controlled FlowA–F and deferred live corpus/provider/E5/OA/production acceptance remain required root work.
+
 9October current complete-miss contract: [C3B design](INTERNAL_MISS_DESIGN.md)/[evidence](../reports/INTERNAL_MISS_REPORT.md) passes349ownedPG/38replay/RLS/advisors0ERROR0WARN/2,013unit/type/lint/build. Authenticated explicit Structured/RAG miss is not actor authorization or a production web caller. Complete web/source/delivery/Staff/FlowA–F/live acceptance remain required; normal36 unchanged.
 
 9 October current RAG boundary: [C3A chunk catalog fence](RAG_CATALOG_FENCE_DESIGN.md)/[evidence](../reports/RAG_CATALOG_FENCE_REPORT.md) passes326ownedPG/38replay/RLS/advisors0ERROR0WARN/type/scoped lint. Normal/local+DEVELOPMENT remain36; complete miss/web/delivery/Staff and final combined/live acceptance remain required.
