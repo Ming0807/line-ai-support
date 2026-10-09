@@ -99,7 +99,7 @@ try{
  await reload(page);firstGroup=await group(page,first);
  assert((await firstGroup.innerText()).includes('HTTP 429'),'ACTUAL_HTTP_DISPLAY');assert((await firstGroup.innerText()).includes('ใกล้ถึงขีดจำกัด'),'QUOTA_NEAR_SCOPE');
  assert((await firstGroup.innerText()).includes('บัญชีร่วม'),'SHARED_QUOTA_SCOPE');
- assert.equal(await firstGroup.getByRole('button',{name:'ทดสอบ Model',exact:true}).first().isDisabled(),true,'UNKNOWN_PRICE_TEST_DISABLED');
+ assert.equal(await firstGroup.getByRole('button',{name:'ทดสอบ Model',exact:true}).first().isEnabled(),true,'UNKNOWN_PRICE_TEST_CAN_REQUEST_SERVER_PREFLIGHT');
  const dto=JSON.stringify((await api(context,'/api/providers')).value);assert(!/api_key_encrypted|"apiKey"|fixture-[a-f0-9]{8}-/u.test(dto),'NO_CREDENTIAL_DTO');
  passed('HTTP429_separate_unknown_price_shared_near_quota_safe_DTO');
  stage='cooldown';const retryAt=new Date(Date.now()+180000).toISOString();

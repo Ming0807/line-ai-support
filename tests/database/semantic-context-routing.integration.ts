@@ -13,7 +13,7 @@ const key=Buffer.alloc(32,70).toString('base64'),pool=new Pool({connectionString
 const ownedSessions:string[]=[],ownedHashes:string[]=[];
 after(async()=>{try{
  await pool.query("update private.ai_jobs set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where line_session_id=any($1::uuid[]) and status in('PENDING','PROCESSING')",[ownedSessions]);
- await pool.query("update private.message_outbox set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where line_session_id=any($1::uuid[]) and status in('PENDING','PROCESSING')",[ownedSessions]);
+ await pool.query("update private.message_outbox set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where (line_session_id=any($1::uuid[]) or ticket_id in(select id from public.tickets where line_session_id=any($1::uuid[]))) and status in('PENDING','PROCESSING')",[ownedSessions]);
  await pool.query("update private.webhook_inbox set status='DONE',lease_token=null,lease_until=null,completed_at=clock_timestamp() where channel='STUDENT' and user_hash=any($1::text[]) and status in('PENDING','PROCESSING')",[ownedHashes]);
  }finally{await pool.end();}});
 async function fixture(options:{second?:boolean;spam?:boolean;duplicate?:boolean;postback?:boolean}={}){

@@ -14,17 +14,20 @@ import ApprovalPanel from './approval-panel';
 import StructuredMappingPanel from './structured-mapping-panel';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {StructuredMappingChange} from './structured-client-contract';
-import {changeReviewMode,acknowledgeReviewChunks,restartReviewDraft} from './review-state';
+import {changeReviewMode,acknowledgeReviewChunks,restartReviewDraft,reviewPublicationEvidence} from './review-state';
+import {getImportReviewChecklist} from './import-flow';
 import type {VersionCandidate} from '@/lib/imports/version-candidates';
 
 type ReviewStatus='UNRESOLVED'|'CORRECTED'|'FALSE_POSITIVE';
 type ReviewProps={
+  mode:'prepare'|'review';
   jobId:string;
   jobRevision:number;
   extractionRevision:number;
   refreshKey:number;
   parentPending:boolean;
   onDraftStateChange:(dirty:boolean,pending:boolean,completedJobId:string|null)=>void;
+  onContinue:()=>void;
   onReloadPreview:()=>void;
 };
 type Result={response:Response;body:unknown};
@@ -40,6 +43,17 @@ const datasetLabels:Record<(typeof datasetTypes)[number],string>={
 const warningLabels:Record<string,string>={
   OCR_REQUIRED:'อาจต้องใช้ OCR',LOW_TEXT_QUALITY:'คุณภาพข้อความต่ำ',UNSUPPORTED_TABLES:'อ่านตารางได้ไม่ครบ',ENCRYPTED_SOURCE:'ไฟล์เข้ารหัส',FORMULAS_PRESENT:'พบสูตรในตาราง',HIDDEN_DATA_REVIEW:'พบข้อมูลซ่อน',EXTERNAL_LINKS_REVIEW:'พบลิงก์ภายนอก',PAGE_REVIEW_REQUIRED:'ต้องตรวจข้อความหรือหน้าเอกสาร',TABLE_SHAPE_REVIEW:'ต้องตรวจรูปแบบตาราง',SOURCE_REVIEW_REQUIRED:'ต้องตรวจแหล่งที่มา',SENSITIVE_DATA_REVIEW_REQUIRED:'อาจมีข้อมูลละเอียดอ่อน',ACADEMIC_YEAR_AMBIGUOUS:'ปีการศึกษาไม่ชัดเจน',FAMILY_AMBIGUOUS:'ประเภทเอกสารไม่ชัดเจน',STRUCTURED_SCHEMA_UNAVAILABLE:'ยังไม่มีตัวเชื่อมชุดข้อมูล',
 };
+const missingFieldLabels:Record<string,string>={
+ familyCode:'กลุ่มเอกสารที่ตรงกับเนื้อหา',departmentCode:'หน่วยงานเจ้าของเรื่อง',documentType:'ประเภทเอกสาร',versionName:'ชื่อฉบับ',versionStream:'กลุ่มฉบับ',
+ authorityLevel:'ระดับอำนาจของเอกสารตามหลักฐาน',visibility:'ใครใช้ข้อมูลนี้ได้',storageMode:'วิธีนำข้อมูลไปใช้',
+ 'scope.audience':'กลุ่มผู้ใช้ข้อมูล','scope.studentType':'ประเภทนักศึกษา',sourceUrl:'URL แหล่งที่มาทางการสำหรับตอบนักศึกษา',
+};
+function storageModeName(value:ImportReviewDraft['metadata']['storageMode']){
+ if(value==='RAG')return 'ค้นหาจากข้อความ';
+ if(value==='STRUCTURED')return 'ใช้ข้อมูลจากตาราง';
+ if(value==='BOTH')return 'ใช้ทั้งข้อความและตาราง';
+ return 'ยังไม่ระบุ';
+}
 const authorityPresets=[
   {value:100,label:'100 · สภามหาวิทยาลัย / อธิการบดี (อำนาจสูงสุด)'},
   {value:90,label:'90 · ข้อบังคับ / ระเบียบมหาวิทยาลัย'},
@@ -176,12 +190,14 @@ function OriginTag({origin}:{origin?:{kind:'EXTRACTED'|'CLASSIFIED'|'DEFAULT';la
 }
 
 export default function ReviewForm({
+  mode,
   jobId,
   jobRevision,
   extractionRevision,
   refreshKey,
   parentPending,
   onDraftStateChange,
+  onContinue,
   onReloadPreview,
 }:ReviewProps){
   const [review,setReview]=useState<ImportReviewState|null>(null);
@@ -206,6 +222,8 @@ export default function ReviewForm({
   const [startedCurrent,setStartedCurrent]=useState(false);
   const [loadedKey,setLoadedKey]=useState<string|null>(null);
   const [customAuthority,setCustomAuthority]=useState(false);
+  const [storageDetailsOpen,setStorageDetailsOpen]=useState(false);
+  const [versionDetailsOpen,setVersionDetailsOpen]=useState(false);
   const abortRef=useRef<AbortController|null>(null);
   const requestSerial=useRef(0);
   const mountedRef=useRef(false);
@@ -456,13 +474,33 @@ export default function ReviewForm({
   const families=assistance?.families??[];
   const departments=assistance?.departments??[];
   const origins=assistance?.origins??{};
+  const reviewEvidence=reviewPublicationEvidence(draft,structuredVerified);
+  const unresolvedWarningCount=review&&draft?review.warnings.filter(warning=>{
+    const disposition=draft.warningDispositions.find(item=>item.warningKey===warning.key);
+    return !disposition||disposition.status==='UNRESOLVED'||!disposition.reason?.trim();
+  }).length:0;
+  const unconfirmedAttestations=draft?Object.values(draft.attestations).filter(value=>!value).length:0;
+  const targetRequired=Boolean(draft&&(draft.action==='REPLACE_CURRENT'||draft.action==='AMEND_EXISTING'||draft.relationship==='CANCELS'));
+  const newFamilyDetailsMissing=Boolean(draft?.action==='NEW_FAMILY'&&(!draft.metadata.newFamily?.name?.trim()||!draft.metadata.newFamily.category?.trim()));
+  const reviewChecklist=draft&&review&&!publicationReceipt?getImportReviewChecklist({
+    missingFields:missingFields.map(field=>missingFieldLabels[field.key]??field.label),unresolvedWarnings:unresolvedWarningCount,
+    unconfirmedAttestations,extractionReviewed:draft.attestations.extractionReviewed,hasSavedDraft:Boolean(review.saved&&!review.stale),draftChanged:dirty,
+    stale:review.stale||conflicted||revisionMismatch,actionSelected:draft.action!==null,targetRequired,targetSelected:!targetRequired||draft.target!==null,
+    newFamilyDetailsMissing,storageMode:draft.metadata.storageMode,chunkPlanReady:reviewEvidence.chunkReady,
+    mappingReady:reviewEvidence.mappingReady&&structuredVerified,
+  }):[];
+  const proposalOrigin=(key:keyof ImportAssistance['origins'])=>review?.saved?undefined:origins[key];
+  const storageDetailsNeedReview=Boolean(draft&&(draft.metadata.storageMode===null||
+    (draft.metadata.storageMode==='RAG'||draft.metadata.storageMode==='BOTH')&&!reviewEvidence.chunkReady||
+    (draft.metadata.storageMode==='STRUCTURED'||draft.metadata.storageMode==='BOTH')&&(!draft.metadata.datasetType||!reviewEvidence.mappingReady||!structuredVerified)));
+  const versionDetailsNeedReview=Boolean(draft&&(!draft.action||targetRequired&&!draft.target||newFamilyDetailsMissing));
 
   return (
-    <section className="knowledge-review" aria-labelledby="review-draft-title">
+    <section className="knowledge-review" id="review-state" data-mode={mode} aria-labelledby="review-draft-title">
       <header className="knowledge-review-heading">
         <div>
           <h3 id="review-draft-title">ทบทวนข้อมูลเอกสาร</h3>
-          <p>{publicationReceipt?'อนุมัติฉบับตรวจที่ระบุในใบรับรองแล้ว ข้อมูลที่แสดงเปิดให้อ่านเพื่อตรวจสอบย้อนหลัง':'ระบบจัดเตรียมข้อเสนอจากต้นฉบับ ตรวจสอบสรุปและแก้ไขเฉพาะข้อมูลที่ไม่ชัดเจน'}</p>
+          <p>{mode==='prepare'?'ตรวจสรุปที่ระบบเตรียมไว้ แล้วไปแก้เฉพาะช่องที่ยังไม่ชัดเจน':'แก้ข้อมูลที่จำเป็น ตรวจคำเตือนและหลักฐาน แล้วจึงส่งอนุมัติ'}</p>
         </div>
         {review&&<span className="knowledge-review-counter">ฉบับตรวจ {review.reviewRevision}</span>}
       </header>
@@ -481,15 +519,53 @@ export default function ReviewForm({
         <button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>void reloadLatest(true)} disabled={busy||parentPending}>ยืนยันโหลดและทิ้งร่าง</button>
         <button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>setReloadConfirm(false)} disabled={busy||parentPending}>กลับไปเก็บร่างนี้</button></div></div>}
 
-      {readyForKey&&review&&draft&&<>
+      {readyForKey&&review&&draft&&mode==='prepare'&&<>
+        {assistanceError&&<div className="knowledge-assisted-alert" role="alert">
+          <div className="knowledge-assisted-alert-content"><span className="knowledge-alert-icon" aria-hidden="true">!</span><div>
+            <strong>เตรียมข้อมูลอัตโนมัติไม่สำเร็จ</strong><p>ร่างที่บันทึกไว้ยังอยู่ครบ คุณกรอกเฉพาะช่องที่ยังว่างได้</p>
+          </div></div>
+          <button type="button" className="knowledge-button knowledge-button-secondary knowledge-button-sm" onClick={()=>void retryAssistance()} disabled={assistanceLoading}>{assistanceLoading?'กำลังเตรียม…':'ลองเตรียมอีกครั้ง'}</button>
+        </div>}
+        {failure&&<p className="knowledge-message knowledge-message-error" role="alert">{failure}</p>}
+        {notice&&<p className="knowledge-message knowledge-message-success" role="status" aria-live="polite">{notice}</p>}
+        <div className="knowledge-assisted-summary-card" aria-label="สรุปข้อมูลที่เตรียมไว้">
+          <div className="knowledge-assisted-header"><div><h4>สรุปที่ระบบเตรียมจากเอกสาร</h4></div>
+            <span className="knowledge-review-state">{review.stale?'ร่างเดิมผูกกับฉบับก่อนหน้า':review.saved?`ร่างที่บันทึกไว้ · ฉบับ ${review.saved.reviewRevision}`:'ข้อเสนอใหม่จากต้นฉบับ'}</span>
+          </div>
+          <p className="knowledge-hint">ข้อเสนอช่วยให้ตรวจได้เร็วขึ้น แต่ยังต้องยืนยันกับเอกสารจริงก่อนอนุมัติ</p>
+          <div className="knowledge-assisted-facts">
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ชื่อเอกสาร <OriginTag origin={proposalOrigin('title')}/></span><strong>{draft.metadata.title??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ประเภทเอกสาร <OriginTag origin={proposalOrigin('documentType')}/></span><strong>{draft.metadata.documentType??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">กลุ่มเอกสาร <OriginTag origin={proposalOrigin('familyCode')}/></span><strong>{families.find(f=>f.code===draft.metadata.familyCode)?.name??draft.metadata.familyCode??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">หน่วยงาน <OriginTag origin={proposalOrigin('departmentCode')}/></span><strong>{departments.find(d=>d.code===draft.metadata.departmentCode)?.name??draft.metadata.departmentCode??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ชื่อฉบับ <OriginTag origin={proposalOrigin('versionName')}/></span><strong>{draft.metadata.versionName??'ยังไม่ระบุ'}</strong></div>
+            {draft.metadata.academicYear!==null&&<div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ปีการศึกษา <OriginTag origin={proposalOrigin('academicYear')}/></span><strong>{draft.metadata.academicYear}</strong></div>}
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">วันที่ประกาศ <OriginTag origin={proposalOrigin('publishedAt')}/></span><strong>{draft.metadata.publishedAt??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">วันที่เริ่มมีผล <OriginTag origin={proposalOrigin('effectiveFrom')}/></span><strong>{draft.metadata.effectiveFrom??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">กลุ่มผู้ใช้</span><strong>{draft.metadata.scope.audience??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ประเภทนักศึกษา</span><strong>{draft.metadata.scope.studentType??'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ใครใช้ข้อมูลนี้ได้ <OriginTag origin={proposalOrigin('visibility')}/></span><strong>{draft.metadata.visibility==='PUBLIC'?'สาธารณะ':draft.metadata.visibility==='RESTRICTED'?'จำกัดสิทธิ์':draft.metadata.visibility==='INTERNAL'?'ภายในมหาวิทยาลัย':'ยังไม่ระบุ'}</strong></div>
+            <div className="knowledge-assisted-fact"><span className="knowledge-fact-label">วิธีนำข้อมูลไปใช้ <OriginTag origin={proposalOrigin('storageMode')}/></span><strong>{storageModeName(draft.metadata.storageMode)}</strong></div>
+            {draft.metadata.authorityLevel!==null&&<div className="knowledge-assisted-fact"><span className="knowledge-fact-label">ระดับอำนาจของเอกสาร <OriginTag origin={proposalOrigin('authorityLevel')}/></span><strong>{draft.metadata.authorityLevel}</strong></div>}
+            {draft.metadata.sourceUrl&&<div className="knowledge-assisted-fact"><span className="knowledge-fact-label">แหล่งที่มาทางการ <OriginTag origin={proposalOrigin('sourceUrl')}/></span><strong>{draft.metadata.sourceUrl}</strong></div>}
+          </div>
+          {reviewChecklist.length>0?<div className="knowledge-missing-banner" role="status"><strong>ยังมีข้อมูลที่ต้องตรวจหรือกรอก</strong><ul className="knowledge-missing-list">{reviewChecklist.map(item=><li key={item.key}>{item.message}</li>)}</ul></div>:
+            <div className="knowledge-missing-complete" role="status"><strong>ข้อมูลในร่างครบตามรายการเบื้องต้น</strong><span>ยังต้องตรวจคำยืนยันและใบรับรองก่อนอนุมัติ</span></div>}
+          <div className="knowledge-preparation-next"><div><strong>ขั้นต่อไป: ตรวจรายละเอียดและหลักฐาน</strong><p>การไปต่อจะไม่อนุมัติหรือเผยแพร่เอกสาร</p></div>
+            <button type="button" className="knowledge-button knowledge-button-primary" onClick={onContinue} disabled={busy||!readyForKey}>{publicationReceipt?'เปิดข้อมูลตรวจย้อนหลัง':'ตรวจรายละเอียดต่อ'}</button>
+          </div>
+        </div>
+      </>}
+
+      {readyForKey&&review&&draft&&mode==='review'&&<>
         {/* Assistance Alert / Retry */}
         {assistanceError&&(
           <div className="knowledge-assisted-alert" role="alert">
             <div className="knowledge-assisted-alert-content">
               <span className="knowledge-alert-icon" aria-hidden="true">⚠️</span>
               <div>
-                <strong>ไม่สามารถดึงข้อเสนอแนะช่วยเตรียมความพร้อมอัตโนมัติได้</strong>
-                <p>ระบบไม่สามารถเชื่อมต่อบริการข้อเสนอแนะอัตโนมัติได้ในขณะนี้ ข้อมูลร่างเดิมของคุณยังคงถูกรักษาไว้ และคุณสามารถเลือกหรือแก้ไขข้อมูลที่มีอยู่ หรือกดปุ่มลองโหลดข้อเสนอแนะใหม่อีกครั้ง</p>
+                <strong>เตรียมข้อมูลอัตโนมัติไม่สำเร็จ</strong>
+                <p>ร่างที่บันทึกไว้ยังอยู่ครบ คุณกรอกเฉพาะช่องที่ยังว่างได้</p>
               </div>
             </div>
             <button
@@ -498,66 +574,10 @@ export default function ReviewForm({
               onClick={()=>void retryAssistance()}
               disabled={assistanceLoading}
             >
-              {assistanceLoading?'กำลังเชื่อมต่อ…':'ลองโหลดข้อเสนอแนะใหม่'}
+              {assistanceLoading?'กำลังเตรียม…':'ลองเตรียมอีกครั้ง'}
             </button>
           </div>
         )}
-
-        {/* Step Indicator & Prepared Summary */}
-        <div className="knowledge-assisted-summary-card" aria-label="สรุปข้อเสนอช่วยเตรียมความพร้อม">
-          <div className="knowledge-assisted-header">
-            <div>
-              <p className="knowledge-assisted-badge">ข้อเสนอช่วยเตรียมความพร้อม</p>
-              <h4>สรุปข้อมูลที่อ่านได้จากเอกสาร</h4>
-            </div>
-            <span className="knowledge-review-state">{review.saved?`ร่างฉบับที่ ${review.saved.reviewRevision} (บันทึกแล้ว)`:'ร่างใหม่จากระบบ'}</span>
-          </div>
-          <p className="knowledge-hint">ข้อมูลด้านล่างถูกดึงและจำแนกอัตโนมัติจากเนื้อหา กรุณาตรวจความถูกต้องก่อนบันทึกหรืออนุมัติ</p>
-
-          <div className="knowledge-assisted-facts">
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">ชื่อเอกสาร <OriginTag origin={origins.title}/></span>
-              <strong>{draft.metadata.title??'ยังไม่ระบุ'}</strong>
-            </div>
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">กลุ่มเอกสาร <OriginTag origin={origins.familyCode}/></span>
-              <strong>{families.find(f=>f.code===draft.metadata.familyCode)?.name??draft.metadata.familyCode??'ยังไม่ระบุ'}</strong>
-            </div>
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">หน่วยงาน <OriginTag origin={origins.departmentCode}/></span>
-              <strong>{departments.find(d=>d.code===draft.metadata.departmentCode)?.name??draft.metadata.departmentCode??'ยังไม่ระบุ'}</strong>
-            </div>
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">ระดับการมองเห็น <OriginTag origin={origins.visibility}/></span>
-              <strong>{draft.metadata.visibility==='PUBLIC'?'สาธารณะ (ตอบนักศึกษา)':draft.metadata.visibility==='RESTRICTED'?'จำกัดสิทธิ์':'ภายใน (INTERNAL)'}</strong>
-            </div>
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">วิธีใช้เอกสาร <OriginTag origin={origins.storageMode}/></span>
-              <strong>{draft.metadata.storageMode??'RAG (ค้นหาข้อความ)'}</strong>
-            </div>
-            <div className="knowledge-assisted-fact">
-              <span className="knowledge-fact-label">แหล่งอำนาจเอกสาร <OriginTag origin={origins.authorityLevel}/></span>
-              <strong>{draft.metadata.authorityLevel!==null?`ระดับ ${draft.metadata.authorityLevel}`:'ยังไม่ได้ตรวจ'}</strong>
-            </div>
-          </div>
-
-          {missingFields.length>0?(
-            <div className="knowledge-missing-banner" role="status">
-              <div className="knowledge-missing-heading">
-                <span className="knowledge-missing-icon" aria-hidden="true">⚠️</span>
-                <strong>ข้อมูลจำเป็นที่ต้องระบุเพิ่ม ({missingFields.length} รายการ):</strong>
-              </div>
-              <ul className="knowledge-missing-list">
-                {missingFields.map(f=><li key={f.key}>{f.label}</li>)}
-              </ul>
-            </div>
-          ):(
-            <div className="knowledge-missing-complete" role="status">
-              <span aria-hidden="true">✓</span>
-              <strong>ข้อมูลจำเป็นเบื้องต้นครบถ้วนแล้ว</strong> ตรวจสอบคำยืนยันและการดำเนินการฉบับเพื่อเตรียมอนุมัติ
-            </div>
-          )}
-        </div>
 
         {/* Action and Relationship Status */}
         <p className="knowledge-review-pending">
@@ -570,7 +590,7 @@ export default function ReviewForm({
         </p>
 
         {/* Step 1: Core Fields Editing */}
-        <fieldset className="knowledge-review-fields" disabled={disabled}>
+        <fieldset className="knowledge-review-fields" id="review-metadata" disabled={disabled}>
           <legend>แก้ไขข้อมูลเอกสาร</legend>
 
           <div className="knowledge-review-section">
@@ -595,7 +615,7 @@ export default function ReviewForm({
                     <option value={draft.metadata.familyCode}>{draft.metadata.familyCode} (จากฉบับร่างปัจจุบัน)</option>
                   )}
                 </select>
-                <span className="knowledge-hint">เลือกกลุ่มที่ตรงกับเนื้อหา หรือสร้างใหม่ในส่วนจัดการฉบับ <OriginTag origin={origins.familyCode}/></span>
+                <span className="knowledge-hint">เลือกกลุ่มที่ตรงกับเนื้อหา หรือเริ่มกลุ่มใหม่ในตัวเลือกฉบับ <OriginTag origin={origins.familyCode}/></span>
               </label>
 
               <label className="knowledge-field">
@@ -627,13 +647,13 @@ export default function ReviewForm({
               </label>
 
               <label className="knowledge-field">
-                สายฉบับ *
-                {nullableText(draft.metadata.versionStream,value=>updateMetadata('versionStream',value),{maxLength:120,disabled,placeholder:'เช่น main'})}
-                <span className="knowledge-hint">ค่าเริ่มต้นคือ main <OriginTag origin={origins.versionStream}/></span>
+                กลุ่มฉบับ *
+                {nullableText(draft.metadata.versionStream,value=>updateMetadata('versionStream',value),{maxLength:120,disabled,placeholder:'เช่น ฉบับหลัก'})}
+                <span className="knowledge-hint">ใช้แยกฉบับที่อยู่ในชุดเดียวกัน <OriginTag origin={origins.versionStream}/></span>
               </label>
 
               <label className="knowledge-field">
-                แหล่งอำนาจเอกสาร *
+                ระดับอำนาจของเอกสารตามแหล่งที่ออก *
                 <select
                   value={
                     draft.metadata.authorityLevel===null
@@ -663,7 +683,7 @@ export default function ReviewForm({
                     onChange={e=>updateMetadata('authorityLevel',e.target.value===''?null:Number(e.target.value))}
                   />
                 )}
-                <span className="knowledge-hint">กำหนดตามระดับอำนาจที่ออกเอกสารจริง ห้ามเดา <OriginTag origin={origins.authorityLevel}/></span>
+                <span className="knowledge-hint">เลือกตามหลักฐานในเอกสาร ห้ามเดาหากยังไม่ชัดเจน <OriginTag origin={origins.authorityLevel}/></span>
               </label>
 
               <label className="knowledge-field">
@@ -689,34 +709,40 @@ export default function ReviewForm({
               </label>
 
               <label className="knowledge-field">
-                ผู้ที่ใช้ข้อมูลนี้ได้ *
+                ใครใช้ข้อมูลนี้ได้ *
                 {nullableSelect(
                   draft.metadata.visibility,
                   ['INTERNAL','PUBLIC','RESTRICTED'] as const,
-                  v=>v==='INTERNAL'?'ภายในมหาวิทยาลัย (INTERNAL - ค่าเริ่มต้น)':v==='PUBLIC'?'สาธารณะ / ตอบนักศึกษา (PUBLIC)':'จำกัดการเข้าถึง (RESTRICTED)',
+                  v=>v==='INTERNAL'?'ใช้ภายในมหาวิทยาลัย':v==='PUBLIC'?'สาธารณะ / ตอบนักศึกษา':'จำกัดการเข้าถึง',
                   v=>updateMetadata('visibility',v),
                   disabled,
                 )}
-                <span className="knowledge-hint">สาธารณะต้องมี URL ทางการของมหาวิทยาลัย <OriginTag origin={origins.visibility}/></span>
+                <span className="knowledge-hint">ข้อมูลที่เผยแพร่ให้นักศึกษาต้องมี URL ทางการของมหาวิทยาลัย <OriginTag origin={origins.visibility}/></span>
               </label>
 
               <label className="knowledge-field">
-                วิธีใช้เอกสาร *
-                {nullableSelect(
-                  draft.metadata.storageMode,
-                  storageModes,
-                  v=>v==='RAG'?'RAG · ค้นหาข้อความ (ค่าเริ่มต้น)':v==='STRUCTURED'?'STRUCTURED · ข้อมูลตาราง':v,
-                  v=>updateMetadata('storageMode',v),
-                  disabled,
-                )}
-                <span className="knowledge-hint">รูปแบบการนำข้อความไปค้นหา <OriginTag origin={origins.storageMode}/></span>
+                กลุ่มผู้ใช้ข้อมูล *
+                {nullableText(draft.metadata.scope.audience,v=>updateScopeText('audience',v),{maxLength:80,disabled,placeholder:'เช่น นักศึกษาทุกชั้นปี, บุคลากร'})}
+                <span className="knowledge-hint">ระบุว่าใครควรใช้ข้อมูลนี้</span>
               </label>
+
+              <label className="knowledge-field">
+                ประเภทนักศึกษา *
+                {nullableText(draft.metadata.scope.studentType,v=>updateScopeText('studentType',v),{maxLength:80,disabled,placeholder:'เช่น ภาคปกติ, กศ.บป.'})}
+                <span className="knowledge-hint">กรอกตามขอบเขตที่ระบุในเอกสาร</span>
+              </label>
+
+              {(draft.metadata.visibility==='PUBLIC'||draft.metadata.sourceUrl!==null)&&<label className="knowledge-field">
+                URL แหล่งที่มาทางการ{draft.metadata.visibility==='PUBLIC'?' *':''}
+                {nullableText(draft.metadata.sourceUrl,v=>updateMetadata('sourceUrl',v),{type:'url',maxLength:2000,placeholder:'https://www.yru.ac.th/…',disabled})}
+                <span className="knowledge-hint">{draft.metadata.visibility==='PUBLIC'?'จำเป็นสำหรับข้อมูลที่จะตอบนักศึกษา':'ที่อยู่เว็บไซต์ที่ใช้ตรวจสอบต้นฉบับ'} <OriginTag origin={origins.sourceUrl}/></span>
+              </label>}
             </div>
           </div>
 
-          {/* Step 2: Progressive disclosure for Optional / Scope / Advanced Settings */}
+          {/* Optional metadata stays tucked away; required scope and public-source fields stay visible above. */}
           <details className="knowledge-review-details">
-            <summary>2. ข้อมูลขอบเขตและรายละเอียดเพิ่มเติม (ไม่บังคับ)</summary>
+            <summary>ข้อมูลเพิ่มเติมและขอบเขต (ไม่บังคับ)</summary>
             <div className="knowledge-review-grid">
               <label className="knowledge-field">
                 ปีการศึกษา
@@ -745,12 +771,6 @@ export default function ReviewForm({
               </label>
 
               <label className="knowledge-field">
-                URL แหล่งที่มาทางการ
-                {nullableText(draft.metadata.sourceUrl,v=>updateMetadata('sourceUrl',v),{type:'url',maxLength:2000,placeholder:'https://www.yru.ac.th/…',disabled})}
-                <span className="knowledge-hint">จำเป็นเมื่อตั้งเป็น PUBLIC สำหรับตอบนักศึกษา <OriginTag origin={origins.sourceUrl}/></span>
-              </label>
-
-              <label className="knowledge-field">
                 URL หน้าต้นฉบับ
                 {nullableText(draft.metadata.sourcePageUrl,v=>updateMetadata('sourcePageUrl',v),{type:'url',maxLength:2000,placeholder:'https://www.yru.ac.th/…',disabled})}
               </label>
@@ -758,16 +778,6 @@ export default function ReviewForm({
               <label className="knowledge-field">
                 ภาคเรียน
                 {nullableText(draft.metadata.scope.semester,v=>updateScopeText('semester',v),{maxLength:40,disabled,placeholder:'เช่น ภาคเรียนที่ 1'})}
-              </label>
-
-              <label className="knowledge-field">
-                กลุ่มผู้ใช้
-                {nullableText(draft.metadata.scope.audience,v=>updateScopeText('audience',v),{maxLength:80,disabled,placeholder:'เช่น นักศึกษาทุกชั้นปี, บุคลากร'})}
-              </label>
-
-              <label className="knowledge-field">
-                ประเภทนักศึกษา
-                {nullableText(draft.metadata.scope.studentType,v=>updateScopeText('studentType',v),{maxLength:80,disabled,placeholder:'เช่น ภาคปกติ, กศ.บป.'})}
               </label>
 
               <label className="knowledge-field">
@@ -794,27 +804,13 @@ export default function ReviewForm({
                 />
               </label>
 
-              <label className="knowledge-field">
-                ชุดข้อมูล
-                {nullableSelect(draft.metadata.datasetType,datasetTypes,v=>datasetLabels[v],v=>updateMetadata('datasetType',v),disabled)}
-                <span className="knowledge-hint">สำหรับข้อมูลแบบโครงสร้าง <OriginTag origin={origins.datasetType}/></span>
-              </label>
             </div>
 
-            {draft.action==='NEW_FAMILY'&&(
-              <div className="knowledge-review-section">
-                <h4>ข้อมูลกลุ่มเอกสารใหม่</h4>
-                <div className="knowledge-review-grid">
-                  <label className="knowledge-field">ชื่อกลุ่มใหม่{nullableText(draft.metadata.newFamily?.name??null,v=>updateMetadata('newFamily',v===null&&draft.metadata.newFamily===null?null:{name:v,category:draft.metadata.newFamily?.category??null}),{maxLength:200,disabled})}</label>
-                  <label className="knowledge-field">หมวดหมู่กลุ่มใหม่{nullableText(draft.metadata.newFamily?.category??null,v=>updateMetadata('newFamily',v===null&&draft.metadata.newFamily===null?null:{name:draft.metadata.newFamily?.name??null,category:v}),{maxLength:80,disabled})}</label>
-                </div>
-              </div>
-            )}
           </details>
 
-          {/* Step 3: Version Plan Panel */}
-          <div className="knowledge-review-section">
-            <h4>3. การดำเนินการฉบับและความสัมพันธ์</h4>
+          <details className="knowledge-review-details knowledge-review-progressive" id="review-version" open={versionDetailsOpen||versionDetailsNeedReview} onToggle={event=>setVersionDetailsOpen(event.currentTarget.open)}>
+            <summary>วิธีเพิ่มเอกสารและเลือกฉบับ · {draft.action?actionLabels[draft.action]??'เลือกแล้ว':'ยังไม่เลือก'}</summary>
+            <div className="knowledge-review-section">
             <VersionPanel
               key={`${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${versionResetEpoch}:${JSON.stringify(draft.metadata)}`}
               jobId={jobId}
@@ -834,12 +830,36 @@ export default function ReviewForm({
               onPendingChange={onVersionPendingChange}
               onSelectionPendingChange={setVersionSelectionPending}
             />
-          </div>
+            </div>
+            {draft.action==='NEW_FAMILY'&&<div className="knowledge-review-section" id="review-family-details">
+              <h4>ชื่อกลุ่มเอกสารใหม่</h4>
+              <div className="knowledge-review-grid">
+                <label className="knowledge-field">ชื่อกลุ่มใหม่ *{nullableText(draft.metadata.newFamily?.name??null,v=>updateMetadata('newFamily',v===null&&draft.metadata.newFamily===null?null:{name:v,category:draft.metadata.newFamily?.category??null}),{maxLength:200,disabled})}</label>
+                <label className="knowledge-field">หมวดหมู่กลุ่มใหม่ *{nullableText(draft.metadata.newFamily?.category??null,v=>updateMetadata('newFamily',v===null&&draft.metadata.newFamily===null?null:{name:draft.metadata.newFamily?.name??null,category:v}),{maxLength:80,disabled})}</label>
+              </div>
+            </div>}
+          </details>
 
-          {/* Step 4: Chunk Plan Panel (when RAG or BOTH) */}
-          {(draft.metadata.storageMode === 'RAG' || draft.metadata.storageMode === 'BOTH') && (
+          <details className="knowledge-review-details knowledge-review-progressive" id="review-storage" open={storageDetailsOpen||storageDetailsNeedReview} onToggle={event=>setStorageDetailsOpen(event.currentTarget.open)}>
+            <summary>วิธีนำข้อมูลไปใช้และการตรวจข้อมูล · {storageModeName(draft.metadata.storageMode)}</summary>
             <div className="knowledge-review-section">
-              <h4>4. แผนการแบ่งข้อความ (Chunk Plan)</h4>
+              <h4>วิธีนำข้อมูลไปใช้</h4>
+              <div className="knowledge-review-grid">
+                <label className="knowledge-field">
+                  วิธีนำข้อมูลไปใช้ *
+                  {nullableSelect(draft.metadata.storageMode,storageModes,storageModeName,v=>updateMetadata('storageMode',v),disabled)}
+                  <span className="knowledge-hint">เลือกตามรูปแบบข้อมูลในเอกสาร ระบบจะไม่เปลี่ยนตัวเลือกให้เอง <OriginTag origin={origins.storageMode}/></span>
+                </label>
+                {(draft.metadata.storageMode==='STRUCTURED'||draft.metadata.storageMode==='BOTH')&&<label className="knowledge-field">
+                  ชุดข้อมูล
+                  {nullableSelect(draft.metadata.datasetType,datasetTypes,v=>datasetLabels[v],v=>updateMetadata('datasetType',v),disabled)}
+                  <span className="knowledge-hint">เลือกเฉพาะชุดข้อมูลที่ตรงกับคอลัมน์ในเอกสาร <OriginTag origin={origins.datasetType}/></span>
+                </label>}
+              </div>
+            </div>
+
+            {(draft.metadata.storageMode==='RAG'||draft.metadata.storageMode==='BOTH')&&<div className="knowledge-review-section">
+              <h4>ข้อความที่จะใช้ค้น</h4>
               <ChunkPlanPanel
                 key={`chunks:${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${versionResetEpoch}`}
                 jobId={jobId}
@@ -852,12 +872,11 @@ export default function ReviewForm({
                 onDigestChange={onChunkDigestChange}
                 onPendingChange={onChunkPendingChange}
               />
-            </div>
-          )}
+            </div>}
 
-          {/* Step 4.5: Structured Mapping Panel (when STRUCTURED or BOTH) */}
-          {(draft.metadata.storageMode === 'STRUCTURED' || draft.metadata.storageMode === 'BOTH') && (
-            <StructuredMappingPanel
+            {(draft.metadata.storageMode==='STRUCTURED'||draft.metadata.storageMode==='BOTH')&&<div className="knowledge-review-section">
+              <h4>ข้อมูลจากตาราง</h4>
+              <StructuredMappingPanel
               key={`mapping:${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${draft.metadata.storageMode}`}
               jobId={jobId}
               disabled={disabled || versionSelectionPending}
@@ -866,11 +885,12 @@ export default function ReviewForm({
               onChange={onStructuredDraftChange}
               onVerifiedChange={setStructuredVerified}
             />
-          )}
+            </div>}
+          </details>
 
           {/* Step 5: Warnings & Dispositions */}
-          <details className="knowledge-review-details" open={review.warnings.length>0}>
-            <summary>5. คำเตือนที่ต้องพิจารณา ({review.warnings.length} รายการ)</summary>
+          <details className="knowledge-review-details" id="review-warnings" open={unresolvedWarningCount>0}>
+            <summary>คำเตือนจากต้นฉบับ ({review.warnings.length} รายการ)</summary>
             {review.warnings.length===0?<p className="knowledge-hint">ไม่มีคำเตือนที่ผูกกับฉบับนี้</p>:(
               <ul className="knowledge-review-warnings">
                 {review.warnings.map(warning=>{
@@ -912,8 +932,8 @@ export default function ReviewForm({
           </details>
 
           {/* Step 6: 5 Review Attestations */}
-          <div className="knowledge-review-section">
-            <h4>6. คำยืนยันการตรวจสอบ (ต้องยืนยันทั้ง 5 ข้อก่อนอนุมัติ)</h4>
+          <div className="knowledge-review-section" id="review-attestations">
+            <h4>ยืนยันการตรวจหลักฐานจริง (5 ข้อ)</h4>
             <p className="knowledge-hint">ทุกข้อเริ่มต้นเป็น “ยังไม่ยืนยัน” และต้องเลือกยืนยันจากการตรวจสอบหลักฐานจริง</p>
             <div className="knowledge-review-attestations">
               <label>
@@ -943,7 +963,7 @@ export default function ReviewForm({
         {failure&&<p className="knowledge-message knowledge-message-error" role="alert">{failure}</p>}
         {notice&&<p className="knowledge-message knowledge-message-success" role="status" aria-live="polite">{notice}</p>}
 
-        <footer className="knowledge-review-footer">
+        <footer className="knowledge-review-footer" id="review-draft-actions">
           <p>{publicationReceipt?'ฉบับที่อนุมัติและต้นฉบับเก็บไว้ตรวจสอบย้อนหลังแล้ว':review.saved?'ร่างล่าสุดบันทึกแล้ว · คุณสามารถปรับปรุงและบันทึกใหม่ได้':'มีข้อเสนอจากระบบที่ยังไม่ได้บันทึก · บันทึกร่างส่วนตัวเพื่อเก็บข้อมูล'}</p>
           <div className="knowledge-review-actions">
             {dirty&&<button type="button" className="knowledge-button knowledge-button-tertiary" onClick={resetToSaved} disabled={busy||parentPending||reviewLocked}>ทิ้งการแก้ไขในเครื่อง</button>}
@@ -953,7 +973,16 @@ export default function ReviewForm({
           </div>
         </footer>
 
-        {/* Step 7: Final Approval Panel */}
+        {publicationReceipt?<p className="knowledge-review-checklist-complete" role="status">อนุมัติแล้ว · เปิดใบรับรองด้านล่างเพื่อตรวจสอบย้อนหลัง</p>:reviewChecklist.length>0?<div className="knowledge-review-checklist" role="status" aria-labelledby="review-checklist-title">
+          <h4 id="review-checklist-title">ก่อนส่งอนุมัติ</h4>
+          <ul>{reviewChecklist.map(item=><li key={item.key}><a href={item.href} onClick={()=>{
+            const target=document.querySelector(item.href);
+            const details=target instanceof HTMLDetailsElement?target:target?.closest('details');
+            if(details instanceof HTMLDetailsElement)details.open=true;
+          }}>{item.message}</a></li>)}</ul>
+        </div>:<p className="knowledge-review-checklist-complete" role="status">รายการในร่างครบแล้ว · ตรวจสถานะและใบรับรองด้านล่างก่อนส่งอนุมัติ</p>}
+
+        {/* Final deliberate approval stays behind every saved review gate. */}
         <ApprovalPanel
           review={review}
           dirty={dirty}

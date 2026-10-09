@@ -22,7 +22,7 @@
 
 5 October human update: default embeddings are local CPU `intfloat/multilingual-e5-small` / 384, through private FastAPI called only by Next.js backend. [Embedding design](EMBEDDING_SERVICE_DESIGN.md) owns cache/offline/prefix/configuration/typed-vector contracts. Normal Provider UI configures generation/reasoning; embedding health is read-only. Historical external adapters are compatibility code. Generation remains FREE_ONLY; foundation/import/publication/full-flow acceptance stays explicit.
 
-Student OA เป็นช่องทางถาม/ตอบ anonymous; Staff OA เป็น alert/bind/action/เปิด Dashboard ไม่เป็น LINE ส่วนตัวที่คุยกับนักศึกษา. Staff Dashboard ใช้ Supabase Auth; backend ตรวจ department/sensitivity/active role ก่อนอ่านหรือเปลี่ยนงาน. Supabase PostgreSQL/Auth/pgvector เป็น data layer; Storage/import acquisition เพิ่มใน M7. Gateway คุม runtime generation ตาม FREE_ONLY และ priority; embeddingsใช้local E5 infrastructure. University เพิ่ม paid generation option ผ่าน UI ภายหลัง
+Student OA เป็นช่องทางถาม/ตอบ anonymous; Staff OA เดิมเป็น alert/bind/action/เปิด Dashboard. คำขอล่าสุด10Octoberเพิ่ม manual case chat ผ่าน Staff OA → backend → Student OA และ incident shared replies ตาม [Staff extension](STAFF_LINE_BINDING_DESIGN.md)/[Incident extension](INCIDENTS_DESIGN.md), DEC-081; ส่วนขยายยัง implementation pending. ทั้งสองฝ่ายไม่ต้อง add LINE ส่วนตัวกัน. Staff Dashboard ใช้ Supabase Auth; backend ตรวจ department/sensitivity/active role ก่อนอ่านหรือเปลี่ยนงาน. Supabase PostgreSQL/Auth/pgvector เป็น data layer; Storage/import acquisition เพิ่มใน M7. Gateway คุม runtime generation ตาม FREE_ONLY และ priority; embeddingsใช้local E5 infrastructure. University เพิ่ม paid generation option ผ่าน UI ภายหลัง
 
 ```mermaid
 flowchart TD

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type Fo
 import { useRouter } from 'next/navigation';
 import type { FallbackPreviewView, ModelPurpose, ModelView, ProviderKind, ProviderView } from '@/types/providers';
 import { isModelCoolingDown } from '@/lib/ai/model-selection';
+import {modelTestBlockReason} from './model-test-availability';
 
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 type ApiResult = Record<string, unknown> | null;
@@ -353,8 +354,8 @@ function ModelRow({ provider, model, api }: { provider: ProviderView; model: Mod
   const rowBusy = api.pending(rowKey);
   const pricingStatus = priceStatus(model, now);
   const cooling = isModelCoolingDown(model, now);
-  const canTest = !cooling && provider.keyConfigured && pricingStatus === 'FREE' && model.inputPricePerMillion === 0 && model.outputPricePerMillion === 0
-    && (model.purpose === 'EMBEDDING' ? model.embeddingDimensions !== null : model.supportsJson);
+  const testBlockReason=modelTestBlockReason({keyConfigured:provider.keyConfigured,cooling,pricingStatus,purpose:model.purpose,supportsJson:model.supportsJson,embeddingDimensions:model.embeddingDimensions});
+  const testHintId=`model-test-hint-${model.id}`;
   async function action(action: 'METADATA' | 'GENERATION_TEST' | 'EMBEDDING_TEST') {
     await api.send(`/api/providers/${encodeURIComponent(provider.id)}/models/${encodeURIComponent(model.id)}/test`, 'POST', {
       providerRevision: provider.revision, modelRevision: model.revision, action,
@@ -367,8 +368,9 @@ function ModelRow({ provider, model, api }: { provider: ProviderView; model: Mod
       <div className="provider-row-actions" aria-label={`การทำงานกับ ${model.displayName}`}>
         <button className="provider-button provider-button-tertiary" type="button" onClick={() => api.send(`/api/providers/${encodeURIComponent(provider.id)}/models/${encodeURIComponent(model.id)}/pricing`, 'POST', { providerRevision: provider.revision, modelRevision: model.revision }, 'ตรวจราคาแล้ว', pricingKey)} disabled={rowBusy}>{rowBusy ? 'กำลังตรวจ…' : 'ตรวจราคา'}</button>
         <button className="provider-button provider-button-secondary" type="button" onClick={() => action('METADATA')} disabled={rowBusy}>{rowBusy ? 'กำลังตรวจ…' : 'ตรวจ Metadata'}</button>
-        <button className="provider-button provider-button-primary" type="button" onClick={() => action(model.purpose === 'GENERATION' ? 'GENERATION_TEST' : 'EMBEDDING_TEST')} disabled={!canTest || rowBusy} title={cooling ? `รอจนถึง ${dateLabel(model.cooldownUntil)}` : !canTest ? 'ต้องตั้งค่า API key ความสามารถของ Model และมีหลักฐานราคา FREE ภายในหนึ่งนาทีก่อนทดสอบ' : undefined}>{rowBusy ? 'กำลังทดสอบ…' : 'ทดสอบ Model'}</button>
+        <button className="provider-button provider-button-primary" type="button" onClick={() => action(model.purpose === 'GENERATION' ? 'GENERATION_TEST' : 'EMBEDDING_TEST')} disabled={testBlockReason!==null || rowBusy} aria-describedby={testHintId}>{rowBusy ? 'กำลังทดสอบ…' : 'ทดสอบ Model'}</button>
       </div>
+      <p id={testHintId} className="provider-field-hint">{testBlockReason??'กดทดสอบได้เลย ระบบจะตรวจราคาล่าสุดก่อนเรียกโมเดลฟรี ไม่ต้องกดตรวจราคาแยก'}</p>
     </div>
     {cooling && <p className="provider-model-quota" role="status">รออีก {Math.max(0, Math.ceil((Date.parse(model.cooldownUntil!) - now) / 1000))} วินาที · ลองได้หลัง {dateLabel(model.cooldownUntil)}</p>}
     {!cooling && !observation?.retryEvidence && (observation?.httpStatus === 429 || observation?.errorCode === 'SERVER_ERROR') && <p className="provider-model-quota">เวลาที่ลองใหม่ได้ยังไม่ทราบ · ผู้ให้บริการไม่ได้แจ้งเวลารอ</p>}

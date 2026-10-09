@@ -6,6 +6,7 @@ import type {ImportPreview} from '@/lib/imports/import-extraction';
 import type {ImportJobView} from '@/lib/imports/import-staging';
 import type {SourceLocation} from '@/lib/imports/types';
 import {isReceiptEnvelope} from '@/lib/imports/publication-response';
+import {getImportFlowSteps,type ImportFlowStage} from './import-flow';
 import ReviewForm from './review-form';
 
 type ApiResponse={response:Response;body:unknown};
@@ -112,6 +113,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const [jobs,setJobs]=useState(initialJobs);
  const [listError,setListError]=useState(initialListError);
  const [mode,setMode]=useState<'FILE'|'URL'>('FILE');
+ const [stage,setStage]=useState<ImportFlowStage>('upload');
  const [file,setFile]=useState<File|null>(null);
  const [sourceUrl,setSourceUrl]=useState('');
  const [provenanceUrl,setProvenanceUrl]=useState('');
@@ -155,7 +157,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
     setFailure(errorMessage(result,'ยังไม่มีผลวิเคราะห์สำหรับรายการนี้ กด “วิเคราะห์เอกสาร” เพื่อเริ่มอ่านไฟล์'));
     return false;
    }
-   setPreview(next);setSelectedId(next.job.id);
+   setPreview(next);setSelectedId(next.job.id);setStage('prepare');
    setJobs(current=>[next.job,...current.filter(job=>job.id!==next.job.id)].slice(0,50));
    setReviewRefreshKey(value=>value+1);
    setPageIndex(0);setTableIndex(0);setRowWindow(0);setColumnWindow(0);
@@ -172,7 +174,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  },[]);
 
  useEffect(()=>{
-  if(initialJobId&&initialLoad.current!==initialJobId){initialLoad.current=initialJobId;void loadPreview(initialJobId,null);}
+  if(initialJobId&&initialLoad.current!==initialJobId){initialLoad.current=initialJobId;setSelectedId(initialJobId);setStage('prepare');void loadPreview(initialJobId,null);}
  },[initialJobId,loadPreview]);
 
  const selectedJob=jobs.find(job=>job.id===selectedId)??preview?.job??null;
@@ -211,12 +213,13 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   }catch{setListError(true);}
  }
  function acceptPreview(next:ImportPreview,clearDrafts:boolean){
-  setPreview(next);setSelectedId(next.job.id);setJobs(current=>[next.job,...current.filter(job=>job.id!==next.job.id)].slice(0,50));
+  setPreview(next);setSelectedId(next.job.id);setStage('prepare');setJobs(current=>[next.job,...current.filter(job=>job.id!==next.job.id)].slice(0,50));
   if(clearDrafts){setTitleDraft(next.extraction.title??'');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);}
   setFailure('');setConflict(false);
  }
  async function selectJob(id:string){
   if(hasDrafts&&!window.confirm(id===selectedId?'มีข้อความแก้หรือร่างตรวจที่ยังไม่บันทึก การเปิดรายการซ้ำจะทิ้งข้อมูลในเครื่อง ต้องการเปิดใหม่หรือไม่':'มีข้อความแก้หรือร่างตรวจที่ยังไม่บันทึก หากเปลี่ยนเอกสาร ข้อมูลในเครื่องจะหาย ต้องการเปลี่ยนหรือไม่'))return;
+  setSelectedId(id);setPreview(null);setStage('prepare');setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);
   await loadPreview(id,null);
  }
  async function stageSource(event:FormEvent<HTMLFormElement>){
@@ -236,7 +239,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
    const job=getJob(result);
    if(!job){setFailure(errorMessage(result,mode==='URL'?'นำเข้า URL ไม่สำเร็จ ตรวจที่อยู่เว็บไซต์แล้วลองใหม่':'อัปโหลดไม่สำเร็จ ตรวจชนิดและขนาดไฟล์แล้วลองใหม่'));return;}
    setJobs(current=>[job,...current.filter(item=>item.id!==job.id)].slice(0,50));
-   setSelectedId(job.id);setPreview(null);setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);
+   setSelectedId(job.id);setPreview(null);setStage('prepare');setTitleDraft('');setPageDrafts({});setCellDrafts({});setReason('');setEditConflicts([]);setConflictIndex(0);setReviewDirty(false);
    setPageIndex(0);setTableIndex(0);setRowWindow(0);setColumnWindow(0);
    setNotice(result.response.status===200?'พบไฟล์เดิมในระบบ เปิดผลอ่านที่บันทึกไว้โดยไม่เริ่มการวิเคราะห์ใหม่':'รับต้นฉบับแล้ว กำลังเตรียมวิเคราะห์…');
    if(mode==='FILE'){setFile(null);setProvenanceUrl('');}
@@ -340,6 +343,8 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const extraction=preview?.extraction;
  const extractionFlags=new Set<string>(extraction?.flags??[]);
  const analysisOnlyFlags=preview?preview.analysis.flags.filter(flag=>!extractionFlags.has(flag)):[];
+ const hasSensitiveWarning=Boolean(preview&&preview.analysis.sensitiveCategories.length>0&&!extraction?.report.warnings.some(warning=>warning.code==='SENSITIVE_DATA_REVIEW_REQUIRED')&&!analysisOnlyFlags.includes('SENSITIVE_DATA_REVIEW_REQUIRED'));
+ const preparationWarningCount=(extraction?.report.warnings.length??0)+analysisOnlyFlags.length+(hasSensitiveWarning?1:0);
  const page=extraction?.pages[pageIndex];
  const table=extraction?.tables[tableIndex];
  const pageText=page?pageDrafts[pageIndex]??page.text:'';
@@ -354,9 +359,19 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   cellDrafts[conflictEntry.id.slice(5)]??conflictEntry.draftValue}:undefined;
  const unresolvedEditConflict=editConflicts.some(item=>!item.acknowledged||!item.targetExists);
  const canSave=Boolean(preview&&reason.trim()&&hasDrafts&&!unresolvedEditConflict&&pending===null&&!sourceMutationLocked);
+ const flowSteps=getImportFlowSteps(stage,Boolean(selectedJob),Boolean(preview));
 
  return <div className="knowledge-workspace">
-  <section className="knowledge-source-panel" aria-labelledby="source-title">
+  <nav className="knowledge-import-flow" aria-label="ขั้นตอนนำเข้าและตรวจเอกสาร">
+   <ol className="knowledge-import-steps">{flowSteps.map((step,index)=><li key={step.id}>
+    <button type="button" className="knowledge-import-step" data-state={step.state} aria-current={step.state==='current'?'step':undefined} disabled={step.disabled||pending!==null} onClick={()=>setStage(step.id)}>
+     <span className="knowledge-import-step-number" aria-hidden="true">{index+1}</span>
+     <span className="knowledge-import-step-copy"><strong>{step.label}</strong><span>{step.state==='current'?'กำลังทำ':step.state==='complete'?'เสร็จแล้ว':step.state==='available'?'ไปต่อได้':'รอขั้นก่อน'}</span></span>
+    </button>
+   </li>)}</ol>
+  </nav>
+
+  {stage==='upload'&&<section className="knowledge-source-panel" aria-labelledby="source-title">
    <div className="knowledge-section-heading"><div><h2 id="source-title">เพิ่มต้นฉบับ</h2><p>ไฟล์ส่วนตัวจะถูกเก็บเข้ารหัสเพื่อการตรวจสอบ</p></div></div>
    <div className="knowledge-mode-tabs" aria-label="วิธีเพิ่มต้นฉบับ">
     <button type="button" aria-pressed={mode==='FILE'} onClick={()=>setMode('FILE')} disabled={pending!==null}>อัปโหลดไฟล์</button>
@@ -369,43 +384,49 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
       <span className="knowledge-hint">ไม่เกิน 20 MB · ไฟล์เดิมจะไม่ถูกแก้ไข</span>
      </label>
      {file&&<p className="knowledge-file-choice">{file.name} · {Math.ceil(file.size/1024)} KB</p>}
-     <label className="knowledge-field">URL แหล่งที่มาทางการ (ถ้ามี)
-      <input type="url" value={provenanceUrl} onChange={event=>setProvenanceUrl(event.target.value)} placeholder="https://www.yru.ac.th/…" disabled={pending!==null}/>
-     </label>
+     <details className="knowledge-source-details"><summary>เพิ่ม URL แหล่งที่มาทางการ (ถ้ามี)</summary>
+      <label className="knowledge-field">URL แหล่งที่มาทางการ
+       <input type="url" value={provenanceUrl} onChange={event=>setProvenanceUrl(event.target.value)} placeholder="https://www.yru.ac.th/…" disabled={pending!==null}/>
+       <span className="knowledge-hint">ระบบจะใช้ตรวจสอบแหล่งที่มาเมื่อผู้ดูแลทบทวนเอกสาร</span>
+      </label>
+     </details>
     </>:<label className="knowledge-field">URL เว็บไซต์มหาวิทยาลัย
      <input type="url" value={sourceUrl} onChange={event=>setSourceUrl(event.target.value)} placeholder="https://www.yru.ac.th/…" required disabled={pending!==null}/>
      <span className="knowledge-hint">ระบบจะตรวจโดเมนและอ่านหน้าเว็บที่เข้าถึงได้โดยไม่ใช้บัญชีผู้ใช้</span>
     </label>}
     <button className="knowledge-button knowledge-button-primary" type="submit" disabled={pending!==null}>{pending==='stage'?'กำลังนำเข้าและประมวลผล…':pending==='analyze'?'กำลังวิเคราะห์เอกสาร…':mode==='FILE'?'นำเข้าเอกสาร':'นำเข้าจาก URL'}</button>
    </form>
-  </section>
+  </section>}
 
-  <section className="knowledge-import-list" aria-labelledby="import-list-title">
-   <div className="knowledge-section-heading"><div><h2 id="import-list-title">รายการนำเข้า</h2><p>เลือกเอกสารเพื่อดูตำแหน่งข้อความหรือเริ่มวิเคราะห์</p></div><button className="knowledge-button knowledge-button-tertiary" type="button" onClick={()=>void refreshJobs()} disabled={pending!==null}>โหลดรายการใหม่</button></div>
-   {listError&&<p className="knowledge-message knowledge-message-error" role="status">โหลดรายการล่าสุดไม่สำเร็จ รายการเดิมยังแสดงอยู่</p>}
-   {jobs.length===0?<p className="knowledge-list-empty">ยังไม่มีรายการ เลือกไฟล์หรือ URL ด้านบนเพื่อเริ่มต้น</p>:<ul className="knowledge-job-list">{jobs.map(job=><li key={job.id}>
-    <button className={`knowledge-job-open${job.id===selectedId?' is-selected':''}`} type="button" onClick={()=>void selectJob(job.id)} disabled={pending!==null} aria-current={job.id===selectedId?'true':undefined}>
-     <span className="knowledge-job-main"><strong>{job.filename}</strong><span>{formatName[job.format]} · {job.acquiredFrom==='URL'?'URL ทางการ':'อัปโหลด'}</span></span>
-     <span className={`knowledge-status knowledge-status-${job.status.toLowerCase()}`}>{job.status==='READY'?'รับต้นฉบับแล้ว':'ต้องตรวจการวิเคราะห์'}</span>
-     <span className="knowledge-job-meta">ฉบับ {job.revision} · {Math.ceil(job.byteLength/1024)} KB</span>
-    </button>
-   </li>)}</ul>}
-   {pending==='open'&&<p className="knowledge-loading" role="status" aria-live="polite">กำลังเปิดตัวอย่างส่วนตัว…</p>}
-  </section>
+  {stage==='upload'&&<details className="knowledge-previous-imports">
+   <summary>รายการนำเข้าก่อนหน้า ({jobs.length})</summary>
+   <section className="knowledge-import-list" aria-labelledby="import-list-title">
+    <div className="knowledge-section-heading"><div><h2 id="import-list-title">รายการนำเข้า</h2><p>เปิดรายการเดิมเพื่อตรวจต่อหรือเริ่มวิเคราะห์อีกครั้ง</p></div><button className="knowledge-button knowledge-button-tertiary" type="button" onClick={()=>void refreshJobs()} disabled={pending!==null}>โหลดรายการใหม่</button></div>
+    {listError&&<p className="knowledge-message knowledge-message-error" role="status">โหลดรายการล่าสุดไม่สำเร็จ รายการเดิมยังแสดงอยู่</p>}
+    {jobs.length===0?<p className="knowledge-list-empty">ยังไม่มีรายการก่อนหน้า</p>:<ul className="knowledge-job-list">{jobs.map(job=><li key={job.id}>
+     <button className={`knowledge-job-open${job.id===selectedId?' is-selected':''}`} type="button" onClick={()=>void selectJob(job.id)} disabled={pending!==null} aria-current={job.id===selectedId?'true':undefined}>
+      <span className="knowledge-job-main"><strong>{job.filename}</strong><span>{formatName[job.format]} · {job.acquiredFrom==='URL'?'URL ทางการ':'อัปโหลด'}</span></span>
+      <span className={`knowledge-status knowledge-status-${job.status.toLowerCase()}`}>{job.status==='READY'?'รับต้นฉบับแล้ว':'ต้องตรวจการวิเคราะห์'}</span>
+      <span className="knowledge-job-meta">ฉบับ {job.revision} · {Math.ceil(job.byteLength/1024)} KB</span>
+     </button>
+    </li>)}</ul>}
+    {pending==='open'&&<p className="knowledge-loading" role="status" aria-live="polite">กำลังเปิดรายการส่วนตัว…</p>}
+   </section>
+  </details>}
 
-  {selectedJob&&<section className="knowledge-receipt" aria-labelledby="receipt-title">
+  {stage!=='upload'&&selectedJob&&<section className="knowledge-receipt" aria-labelledby="receipt-title">
    <div className="knowledge-receipt-main"><h2 id="receipt-title">ต้นฉบับที่เลือก</h2><strong>{selectedJob.filename}</strong>
     <p>{formatName[selectedJob.format]} · ฉบับ {selectedJob.revision} · {Math.ceil(selectedJob.byteLength/1024)} KB · {selectedJob.status==='FAILED'?'วิเคราะห์ไม่สำเร็จ':preview?.job.id===selectedJob.id?'วิเคราะห์แล้ว':'พร้อมวิเคราะห์'}</p>
-    <p className="knowledge-unpublished">{publicationComplete?'อนุมัติแล้ว · ดูขอบเขตและฉบับที่ใบรับรองด้านล่าง':'ดูสถานะการอนุมัติและใบรับรองในส่วนทบทวนข้อมูลด้านล่าง'}</p>
+    <p className="knowledge-unpublished">{publicationComplete?'อนุมัติแล้ว · เปิดอ่านข้อมูลตรวจและใบรับรองด้านล่าง':preview?'ยังไม่อนุมัติ · ตรวจข้อมูลให้ครบก่อนส่ง':'ยังไม่เผยแพร่ · วิเคราะห์ต้นฉบับเพื่อเตรียมตรวจ'}</p>
     {sourceReceiptState==='loading'&&<p role="status">กำลังตรวจสถานะอนุมัติก่อนเปิดการแก้ไขต้นฉบับ…</p>}
     {sourceReceiptState==='error'&&<div className="knowledge-review-conflict" role="alert"><p>ยังตรวจสถานะอนุมัติไม่ได้ การวิเคราะห์และแก้ข้อความถูกปิดไว้จนตรวจใบรับรองสำเร็จ</p><button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>setReceiptRefresh(value=>value+1)} disabled={pending!==null}>ตรวจสถานะต้นฉบับอีกครั้ง</button></div>}
    </div>
    <div className="knowledge-receipt-actions"><a className="knowledge-button knowledge-button-secondary" href={`/api/knowledge/imports/${encodeURIComponent(selectedJob.id)}/original`} download>ดาวน์โหลดต้นฉบับ</a>
-    <button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void analyze()} disabled={pending!==null||sourceMutationLocked}>{pending==='analyze'?'กำลังวิเคราะห์…':'วิเคราะห์เอกสาร'}</button></div>
+    {!preview&&stage==='prepare'&&<button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void analyze()} disabled={pending!==null||sourceMutationLocked}>{pending==='analyze'?'กำลังวิเคราะห์…':'วิเคราะห์เอกสาร'}</button>}</div>
   </section>}
 
-  {preview&&extraction?<section className="knowledge-preview" aria-labelledby="preview-title">
-   <header className="knowledge-preview-heading"><div><h2 id="preview-title">ผลการอ่านและแก้ข้อความ</h2><p>ฉบับข้อความ {preview.extractionRevision} · {preview.kind==='EDITED'?'ฉบับแก้ข้อความ':'ฉบับจากตัวอ่าน'} · {publicationComplete?'ฉบับอนุมัติเก็บไว้ตรวจสอบย้อนหลัง':'ตรวจข้อความก่อนอนุมัติ'}</p></div>
+  {preview&&extraction?<section className="knowledge-preview" aria-labelledby="preview-title" hidden={stage==='upload'}>
+   <header className="knowledge-preview-heading"><div><h2 id="preview-title">{stage==='prepare'?'ตรวจสรุปที่เตรียมไว้':'ตรวจรายละเอียดก่อนอนุมัติ'}</h2><p>ต้นฉบับ {selectedJob?.filename??preview.job.filename} · ข้อความฉบับ {preview.extractionRevision} · {publicationComplete?'อนุมัติแล้ว เปิดอ่านเพื่อตรวจย้อนหลัง':'ยังไม่เผยแพร่'}</p></div>
     <a className="knowledge-button knowledge-button-tertiary" href={`/api/knowledge/imports/${encodeURIComponent(preview.job.id)}/original`} download>เปิดต้นฉบับ</a>
    </header>
    {activeEditConflict&&<section className="knowledge-draft-conflicts" aria-labelledby="draft-conflicts-title">
@@ -425,25 +446,16 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
      {activeEditConflict.targetExists&&<button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>resolveEditConflict(activeEditConflict,'DRAFT')} disabled={pending!==null||sourceMutationLocked||activeEditConflict.acknowledged}>{activeEditConflict.acknowledged?'เลือกเก็บข้อความร่างแล้ว':'คงข้อความร่างนี้'}</button>}
     </div>
    </section>}
-   <section className="knowledge-analysis" aria-labelledby="analysis-title"><div className="knowledge-section-heading"><h3 id="analysis-title">ข้อเสนอจากตัววิเคราะห์</h3><span>ต้องตรวจโดยผู้ดูแล</span></div>
-    <dl className="knowledge-proposal-grid"><div><dt>ชื่อเอกสาร</dt><dd>{preview.analysis.title??'ยังไม่ระบุ'}</dd></div><div><dt>ประเภท</dt><dd>{preview.analysis.documentType??'ยังไม่ชัดเจน'}</dd></div>
-     <div><dt>หน่วยงาน</dt><dd>{preview.analysis.departmentCode??'ยังไม่ระบุ'}</dd></div><div><dt>กลุ่มเอกสาร</dt><dd>{preview.analysis.familyCode??'ยังไม่ระบุ'}</dd></div>
-     <div><dt>ปีการศึกษา</dt><dd>{preview.analysis.academicYear??'ยังไม่ระบุ'}</dd></div><div><dt>วันที่มีผล</dt><dd>ยังไม่ระบุ</dd></div><div><dt>ระดับอำนาจเอกสาร</dt><dd>ยังไม่ระบุ</dd></div>
-    </dl>
-    {preview.analysis.sensitiveCategories.length>0&&<p className="knowledge-sensitive">อาจพบข้อมูลละเอียดอ่อน: {preview.analysis.sensitiveCategories.map(value=>sensitiveLabels[value]??'ข้อมูลต้องตรวจ').join('、')}</p>}
-    <p className="knowledge-proposal-note">ข้อเสนอเป็นข้อมูลช่วยตรวจ ใช้ร่างที่บันทึกแล้วและคำยืนยันของผู้ตรวจในส่วนทบทวนข้อมูลเพื่ออนุมัติ</p>
-   </section>
-
-   <section className="knowledge-warning-section" aria-labelledby="warning-title"><div className="knowledge-section-heading"><h3 id="warning-title">คำเตือนที่ยังต้องตรวจ</h3><span>{extraction.report.warnings.length+analysisOnlyFlags.length} รายการ</span></div>
-    {extraction.report.warnings.length===0&&analysisOnlyFlags.length===0?<p className="knowledge-no-warnings">ตัวอ่านและตัววิเคราะห์ไม่พบคำเตือนในรอบนี้ แต่เอกสารยังต้องผ่านการตรวจและอนุมัติในขั้นตอนถัดไป</p>:
+   {stage==='prepare'&&<section className="knowledge-warning-section" aria-labelledby="warning-title"><div className="knowledge-section-heading"><h3 id="warning-title">ข้อที่ควรตรวจจากต้นฉบับ</h3><span>{preparationWarningCount} รายการ</span></div>
+    {preview.analysis.sensitiveCategories.length>0&&<p className="knowledge-sensitive">อาจมีข้อมูลละเอียดอ่อน: {preview.analysis.sensitiveCategories.map(value=>sensitiveLabels[value]??'ข้อมูลต้องตรวจ').join('、')}</p>}
+    {preparationWarningCount===0?<p className="knowledge-no-warnings">ตัวอ่านและตัววิเคราะห์ไม่พบคำเตือนในรอบนี้ แต่เอกสารยังต้องผ่านการตรวจและอนุมัติในขั้นตอนถัดไป</p>:
      <ul className="knowledge-warning-list">{extraction.report.warnings.map((warning,index)=><li key={`${warning.code}-${index}`}><strong>{warningLabels[warning.code]??'พบข้อควรตรวจ'}</strong><span>{warning.severity==='BLOCKING'?'ต้องแก้ก่อนอนุมัติ':'ต้องตรวจด้วยผู้รับผิดชอบ'} · {warning.count} จุด · ยังไม่ยืนยัน</span>{warning.location&&<small>{formatLocation(warning.location)}</small>}</li>)}
       {analysisOnlyFlags.map(flag=><li key={`analysis-${flag}`}><strong>{warningLabels[flag]??'พบข้อเสนอที่ต้องตรวจ'}</strong><span>ตัววิเคราะห์เสนอให้ตรวจ · ยังไม่ยืนยัน</span></li>)}
      </ul>}
-   </section>
+   </section>}
 
-   <ReviewForm key={`${preview.job.id}:${preview.job.revision}:${preview.extractionRevision}:${reviewRefreshKey}`} jobId={preview.job.id} jobRevision={preview.job.revision} extractionRevision={preview.extractionRevision} refreshKey={reviewRefreshKey}
-    parentPending={pending!==null&&pending!=='review'||sourceReceiptState!=='ready'} onDraftStateChange={onReviewStateChange} onReloadPreview={()=>void selectJob(preview.job.id)}/>
-
+   {stage==='review'&&<details className="knowledge-extraction-details" id="review-extraction" open={extraction.report.warnings.some(warning=>warning.severity==='BLOCKING')}>
+    <summary>ตรวจข้อความที่อ่านได้และแก้เฉพาะส่วนที่คลาดเคลื่อน ({extraction.report.pages} หน้า · {extraction.report.tables} ตาราง)</summary>
    <section className="knowledge-extraction-editor" aria-labelledby="edit-title"><div className="knowledge-section-heading"><div><h3 id="edit-title">ข้อความที่อ่านได้</h3><p>{extraction.report.pages} หน้า · {extraction.report.tables} ตาราง · {extraction.report.cells} ช่อง · {extraction.report.textCharacters.toLocaleString('th-TH')} ตัวอักษร</p></div></div>
      <div className="knowledge-page-controls"><div><h4>หน้าเอกสาร</h4><p>{formatLocation(extraction.locations.pages[pageIndex])}</p></div>
      <div className="knowledge-window-actions"><button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>setPageIndex(value=>Math.max(0,value-1))} disabled={pending!==null||pageIndex<=0}>หน้าก่อน</button><span aria-live="polite">หน้า {pageIndex+1} / {extraction.pages.length}</span><button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>setPageIndex(value=>Math.min(extraction.pages.length-1,value+1))} disabled={pending!==null||pageIndex>=extraction.pages.length-1}>หน้าถัดไป</button></div>
@@ -480,7 +492,11 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
     </label>
     <div className="knowledge-edit-actions"><p>{unresolvedEditConflict?'เลือกฉบับล่าสุดหรือยืนยันเก็บข้อความร่างที่เปลี่ยนก่อน แล้วจึงบันทึก':'การแก้จะสร้างฉบับใหม่และวิเคราะห์ความเสี่ยงอีกครั้ง คำเตือนเดิมยังคงอยู่'}</p><button className="knowledge-button knowledge-button-primary" type="button" onClick={()=>void saveEdit()} disabled={!canSave}>{pending==='edit'?'กำลังบันทึก…':'บันทึกข้อความแก้ไข'}</button></div>
    </section>
-  </section>:selectedJob&&<div className="knowledge-analyze-prompt"><h2>ยังไม่มีผลวิเคราะห์</h2><p>ต้นฉบับพร้อมตรวจ กดปุ่มวิเคราะห์เพื่อสร้างข้อความพร้อมตำแหน่งที่มา</p></div>}
+   </details>}
+   <ReviewForm key={`${preview.job.id}:${preview.job.revision}:${preview.extractionRevision}:${reviewRefreshKey}`} jobId={preview.job.id} jobRevision={preview.job.revision} extractionRevision={preview.extractionRevision} refreshKey={reviewRefreshKey}
+    mode={stage==='review'?'review':'prepare'} onContinue={()=>setStage('review')}
+    parentPending={pending!==null&&pending!=='review'||sourceReceiptState!=='ready'} onDraftStateChange={onReviewStateChange} onReloadPreview={()=>void selectJob(preview.job.id)}/>
+  </section>:stage==='prepare'&&selectedJob&&!preview&&<div className="knowledge-analyze-prompt"><h2>ยังไม่มีผลอ่าน</h2><p>ต้นฉบับได้รับแล้ว กด “วิเคราะห์เอกสาร” เพื่อเตรียมสรุปและจุดที่ควรตรวจ</p></div>}
 
   {conflict&&<div className="knowledge-conflict" role="alert"><p>รายการเปลี่ยนฉบับแล้ว ข้อความร่างในหน้านี้ยังเก็บไว้</p><button type="button" className="knowledge-button knowledge-button-secondary" onClick={()=>void reloadAfterConflict()} disabled={pending!==null}>{pending==='open'?'กำลังโหลด…':'โหลดฉบับล่าสุดและเก็บข้อความร่าง'}</button></div>}
   {notice&&<p className="knowledge-message knowledge-message-success" role="status" aria-live="polite">{notice}</p>}

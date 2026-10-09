@@ -89,6 +89,10 @@ try {
  const contextOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ticket-support-context.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(contextOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='live_human_continuation_actual_PG';
+ const liveContinuationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/live-human-continuation.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(liveContinuationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='semantic_routing_actual_PG';
  const semanticOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/semantic-context-routing.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

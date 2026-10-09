@@ -1,6 +1,10 @@
 # V1 Requirements coverage matrix
 
-## Current acceptance — 9 October 2026
+## Current acceptance — 10 October 2026
+
+Latest human additions **USR-STAFF-LINE-CHAT / USR-INCIDENT-BATCH**, linked CH013/026/054/055/056: Staff OA accepts one assignee and manually relays explicitly selected GENERAL HUMAN cases; related cases retain individual ownership while reviewed common replies reach exact eligible recipients, with fresh backlog and honest read/delivery observations. [DEC-081](../decisions/DECISION_LOG.md), [Staff design](../architecture/STAFF_LINE_BINDING_DESIGN.md), [Incident design](../architecture/INCIDENTS_DESIGN.md). Status **DESIGN_RECORDED / IMPLEMENTATION_PENDING**; existing alert/accept/grouping/count component evidence does not prove these additions. Baseline automated acceptance below remains historical evidence for the earlier scope.
+
+10October latest live feedback, UX-LIVE-01/01B (CH023/024/026/027/041/047/049/050/054 and USR-IMPORT-EASE): correct explicit NEW double-selection, bounded deliberately selected HUMAN focus, fixed acknowledgment and scoped private-content-free Staff continuation alerts; guided Import stages preserve review/publication. Model testing removes redundant frontend price-age admission while backend fresh FREE_ONLY remains authoritative. Root combined acceptance is in the current task board; actual Zen inference403 and zero approved PUBLIC corpus remain live blockers. Preserve the three human-confirmed escalation cases, with AI helping first.
 
 Latest USR-LOCAL-TEST / CH020/067/069: [single-command local launcher](../operations/LOCAL_TEST.md), [executed evidence](../reports/LOCAL_TEST_RUNNER_REPORT.md) COMPONENT_PASS. Strict DEVELOPMENT/session/cache guards, temporary child-only activation, seven services/current tunnel links, private exact stop,19 focused tests/compiler/lint and actual signed HTTP/E5/stop/restart PASS. Zero approved PUBLIC development sources; live model/corpus/OA A–F remains MANUAL_PENDING.
 

@@ -8,6 +8,7 @@ import {decryptValue,hashLineUserId} from '../security/identity';
 import type {InboxJob} from '../queue/process-inbox';
 import {loadCandidates} from './context-resolver';
 import {projectRoutingContext,resolveRoutingProposal,type SemanticCandidate,type SemanticClassifier} from './semantic-routing-contracts';
+import {readExplicitNewTopic} from './explicit-focus';
 type Selection=NonNullable<ReturnType<typeof resolveRoutingProposal>>;
 export interface SemanticRoutingAdvice {eventId:string;sessionId:string;questionDigest:string;contextDigest:string;selection:Selection}
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -49,6 +50,7 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
   await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
   const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
   if(!session)return null;
+  if(await readExplicitNewTopic(c,session.line_session_id))return null;
   const recent=(await c.query(`select count(*)::int n from private.webhook_inbox prior where prior.user_hash=$1 and prior.channel='STUDENT'
    and prior.event_kind='MESSAGE' and prior.received_at>$2::timestamptz-interval '1 minute' and prior.received_at<=$2 and prior.event_seq<$3`,[hash,row.received_at,row.event_seq])).rows[0].n;
   if(recent>=20||(await c.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return null;

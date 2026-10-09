@@ -1,8 +1,9 @@
 import {lockConversation,TicketError,type DbClient} from './authorization';
 import {recordTicketHistory} from './history';
+import {notifyTicketUserReply} from './notifications';
 
 /** Context ownership is rechecked inside the inbox transaction. A user message never reopens CLOSED. */
-export async function applyUserReply(client:DbClient,sessionId:string,ticketId:string,messageId:string):Promise<void> {
+export async function applyUserReply(client:DbClient,sessionId:string,ticketId:string,messageId:string,key:string):Promise<void> {
  const reference=(await client.query('select conversation_id from public.tickets where id=$1 and line_session_id=$2',[ticketId,sessionId])).rows[0];
  if(!reference)throw new TicketError('NOT_FOUND');
  await lockConversation(client,reference.conversation_id);
@@ -18,4 +19,5 @@ export async function applyUserReply(client:DbClient,sessionId:string,ticketId:s
   await client.query("update public.conversations set mode='HUMAN',status='ACTIVE',revision=revision+1,updated_at=clock_timestamp() where id=$1",[ticket.conversation_id]);
   await recordTicketHistory(client,{ticketId,action:'USER_REPLIED',from:'WAITING_USER',to:'STAFF_HANDLING',actorType:'USER'});
  }
+ await notifyTicketUserReply(client,ticket,messageId,key);
 }

@@ -1,5 +1,7 @@
 # Assisted document intake — IMP-UX-01
 
+10October UX-LIVE-01A presentation continuation: preserve the approved visual identity and expose three guided stages (choose source, verify prepared summary/uncertainties, deliberately approve). Show required missing information and parser/review blockers beside the next action, with links to precise controls; advanced extraction editors/storage/mapping/version detail remains available through progressive disclosure. Saved drafts, exact revisions, all five human attestations, warning dispositions/chunk/mapping consent and publication receipt gates remain authoritative. No guessed effective dates or automatic approval. Luna max owns forms/styles/presentation helper; Root integrates and checks backend contracts and browser behavior.
+
 6 October 2026. Latest human feedback: uploading is difficult because the user must fill many unfamiliar fields. This is a usability prerequisite within M7, ahead of further M8 work. Sources: [master §37/47/49/50](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [original versioning](../requirements/sources/original-document-versioning.th.md), [import contracts](KNOWLEDGE_IMPORT_DESIGN.md), [product](../../PRODUCT.md), [execution](../superpowers/plans/2026-10-06-yru-assisted-import.md). This document freezes behavior, not acceptance.
 
 ## User workflow

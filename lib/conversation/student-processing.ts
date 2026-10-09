@@ -12,6 +12,7 @@ import {createTicketToolRegistry} from '../ai/backend-tools';
 import {validateRoutingAdvice,type SemanticRoutingAdvice} from './semantic-routing';
 import {loadSupportActionState} from '../ai/support-state';
 import {confirmSupportSolved} from '../ai/support-actions';
+import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
 
 export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice}
 
@@ -28,12 +29,17 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   if(!consumed){await respond('ตัวเลือกนี้หมดอายุหรือถูกใช้แล้วครับ กรุณาส่งข้อความใหม่');return 'INVALID_CHOICE';}
   choice=consumed.choice;pendingMessageId=consumed.pendingMessageId;
   selected=choice.conversationId;newTopic=choice.action==='NEW';
-  if(options.aiEnabled&&newTopic&&!pendingMessageId){
-   await respond('ส่งคำถามเรื่องใหม่มาได้เลยครับ แล้วเลือกเริ่มเรื่องใหม่เมื่อระบบถามบริบท');return null;
+  if(newTopic)await clearExplicitHumanFocus(client,sessionId);
+  if(newTopic&&!pendingMessageId){
+   await rememberExplicitNewTopic(client,sessionId);
+   await respond('ส่งคำถามเรื่องใหม่มาได้เลยครับ');return null;
   }
  }
+ const requestedNew=event.type==='message'&&await readExplicitNewTopic(client,sessionId);
+ if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
  const semantic=event.type==='message'?await validateRoutingAdvice(client,input,options.routingAdvice):null;
- const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId,newTopic:newTopic||semantic?.newTopic,confidence:semantic?.confidence});
+ const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
+ const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
  let conversationId=selected;
  if(choice?.supportDigest){
   const state=conversationId?await loadSupportActionState(client,sessionId,conversationId,key):null;
@@ -88,8 +94,17 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  if(!conversationId)throw new Error('ROUTE_CONTEXT_MISSING');
  await lockConversation(client,conversationId);
  if(decision.route==='HUMAN_TICKET'&&decision.ticketId){
-  if(pendingMessageId)await applyUserReply(client,sessionId,decision.ticketId,pendingMessageId);
-  // No automatic AI response in HUMAN. Staff sees the routed message in the dashboard.
+  if(pendingMessageId){
+   await applyUserReply(client,sessionId,decision.ticketId,pendingMessageId,key);
+   const explicit=choice?.action==='CONTINUE',inherited=focus?.conversationId===conversationId?focus:null;
+   if(explicit||inherited){
+    await rememberExplicitHumanFocus(client,sessionId,pendingMessageId,decision.ticketId,explicit?undefined:inherited??undefined);
+    const current=await loadCandidates(client,sessionId),label=current.find(c=>c.ticketId===decision.ticketId)?.topicLabel??'ที่เลือก';
+    const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),choices:[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
+    await respond(`ส่งข้อความเข้าเรื่อง ${label} แล้วครับ เจ้าหน้าที่จะเห็นข้อความในระบบ\nข้อความถัดไปจะต่อเรื่องนี้ชั่วคราว หากต้องการถามเรื่องอื่น กด “เริ่มเรื่องใหม่”`,quickReply);
+   }
+  }
+  // Fixed receipts and scoped Staff alerts are separate from forbidden AI answers in HUMAN.
   return null;
  }
  if(pendingMessageId&&event.type==='postback'){
