@@ -17,3 +17,11 @@ Root source review expanded the C1 freshness dependency before acceptance: exten
 ## C2/C3 official/general web and final integration — pending
 
 Freeze remaining contracts from actual source/vendor audit; implement bounded free-only minimized search and ephemeral source proof, atomic reservation, Student worker/delivery freshness and explicit HUMAN editable Staff drafts. Exact accepted files/DB/privacy/failed-source tests must be added before each implementation. Current bounded-web proposal's stale internal-prerequisite and approved-DB-row requirement cannot override DEC-060/current runtime readiness. Live account/source coverage checks stay deferred while independent authorized code work continues.
+
+### C2-Q — closed public query builder
+
+CH032/052/USR-WEB, original§27/master§32; depends on the frozen C2-Q table in the current source-cascade design. Actual requested Luna high owns only new `lib/knowledge/public-search-query.ts` and `tests/public-search-query.test.ts`; root reviews/integrates. This pure preparation can proceed while B2B final PG/migration activation remains gated. No DB, network, provider setup, producer, DTO or delivery changes in this task.
+
+- [x] Actual Luna high meaningful RED on missing module, then9focused cases PASS: all11 fixed combinations, arbitrary/raw fields, purpose crossing, year/type, inherited/accessor/non-JSON/over-limit, immutable output/no mutation. Exact-file lint exit0; root serialized execution.
+- [x] Implement `buildPublicSearchQuery(input:unknown)` with the frozen contract/table and existing copier/freezer. Calendar2569 yields the frozen calendar query followed by ` ปีการศึกษา 2569` and exactly the two calendar domains. No arbitrary interpolation/network/configuration/caller.
+- [x] Root integrates supported BigInt test syntax, final type/full lint/build and1977unit/154files PASS. Actual Luna max source review no concrete P1/P2, no executions. [Preparation report](../../reports/PUBLIC_SEARCH_QUERY_PREPARATION_REPORT.md). Full web/cascade/live acceptance remains pending; connector/quota/proof/producer/delivery have separate root contracts.

@@ -20,7 +20,7 @@ function copy(overrides:Record<string,unknown>={}){
 it('decodes a strict owned immutable copy into exact claims and copy binding digest',()=>{
  const fixture=copy(),decoded=decodeIncidentSupportSource(ticket,fixture.input,key);
  expect(decoded).toEqual({status:'READY',claims:{system:'YRU-Student',location:'อาคาร 2'},sourceDigest:'a'.repeat(64),stateDigest:fixture.input.state_digest,
-  bindingDigest:canonicalDigest('incident-support-copy-v1',fixture.input)});
+  bindingDigest:canonicalDigest('incident-support-copy-v1',fixture.input),retainedSensitivity:'GENERAL'});
 });
 it('returns NO_COPY for an absent copy and remains compatible with old no-system facts',()=>{
  expect(decodeIncidentSupportSource(ticket,null,key)).toEqual({status:'NO_COPY',claims:{system:null,location:null},bindingDigest:null});

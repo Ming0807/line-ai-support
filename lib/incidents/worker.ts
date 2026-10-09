@@ -4,6 +4,7 @@ import {lockConversation} from '../tickets/authorization';
 import {LOCAL_EMBEDDING_FINGERPRINT} from '../knowledge/embedding-space';
 import {incidentConfigSchema,incidentVectorSchema,IncidentError,type TicketDescriptor} from './contracts';
 import {detectIncidentCandidate,canExtendIncident} from './detector';
+import {lockIncidentContextCatalog,loadIncidentContextRows,evaluateIncidentContext,persistIncidentContext,authenticateIncidentContext,queueStaleIncidentContexts,incidentEvaluationDayIsCurrent} from './context-state';
 interface Job {ticket_id:string;expected_revision:number;lease_token:string;attempts:number}
 export const incidentCatalogLock='incident-catalog:v1';
 async function leased(c:PoolClient,job:Job){
@@ -18,9 +19,12 @@ function descriptor(row:Record<string,unknown>):TicketDescriptor{
   vector:JSON.parse(row.embedding as string)};
 }
 /** Durable claim → committed snapshot → local CPU HTTP → fresh locked state → idempotent membership. */
-export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Promise<number[]>}):Promise<{claimed:number;detected:number;suppressed:number;failed:number}>{
+export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Promise<number[]>;key?:string}):Promise<{claimed:number;detected:number;suppressed:number;failed:number}>{
  const stats={claimed:0,detected:0,suppressed:0,failed:0};let job:Job|undefined;
  try{
+  const installed=(await pool.query("select to_regprocedure('private.refresh_incident_context_jobs()') is not null ready")).rows[0]?.ready;
+  if(!installed)return {...stats,failed:1};
+  await pool.query('select private.refresh_incident_context_jobs()');
   job=(await pool.query('select * from private.claim_incident_detection()')).rows[0];if(!job)return stats;stats.claimed=1;
   const snapshot=(await pool.query(`select t.* from public.tickets t join private.incident_detection_jobs j on j.ticket_id=t.id
    where t.id=$1 and t.revision=$2 and j.lease_token=$3 and j.lease_until>clock_timestamp() and t.status not in ('RESOLVED','CLOSED','CANCELLED')`,[job.ticket_id,job.expected_revision,job.lease_token])).rows[0];
@@ -28,6 +32,7 @@ export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Pro
   const vector=incidentVectorSchema.parse(await options.embed(snapshot.problem_summary));
   stats.detected=await transaction(async c=>{
    await c.query("set local statement_timeout='5s'");await c.query("set local lock_timeout='2s'");
+   const stamp=await lockIncidentContextCatalog(c);if(!stamp)throw new IncidentError('UNAVAILABLE');
    await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[incidentCatalogLock]);
    const rule=(await c.query('select * from private.incident_rules where id=1 for share')).rows[0];
    const config=incidentConfigSchema.parse({minReports:rule.min_reports,minDistinctSessions:rule.min_distinct_sessions,windowMinutes:rule.window_minutes,minSimilarity:rule.min_similarity});
@@ -47,18 +52,33 @@ export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Pro
    const conversationIds=[...new Set<string>([snapshot.conversation_id,...available.map(r=>r.conversation_id),...historical.map(r=>r.conversation_id)])].sort();
    for(const id of conversationIds)await lockConversation(c,id);
    const ids=[...new Set<string>([job!.ticket_id,...available.map(r=>r.id),...historical.map(r=>r.id)])].sort();
-   const current=(await c.query('select * from public.tickets where id=any($1::uuid[]) order by id for share',[ids])).rows;
+   // UPDATE also serializes supported late immutable-copy insertion through its ticket FK.
+   const current=(await c.query('select * from public.tickets where id=any($1::uuid[]) order by id for update',[ids])).rows;
    await leased(c,job!);
    const fresh=current.find(r=>r.id===job!.ticket_id);
    if(!fresh||fresh.revision!==snapshot.revision||fresh.department_id!==snapshot.department_id||fresh.category!==snapshot.category||['RESOLVED','CLOSED','CANCELLED'].includes(fresh.status)){
     await c.query("update private.incident_detection_jobs set status='SUPPRESSED',lease_token=null,lease_until=null,last_error_code='CONTEXT_CHANGED' where ticket_id=$1 and lease_token=$2",[job!.ticket_id,job!.lease_token]);stats.suppressed=1;return 0;
    }
-   await c.query(`insert into private.incident_ticket_vectors(ticket_id,ticket_revision,embedding,embedding_fingerprint)
-    values($1,$2,$3::extensions.vector,$4) on conflict(ticket_id) do update set ticket_revision=excluded.ticket_revision,embedding=excluded.embedding,
-    embedding_fingerprint=excluded.embedding_fingerprint,captured_at=clock_timestamp()`,[fresh.id,fresh.revision,JSON.stringify(vector),LOCAL_EMBEDDING_FINGERPRINT]);
-   const observedContext=available.find(r=>r.id===fresh.id&&r.revision===fresh.revision);
-   const anchor=descriptor({...fresh,embedding:JSON.stringify(vector),system_code:observedContext?.system_code??null,location_code:observedContext?.location_code??null});
-   const candidates=available.filter(row=>current.some(r=>r.id===row.id&&r.revision===row.revision)).map(row=>row.id===fresh.id?anchor:descriptor({...row,...current.find(r=>r.id===row.id)}));
+   const contexts=await loadIncidentContextRows(c,ids,fresh.id),anchorContext=contexts.find(row=>row.id===fresh.id);
+   if(!anchorContext)throw new IncidentError('CONFLICT');
+   const evaluation=await evaluateIncidentContext(c,anchorContext,stamp,options.key??process.env.ENCRYPTION_KEY);
+   await leased(c,job!);
+   await persistIncidentContext(c,anchorContext,evaluation,stamp);
+   if(evaluation.state==='BLOCKED'){
+    stats.failed=1;console.error('INCIDENT_CONTEXT_UNAVAILABLE');
+    await c.query(`update private.incident_detection_jobs set status=case when attempts>=5 then 'DEAD' else 'PENDING' end,
+     available_at=clock_timestamp()+make_interval(secs=>least(300,power(2,attempts)::integer)),lease_token=null,lease_until=null,
+     last_error_code='PROCESSING_FAILED',context_epoch=$3::bigint,context_evaluation_date=$4::date
+     where ticket_id=$1 and lease_token=$2`,[job!.ticket_id,job!.lease_token,stamp.epoch,stamp.evaluationDate]);return 0;
+   }
+   await c.query(`insert into private.incident_ticket_vectors(ticket_id,ticket_revision,embedding,embedding_fingerprint,system_code,location_code)
+    values($1,$2,$3::extensions.vector,$4,$5,$6) on conflict(ticket_id) do update set ticket_revision=excluded.ticket_revision,embedding=excluded.embedding,
+    embedding_fingerprint=excluded.embedding_fingerprint,system_code=excluded.system_code,location_code=excluded.location_code,captured_at=clock_timestamp()`,
+    [fresh.id,fresh.revision,JSON.stringify(vector),LOCAL_EMBEDDING_FINGERPRINT,evaluation.systemKey,evaluation.locationKey]);
+   const anchor=descriptor({...fresh,embedding:JSON.stringify(vector),system_code:evaluation.systemKey,location_code:evaluation.locationKey});
+   const authenticated=new Map(contexts.filter(row=>row.id!==fresh.id).map(row=>[row.id,authenticateIncidentContext(row,stamp,options.key??process.env.ENCRYPTION_KEY)]));
+   await queueStaleIncidentContexts(c,contexts.filter(row=>row.id!==fresh.id&&!authenticated.get(row.id)).map(row=>row.id),stamp);
+   const candidates=available.filter(row=>row.id===fresh.id||authenticated.get(row.id)&&current.some(r=>r.id===row.id&&r.revision===row.revision)).map(row=>row.id===fresh.id?anchor:descriptor({...row,...current.find(r=>r.id===row.id)}));
    const now=(await c.query('select clock_timestamp() now')).rows[0].now.toISOString();
    const candidate=detectIncidentCandidate(anchor,candidates,now,config);
    let count=0;
@@ -66,7 +86,7 @@ export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Pro
     const memberIds=candidate.members.map(m=>m.ticketId),existing=[...new Set(available.filter(r=>memberIds.includes(r.id)&&r.incident_id).map(r=>r.incident_id))];
     // Never silently merge two independently managed incidents.
     const complete=historical.filter(r=>r.incident_id===existing[0]);
-    const completeIsFresh=complete.every(row=>row.embedding&&current.some(r=>r.id===row.id&&r.revision===row.revision));
+    const completeIsFresh=complete.every(row=>row.id===fresh.id||row.embedding&&authenticated.get(row.id)&&current.some(r=>r.id===row.id&&r.revision===row.revision));
     const completeDescriptors=completeIsFresh?complete.map(row=>row.id===fresh.id?anchor:descriptor({...row,...current.find(r=>r.id===row.id)})):[];
     const proposed=candidates.filter(row=>memberIds.includes(row.id));
     if(existing.length<=1&&(!existing.length||(historical.length<=500&&completeIsFresh&&canExtendIncident(completeDescriptors,proposed,config.minSimilarity)))){
@@ -90,7 +110,10 @@ export async function runIncidentCycle(pool:Pool,options:{embed(text:string):Pro
        from public.incident_tickets m join public.tickets t on t.id=m.ticket_id where m.incident_id=$1) x where i.id=$1`,[incidentId]);count=1;
     }
    }
-   await c.query("update private.incident_detection_jobs set status='DONE',lease_token=null,lease_until=null,last_error_code=null where ticket_id=$1 and lease_token=$2",[job!.ticket_id,job!.lease_token]);
+   const completed=await c.query("update private.incident_detection_jobs set status='DONE',lease_token=null,lease_until=null,last_error_code=null,context_epoch=$3::bigint,context_evaluation_date=$4::date where ticket_id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() returning ticket_id",
+    [job!.ticket_id,job!.lease_token,evaluation.requiresCatalog?stamp.epoch:null,evaluation.requiresCatalog?stamp.evaluationDate:null]);
+   if(completed.rowCount!==1)throw new IncidentError('CONFLICT');
+   if(!await incidentEvaluationDayIsCurrent(c,stamp))throw new IncidentError('UNAVAILABLE');
    return count;
   },pool);
  }catch(error){

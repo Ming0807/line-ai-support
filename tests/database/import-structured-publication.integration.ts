@@ -41,6 +41,9 @@ import {createKnowledgeToolRegistry} from '../../lib/ai/backend-tools';
 import {buildRuleProof} from '../../lib/knowledge/rule-proof';
 import {knowledgeStructuredCatalogLock} from '../../lib/knowledge/delivery-fence';
 import {createStaffKnowledgeAssistance} from '../../lib/staff/knowledge-assistance';
+import {createEscalation} from '../../lib/tickets/create-ticket';
+import {runIncidentCycle} from '../../lib/incidents/worker';
+import {getSimilarIssues} from '../../lib/incidents/reads';
 import {processStudentContent} from '../../lib/conversation/student-processing';
 import {createChoices} from '../../lib/conversation/quick-reply';
 import {loadCandidates,candidateSnapshot} from '../../lib/conversation/context-resolver';
@@ -58,6 +61,7 @@ type Counters={tokenBatches:number;embeddingBatches:number;embeddedTexts:string[
 type ChunkPlan=Awaited<ReturnType<typeof getImportChunkPlan>>['plan'];
 type Fixture={pool:Pool;actor:string;staff:string;key:string;applicationName:string;provider:LocalE5EmbeddingProvider;counters:Counters;
  options:ImportPublicationOptions&{structuredVerificationDatabase:string};
+ incidentTickets?:string[];
 };
 type Ready={dataset:StructuredDataset;mode:Mode;format:ImportFormat;source:ImportSource;jobId:string;jobRevision:number;extractionRevision:number;
  familyCode:string;mapping:Record<string,unknown>;plan:StructuredMappingPlan;acknowledgment:{contentDigest:string;mapperVersion:'structured-mapper-v1'};
@@ -73,8 +77,8 @@ function transformFor(kind:string){
  if(kind==='TIMESTAMP')return 'TIMESTAMP_UTC_V1';
  return 'TEXT_V1';
 }
-function sourceFor(dataset:StructuredDataset,format:ImportFormat,recordCount=1,publicFixture=false):ImportSource{
- const values={...structuredMappingFixture(dataset,format).expectedPayload},fields=getStructuredRegistryEntry(dataset).fields;
+function sourceFor(dataset:StructuredDataset,format:ImportFormat,recordCount=1,publicFixture=false,payloadOverrides:Record<string,string|number|null>={}):ImportSource{
+ const values={...structuredMappingFixture(dataset,format).expectedPayload,...payloadOverrides},fields=getStructuredRegistryEntry(dataset).fields;
  // Public fixtures contain no contact identifiers; private fixtures retain all original phone/email coverage.
  if(publicFixture&&dataset==='university_services'){values.phone=null;values.email=null;}
  // Keep random identifiers distinct without accidentally resembling a phone number.
@@ -109,7 +113,14 @@ async function fixture(work:(f:Fixture)=>Promise<void>){
    await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1,$2,'Atomic structured fixture',true,case when $2='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role]);
   }
   await work(f);
- }finally{await pool.end();}
+ }finally{
+  if(f.incidentTickets?.length){
+   await pool.query("update private.message_outbox set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where ticket_id=any($1::uuid[]) and status in ('PENDING','PROCESSING')",[f.incidentTickets]);
+   await pool.query("update public.tickets set status='CLOSED',revision=revision+1 where id=any($1::uuid[])",[f.incidentTickets]);
+   await pool.query("update private.incident_detection_jobs set status='DONE',lease_token=null,lease_until=null where ticket_id=any($1::uuid[])",[f.incidentTickets]);
+  }
+  await pool.end();
+ }
 }
 function mappingFor(dataset:StructuredDataset,source:ImportSource,preview:Awaited<ReturnType<typeof analyzeImportJob>>,jobId:string,recordCount=1){
  const entry=getStructuredRegistryEntry(dataset);
@@ -118,8 +129,8 @@ function mappingFor(dataset:StructuredDataset,source:ImportSource,preview:Awaite
   source:{jobId,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,sourceChecksum:source.checksum,extractionDigest:computeStructuredExtractionDigest(source,preview.extraction)},
   tables:[{tableIndex:0,dataRanges:[{startRowIndex:1,endRowIndex:recordCount}],excludedRanges:[{startRowIndex:0,endRowIndex:0,reason:'HEADER',note:'Synthetic header row reviewed and excluded.'}],fields}],excludedTables:[]};
 }
-async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:ImportFormat='HTML',options:{familyCode?:string;action?:Action;relationship?:'CANCELS';target?:{documentId:string;revision:number};versionName?:string;academicYear?:number;recordCount?:number;visibility?:'PUBLIC'|'INTERNAL'}={}):Promise<Ready>{
- const source=sourceFor(dataset,format,options.recordCount??1,options.visibility==='PUBLIC'),{job}=await createImportJob(f.actor,source,f.options);
+async function ready(f:Fixture,dataset:StructuredDataset,mode:Mode,format:ImportFormat='HTML',options:{familyCode?:string;action?:Action;relationship?:'CANCELS';target?:{documentId:string;revision:number};versionName?:string;academicYear?:number;recordCount?:number;visibility?:'PUBLIC'|'INTERNAL';payloadOverrides?:Record<string,string|number|null>}={}):Promise<Ready>{
+ const source=sourceFor(dataset,format,options.recordCount??1,options.visibility==='PUBLIC',options.payloadOverrides),{job}=await createImportJob(f.actor,source,f.options);
  const parse=async(value:ImportSource)=>format==='CSV'?parseCsvSource(value):parseHtmlSource(value);
  const preview=await analyzeImportJob(f.actor,job.id,0,{...f.options,parse});
  const mapping=mappingFor(dataset,source,preview,job.id,options.recordCount??1);
@@ -461,6 +472,140 @@ async function exactSearch(f:Fixture,r:Ready,patch:Record<string,unknown>={}){
  const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(r,patch),f.key);await client.query('commit');return result;}catch(error){await client.query('rollback');throw error;}finally{client.release();}
 }
 async function bangkokToday(f:Fixture){return (await f.pool.query("select (clock_timestamp() at time zone 'Asia/Bangkok')::date::text today")).rows[0].today;}
+function incidentLiteral(){return `อาคาร fixture-${randomUUID().replaceAll('-','').replace(/[0-9]/gu,d=>String.fromCharCode(107+Number(d)))}`;}
+async function incidentSupportTicket(f:Fixture,claims:{system:string|null;location:string|null},sensitivity:'GENERAL'|'SENSITIVE'='GENERAL'){
+ const session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
+ const conversation=(await f.pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
+ const content=`เข้าใช้ระบบไม่ได้ ${claims.system??''} ${claims.location??''}`;
+ const message=(await f.pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT',$2) returning id",[conversation,content])).rows[0].id;
+ await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.key),f.pool);
+ const produced=await runAICycle(f.pool,f.key,{supportEnabled:true,produce:async snapshot=>{
+  assert.equal(snapshot.conversationId,conversation);assert(snapshot.support);
+  const facts:{field:'PROBLEM'|'SYSTEM'|'LOCATION';source:string;quote:string}[]=[{field:'PROBLEM',source:'U0',quote:'เข้าใช้ระบบไม่ได้'}];
+  if(claims.system!==null)facts.push({field:'SYSTEM',source:'U0',quote:claims.system});
+  if(claims.location!==null)facts.push({field:'LOCATION',source:'U0',quote:claims.location});
+  return {kind:'CLARIFY',text:'ข้อมูลทดสอบที่เจ้าหน้าที่ตรวจแล้ว',support:{version:1,sourceDigest:snapshot.support.sourceDigest,directoryDigest:snapshot.support.directoryDigest,
+   minimumSensitivity:snapshot.support.minimumSensitivity,deliveredGuidance:snapshot.support.input.deliveredGuidance,
+   proposal:{intent:'TROUBLESHOOT',category:'IT_SUPPORT',subcategory:'SYSTEM_ACCESS',needsTicket:false,department:'IT',urgency:'medium',needsKnowledgeSearch:true,needsStructuredSearch:true,
+    needsWebSearch:false,confidence:.99,missingContext:null,impact:'SINGLE_USER',sensitivity,facts}}};
+ }});assert.equal(produced.completed,1);
+ const ticket=await transaction(c=>createEscalation(c,{sessionId:session,conversationId:conversation,departmentCode:'IT',summary:'เข้าใช้ระบบไม่ได้'},f.key),f.pool);
+ (f.incidentTickets??=[]).push(ticket.id);return ticket.id;
+}
+async function resetIncidentFixtureQueue(f:Fixture){await f.pool.query("update private.incident_detection_jobs set status='DONE',lease_token=null,lease_until=null");}
+async function incidentVectorRow(f:Fixture,id:string){return (await f.pool.query('select * from private.incident_ticket_vectors where ticket_id=$1',[id])).rows[0];}
+async function incidentProofRow(f:Fixture,id:string){return (await f.pool.query('select *,catalog_revision::text epoch,evaluation_date::text "day" from private.incident_context_proofs where ticket_id=$1',[id])).rows[0];}
+async function incidentCycle(f:Fixture){return runIncidentCycle(f.pool,{key:f.key,embed:async()=>[1,...Array(383).fill(0)]});}
+test('incident runtime authenticates actual reviewed system/location sources and separates conflicting cohorts with private keys',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);
+ const locationA=incidentLiteral(),locationB=incidentLiteral();
+ const sysA=await ready(f,'university_systems','STRUCTURED','HTML',{visibility:'PUBLIC'}),sysB=await ready(f,'university_systems','STRUCTURED','HTML',{visibility:'PUBLIC'});
+ const serviceA=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location:locationA}}),serviceB=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location:locationB}});
+ for(const source of [sysA,sysB,serviceA,serviceB])await publish(f,source);
+ const payloadA=sysA.plan.rows[0].payload,payloadB=sysB.plan.rows[0].payload;assert('code' in payloadA&&'code' in payloadB);
+ const systemA=String(payloadA.code),systemB=String(payloadB.code),tickets:string[]=[];
+ for(let i=0;i<5;i++)tickets.push(await incidentSupportTicket(f,{system:systemA,location:locationA}));
+ const otherSystem=await incidentSupportTicket(f,{system:systemB,location:locationA}),otherLocation=await incidentSupportTicket(f,{system:systemA,location:locationB});
+ for(let i=0;i<7;i++)assert.equal((await incidentCycle(f)).failed,0);
+ const a=await incidentVectorRow(f,tickets[0]),b=await incidentVectorRow(f,otherSystem),c=await incidentVectorRow(f,otherLocation);
+ assert.match(a.system_code,/^SYS:[a-f0-9]{64}$/u);assert.match(a.location_code,/^LOC:[a-f0-9]{64}$/u);
+ assert.notEqual(a.system_code,b.system_code);assert.equal(a.location_code,b.location_code);assert.notEqual(a.location_code,c.location_code);
+ const proof=await incidentProofRow(f,tickets[0]);assert.equal(proof.state,'READY');assert.equal(proof.requires_catalog,true);assert(proof.proof_encrypted.startsWith('v1.'));assert(!proof.proof_encrypted.includes(systemA));
+ const membership=(await f.pool.query('select incident_id from public.incident_tickets where ticket_id=$1',[tickets[0]])).rows[0];assert(membership);
+ assert.equal((await f.pool.query('select report_count from public.incidents where id=$1',[membership.incident_id])).rows[0].report_count,5);
+ const similar=await getSimilarIssues(f.staff,tickets[0],{pool:f.pool,key:f.key});assert.equal(similar.status,'READY');assert.equal(similar.items.length,4);
+ for(const privateValue of ['SYS:','LOC:',systemA,locationA,'bindingDigest','proof_encrypted','context_encrypted'])assert(!JSON.stringify(similar).includes(privateValue));
+ const unknown=await incidentSupportTicket(f,{system:'Unregistered fixture system',location:incidentLiteral()});assert.equal((await incidentCycle(f)).failed,0);
+ const unknownVector=await incidentVectorRow(f,unknown);assert.equal(unknownVector.system_code,null);assert.equal(unknownVector.location_code,null);
+ assert.equal((await incidentProofRow(f,unknown)).requires_catalog,true);
+ const finalCount=(await f.pool.query('select report_count from public.incidents where id=$1',[membership.incident_id])).rows[0].report_count;
+ // Unknown context need not choose among conflicting known cohorts; it must never combine those cohorts.
+ assert(finalCount>=5&&finalCount<=6);
+ assert.equal((await f.pool.query('select count(*)::int n from public.incident_tickets where ticket_id=any($1::uuid[])',[ [otherSystem,otherLocation] ])).rows[0].n,0);
+}));
+test('source invalidation and evaluation-day change suppress both positive and negative incident proofs until exact fresh work',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);
+ const location=incidentLiteral(),source=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location}}),published=await publish(f,source);
+ const id=await incidentSupportTicket(f,{system:null,location});assert.equal((await incidentCycle(f)).failed,0);
+ assert.match((await incidentVectorRow(f,id)).location_code,/^LOC:/u);
+ await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[published.receipt.documentId]);
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ assert.equal((await incidentCycle(f)).failed,0);assert.equal((await incidentVectorRow(f,id)).location_code,null);
+ const negative=await incidentProofRow(f,id);assert.equal(negative.requires_catalog,true);
+ await f.pool.query("update private.incident_context_proofs set evaluation_date=evaluation_date-1 where ticket_id=$1",[id]);
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ assert.equal((await incidentCycle(f)).failed,0);assert.equal((await incidentProofRow(f,id)).day,await bangkokToday(f));
+ await f.pool.query("update public.documents set visibility='PUBLIC',revision=revision+1 where id=$1",[published.receipt.documentId]);
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ assert.equal((await incidentCycle(f)).failed,0);assert.match((await incidentVectorRow(f,id)).location_code,/^LOC:/u);
+}));
+test('unreadable owned support or lower current privacy cannot become unknown or overwrite a previously valid incident vector',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);const id=await incidentSupportTicket(f,{system:null,location:null});
+ assert.equal((await incidentCycle(f)).failed,0);const original=await incidentVectorRow(f,id),proof=await incidentProofRow(f,id);
+ assert.equal(proof.requires_catalog,false);assert(proof.proof_encrypted);assert.equal(proof.state,'READY');
+ await f.pool.query("update private.incident_detection_jobs set status='PENDING',available_at=clock_timestamp() where ticket_id=$1",[id]);
+ const failed=await runIncidentCycle(f.pool,{key:Buffer.alloc(32,99).toString('base64'),embed:async()=>[1,...Array(383).fill(0)]});assert.equal(failed.failed,1);
+ assert.equal((await incidentProofRow(f,id)).state,'BLOCKED');assert.equal((await incidentVectorRow(f,id)).captured_at.toISOString(),original.captured_at.toISOString());
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ assert.equal((await f.pool.query('select last_error_code from private.incident_detection_jobs where ticket_id=$1',[id])).rows[0].last_error_code,'PROCESSING_FAILED');
+}));
+test('a lower current Ticket sensitivity cannot authorize an immutable higher-floor incident support copy',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);const id=await incidentSupportTicket(f,{system:null,location:null},'SENSITIVE');
+ assert.equal((await incidentCycle(f)).failed,0);assert.equal((await incidentProofRow(f,id)).state,'READY');
+ await assert.rejects(getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key}),{code:'NOT_FOUND'});
+ const original=await incidentVectorRow(f,id);
+ await f.pool.query("update public.tickets set sensitive_level='GENERAL',revision=revision+1 where id=$1",[id]);
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ assert.equal((await incidentCycle(f)).failed,1);assert.equal((await incidentProofRow(f,id)).state,'BLOCKED');
+ assert.equal((await incidentVectorRow(f,id)).captured_at.toISOString(),original.captured_at.toISOString());
+}));
+test('valid ambiguous source context may be unknown while capped exact source evidence is BLOCKED without a replacement vector',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);const location=incidentLiteral();
+ const a=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location}}),b=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location}});
+ const first=await publish(f,a),second=await publish(f,b),id=await incidentSupportTicket(f,{system:null,location});
+ assert.equal((await incidentCycle(f)).failed,0);assert.equal((await incidentVectorRow(f,id)).location_code,null);assert.equal((await incidentProofRow(f,id)).state,'READY');
+ const original=await incidentVectorRow(f,id);
+ const overflow=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',recordCount:21,payloadOverrides:{location}}),overflowPublication=await publish(f,overflow);
+ assert.equal((await incidentCycle(f)).failed,1);assert.equal((await incidentProofRow(f,id)).state,'BLOCKED');
+ assert.equal((await incidentVectorRow(f,id)).captured_at.toISOString(),original.captured_at.toISOString());
+ assert.equal((await getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key})).status,'PENDING');
+ await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[first.receipt.documentId]);
+ await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[overflowPublication.receipt.documentId]);
+ assert.equal((await incidentCycle(f)).failed,0);assert.match((await incidentVectorRow(f,id)).location_code,/^LOC:/u);assert(second.receipt.documentId);
+}));
+test('publication and revision changes during outside-SQL incident embedding are freshly fenced and revoked staff never see proof',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);const location=incidentLiteral(),r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC',payloadOverrides:{location}}),published=await publish(f,r);
+ const id=await incidentSupportTicket(f,{system:null,location});
+ const result=await runIncidentCycle(f.pool,{key:f.key,embed:async()=>{
+  const active=(await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and xact_start is not null and pid<>pg_backend_pid()",[f.applicationName])).rows[0].n;
+  assert.equal(active,0);await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[published.receipt.documentId]);return [1,...Array(383).fill(0)];
+ }});assert.equal(result.failed,0);assert.equal((await incidentVectorRow(f,id)).location_code,null);
+ const retained=await incidentVectorRow(f,id);
+ await f.pool.query("update private.incident_detection_jobs set status='PENDING',available_at=clock_timestamp() where ticket_id=$1",[id]);
+ const revoked=await runIncidentCycle(f.pool,{key:f.key,embed:async()=>{
+  await f.pool.query("update public.documents set visibility='PUBLIC',revision=revision+1 where id=$1",[published.receipt.documentId]);return [1,...Array(383).fill(0)];
+ }});assert.equal(revoked.suppressed,1);assert.equal(revoked.failed,0);assert.equal((await incidentVectorRow(f,id)).captured_at.toISOString(),retained.captured_at.toISOString());
+ await f.pool.query("update private.incident_detection_jobs set status='PENDING',available_at=clock_timestamp() where ticket_id=$1",[id]);
+ const changed=await runIncidentCycle(f.pool,{key:f.key,embed:async()=>{
+  await f.pool.query('update public.tickets set revision=revision+1 where id=$1',[id]);return [1,...Array(383).fill(0)];
+ }});assert.equal(changed.suppressed,1);assert.equal((await incidentVectorRow(f,id)).ticket_revision,0);
+ await f.pool.query('update public.staff_profiles set active=false where id=$1',[f.staff]);
+ await assert.rejects(getSimilarIssues(f.staff,id,{pool:f.pool,key:f.key}),{code:'NOT_FOUND'});
+}));
+test('corrupted proof suppresses current anchor and stale historical membership blocks extension without deleting history',()=>fixture(async f=>{
+ await resetIncidentFixtureQueue(f);const tickets:string[]=[];
+ for(let i=0;i<5;i++)tickets.push(await incidentSupportTicket(f,{system:null,location:null}));
+ for(let i=0;i<5;i++)assert.equal((await incidentCycle(f)).failed,0);
+ const incident=(await f.pool.query('select incident_id from public.incident_tickets where ticket_id=$1',[tickets[0]])).rows[0].incident_id;
+ const corrupted=encryptValue(JSON.stringify({kind:'INCIDENT_CONTEXT',schemaVersion:1}),f.key);
+ await f.pool.query('update private.incident_context_proofs set proof_encrypted=$2 where ticket_id=$1',[tickets[0],corrupted]);
+ assert.equal((await getSimilarIssues(f.staff,tickets[0],{pool:f.pool,key:f.key})).status,'PENDING');
+ await f.pool.query("update private.incident_detection_jobs set status='DONE' where ticket_id=$1",[tickets[0]]);
+ await f.pool.query("update public.tickets set created_at=clock_timestamp()-interval '30 minutes' where id=$1",[tickets[0]]);
+ const newer=await incidentSupportTicket(f,{system:null,location:null});assert.equal((await incidentCycle(f)).detected,0);
+ assert.equal((await f.pool.query('select count(*)::int n from public.incident_tickets where incident_id=$1',[incident])).rows[0].n,5);
+ assert.equal((await f.pool.query('select count(*)::int n from public.incident_tickets where ticket_id=$1',[newer])).rows[0].n,0);
+}));
 test('HUMAN staff advice revalidates actual approved structured envelopes without E5 or delivery',()=>fixture(async f=>{
  const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),receipt=await publish(f,r);
  const initial=await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;

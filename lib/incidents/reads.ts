@@ -5,6 +5,7 @@ import {loadActor,isSupervisor} from '../tickets/authorization';
 import {IncidentError,incidentConfigSchema,incidentStatusSchema,incidentQuerySchema} from './contracts';
 export {incidentQuerySchema,parseIncidentQuery} from './contracts';
 import {LOCAL_EMBEDDING_FINGERPRINT} from '../knowledge/embedding-space';
+import {lockIncidentContextCatalog,loadIncidentContextRows,authenticateIncidentContext,queueStaleIncidentContexts,incidentEvaluationDayIsCurrent} from './context-state';
 const severity=z.enum(['MEDIUM','HIGH','CRITICAL']);
 export const incidentItemSchema=z.strictObject({id:z.uuid(),revision:z.number().int().nonnegative(),title:z.string().max(200),category:z.string().max(100),
  departmentLabel:z.string(),status:incidentStatusSchema,severity,sensitivity:z.enum(['GENERAL','SENSITIVE','RESTRICTED']),
@@ -61,23 +62,55 @@ export async function getIncidentRules(actorId:string,options:{pool?:Pool}={}):P
  },options.pool);
 }
 /** Read staff-visible similarity suggestions; raw messages, identities and vectors never leave the backend. */
-export async function getSimilarIssues(actorId:string,ticketId:string,options:{pool?:Pool}={}):Promise<SimilarIssuesView>{
+export async function getSimilarIssues(actorId:string,ticketId:string,options:{pool?:Pool;key?:string}={}):Promise<SimilarIssuesView>{
  if(!z.uuid().safeParse(ticketId).success)throw new IncidentError('INVALID_REQUEST');
  return transaction(async c=>{
-  await c.query("set local statement_timeout='5s'");await loadActor(c,actorId);
-  const anchor=(await c.query(`select t.id from public.tickets t where t.id=$1 and private.can_access_scope(t.department_id,t.sensitive_level) for share`,[ticketId])).rows[0];
+  await c.query("set local statement_timeout='5s'");await c.query("set local lock_timeout='2s'");
+  const stamp=await lockIncidentContextCatalog(c);await loadActor(c,actorId);
+  const anchor=(await c.query(`select t.id from public.tickets t where t.id=$1 and private.can_access_scope(t.department_id,t.sensitive_level)`,[ticketId])).rows[0];
   if(!anchor)throw new IncidentError('NOT_FOUND');
-  const ready=(await c.query('select ticket_id from private.incident_ticket_vectors v join public.tickets t on t.id=v.ticket_id and t.revision=v.ticket_revision where v.ticket_id=$1 and v.embedding_fingerprint=$2',[ticketId,LOCAL_EMBEDDING_FINGERPRINT])).rowCount;
-  if(!ready)return {status:'PENDING',items:[]};
-  const items=(await c.query(`select t.id,t.ticket_no "ticketCode",t.status,t.category,1-(v.embedding operator(extensions.<=>) a.embedding) similarity
+  if(!stamp)return {status:'PENDING',items:[]};
+  const anchorContext=(await loadIncidentContextRows(c,[ticketId]))[0];
+  if(!anchorContext||!authenticateIncidentContext(anchorContext,stamp,options.key??process.env.ENCRYPTION_KEY)){
+   await queueStaleIncidentContexts(c,[ticketId],stamp);return {status:'PENDING',items:[]};
+  }
+  const similaritySql=`select t.id,t.ticket_no "ticketCode",t.status,t.category,1-(v.embedding operator(extensions.<=>) a.embedding) similarity
    from public.tickets base join private.incident_ticket_vectors a on a.ticket_id=base.id and a.ticket_revision=base.revision
    cross join private.incident_rules r join public.tickets t on t.id<>base.id and t.department_id=base.department_id and t.category=base.category
    join private.incident_ticket_vectors v on v.ticket_id=t.id and v.ticket_revision=t.revision and v.embedding_fingerprint=a.embedding_fingerprint
-   where base.id=$1 and a.embedding_fingerprint=$2 and r.id=1 and private.can_access_scope(t.department_id,t.sensitive_level)
+   where base.id=$1 and a.embedding_fingerprint=$2 and r.id=1 and private.can_access_scope(base.department_id,base.sensitive_level)
+   and private.can_access_scope(t.department_id,t.sensitive_level) and ($3::uuid[] is null or t.id=any($3::uuid[]))
    and t.status not in ('RESOLVED','CLOSED','CANCELLED') and t.created_at between clock_timestamp()-make_interval(mins=>r.window_minutes) and clock_timestamp()
    and (a.system_code is null or v.system_code is null or a.system_code=v.system_code)
    and (a.location_code is null or v.location_code is null or a.location_code=v.location_code)
-   and 1-(v.embedding operator(extensions.<=>) a.embedding)>=r.min_similarity order by similarity desc,t.id limit 10`,[ticketId,LOCAL_EMBEDDING_FINGERPRINT])).rows;
-  return {status:'READY',items};
+   and 1-(v.embedding operator(extensions.<=>) a.embedding)>=r.min_similarity order by similarity desc,t.id limit 100`;
+  const items=(await c.query(similaritySql,[ticketId,LOCAL_EMBEDDING_FINGERPRINT,null])).rows;
+  const ids=items.map(row=>row.id).sort();
+  // Preliminary bounded projection is never response authority. Lock the whole selected set in one global order.
+  const preliminary=await loadIncidentContextRows(c,ids);
+  const selected=preliminary.filter(row=>authenticateIncidentContext(row,stamp,options.key??process.env.ENCRYPTION_KEY)).map(row=>row.id);
+  const lockedIds=[...new Set([ticketId,...selected])].sort();
+  // UPDATE conflicts with the late support-copy FK's KEY SHARE, preserving absence until this transaction commits.
+  await c.query('select id from public.tickets where id=any($1::uuid[]) order by id for update',[lockedIds]);
+  const contexts=await loadIncidentContextRows(c,lockedIds,ticketId),finalAnchor=contexts.find(row=>row.id===ticketId);
+  if(!finalAnchor||!(await c.query('select private.can_access_scope($1,$2) allowed',[finalAnchor.department_id,finalAnchor.sensitive_level])).rows[0]?.allowed)throw new IncidentError('NOT_FOUND');
+  if(!authenticateIncidentContext(finalAnchor,stamp,options.key??process.env.ENCRYPTION_KEY)){
+   await queueStaleIncidentContexts(c,[ticketId],stamp);return {status:'PENDING',items:[]};
+  }
+  const fresh=new Set(contexts.filter(row=>authenticateIncidentContext(row,stamp,options.key??process.env.ENCRYPTION_KEY)).map(row=>row.id));
+  await queueStaleIncidentContexts(c,ids.filter(id=>!fresh.has(id)),stamp);
+  const finalItems=(await c.query(similaritySql,[ticketId,LOCAL_EMBEDDING_FINGERPRINT,selected])).rows;
+  const safe=[];
+  for(const item of finalItems){
+   const current=contexts.find(row=>row.id===item.id);
+   if(!current||!fresh.has(item.id)||['RESOLVED','CLOSED','CANCELLED'].includes(current.status))continue;
+   if(!(await c.query('select private.can_access_scope($1,$2) allowed',[current.department_id,current.sensitive_level])).rows[0]?.allowed)continue;
+   // A reassignment after the first candidate query cannot cross the anchor's current department/category.
+   if(current.department_id!==finalAnchor.department_id||current.category!==finalAnchor.category)continue;
+   safe.push({id:item.id,ticketCode:item.ticketCode,status:current.status,category:current.category,similarity:item.similarity});
+   if(safe.length===10)break;
+  }
+  if(!await incidentEvaluationDayIsCurrent(c,stamp))return {status:'PENDING',items:[]};
+  return {status:'READY',items:safe};
  },options.pool);
 }

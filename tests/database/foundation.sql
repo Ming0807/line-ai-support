@@ -102,6 +102,15 @@ do $$ begin
 end $$;
 
 -- IT STAFF: general IT only; no other department or sensitivity class.
+-- A normal development database can retain additional departments. Capture the
+-- complete server-visible directory before impersonation, rather than assuming
+-- the nine seed rows are its entire population. This setting is transaction-local.
+select set_config('fixture.expected_department_count', (select count(*)::text from public.departments), true);
+-- SUPER_ADMIN must see the entire retained population, including earlier data.
+select set_config('fixture.expected_ticket_count', (select count(*)::text from public.tickets), true);
+select set_config('fixture.expected_conversation_count', (select count(*)::text from public.conversations), true);
+select set_config('fixture.expected_message_count', (select count(*)::text from public.messages), true);
+select set_config('fixture.expected_history_count', (select count(*)::text from public.ticket_history), true);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
 do $$ begin
@@ -113,7 +122,7 @@ do $$ begin
   if (select count(*) from public.line_sessions) <> 1 then raise exception 'Session should be visible with one scoped ticket'; end if;
   if (select count(*) from public.messages) <> 2 then raise exception 'IT STAFF message scope failed'; end if;
   if (select count(*) from public.ticket_history) <> 2 then raise exception 'IT STAFF audit scope failed'; end if;
-  if (select count(*) from public.departments) <> 9 then raise exception 'Active staff department directory visibility failed'; end if;
+  if (select count(*) from public.departments) <> current_setting('fixture.expected_department_count')::integer then raise exception 'Active staff department directory visibility failed'; end if;
   if (select count(*) from public.staff_profiles) <> 1 then raise exception 'Staff profile is not self-only'; end if;
   if (select count(*) from public.staff_department_grants) <> 0 then raise exception 'Staff saw another caller department grant'; end if;
   if exists (select 1 from unnest(array['departments','staff_profiles','staff_department_grants','line_sessions','conversations','tickets','messages','ticket_history']) t(table_name) where has_table_privilege(current_user,'public.'||table_name,'INSERT,UPDATE,DELETE')) then raise exception 'Authenticated can write an exposed public table'; end if;
@@ -164,10 +173,10 @@ end $$;
 -- SUPER_ADMIN can see every department and both sensitivity classes regardless of permission bits.
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000007',true);
 do $$ begin
-  if (select count(*) from public.tickets) <> 7 then raise exception 'SUPER_ADMIN did not see all departments and sensitivity levels'; end if;
-  if (select count(*) from public.conversations) <> 6 then raise exception 'SUPER_ADMIN conversation visibility failed'; end if;
-  if (select count(*) from public.messages) <> 7 then raise exception 'SUPER_ADMIN message visibility failed'; end if;
-  if (select count(*) from public.ticket_history) <> 7 then raise exception 'SUPER_ADMIN audit visibility failed'; end if;
+  if (select count(*) from public.tickets) <> current_setting('fixture.expected_ticket_count')::integer then raise exception 'SUPER_ADMIN did not see all departments and sensitivity levels'; end if;
+  if (select count(*) from public.conversations) <> current_setting('fixture.expected_conversation_count')::integer then raise exception 'SUPER_ADMIN conversation visibility failed'; end if;
+  if (select count(*) from public.messages) <> current_setting('fixture.expected_message_count')::integer then raise exception 'SUPER_ADMIN message visibility failed'; end if;
+  if (select count(*) from public.ticket_history) <> current_setting('fixture.expected_history_count')::integer then raise exception 'SUPER_ADMIN audit visibility failed'; end if;
 end $$;
 
 -- ADMIN with an IT grant and both explicit flags sees IT restricted and sensitive rows only.

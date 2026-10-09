@@ -27,7 +27,7 @@ try {
   where n.nspname in ('public','private') and c.relkind='r'
    and not (n.nspname||'.'||c.relname=any($1::text[]))
    and not has_table_privilege('service_role',c.oid,privilege)`,[
-    ['private.knowledge_import_jobs','private.worker_observations',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
+    ['private.knowledge_import_jobs','private.worker_observations','private.structured_selection_epoch','private.incident_context_proofs',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
  const revisionGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') as can_read,
   has_table_privilege('service_role',c.oid,'INSERT') as can_append,
@@ -50,6 +50,14 @@ try {
   has_column_privilege('service_role','private.worker_observations','worker','UPDATE') update_worker`);
  const observation=observationGrants.rows[0];
  if(!observation.can_read||!observation.can_append||observation.can_update||observation.can_delete||!observation.update_timestamp||observation.update_worker)throw new Error('DEVELOPMENT_OBSERVATION_GRANT_VERIFICATION_FAILED');
+ const contextGrants=await client.query(`select c.relname,
+  has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
+  has_table_privilege('service_role',c.oid,'UPDATE') can_update,has_table_privilege('service_role',c.oid,'DELETE') can_delete,
+  not has_table_privilege('anon',c.oid,'SELECT') and not has_table_privilege('authenticated',c.oid,'SELECT') browser_denied,
+  (select bool_and(has_column_privilege('service_role',c.oid,a.attname,'UPDATE')=(a.attname<>case when c.relname='structured_selection_epoch' then 'id' else 'ticket_id' end))
+   from pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) mutable_columns_only
+  from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname in ('structured_selection_epoch','incident_context_proofs')`);
+ if(contextGrants.rows.length!==2||contextGrants.rows.some(row=>!row.can_read||row.can_append!==(row.relname==='incident_context_proofs')||row.can_update||row.can_delete||!row.browser_denied||!row.mutable_columns_only))throw new Error('DEVELOPMENT_INCIDENT_CONTEXT_GRANT_VERIFICATION_FAILED');
  const supportGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
   has_table_privilege('service_role',c.oid,'UPDATE') can_update,has_table_privilege('service_role',c.oid,'DELETE') can_delete

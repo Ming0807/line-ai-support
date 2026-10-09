@@ -15,9 +15,13 @@ Root must freeze catalog/time invalidation, encrypted proof envelope and exact m
 
 - [x] B2A actual Luna high: only `lib/incidents/context-source.ts` and `tests/incident-context-source.test.ts`, implement frozen pure immutable-copy decoder; RED→GREEN exact source/system/location, old NO_SYSTEM, raw hash order, absent vs corrupted, owner/department/digest/proposal mismatch, bounded inputs/no mutation. No SQL/network/worker/UI/git/full gates.
 - [x] B2A root: CLI-generated additive epoch/proof/queue-marker/guard/refresh migration, `tests/database/incident-context-infrastructure.integration.ts`, owned verification runner. Actual PG RED→GREEN privilege/monotone/atomic invalidation/negative+blocked/leases/day markers/late copy/rollback/concurrent catalog locks; no normal/remote apply. [Evidence](../../reports/INCIDENT_CONTEXT_INFRASTRUCTURE_REPORT.md):1962unit/294PG/36replay/RLS/advisors/type/lint/build PASS, actual independent Luna max source review.
-- [ ] B2A exact staged scan/commit/push and remote SHA verification.
-- [ ] B2B root: exact encrypted proof envelope/storage and worker/reads/entrypoint integration; update existing real incident fixtures to construct source/proof through accepted paths. Independent review and full source/lease/currentness/private-scoped regression before guarded activation.
+- [x] B2A exact staged scan/commit/push and remote SHA verification:bdfdc4adb95a774611d13a057678cf6ca05fde6b.
+- [x] B2B root: encrypted source-bound proof/storage, worker/reads/entrypoint integration and actual source/lease/copy/budget races. Actual Luna high pure implementation/max scoped source reviews;306ownedPG/1977unit/type/full lint/build PASS. [Runtime report](../../reports/INCIDENT_CONTEXT_RUNTIME_REPORT.md) records corrected harness/retained-population assumptions and exact provenance.
+- [x] Guarded local+selected DEVELOPMENT activation: pending exactly36 in both dry runs;36versions/58RLS/exact grants/retention/53normal regressions PASS. Updated foundation baseline separately passes both targets and fresh owned36replay/13incident cases; no data reset/real-source approval.
+- [ ] Exact staged credential/whitespace scan, root commit/push and remote SHA verification for B2B.
 
 ## B3 acceptance
 
 Actual combined semantic incident flow with different known systems/locations, unknown values and no false membership extension; final FlowA–F and live reviewed corpus/local E5 remain separately accounted for. No new human setup merely for authoring the component.
+
+B2B controlled current-source/unknown/ambiguity/unavailable/negative-history and concurrent compatibility regressions are accepted in the runtime report. These deterministic384-dimensional fixtures do not prove live E5 semantic quality; final combined/live acceptance remains FINAL-01.

@@ -17,3 +17,25 @@ Root narrows the catalog fence after actual Luna high review: only Structured an
 Official ephemeral page evidence is distinct from persistent import approval (DEC-060). Root must freeze exact public topic vocabulary, host/path/issuing-office/source lifecycle/applicability evidence, safe pinned fetching, request-bound citations and outside-SQL refresh/delivery fences before implementing it. Query text sent to search must come from closed public topics and explicitly permitted public selectors, never raw ticket/student history/identities/private passages or model-controlled URLs. General public context cannot establish YRU policy; ambiguous purpose remains university/clarification. Missing source proof produces a lead/limitation, not a verified answer. Staff HUMAN lookup yields an editable draft with explicit citations; ordinary manual reply remains the only send path.
 
 Generation FREE_ONLY is not a search-billing gate. A separate search connector needs verified/attested free-plan/no-PAYG account control, atomic app reservations committed before HTTP, no uncertain-attempt refund, no paid fallback/retry and fail-closed missing configuration. Vendor account/caps, numeric engineering limits and source coverage remain root decisions in the unaccepted proposal. No live API call is authorized by a successful component test, and no claim that personal identifiers never reach any generation provider follows this search-query minimization rule.
+
+## C2-Q frozen public-query preparation
+
+Root reviewed the actual Luna high [web preparation proposal](WEB_CASCADE_PREPARATION_PROPOSAL.md). It remains proposal evidence, not acceptance of its suggested billing, retention or official-proof details. Under the user's continuous implementation authorization, root accepts only this bounded pure-query contract now. No network, model, SQL, import or web-result delivery is added by C2-Q.
+
+`buildPublicSearchQuery(input:unknown)` in `lib/knowledge/public-search-query.ts` accepts exactly own bounded JSON `{version:1,purpose,topic,academicYear}`. Purpose is `YRU_INFORMATION` or `GENERAL_PUBLIC`. Reject inherited/accessor/non-JSON input, unknown keys, strings in place of years, invalid combinations or payloads over4KiB/64 JSON nodes with the fixed `PUBLIC_SEARCH_QUERY_INVALID` error, never echo input. Output is deeply immutable `{version:1,purpose,topic,academicYear,query,includeDomains}`. Queries contain only the fixed strings below plus ` ปีการศึกษา <year>` when allowed; no other interpolation. Academic years are integers2400..3000 or null. Import the existing own-JSON copier/freezer; no duplicate parser or configuration lookup.
+
+| Purpose / topic | Fixed query | Fixed includeDomains | Year permitted |
+|---|---|---|---|
+| YRU_INFORMATION / ACADEMIC_CALENDAR | มหาวิทยาลัยราชภัฏยะลา ปฏิทินวิชาการ | acdservice.yru.ac.th, eduservice.yru.ac.th | yes |
+| YRU_INFORMATION / CREDIT_TRANSFER | มหาวิทยาลัยราชภัฏยะลา เทียบโอนผลการเรียน | eduservice.yru.ac.th, acdservice.yru.ac.th | yes |
+| YRU_INFORMATION / TUITION_FEES | มหาวิทยาลัยราชภัฏยะลา ค่าธรรมเนียมการศึกษา | eduservice.yru.ac.th, acdservice.yru.ac.th | yes |
+| YRU_INFORMATION / REGISTRATION | มหาวิทยาลัยราชภัฏยะลา ลงทะเบียน | eduservice.yru.ac.th, acdservice.yru.ac.th | yes |
+| YRU_INFORMATION / WIFI_ACCESS | มหาวิทยาลัยราชภัฏยะลา YRU-WiFi คู่มือ | nse.yru.ac.th | no |
+| YRU_INFORMATION / LIBRARY_SERVICES | มหาวิทยาลัยราชภัฏยะลา ห้องสมุด บริการ | yru.ac.th | no |
+| YRU_INFORMATION / STUDENT_ACTIVITIES | มหาวิทยาลัยราชภัฏยะลา กิจกรรมนักศึกษา | stddev.yru.ac.th | yes |
+| YRU_INFORMATION / DORMITORY | มหาวิทยาลัยราชภัฏยะลา หอพัก ระเบียบ | stddev.yru.ac.th | yes |
+| GENERAL_PUBLIC / GENERAL_WIFI_HELP | Wi-Fi connection troubleshooting | empty | no |
+| GENERAL_PUBLIC / GENERAL_HTTP_500 | HTTP 500 troubleshooting | empty | no |
+| GENERAL_PUBLIC / GENERAL_DEVICE_NETWORK | device network troubleshooting | empty | no |
+
+The official candidate domains come from the user's preserved shortlist, including the newer calendar page; the root YRU library candidate does not invent an unverified library hostname. This vocabulary limits outgoing query construction, not V1's supported subjects or source authority. Other topics remain eligible for internal sources and clarification until explicitly registered. Domain filtering cannot authenticate an issuer or current policy. Future root integration must establish complete internal misses, semantic purpose/topic and explicit permitted year from actual USER context before calling this function; an arbitrary caller passing this function is not authorized to search. Ambiguous purpose stays university/clarification, never opens GENERAL_PUBLIC. General citations cannot establish university rules.

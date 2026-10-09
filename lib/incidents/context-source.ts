@@ -16,7 +16,7 @@ const envelopeSchema=z.strictObject({version:z.literal(1),ticketId:uuid,departme
 const unavailable=()=>freezeStructuredData({status:'UNAVAILABLE' as const});
 export type DecodedIncidentSupportSource=
  | {status:'NO_COPY';claims:{system:null;location:null};bindingDigest:null}
- | {status:'READY';claims:{system:string|null;location:string|null};sourceDigest:string;stateDigest:string;bindingDigest:string}
+ | {status:'READY';claims:{system:string|null;location:string|null};sourceDigest:string;stateDigest:string;bindingDigest:string;retainedSensitivity:'GENERAL'|'SENSITIVE'|'RESTRICTED'}
  | {status:'UNAVAILABLE'};
 
 /** Decodes the immutable ticket copy without consulting current support state or AI history. */
@@ -49,6 +49,6 @@ export function decodeIncidentSupportSource(ticketInput:unknown,copyInput:unknow
   }
   const claims=incidentContextClaimsSchema.parse({system,location});
   return freezeStructuredData({status:'READY',claims,sourceDigest:copied.source_digest,stateDigest:copied.state_digest,
-   bindingDigest:canonicalDigest('incident-support-copy-v1',rawCopy)});
+   bindingDigest:canonicalDigest('incident-support-copy-v1',rawCopy),retainedSensitivity:envelope.sensitiveLevel});
  }catch{return unavailable();}
 }
