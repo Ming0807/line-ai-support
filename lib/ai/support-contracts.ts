@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {routerOutputSchema} from './schemas';
-const factFields=['PROBLEM','DEVICE','ERROR','PREVIOUS_CONNECTION','LOCATION','ATTEMPTS','IMPACT','SENSITIVE_DETAIL'] as const;
+const factFields=['PROBLEM','DEVICE','ERROR','PREVIOUS_CONNECTION','SYSTEM','LOCATION','ATTEMPTS','IMPACT','SENSITIVE_DETAIL'] as const;
 const missingFields=['DEVICE','ERROR','PREVIOUS_CONNECTION','LOCATION','ATTEMPTS'] as const;
 const sensitivity=z.enum(['GENERAL','SENSITIVE','RESTRICTED']);
 const sourceCode=z.string().regex(/^U[0-8]$/u);
@@ -74,7 +74,7 @@ export function interpretSupportProposal(value:unknown,input:SupportInput,minimu
  if(p.intent==='PERSONAL_CASE')clarification='ผมยังเข้าถึงข้อมูลส่วนบุคคลหรือข้อมูลเฉพาะบัญชีของคุณไม่ได้ครับ สามารถรวบรวมรายละเอียดแล้วส่งให้เจ้าหน้าที่ตรวจสอบได้';
  if(p.intent==='OTHER')clarification='ช่วยอธิบายปัญหาหรือคำถามที่ต้องการให้ช่วยอีกนิดครับ';
  if(!clarification&&['INFORMATION','TROUBLESHOOT'].includes(p.intent)){
-  searchText=[problem??c.sources[0].text,...p.facts.filter(f=>['DEVICE','ERROR','LOCATION'].includes(f.field)).map(f=>f.quote)].join('\n');
+  searchText=[problem??c.sources[0].text,...p.facts.filter(f=>['DEVICE','ERROR','SYSTEM','LOCATION'].includes(f.field)).map(f=>f.quote)].join('\n');
   if(searchText.length>2000||Buffer.byteLength(searchText,'utf8')>6000){searchText=null;clarification='ช่วยสรุปปัญหาและข้อความผิดพลาดให้สั้นลงอีกนิดครับ';}
  }
  return {intent:p.intent,category,subcategory:p.subcategory,departmentCode,needsTicket:p.needsTicket,

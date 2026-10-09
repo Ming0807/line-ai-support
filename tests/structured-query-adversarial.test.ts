@@ -47,7 +47,7 @@ it('requires an explicit complete selector context before matching and never sup
  const missingProgram=query('tuition_fees',{academic_year:2569,student_group:'ALL',study_type:'ภาคปกติ'});
  expect(assessStructuredQuery(missingProgram)).toEqual({status:'CLARIFICATION_REQUIRED',missing:['program_name']});
  expect(assessStructuredQuery(query('transfer_courses',{source_program:'A',source_course_code:'00101'}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['target_program']});
- expect(assessStructuredQuery(query('university_services',{}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['service_code|name']});
+ expect(assessStructuredQuery(query('university_services',{}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['service_code|name|location']});
  expect(assessStructuredQuery(query('university_systems',{}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['code|name']});
  expect(assessStructuredQuery(query('service_forms',{}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['name|form_url']});
  expect(assessStructuredQuery(query('announcements',{}))).toEqual({status:'CLARIFICATION_REQUIRED',missing:['title|effective_at']});

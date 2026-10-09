@@ -17,7 +17,7 @@ const envelopeSchema=z.strictObject({version:z.literal(1),context:contextSchema,
  minimumSensitivity:risk,deliveredGuidance:z.boolean(),proposal:supportProposalSchema,
  interpreted:z.object({sensitiveLevel:risk}).passthrough(),departmentId:z.uuid().nullable(),guidanceOutboxId:z.uuid().nullable()});
 export const supportStateEnvelopeSchema=envelopeSchema;
-export const supportFactLabels={PROBLEM:'ปัญหา',DEVICE:'อุปกรณ์',ERROR:'ข้อความผิดพลาด',PREVIOUS_CONNECTION:'การเชื่อมต่อครั้งก่อน',LOCATION:'บริเวณที่พบปัญหา',ATTEMPTS:'สิ่งที่ลองแล้ว',IMPACT:'ผู้ที่ได้รับผลกระทบ (ตามที่แจ้ง)',SENSITIVE_DETAIL:'รายละเอียดที่ต้องระวัง'} as const;
+export const supportFactLabels={PROBLEM:'ปัญหา',DEVICE:'อุปกรณ์',ERROR:'ข้อความผิดพลาด',PREVIOUS_CONNECTION:'การเชื่อมต่อครั้งก่อน',SYSTEM:'ระบบที่แจ้งปัญหา',LOCATION:'บริเวณที่พบปัญหา',ATTEMPTS:'สิ่งที่ลองแล้ว',IMPACT:'ผู้ที่ได้รับผลกระทบ (ตามที่แจ้ง)',SENSITIVE_DETAIL:'รายละเอียดที่ต้องระวัง'} as const;
 function stateEnvelope(row:Record<string,unknown>,key:string){
  try{const raw=JSON.parse(decryptValue(String(row.context_encrypted),key)),parsed=envelopeSchema.safeParse(raw);if(!parsed.success)return null;const p=parsed.data;
   if(digest(raw)!==row.state_digest||p.context.conversationId!==row.conversation_id||p.context.sessionId!==row.line_session_id||p.context.messageId!==row.last_message_id||

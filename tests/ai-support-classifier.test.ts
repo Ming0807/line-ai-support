@@ -24,3 +24,9 @@ it('caller cancellation finishes promptly even when a gateway ignores abort',asy
  const generate=vi.fn().mockImplementation(()=>new Promise(()=>{})),controller=new AbortController(),result=createSupportClassifier(generate)(snapshot,departments,controller.signal);
  await Promise.resolve();controller.abort();expect(await result).toBeNull();expect(generate.mock.calls[0][0].signal.aborted).toBe(true);
 });
+it('returns a literal USER SYSTEM fact without promoting it to a verified registry reference',async()=>{
+ const generate=vi.fn().mockResolvedValue({output:{...output,missingContext:null,facts:[...output.facts,{field:'SYSTEM',source:'U0',quote:'Wi-Fi'}]},toolCalls:[]});
+ const result=await createSupportClassifier(generate)(snapshot,departments,new AbortController().signal);
+ expect(result?.collectedContext).toContainEqual({field:'SYSTEM',source:'U0',quote:'Wi-Fi'});
+ expect(result).not.toHaveProperty('systemCode');expect(result).not.toHaveProperty('sourceRowId');
+});

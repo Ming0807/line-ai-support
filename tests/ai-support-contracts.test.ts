@@ -53,3 +53,12 @@ it('low confidence, an absent directory or excessive source content yields no in
  expect(interpretSupportProposal(proposal({confidence:.79}),input())).toBeNull();expect(interpretSupportProposal(proposal(),{...input(),departments:[]})).toBeNull();
  expect(()=>projectSupportInput({question:'ก'.repeat(2001),history:[]},departments)).toThrow('SUPPORT_INPUT_INVALID');
 });
+it('retains only actual USER system names alongside location without inventing a canonical system',()=>{
+ const source=projectSupportInput({question:'ระบบ YRU Passport เข้าไม่ได้ ที่อาคาร 1',history:[]},departments);
+ const facts=[{field:'PROBLEM',source:'U0',quote:'เข้าไม่ได้'},{field:'SYSTEM',source:'U0',quote:'YRU Passport'},{field:'LOCATION',source:'U0',quote:'อาคาร 1'}];
+ const result=interpretSupportProposal(proposal({subcategory:'SYSTEM_ACCESS',facts}),source);
+ expect(result?.collectedContext).toEqual(facts);expect(result?.searchText).toContain('YRU Passport');expect(result?.searchText).toContain('อาคาร 1');
+ expect(interpretSupportProposal(proposal({facts:[{field:'SYSTEM',source:'U0',quote:'ระบบลงทะเบียน'}]}),source)).toBeNull();
+ expect(interpretSupportProposal(proposal({facts:[facts[1],facts[1]]}),source)).toBeNull();
+ expect(interpretSupportProposal(proposal(),input())).not.toBeNull();
+});

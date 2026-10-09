@@ -67,3 +67,10 @@ it('does not run payload getters or proxy traps when matching a valid query',()=
  let calls=0;const proxied=new Proxy(fee,{ownKeys(){calls++;throw new Error('PRIVATE_SOURCE');}}),accessor=Object.defineProperty({...fee},'program_name',{enumerable:true,get(){calls++;throw new Error('PRIVATE_SOURCE');}});
  for(const input of [proxied,accessor])expect(()=>matchesStructuredPayload(query('tuition_fees',feeFilters),input)).toThrow(/^STRUCTURED_QUERY_INVALID$/);expect(calls).toBe(0);
 });
+it('uses location as an exact service selector without normalization or broadening other filters',()=>{
+ const payload={...fixtures[3][2],location:'อาคาร 1'},request=query('university_services',{location:'อาคาร 1'});
+ expect(assessStructuredQuery(request)).toEqual({status:'READY'});expect(matchesStructuredPayload(request,payload)).toBe(true);
+ for(const location of ['อาคาร 2',' อาคาร 1','อาคาร 1 '])expect(matchesStructuredPayload(query('university_services',{location}),payload)).toBe(false);
+ expect(matchesStructuredPayload(query('university_services',{location:'อาคาร 1',service_code:'OTHER'}),payload)).toBe(false);
+ for(const location of [null,'x'.repeat(501),'อาคาร\n1'])expect(()=>validateStructuredQuery(query('university_services',{location}))).toThrow('STRUCTURED_QUERY_INVALID');
+});

@@ -486,6 +486,16 @@ for(const dataset of STRUCTURED_DATASETS)test(`${dataset}: exact PUBLIC retrieva
  const changedField=dataset==='academic_calendar_events'?'title':dataset==='tuition_fees'?'program_name':dataset==='transfer_courses'?'source_course_code':dataset==='university_services'?'service_code':dataset==='university_systems'?'code':dataset==='service_forms'?'name':'title';
  assert.equal((await exactSearch(f,r,{[changedField]:'not present in reviewed source'})).status,'EMPTY');
 }));
+test('exact location selector returns only reviewed current public service proof without normalizing literals',()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),receipt=await publish(f,r),request=exactRequest(r);
+ const payload:Record<string,unknown>=r.plan.rows[0].payload;assert.equal(typeof payload.location,'string');
+ const select=(location:string)=>transaction(c=>searchStructured(c,{scope:request.scope,query:validateStructuredQuery({version:1,dataset:'university_services',filters:{location},limit:20})},f.key),f.pool);
+ const result=await select(String(payload.location));assert.equal(result.status,'READY');if(result.status!=='READY')return;
+ const matchedPayload=result.evidence[0].payload;assert('location' in matchedPayload);
+ assert.equal(result.evidence[0].reference.documentId,receipt.receipt.documentId);assert.equal(matchedPayload.location,payload.location);
+ for(const location of [` ${payload.location}`,`${payload.location} `,"' or true --"] )assert.equal((await select(location)).status,'EMPTY');
+ await f.pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[receipt.receipt.documentId]);assert.equal((await select(String(payload.location))).status,'EMPTY');
+}));
 test('student exact search excludes INTERNAL source and rejects wrong envelope key without exposing payload',()=>fixture(async f=>{
  const internal=await ready(f,'university_services','STRUCTURED');await publish(f,internal);assert.equal((await exactSearch(f,internal)).status,'EMPTY');
  const publicSource=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,publicSource);

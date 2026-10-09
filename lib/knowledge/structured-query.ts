@@ -18,7 +18,7 @@ export const structuredQuerySchema=z.discriminatedUnion('dataset',[
  request('academic_calendar_events',{academic_year:year.optional(),semester:text(80).optional(),student_type:text(80).optional(),event_type:text(200).optional(),title:text(500).optional(),occurs_on:date.optional(),start_date_from:date.optional(),start_date_to:date.optional()}),
  request('tuition_fees',{academic_year:year.optional(),program_name:text(500).optional(),major_name:text(500).nullable().optional(),student_group:text(200).optional(),study_type:text(200).optional(),currency:structuredPayloadSchemas.tuition_fees.shape.currency.optional(),fee_amount_min:fee.optional(),fee_amount_max:fee.optional(),effective_on:date.optional()}),
  request('transfer_courses',{source_program:text(500).optional(),source_course_code:text(200).optional(),target_program:text(500).optional(),target_course_code:text(200).optional(),source_credits_min:credits.optional(),source_credits_max:credits.optional(),target_credits_min:credits.optional(),target_credits_max:credits.optional()}),
- request('university_services',{service_code:text(200).optional(),name:text(500).optional()}),
+ request('university_services',{service_code:text(200).optional(),name:text(500).optional(),location:text(500).optional()}),
  request('university_systems',{code:text(200).optional(),name:text(500).optional()}),
  request('service_forms',{name:text(500).optional(),form_url:structuredPayloadSchemas.service_forms.shape.form_url.refine(value=>!/\p{Cc}/u.test(value)).optional()}),
  request('announcements',{title:text(500).optional(),effective_at:instant.optional(),priority_min:priority.optional(),priority_max:priority.optional()}),
@@ -49,7 +49,7 @@ export function validateStructuredQuery(input:unknown):StructuredQuery {
 }
 function assessment(query:StructuredQuery):{status:'READY'}|{status:'CLARIFICATION_REQUIRED';missing:string[]} {
  const required:Partial<Record<StructuredDataset,readonly string[]>>={academic_calendar_events:['academic_year','semester','student_type'],tuition_fees:['academic_year','program_name','student_group','study_type'],transfer_courses:['source_program','source_course_code','target_program']};
- const choices:Partial<Record<StructuredDataset,readonly string[]>>={university_services:['service_code','name'],university_systems:['code','name'],service_forms:['name','form_url'],announcements:['title','effective_at']};
+ const choices:Partial<Record<StructuredDataset,readonly string[]>>={university_services:['service_code','name','location'],university_systems:['code','name'],service_forms:['name','form_url'],announcements:['title','effective_at']};
  const missing=(required[query.dataset]??[]).filter(key=>!Object.hasOwn(query.filters,key));
  const group=choices[query.dataset];if(group&&!group.some(key=>Object.hasOwn(query.filters,key)))missing.push(group.join('|'));
  return missing.length?{status:'CLARIFICATION_REQUIRED',missing}:{status:'READY'};
