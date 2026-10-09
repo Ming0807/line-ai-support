@@ -49,6 +49,10 @@ try {
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
  sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
+ stage='web_search_admission_actual_PG';
+ const webSearchOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/web-search-admission.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(webSearchOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='incident_context_infrastructure_actual_PG';
  const contextInfrastructureOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incident-context-infrastructure.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
@@ -91,10 +95,17 @@ try {
  // Only synthetic test output; never dump SQL fixtures, auth data or environment.
  console.log(output.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  assert.equal(sql(database,'supabase_admin',installedCount).trim(),'7','SEVEN_STRUCTURED_TABLES_REQUIRED');
- stage='structured_publication_actual_PG';
- const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-structured-publication.integration.ts'],
-  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
- console.log(publicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ // The expanded file exceeded one process's 120s bound while still completing
+ // assertions. Complementary patterns execute every case exactly once, retaining
+ // the same process deadline and owned database. Neither half omits acceptance.
+ const runtimePattern='^(?:incident runtime|source invalidation|unreadable owned|a lower current|valid ambiguous|publication and revision changes|corrupted proof|HUMAN staff|RAG fallback|actual structured AI|LINE dispatch|service department|typed structured tool|only canonical)';
+ for(const [name,filter] of [['publication',`--test-skip-pattern=${runtimePattern}`],['delivery',`--test-name-pattern=${runtimePattern}`]] as const){
+  stage=`structured_${name}_actual_PG`;
+  const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1',filter,'tests/database/import-structured-publication.integration.ts'],
+   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+  console.log(JSON.stringify({stage,partition:name,filterMode:name==='publication'?'SKIP_RUNTIME':'ONLY_RUNTIME'}));
+  console.log(publicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ }
  stage='RAG_compatibility_actual_PG';
  const original=await readFile(resolve(root,'tests/database/import-publication.integration.ts'),'utf8');
  const normalConnection='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
@@ -140,7 +151,7 @@ try {
  console.log(JSON.stringify({stage:'isolated_structured_schema',migrations:migrations.length,tables:7,foundationRLS:'PASS',status:'PASS',normalTables:Number(normalTables),normalSchemaApplied:false,authDataCopied:false,existingDatabaseReset:false}));
 } catch(error) {
  // node:test labels are synthetic and useful; migration stderr can contain SQL values and is suppressed.
- if(stage.endsWith('actual_PG')&&error&&typeof error==='object'&&'stdout' in error&&typeof error.stdout==='string')console.error(error.stdout.split(/\r?\n/u).filter(line=>/^(✖|ℹ|  error:|  AssertionError|    code:)/u.test(line)).slice(0,90).join('\n'));
+ if(stage.endsWith('actual_PG')&&error&&typeof error==='object'&&'stdout' in error&&typeof error.stdout==='string')console.error(error.stdout.split(/\r?\n/u).filter(line=>/^(✔|✖|ℹ|  error:|  AssertionError|    code:)/u.test(line)).slice(-90).join('\n'));
  const processFailure=error&&typeof error==='object'?error as {code?:unknown;signal?:unknown;status?:unknown;killed?:unknown}:{};
  console.error(JSON.stringify({stage,status:'FAIL',
   processCode:typeof processFailure.code==='string'&&/^[A-Z0-9_]{1,32}$/u.test(processFailure.code)?processFailure.code:undefined,

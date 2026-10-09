@@ -18,7 +18,7 @@ Root must freeze catalog/time invalidation, encrypted proof envelope and exact m
 - [x] B2A exact staged scan/commit/push and remote SHA verification:bdfdc4adb95a774611d13a057678cf6ca05fde6b.
 - [x] B2B root: encrypted source-bound proof/storage, worker/reads/entrypoint integration and actual source/lease/copy/budget races. Actual Luna high pure implementation/max scoped source reviews;306ownedPG/1977unit/type/full lint/build PASS. [Runtime report](../../reports/INCIDENT_CONTEXT_RUNTIME_REPORT.md) records corrected harness/retained-population assumptions and exact provenance.
 - [x] Guarded local+selected DEVELOPMENT activation: pending exactly36 in both dry runs;36versions/58RLS/exact grants/retention/53normal regressions PASS. Updated foundation baseline separately passes both targets and fresh owned36replay/13incident cases; no data reset/real-source approval.
-- [ ] Exact staged credential/whitespace scan, root commit/push and remote SHA verification for B2B.
+- [x] Exact staged credential/whitespace scan, root commit/push and remote SHA verification for B2B:346b58c40ee680b3832bf1b83f329dbc2f1968fa.
 
 ## B3 acceptance
 
