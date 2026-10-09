@@ -1,5 +1,7 @@
 # YRU V1 — System design
 
+9October current complete-miss contract: [C3B design](INTERNAL_MISS_DESIGN.md)/[evidence](../reports/INTERNAL_MISS_REPORT.md) passes349ownedPG/38replay/RLS/advisors0ERROR0WARN/2,013unit/type/lint/build. Authenticated explicit Structured/RAG miss is not actor authorization or a production web caller. Complete web/source/delivery/Staff/FlowA–F/live acceptance remain required; normal36 unchanged.
+
 9 October current RAG boundary: [C3A chunk catalog fence](RAG_CATALOG_FENCE_DESIGN.md)/[evidence](../reports/RAG_CATALOG_FENCE_REPORT.md) passes326ownedPG/38replay/RLS/advisors0ERROR0WARN/type/scoped lint. Normal/local+DEVELOPMENT remain36; complete miss/web/delivery/Staff and final combined/live acceptance remain required.
 
 9 October current web boundary: [C2-T/R connector/admission](../reports/FREE_WEB_CONNECTOR_REPORT.md) provides a default-disabled free-search runtime and retained private quota ledger, with owned37 replay and complete component gates. No Student/Staff production caller or live search is enabled; local+DEVELOPMENT stay36. Complete internal misses/chunk writer fence, official proof/leads, delivery/Staff integration and final combined/live acceptance remain root work.

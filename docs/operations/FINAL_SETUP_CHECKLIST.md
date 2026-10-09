@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+9October C3B adds no human setup/key/migration. [Miss receipts](../reports/INTERNAL_MISS_REPORT.md) pass349ownedPG/38replay and full app gates, but remain private unused preparation for web. Root owns Student/Staff source/ownership/finalization/dispatch integration and final controlled FlowA–F. Normal/local+DEVELOPMENT remain36/58RLS; missing production code is not a human setup task.
+
 9 October C3A adds no human setup. Root verified the [chunk catalog guard](../reports/RAG_CATALOG_FENCE_REPORT.md) with38 owned migrations/326PG;37+38 remain owned-only and normal/local+DEVELOPMENT stay36/58RLS. Root owns complete-miss/web/runtime integration and guarded activation before live account/corpus/OA checks. Controlled tests are not live evidence.
 
 9 October C2-T/R needs no human action now. The default-disabled [connector/admission](../reports/FREE_WEB_CONNECTOR_REPORT.md) is not wired to Student/Staff; its37th migration remains owned-verification only and normal/local+DEVELOPMENT stay36. Root still owns internal-miss/source/delivery/Staff implementation and guarded activation. After that integration, live free web search needs an owner-controlled free Researcher account with PAYG/automatic paid upgrades disabled, a server-only key and fresh key-bound attestation; fresh account observations must also pass. No live no-charge proof is inferred from fixtures. Do not put keys/attestation credentials in reports. Existing approved-corpus/free-generation/E5/OA/production checks remain deferred.

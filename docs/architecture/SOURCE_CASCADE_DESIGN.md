@@ -1,5 +1,7 @@
 # ADV-05C — backend-owned source cascade
 
+9October C3B supplement: [authenticated complete-miss receipts](INTERNAL_MISS_DESIGN.md)/[actual evidence](../reports/INTERNAL_MISS_REPORT.md) is component-accepted. Only explicit assessed Structured EMPTY plus completed RAG EMPTY can seal a local E5 policy/source/day-bound receipt; fresh repeat checks exact guards and READ COMMITTED. Missing query/RAG selection still cannot establish NOT_APPLICABLE. No production web caller yet; source/purpose/ownership/finalization/dispatch/Staff/lifetime integration remains required.
+
 9 October C3A supplement: [RAG chunk catalog fence](RAG_CATALOG_FENCE_DESIGN.md) is component-accepted with326ownedPG/38migration replay. All chunk statement mutations now participate in the catalog boundary; ordinary positive RAG readers are not broadened. Complete internal-miss envelope/semantic NOT_APPLICABLE/readiness, official proof/leads and Student/Staff integration remain required. Normal36 remains;37+38 are owned-only.
 
 9 October C2-T/R supplement: [fixed adapter/admission](../reports/FREE_WEB_CONNECTOR_REPORT.md) is component-accepted under the [frozen private runtime contract](WEB_SEARCH_ADMISSION_DESIGN.md). Public queries → pinned bounded connector and fresh free-only gate → committed durable attempt are implemented without a production caller.37 is owned-replay only; normal36 remains. This does not close complete internal-miss/source authority/Student delivery/HUMAN Staff draft integration. The broader proposal remains unaccepted beyond the explicit C2-Q and C2-T/R contracts.

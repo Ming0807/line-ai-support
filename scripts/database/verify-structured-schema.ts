@@ -57,6 +57,10 @@ try {
  const ragFenceOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/rag-catalog-fence.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(ragFenceOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='internal_miss_actual_PG';
+ const internalMissOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/internal-miss.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(internalMissOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='incident_context_infrastructure_actual_PG';
  const contextInfrastructureOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incident-context-infrastructure.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

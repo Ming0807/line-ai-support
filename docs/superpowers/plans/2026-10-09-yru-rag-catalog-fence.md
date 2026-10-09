@@ -12,6 +12,8 @@ Use a new private SECURITY INVOKER/empty-search-path statement trigger for INSER
 
 Execution9October: all five implementation/documentation checks below are satisfied. Actual4RED→5GREEN,326PG/20groups/38replay/RLS/advisors0ERROR0WARN/normal unchanged/cleanup, fresh typecheck/scoped lint and root source review PASS. Exact staged credential/whitespace and commit/push evidence follows at the Git checkpoint. Complete-miss/source/web/delivery/Staff/FlowA–F remain required. No unavailable independent review credited.
 
+Git checkpoint: staged credential/whitespace PASS; committed/pushed `f66503cb9a2ce39398e18324eb309e54608c59f8`, exact remote branch SHA verified without an account picker. Root source scope only; unrelated untracked originals/proposals were preserved.
+
 - [x] Root writes `tests/database/rag-catalog-fence.integration.ts` and observes actual owned PG RED before migration.
 - [x] Root CLI-generates one additive migration with the private function, exact browser/service EXECUTE grants and one statement trigger; no normal/remote apply yet.
 - [x] Actual PG verifies trigger events/timing/function security/grants, shared session and transaction reader conflicts, direct DML retry without writes, cooperating exclusive writer reentry and release. An actual eligible RAG source starts EMPTY; conflicting matching-chunk insertion cannot change it; after release the insertion succeeds and the real retriever returns its exact chunk.

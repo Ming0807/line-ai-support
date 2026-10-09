@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+9October C3B / CH032/052/USR-WEB: [authenticated complete internal-miss evidence](../reports/INTERNAL_MISS_REPORT.md) COMPONENT_PASS,349ownedPG/21groups/38replay/RLS/advisors0ERROR0WARN/type/full lint/2,013unit/build. Only explicit complete Structured EMPTY→RAG EMPTY can seal a receipt, which requires fresh rechecking. Semantic NOT_APPLICABLE and production web/source/delivery/Staff/FlowA–F remain pending. Normal36 unchanged; no live/V1 completion.
+
 9 October ADV-05C-3A / CH032/052/USR-WEB: [RAG chunk catalog fence](../reports/RAG_CATALOG_FENCE_REPORT.md) COMPONENT_PASS with326ownedPG/20groups/38replay/RLS/advisors0ERROR0WARN/type/scoped lint. New matching chunk writes cannot bypass held catalog readers. Complete internal-miss/source proof, Student/Staff web integration and final FlowA–F remain required. Normal/local+DEVELOPMENT remain36versions/58RLS;37+38 owned-only.
 
 9 October current [C2-T/R evidence](../reports/FREE_WEB_CONNECTOR_REPORT.md): CH032/052/USR-WEB gain a fixed public-query connector, default-disabled free-account/usage gate and durable private shared admissions with no refund/retry of uncertain calls.2,007unit/type/full lint/build,321ownedPG/19groups/37owned replay/RLS/advisors/cleanup and15final-helper PG pass. No production web caller or normal migration activation; local+DEVELOPMENT remain36. Complete internal-miss/chunk fencing, official proof/leads, Student/Staff/delivery integration and final combined/live flows remain root implementation.
