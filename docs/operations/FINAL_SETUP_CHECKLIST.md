@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+9October ADV-02B-2A adds no human setup/migration task: migration36 was verified only in owned disposable databases. Root owns remaining proof/worker/read integration, guarded local+DEVELOPMENT activation, web and final FlowA–F. [Evidence](../reports/INCIDENT_CONTEXT_INFRASTRUCTURE_REPORT.md). Normal targets remain35versions/56RLS; do not treat infrastructure fixtures as approved corpus/live incident evidence. Existing real account/OA/corpus/production steps stay deferred.
+
 9October ADV-02B-1 adds no manual field/key/migration/model setup. [Preparation evidence](../reports/INCIDENT_CONTEXT_PREPARATION_REPORT.md) is not worker/live incident acceptance. Root still owns private proof freshness and incident integration, web and final FlowA–F. Existing real corpus/free-provider/OA/production checks stay deferred; no campus registry is invented or source automatically approved.
 
 9October ADV-05C-1 adds no human setup/key/migration. [Internal cascade evidence](../reports/SOURCE_CASCADE_INTERNAL_REPORT.md) verifies Structured miss→reviewed RAG and repeated higher-tier freshness without new external calls or approvals. Incident system/location enrichment, official/general web and final combined FlowA–F remain agent work. Existing live corpus/free-provider/OA/deployment checks stay deferred; controlled284PG/1946unit/build evidence is not a live pass.

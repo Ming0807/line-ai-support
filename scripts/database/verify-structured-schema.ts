@@ -49,6 +49,10 @@ try {
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
  sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
+ stage='incident_context_infrastructure_actual_PG';
+ const contextInfrastructureOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incident-context-infrastructure.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(contextInfrastructureOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='worker_observations_actual_PG';
  const workerObservationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/worker-observations.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
