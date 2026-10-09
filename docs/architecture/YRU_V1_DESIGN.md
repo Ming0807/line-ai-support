@@ -1,5 +1,7 @@
 # YRU V1 — System design
 
+9 October current RAG boundary: [C3A chunk catalog fence](RAG_CATALOG_FENCE_DESIGN.md)/[evidence](../reports/RAG_CATALOG_FENCE_REPORT.md) passes326ownedPG/38replay/RLS/advisors0ERROR0WARN/type/scoped lint. Normal/local+DEVELOPMENT remain36; complete miss/web/delivery/Staff and final combined/live acceptance remain required.
+
 9 October current web boundary: [C2-T/R connector/admission](../reports/FREE_WEB_CONNECTOR_REPORT.md) provides a default-disabled free-search runtime and retained private quota ledger, with owned37 replay and complete component gates. No Student/Staff production caller or live search is enabled; local+DEVELOPMENT stay36. Complete internal misses/chunk writer fence, official proof/leads, delivery/Staff integration and final combined/live acceptance remain root work.
 
 เอกสารรวม architecture วันที่ 4 ตุลาคม 2026 ใช้กับ [master guide](../../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](../requirements/sources/README.md), [matrix](../requirements/V1_REQUIREMENTS_MATRIX.md) และ [task board](../tasks/V1_TASK_BOARD.md). แยก **มี implementation/evidence** ออกจาก **planned** ไม่ถือว่า diagram คือสิ่งที่ทำเสร็จทั้งหมด
