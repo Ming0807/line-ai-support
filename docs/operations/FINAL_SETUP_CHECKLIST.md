@@ -2,6 +2,8 @@
 
 ## สถานะปัจจุบัน — 9 ตุลาคม 2026
 
+ทดสอบบนเครื่องนี้ก่อน deploy: ใช้ `pnpm local:test` หรือดับเบิลคลิก `start-local.cmd` เพื่อเปิดเว็บ/E5/workers/tunnel พร้อมกัน ดู [คู่มือ local](LOCAL_TEST.md) และหยุดด้วย `pnpm local:stop` ตัวรันเปิด AI/durable เฉพาะ process ทดสอบและไม่เปลี่ยน `.env` หลักฐานเปิด/หยุด/เปิดใหม่ผ่านแล้ว; development ยังมี0 approved PUBLIC documents จึงต้องตรวจอนุมัติเอกสารก่อนทดสอบคำถามอ้างอิงจริง
+
 Local และ DEVELOPMENT ที่เลือกมี 38 migrations / 59 RLS tables แล้ว ไม่ต้องติดตั้งฐานข้อมูลซ้ำ ส่วนคำสั่ง process, parser child, embedding virtualenv, shutdown, backup และ rollback ระบุใน [production runbook](PRODUCTION_RUNBOOK.md) แล้ว Root ปิดงาน code/test/docs ที่จำเป็นและตรวจระบบรวมอัตโนมัติแล้ว: 389/389 ใน 25 กลุ่ม รวม Flow A–F 8/8 ผ่าน ดู [หลักฐานรับงานอัตโนมัติ](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) ผลนี้ยังไม่ยืนยันการใช้งานจริงหรือ production
 
 งานที่ต้องยืนยันกับระบบจริงคือบัญชี AI ฟรีและลำดับโมเดลผ่าน Dashboard, local E5 จาก cache เดิม, เอกสารมหาวิทยาลัยที่คนตรวจและอนุมัติ, การเชื่อม Staff OA และ Flow A–F ผ่าน OA จริง, และ host/worker/Storage/backup/restore สำหรับ production ตาม runbook หากเลือกเปิดค้นเว็บ ต้องยืนยันบัญชีฟรีไม่มี PAYG และตั้งค่าฝั่ง server ตามหัวข้อด้านล่าง การทดสอบควบคุมไม่ทดแทนหลักฐานเหล่านี้

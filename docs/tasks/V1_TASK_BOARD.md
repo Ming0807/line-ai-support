@@ -7,6 +7,7 @@ This table is current authority. Dated checkpoints and the older decomposition b
 | Task IDs | Current state | Owner / evidence / remaining gate |
 |---|---|---|
 | PRV-01…05 | AUTOMATED_COMPLETE / MANUAL_PENDING | Root and actual scoped Luna work; provider acceptance report. Live free account/model quality/quota remains human evidence. |
+| LOCAL-TEST-01 | COMPONENT_PASS / LIVE_A_F_MANUAL_PENDING | Root one-command coordinator/IPC/Windows entry,19 focused tests/typecheck/full lint; actual seven services, local+public signed HTTP, real CPU E5, fresh four check-ins/stop/restart PASS. [Instructions](../operations/LOCAL_TEST.md) / [evidence](../reports/LOCAL_TEST_RUNNER_REPORT.md). Current development has0 approved PUBLIC documents; human model/source/OA tests remain. |
 | RAG-01 | AUTOMATED_COMPLETE / MANUAL_PENDING | Root runtime/source/support; actual Luna max authored A–F, root final registered execution 389/25 groups including A–F 8/8. Real corpus/free model/E5/OA remain. |
 | IMP-01…04 | AUTOMATED_COMPLETE / MANUAL_PENDING | Private originals, five-format parsers, review/version/atomic publication and integrated UI; final controlled import/current-history Flow F PASS. Real corpus/host checks follow the [runbook](../operations/PRODUCTION_RUNBOOK.md). |
 | STR-00/01/02 | AUTOMATED_COMPLETE / MANUAL_PENDING | Seven datasets/provenance/atomic STRUCTURED+BOTH/exact search+delivery/readiness; 38 migrations/59 RLS local+DEVELOPMENT. Registered publication/delivery and Flow F PASS; approved actual corpus remains. |

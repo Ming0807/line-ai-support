@@ -1,5 +1,7 @@
 # Local development and operational entry points
 
+For the requested all-services local session, use `pnpm local:test` or Windows `start-local.cmd`, then `pnpm local:stop`. [Local test instructions](LOCAL_TEST.md) describe temporary child-only durable/AI activation, tunnel URLs and manual tests; existing `.env` is retained. The separate process commands below remain available for individual development.
+
 9 October current: local+selected DEVELOPMENT have38 migrations/59RLS tables and seven structured datasets. Later accepted import/publication/structured/support/incident/web reports supersede the dated preparation checkpoints below. Read the current [task board](../tasks/V1_TASK_BOARD.md) for automated/final/live distinctions and [production runbook](PRODUCTION_RUNBOOK.md) for full-checkout/parser packaging and supervised process commands. This setup guide does not claim real provider/corpus/OA or production acceptance.
 
 คู่มือนี้อิง scripts และชื่อตัวแปรจาก repository ปัจจุบัน สถานะงานล่าสุดอยู่ใน [task board](../tasks/V1_TASK_BOARD.md) และ [final setup checklist](FINAL_SETUP_CHECKLIST.md). การตั้งค่า manual ที่เลื่อนไปทำภายหลังไม่หยุดงาน implementation ที่ได้รับอนุญาต

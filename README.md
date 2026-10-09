@@ -12,6 +12,8 @@
 
 ## เริ่มพัฒนา
 
+ทดลองครบทั้งเว็บ/E5/workers/LINE tunnel ด้วย `pnpm local:test` หรือดับเบิลคลิก `start-local.cmd` และหยุดด้วย `pnpm local:stop` ดู [ขั้นตอนทดสอบ local](docs/operations/LOCAL_TEST.md) ใช้ DEVELOPMENT เดิมและเปิด AI เฉพาะรอบทดสอบโดยไม่แก้ `.env`
+
 Prerequisites: Node.js 24 ที่ใช้ทดสอบ, pnpm ตาม `package.json` (10.33.4), Docker สำหรับ local Supabase, LINE Student/Staff OA และ Supabase development project. ใช้ repository นี้เป็น workspace
 
 ```powershell

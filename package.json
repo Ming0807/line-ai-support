@@ -9,6 +9,9 @@
   },
   "scripts": {
     "dev": "next dev",
+    "local:test": "node --import tsx scripts/local/run.mjs",
+    "local:check": "node --import tsx scripts/local/run.mjs --check",
+    "local:stop": "node --import tsx scripts/local/run.mjs --stop",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
