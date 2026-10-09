@@ -210,8 +210,8 @@
 .ticket-facts dl { display: grid; gap: .8rem; margin: 0; }
 .ticket-facts dl > div { display: flex; justify-content: space-between; gap: 1rem; padding-bottom: .65rem; border-bottom: 1px solid #f1f5f9; }
 .ticket-facts dl > div:last-child { padding-bottom: 0; border-bottom: 0; }
-.ticket-facts dt { color: var(--ticket-muted); }
-.ticket-facts dd { margin: 0; font-weight: 650; text-align: right; color: var(--ticket-ink); }
+.ticket-facts dt { flex-shrink: 0; max-width: 45%; color: var(--ticket-muted); }
+.ticket-facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-weight: 650; text-align: right; color: var(--ticket-ink); }
 
 .ticket-action-grid { display: grid; gap: 1rem; }
 .ticket-action-grid form { display: grid; gap: .65rem; }

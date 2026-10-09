@@ -96,3 +96,25 @@ test('usage preserves unknown token/cost observations and settings do not infer 
  const result=await readOperationsUsage(f.superAdmin,filters,{pool,now}),item=result.models.find(m=>m.modelName==='Metrics test');assert(item);assert.deepEqual(item.totals.inputTokens,{knownTotal:12,unknownCalls:1});assert.deepEqual(item.totals.outputTokens,{knownTotal:20,unknownCalls:1});assert.equal(item.totals.cost.unknownCalls,1);assert.equal(Number(item.totals.cost.knownTotal),0);assert.equal(item.totals.calls,2);assert.equal(item.totals.meanLatencyMs,200);assert(!JSON.stringify(result).includes(provider));assert(!JSON.stringify(result).includes(model));
  const settings=await readOperationsSettings(f.superAdmin,{pool});assert.equal(settings.workerLiveness,'UNKNOWN');assert.equal(settings.database,'OBSERVED_OK');assert(!JSON.stringify(settings).includes('postgresql'));assert(!JSON.stringify(settings).includes('NEVER_PUBLIC'));
 });
+
+test('analytics count only scoped immutable confirmed outcomes within Bangkok bounds and observed time',async()=>{
+ const f=await fixture(),now=()=>new Date('2026-10-08T12:00:00Z'),filters={from:'2026-10-08',to:'2026-10-08'};
+ const outcome=async(kind:'USER_CONFIRMED_SOLVED'|'USER_CONFIRMED_ESCALATED',department:string|null=f.a,risk='GENERAL',at='2026-10-08T12:00:00Z')=>{
+  const conversation=(await pool.query('insert into public.conversations(line_session_id) values($1) returning id',[f.session])).rows[0].id;
+  const message=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Synthetic outcome') returning id",[conversation])).rows[0].id;
+  const event=(await pool.query("insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,status) values('STUDENT',$1,$2,$3,'OTHER','DONE') returning id",[randomUUID(),'0'.repeat(64),'v1.'+'x'.repeat(60)])).rows[0].id;
+  const ticket=kind==='USER_CONFIRMED_ESCALATED'?(await pool.query("insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,mode,status,sensitive_level) values($1,$2,$3,'Synthetic outcome','HUMAN','WAITING_STAFF',$4) returning id",[f.session,conversation,department,risk])).rows[0].id:null;
+  await pool.query(`insert into private.ai_support_outcomes(conversation_id,line_session_id,last_message_id,confirmation_event_id,state_digest,kind,department_id,sensitive_level,ticket_id,observed_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[conversation,f.session,message,event,'a'.repeat(64),kind,department,risk,ticket,at]);
+ };
+ await outcome('USER_CONFIRMED_SOLVED',f.a,'GENERAL','2026-10-07T17:00:00Z');await outcome('USER_CONFIRMED_ESCALATED');
+ await outcome('USER_CONFIRMED_SOLVED',f.a,'SENSITIVE');await outcome('USER_CONFIRMED_SOLVED',f.a,'RESTRICTED');await outcome('USER_CONFIRMED_SOLVED',f.b);await outcome('USER_CONFIRMED_SOLVED',null);
+ await outcome('USER_CONFIRMED_SOLVED',f.a,'GENERAL','2026-10-07T16:59:59Z');await outcome('USER_CONFIRMED_SOLVED',f.a,'GENERAL','2026-10-08T12:00:01Z');await outcome('USER_CONFIRMED_SOLVED',f.a,'GENERAL','2026-10-08T17:00:00Z');
+ const own=await readOperationsAnalytics(f.staff,filters,{pool,now});assert.equal(own.aiResolutionRate,50);assert.deepEqual(own.aiOutcomes,{confirmedSolved:1,confirmedEscalated:1,samples:2});
+ assert.equal((await readOperationsAnalytics(f.sensitive,filters,{pool,now})).aiOutcomes.samples,3);
+ assert.equal((await readOperationsAnalytics(f.admin,filters,{pool,now})).aiOutcomes.samples,2);
+ assert.equal((await readOperationsAnalytics(f.superAdmin,{...filters,department:f.a},{pool,now})).aiResolutionRate,75);
+ assert.equal((await readOperationsAnalytics(f.superAdmin,filters,{pool,now})).aiOutcomes.samples,6);
+ assert.equal((await readOperationsAnalytics(f.staff,{...filters,department:f.b},{pool,now})).aiResolutionRate,null);
+ assert(!JSON.stringify(own).includes(f.session));assert(!JSON.stringify(own).includes('Synthetic outcome'));
+ await pool.query('delete from public.staff_department_grants where staff_id=$1',[f.admin]);assert.equal((await readOperationsAnalytics(f.admin,filters,{pool,now})).aiOutcomes.samples,0);
+});

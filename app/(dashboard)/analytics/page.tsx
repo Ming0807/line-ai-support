@@ -27,8 +27,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams?: P
       <div className="operations-grid">
         <MetricCard label="เวลาเฉลี่ยตอบกลับครั้งแรก" value={formatDuration(result.firstStaffResponse.averageSeconds)} detail={`${formatCount(result.firstStaffResponse.samples)} ตัวอย่าง`} />
         <MetricCard label="เวลาเฉลี่ยจนปิดงาน" value={formatDuration(result.resolution.averageSeconds)} detail={`${formatCount(result.resolution.samples)} ตัวอย่าง`} />
-        <MetricCard label="อัตราการแก้ปัญหาโดย AI" value="ยังไม่มีนิยามผลการตอบของ AI" detail="ยังไม่แสดงเปอร์เซ็นต์จนกว่าจะมีผลลัพธ์การแก้ปัญหาที่ตรวจสอบได้" />
+        <MetricCard label="อัตราการแก้ปัญหาโดย AI" value={result.aiResolutionRate===null?'ยังไม่มีการยืนยันผล':`${new Intl.NumberFormat('th-TH',{maximumFractionDigits:1}).format(result.aiResolutionRate)}%`}
+          detail={`ยืนยันแก้ได้ ${formatCount(result.aiOutcomes.confirmedSolved)} · ยืนยันส่งต่อ ${formatCount(result.aiOutcomes.confirmedEscalated)} จาก ${formatCount(result.aiOutcomes.samples)} เรื่องที่ยืนยัน`} />
       </div>
+      <p className="operations-muted">อัตรานี้นับเฉพาะเรื่องที่ผู้แจ้งกดยืนยันว่าแก้ได้แล้วหรือยืนยันส่งต่อเจ้าหน้าที่ในช่วงที่เลือก การส่งคำตอบสำเร็จเพียงอย่างเดียวไม่ถือว่าแก้ปัญหาได้</p>
       <section className="operations-surface"><h2>จำนวนเรื่องตามหน่วยงานในช่วงที่เลือก</h2><Distribution items={result.distribution.map(item => ({ key: item.departmentId, label: item.departmentName, count: item.count }))} /></section>
       {result.firstStaffResponse.samples === 0 && result.resolution.samples === 0 && <EmptyState>ยังไม่มีตัวอย่างเวลาตอบกลับหรือปิดงานในช่วงนี้</EmptyState>}
     </>}

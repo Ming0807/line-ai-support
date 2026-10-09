@@ -12,3 +12,9 @@ it('rejects incomplete or inconsistent metrics instead of inventing empty succes
  expect(usageSchema.safeParse({totals:{calls:0},models:[]}).success).toBe(false);
  expect(analyticsSchema.safeParse({resolution:{samples:0,averageSeconds:0}}).success).toBe(false);
 });
+it('requires actual outcome samples and their consistent confirmation-based percentage',()=>{
+ const base={observedAt:'2026-10-08T12:00:00.000Z',window:{from:'2026-10-08',to:'2026-10-08',timeZone:'Asia/Bangkok'},departmentId:null,firstStaffResponse:{samples:0,averageSeconds:null},resolution:{samples:0,averageSeconds:null},distribution:[]};
+ expect(analyticsSchema.safeParse({...base,aiResolutionRate:75,aiOutcomes:{samples:4,confirmedSolved:3,confirmedEscalated:1}}).success).toBe(true);
+ for(const [rate,counts] of [[0,{samples:0,confirmedSolved:0,confirmedEscalated:0}],[100,{samples:4,confirmedSolved:3,confirmedEscalated:1}],[75,{samples:5,confirmedSolved:3,confirmedEscalated:1}]])expect(analyticsSchema.safeParse({...base,aiResolutionRate:rate,aiOutcomes:counts}).success).toBe(false);
+ expect(analyticsSchema.safeParse({...base,aiResolutionRate:null,aiOutcomes:{samples:0,confirmedSolved:0,confirmedEscalated:0}}).success).toBe(true);
+});

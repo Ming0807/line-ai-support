@@ -5,6 +5,7 @@ import { getTicketDetail } from '@/lib/tickets/reads';
 import type { TicketDetail, TicketListItem } from '@/types/tickets';
 import TicketActions from './ticket-actions';
 import {getSimilarIssues,type SimilarIssuesView} from '@/lib/incidents/reads';
+import {getTicketSupportContext,type TicketSupportView} from '@/lib/tickets/support-context';
 import '@/app/tickets.css';
 
 const statusLabels: Record<TicketListItem['status'], string> = {
@@ -37,6 +38,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   if (!detail) notFound();
 
   const { ticket } = detail;
+  let support:TicketSupportView={status:'UNAVAILABLE',facts:[]};
+  try{support=await getTicketSupportContext(staff.id,id);}catch{/* Fresh context authorization may deny a read without hiding the primary ticket snapshot. */}
   let similar:SimilarIssuesView|null=null;
   try{similar=await getSimilarIssues(staff.id,id);}catch{/* A monitoring read cannot hide the primary authorized ticket. */}
   return (
@@ -112,6 +115,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             </dl>
           </section>
           <TicketActions id={ticket.id} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} assistAvailable={ticket.mode==='HUMAN'&&['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)} />
+          {support.status!=='NONE'&&<section className="ticket-panel ticket-facts" aria-labelledby="support-context-heading">
+            <div className="ticket-section-heading"><h2 id="support-context-heading">รายละเอียดที่ผู้แจ้งให้ไว้</h2></div>
+            {support.status==='UNAVAILABLE'?<p className="ticket-muted">ยังอ่านรายละเอียดส่วนนี้ไม่ได้ โปรดลองโหลดหน้าอีกครั้ง</p>:<>
+              <p className="ticket-muted">ข้อมูลตามที่ผู้แจ้งระบุ เพื่อช่วยตรวจสอบต่อ</p>
+              {support.facts.length?<dl>{support.facts.map(fact=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>:<p className="ticket-muted">ยังไม่มีรายละเอียดเพิ่มเติม</p>}
+            </>}
+          </section>}
           <section className="ticket-panel" aria-labelledby="similar-issues-heading">
             <h2 id="similar-issues-heading">เรื่องที่ใกล้เคียง</h2>
             {!similar?<p className="ticket-muted">ยังอ่านเรื่องที่ใกล้เคียงไม่ได้ โปรดลองโหลดหน้าอีกครั้ง</p>:similar.status==='PENDING'?<p className="ticket-muted">ระบบกำลังเตรียมข้อมูลสำหรับค้นหาเรื่องที่ใกล้เคียง</p>:similar.items.length===0?<p className="ticket-muted">ไม่พบเรื่องที่ใกล้เคียงในช่วงเวลาที่ตั้งไว้และขอบเขตที่คุณดูได้</p>:<ul>{similar.items.map(item=><li key={item.id}><Link href={`/tickets/${item.id}`}>{item.ticketCode}</Link> · {statusLabels[item.status as TicketListItem['status']]??'อยู่ระหว่างดูแล'}</li>)}</ul>}

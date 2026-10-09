@@ -35,8 +35,13 @@ export async function readOperationsAnalytics(staffId:string,input:MetricFilters
    distribution as (select t.department_id,d.name_th,count(*) n from scoped t join public.departments d on d.id=t.department_id where ${inWindow('t.created_at')} group by t.department_id,d.name_th)
    select (select jsonb_build_object('samples',count(*),'averageSeconds',avg(seconds)) from response) "firstStaffResponse",
    (select jsonb_build_object('samples',count(*),'averageSeconds',avg(seconds)) from resolution) resolution,
-   (select coalesce(jsonb_agg(jsonb_build_object('departmentId',department_id,'departmentName',name_th,'count',n) order by name_th,department_id),'[]'::jsonb) from distribution) distribution`,values(c))).rows[0];
-  return safe(analyticsSchema,{...row,observedAt:c.observedAt,window:c.window,departmentId:c.departmentId,aiResolutionRate:null});
+   (select coalesce(jsonb_agg(jsonb_build_object('departmentId',department_id,'departmentName',name_th,'count',n) order by name_th,department_id),'[]'::jsonb) from distribution) distribution,
+   (select jsonb_build_object('confirmedSolved',count(*) filter(where o.kind='USER_CONFIRMED_SOLVED'),
+    'confirmedEscalated',count(*) filter(where o.kind='USER_CONFIRMED_ESCALATED'),'samples',count(*))
+    from private.ai_support_outcomes o where private.can_access_scope(o.department_id,o.sensitive_level)
+     and ($3::uuid is null or o.department_id=$3) and ${inWindow('o.observed_at')}) "aiOutcomes"`,values(c))).rows[0];
+  return safe(analyticsSchema,{...row,observedAt:c.observedAt,window:c.window,departmentId:c.departmentId,
+   aiResolutionRate:row.aiOutcomes.samples===0?null:row.aiOutcomes.confirmedSolved/row.aiOutcomes.samples*100});
  },options.pool);
 }
 const usageAggregate=`jsonb_build_object('calls',count(*),'success',count(*) filter(where u.status='SUCCESS'),'errors',count(*) filter(where u.status='ERROR'),'fallback',count(*) filter(where u.fallback_used),

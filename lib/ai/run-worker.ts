@@ -1,7 +1,7 @@
 import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../database/pool';
 import {lockConversation} from '../tickets/authorization';
-import {decryptValue} from '../security/identity';
+import {decryptValue,encryptValue} from '../security/identity';
 import {enqueueOutbound,type OutboundText} from '../queue/outbox';
 import {searchKnowledge} from '../knowledge/retrieval';
 import {buildCitedAnswer,evidenceStillMatches} from '../knowledge/citations';
@@ -11,7 +11,8 @@ import {searchStructured} from '../knowledge/structured-search';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,aiRequestSchema,type AIJob,type AIResult} from './jobs';
 import {startLineLoading} from '../line/loading';
-import {loadSupportSnapshot,saveSupportState,type SupportStateSnapshot} from './support-state';
+import {loadSupportSnapshot,loadSupportActionState,saveSupportState,type SupportStateSnapshot} from './support-state';
+import {createSupportActions} from './support-actions';
 import {interpretSupportProposal} from './support-contracts';
 
 export interface AISnapshot {
@@ -139,15 +140,21 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
     messages=[{type:'text',text:'เอกสารอ้างอิงเปลี่ยนแปลงระหว่างประมวลผลครับ กรุณาส่งคำถามอีกครั้งหรือติดต่อเจ้าหน้าที่'}];code='EVIDENCE_CHANGED';
    }
   }else messages=[{type:'text',text:result.text}];
-  if(request.quickReply)messages[messages.length-1]={...messages[messages.length-1],quickReply:request.quickReply};
+  if(request.quickReply&&!result.support)messages[messages.length-1]={...messages[messages.length-1],quickReply:request.quickReply};
   const outbox=await enqueueOutbound(client,{idempotencyKey:`ai-job:${job.id}`,kind:'AI',channel:'STUDENT',lineSessionId:job.line_session_id,
    conversationId:job.conversation_id,conversationRevision:job.expected_conversation_revision,replyToken:request.replyToken,
    receivedAt:new Date(request.receivedAt),messages},key);
   if(!outbox){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata)
    values($1,'AI','TEXT',$2,$3)`,[job.conversation_id,messages.map(m=>m.text).join('\n'),{ai_job_id:job.id,citations}]);
-  if(result.support&&support)await saveSupportState(client,current,support,result.support.proposal,key,
-   code===null&&result.kind!=='CLARIFY'?{guidanceOutboxId:outbox}:{});
+  if(result.support&&support){
+   await saveSupportState(client,current,support,result.support.proposal,key,code===null&&result.kind!=='CLARIFY'?{guidanceOutboxId:outbox}:{});
+   const state=await loadSupportActionState(client,current.line_session_id,current.conversation_id,key);if(!state)throw new Error('SUPPORT_STATE_INVALID');
+   const quickReply=await createSupportActions(client,state,key,{canonicalTroubleshooting:code===null&&result.kind!=='CLARIFY'&&state.interpreted.intent==='TROUBLESHOOT'});
+   if(quickReply){messages[messages.length-1]={...messages[messages.length-1],quickReply};
+    await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
+   }
+  }
   await finish(client,job,'DONE',code);return 'DONE';
  },pool);
 }

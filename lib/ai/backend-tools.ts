@@ -12,6 +12,8 @@ import {hashOpaqueToken} from '../conversation/quick-reply';
 import {searchKnowledge,knowledgeScopeSchema} from '../knowledge/retrieval';
 import {structuredQuerySchema} from '../knowledge/structured-query';
 import {searchStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
+import {loadSupportActionState} from './support-state';
+import {supportConfirmationMatches,recordSupportEscalation} from './support-actions';
 
 export const structuredDatasetNames=['academic_calendar_events','tuition_fees','transfer_courses','university_services',
  'university_systems','service_forms','announcements'] as const;
@@ -81,8 +83,13 @@ export function createTicketToolRegistry(client:DbClient,key:string,confirmation
   if(!choice||choice.choice.action!=='ESCALATE'||choice.choice.conversationId!==context.conversationId||choice.choice.departmentCode!==args.departmentCode||
    !Array.isArray(choice.candidate_snapshot)||!choice.candidate_snapshot.some((candidate:{id?:string;revision?:number})=>candidate.id===context.conversationId&&candidate.revision===context.conversationRevision))
    throw new Error('AI_TOOL_CONFIRMATION_INVALID');
+  const support=choice.choice.supportDigest?await loadSupportActionState(client,context.lineSessionId,context.conversationId,key):null;
+  const confirmation={sessionId:context.lineSessionId,conversationId:context.conversationId,eventId:confirmationEventId,stateDigest:choice.choice.supportDigest};
+  if(choice.choice.supportDigest&&(!support||support.stateDigest!==choice.choice.supportDigest||
+   !await supportConfirmationMatches(client,confirmation,'ESCALATE',key,{departmentCode:args.departmentCode})))throw new Error('AI_TOOL_CONFIRMATION_INVALID');
   const result=ticketResult.parse(await createEscalation(client,{sessionId:context.lineSessionId,conversationId:context.conversationId,
    departmentCode:args.departmentCode,summary:args.summary},key));
+  if(support)await recordSupportEscalation(client,confirmation,support,result.id,args.departmentCode,key);
   await client.query(`insert into private.ai_tool_receipts(confirmation_event_id,line_session_id,conversation_id,tool_name,request_fingerprint,result_encrypted)
    values($1,$2,$3,'create_ticket',$4,$5)`,[confirmationEventId,context.lineSessionId,context.conversationId,requestFingerprint,encryptValue(JSON.stringify(result),key)]);
   return result;

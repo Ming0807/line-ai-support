@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
 import {z} from 'zod';
 import type {DbClient} from '../tickets/authorization';
 import {lockConversation} from '../tickets/authorization';
@@ -15,12 +16,39 @@ const hex=z.string().regex(/^[a-f0-9]{64}$/u),risk=z.enum(['GENERAL','SENSITIVE'
 const envelopeSchema=z.strictObject({version:z.literal(1),context:contextSchema,aiJobId:z.uuid(),sourceDigest:hex,directoryDigest:hex,
  minimumSensitivity:risk,deliveredGuidance:z.boolean(),proposal:supportProposalSchema,
  interpreted:z.object({sensitiveLevel:risk}).passthrough(),departmentId:z.uuid().nullable(),guidanceOutboxId:z.uuid().nullable()});
+export const supportStateEnvelopeSchema=envelopeSchema;
+export const supportFactLabels={PROBLEM:'ปัญหา',DEVICE:'อุปกรณ์',ERROR:'ข้อความผิดพลาด',PREVIOUS_CONNECTION:'การเชื่อมต่อครั้งก่อน',LOCATION:'บริเวณที่พบปัญหา',ATTEMPTS:'สิ่งที่ลองแล้ว',IMPACT:'ผู้ที่ได้รับผลกระทบ (ตามที่แจ้ง)',SENSITIVE_DETAIL:'รายละเอียดที่ต้องระวัง'} as const;
 function stateEnvelope(row:Record<string,unknown>,key:string){
  try{const raw=JSON.parse(decryptValue(String(row.context_encrypted),key)),parsed=envelopeSchema.safeParse(raw);if(!parsed.success)return null;const p=parsed.data;
   if(digest(raw)!==row.state_digest||p.context.conversationId!==row.conversation_id||p.context.sessionId!==row.line_session_id||p.context.messageId!==row.last_message_id||
    p.context.revision!==row.conversation_revision||p.aiJobId!==row.ai_job_id||p.sourceDigest!==row.source_digest||p.directoryDigest!==row.directory_digest||
    p.guidanceOutboxId!==row.guidance_outbox_id||p.departmentId!==row.department_id||p.interpreted.sensitiveLevel!==row.sensitive_level)return null;return p;
  }catch{return null;}
+}
+export interface SupportActionState {
+ snapshot:SupportStateSnapshot;stateDigest:string;sourceDigest:string;departmentId:string|null;interpreted:InterpretedSupport;
+ envelope:z.infer<typeof envelopeSchema>;envelopeJson:string;canConfirmSolved:boolean;
+}
+/** Fresh owned advice for actions; a retained privacy floor alone is never current action authority. */
+export async function loadSupportActionState(client:DbClient,sessionId:string,conversationId:string,key:string):Promise<SupportActionState|null>{
+ if(!z.uuid().safeParse(sessionId).success||!z.uuid().safeParse(conversationId).success)return null;
+ await lockConversation(client,conversationId);
+ const row=(await client.query('select * from private.ai_support_state where conversation_id=$1 and line_session_id=$2 for update',[conversationId,sessionId])).rows[0];
+ if(!row)return null;const envelope=stateEnvelope(row,key);if(!envelope)return null;
+ const snapshot=await loadSupportSnapshot(client,envelope.context,key);
+ if(!snapshot||snapshot.sourceDigest!==row.source_digest||snapshot.directoryDigest!==row.directory_digest)return null;
+ const interpreted=interpretSupportProposal(envelope.proposal,{...snapshot.input,deliveredGuidance:envelope.deliveredGuidance},envelope.minimumSensitivity);
+ if(!interpreted||!isDeepStrictEqual(interpreted,envelope.interpreted))return null;
+ let canConfirmSolved=false;
+ if(snapshot.input.deliveredGuidance&&interpreted.problemText&&envelope.guidanceOutboxId){
+  const prior=(await client.query(`select j.* from private.ai_jobs j join private.message_outbox o on o.idempotency_key='ai-job:'||j.id::text
+   where o.id=$1 and j.conversation_id=$2`,[envelope.guidanceOutboxId,conversationId])).rows[0];
+  try{const result=prior?decodeAIResult(prior,key):null;
+   canConfirmSolved=!!result?.support&&result.kind!=='CLARIFY'&&result.support.proposal.intent==='TROUBLESHOOT'&&
+    result.support.proposal.facts.find(fact=>fact.field==='PROBLEM')?.quote===interpreted.problemText;
+  }catch{return null;}
+ }
+ return {snapshot,stateDigest:row.state_digest,sourceDigest:row.source_digest,departmentId:envelope.departmentId,interpreted,envelope,envelopeJson:decryptValue(row.context_encrypted,key),canConfirmSolved};
 }
 /** Validated canonical prior delivery; never treat a clarification or changed-evidence message as guidance. */
 async function guidanceMatches(client:DbClient,id:string,context:SupportContext,key:string,options:{mustBeSent:boolean;jobId?:string}):Promise<boolean>{

@@ -49,7 +49,7 @@ const summary = {
 const analytics = {
   observedAt: summary.observedAt, window, departmentId: null,
   firstStaffResponse: { samples: 2, averageSeconds: 3600 }, resolution: { samples: 0, averageSeconds: null },
-  aiResolutionRate: null, distribution: [],
+  aiResolutionRate: null, aiOutcomes:{confirmedSolved:0,confirmedEscalated:0,samples:0},distribution: [],
 };
 const usage = {
   observedAt: summary.observedAt, window,
@@ -95,7 +95,14 @@ describe('operations metrics server surfaces', () => {
     expect(mocks.analytics).toHaveBeenCalledWith(staffId, { from: '2026-10-03', to: '2026-10-08', department: departmentId });
     expect(markup).toContain('2 ตัวอย่าง');
     expect(markup).toContain('ยังไม่มีตัวอย่าง');
-    expect(markup).toContain('ยังไม่มีนิยามผลการตอบของ AI');
+    expect(markup).toContain('ยังไม่มีการยืนยันผล');
+  });
+
+  it('renders only observed confirmation outcomes with an explicit success denominator',async()=>{
+    mocks.analytics.mockResolvedValue({...analytics,aiResolutionRate:75,aiOutcomes:{confirmedSolved:3,confirmedEscalated:1,samples:4}});
+    const markup=html(await AnalyticsPage({searchParams:Promise.resolve({from:'2026-10-03',to:'2026-10-08'})}));
+    expect(markup).toContain('75%');expect(markup).toContain('ยืนยันแก้ได้ 3');expect(markup).toContain('ยืนยันส่งต่อ 1');
+    expect(markup).toContain('4 เรื่อง');expect(markup).not.toContain('ยังไม่มีนิยามผลการตอบ');
   });
 
   it('shows token and cost uncertainty without turning either into a quota estimate', async () => {

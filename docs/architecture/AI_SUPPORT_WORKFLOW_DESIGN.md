@@ -2,7 +2,9 @@
 
 Root,8October2026, under continuous V1 authorization. Source: original overview§§5–12/17–19/21/30; master§§23–24/27–28/31/32/55/57/69 FlowB/C. [Context routing](AI_CONTEXT_ROUTING_DESIGN.md) is a prerequisite; it does not classify the business problem or record resolution. Root owns contracts/privacy/database/worker integration and acceptance. Requested Luna agents are at usage limits; no unavailable independent review is claimed.
 
-## Current gaps and boundaries
+9October implementation checkpoint: B1/B2/B3A and [B3B/C confirmations/context acceptance](../reports/AI_SUPPORT_CONFIRMATION_REPORT.md) now implement source-bound multi-turn support, owned canonical SENT solved/no-ticket or confirmed enriched escalation, scoped encrypted Staff facts and observed outcome metrics. Actual Luna max review and Luna high business-flow authorship are recorded; the earlier quota statement describes the initial design date. Controlled full FlowB/C pass; live approved corpus/free/OA and final combined FlowA–F remain required. Source cascade/web and incident context are separate unfinished subsystems.
+
+## Initial gaps and retained boundaries
 
 The production knowledge producer classifies academic scope and retrieval method, but not support intent. It embeds only the current message, so a device/error follow-up may lose the original Wi-Fi problem. Escalation currently takes the last USER message as its summary, uses GENERAL/MEDIUM defaults and shows every department. Successful delivery is not evidence of a solved problem; Analytics correctly returns unknown AI resolution. Keep existing free gateway, local E5, approved-source selection, confirmation receipts, HUMAN suppression and lease/delivery fences.
 

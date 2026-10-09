@@ -34,6 +34,7 @@ export function projectSupportInput(snapshot:SupportSnapshot,departments:Support
  if(!parsed.success||Buffer.byteLength(JSON.stringify(parsed.data),'utf8')>40000)throw new Error('SUPPORT_INPUT_INVALID');return parsed.data;
 }
 const categories:Record<string,string>={IT:'IT_SUPPORT',REGISTRAR:'REGISTRATION',STUDENT_AFFAIRS:'STUDENT_AFFAIRS',LIBRARY:'LIBRARY',DORMITORY:'DORMITORY',FINANCE:'FINANCE',ACADEMIC_AFFAIRS:'ACADEMIC',FACILITY:'FACILITY',ADMIN:'GENERAL'};
+export function supportCategoryForDepartment(code:string){return categories[code]??'GENERAL';}
 const questions:Record<typeof missingFields[number],string>={DEVICE:'ใช้อุปกรณ์อะไร และระบบปฏิบัติการใดครับ',ERROR:'มีข้อความผิดพลาดอะไรปรากฏขึ้นครับ',PREVIOUS_CONNECTION:'เคยเชื่อมต่อ Wi-Fi หรือระบบนี้ได้มาก่อนหรือไม่ครับ',LOCATION:'พบปัญหาที่อาคารหรือบริเวณใดครับ',ATTEMPTS:'ลองแก้ไขด้วยวิธีใดไปแล้วบ้างครับ'};
 const ranks:Record<SupportSensitivity,number>={GENERAL:0,SENSITIVE:1,RESTRICTED:2};
 /** A conservative reported-impact rule, never a department or conversation keyword router. */
@@ -57,7 +58,7 @@ export function interpretSupportProposal(value:unknown,input:SupportInput,minimu
  for(const fact of p.facts){const source=c.sources.find(s=>s.code===fact.source);if(!source||!source.text.includes(fact.quote)||seen.has(fact.field))return null;seen.add(fact.field);}
  const departmentCode=p.department==='REGISTRATION'?'REGISTRAR':p.department;
  if(departmentCode!==null&&!c.departments.some(d=>d.code===departmentCode))return null;
- const category=departmentCode===null?'GENERAL':categories[departmentCode]??'GENERAL';if(p.category!==category)return null;
+ const category=departmentCode===null?'GENERAL':supportCategoryForDepartment(departmentCode);if(p.category!==category)return null;
  if(p.subcategory==='NETWORK_ACCESS'||p.subcategory==='DEVICE'){if(departmentCode!=='IT')return null;}
  if(p.subcategory==='PAYMENT'&&departmentCode!=='FINANCE'||p.subcategory==='COURSE_REGISTRATION'&&departmentCode!=='REGISTRAR')return null;
  if(p.sensitivity==='RESTRICTED'&&!seen.has('SENSITIVE_DETAIL'))return null;

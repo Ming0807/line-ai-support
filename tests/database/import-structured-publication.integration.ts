@@ -41,6 +41,11 @@ import {createKnowledgeToolRegistry} from '../../lib/ai/backend-tools';
 import {buildRuleProof} from '../../lib/knowledge/rule-proof';
 import {knowledgeStructuredCatalogLock} from '../../lib/knowledge/delivery-fence';
 import {createStaffKnowledgeAssistance} from '../../lib/staff/knowledge-assistance';
+import {processStudentContent} from '../../lib/conversation/student-processing';
+import {createChoices} from '../../lib/conversation/quick-reply';
+import {loadCandidates,candidateSnapshot} from '../../lib/conversation/context-resolver';
+import {confirmSupportSolved} from '../../lib/ai/support-actions';
+import {decryptValue} from '../../lib/security/identity';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_ISOLATED_DATABASE_REQUIRED');
@@ -451,8 +456,9 @@ function exactRequest(r:Ready,patch:Record<string,unknown>={}){
  return {query,scope};
 }
 async function exactSearch(f:Fixture,r:Ready,patch:Record<string,unknown>={}){
- const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(r,patch),f.key,'2026-10-08');await client.query('commit');return result;}catch(error){await client.query('rollback');throw error;}finally{client.release();}
+ const client=await f.pool.connect();try{await client.query('begin');const result=await searchStructured(client,exactRequest(r,patch),f.key);await client.query('commit');return result;}catch(error){await client.query('rollback');throw error;}finally{client.release();}
 }
+async function bangkokToday(f:Fixture){return (await f.pool.query("select (clock_timestamp() at time zone 'Asia/Bangkok')::date::text today")).rows[0].today;}
 test('HUMAN staff advice revalidates actual approved structured envelopes without E5 or delivery',()=>fixture(async f=>{
  const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),receipt=await publish(f,r);
  const initial=await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;
@@ -473,7 +479,7 @@ for(const dataset of STRUCTURED_DATASETS)test(`${dataset}: exact PUBLIC retrieva
  const r=await ready(f,dataset,'STRUCTURED','HTML',{visibility:'PUBLIC'});const receipt=await publish(f,r);
  const result=await exactSearch(f,r);assert.equal(result.status,'READY');if(result.status!=='READY')return;
  assert.deepEqual(result.evidence[0].payload,r.plan.rows[0].payload);assert.equal(result.evidence[0].reference.documentId,receipt.receipt.documentId);
- assert.equal(result.evidence[0].reference.sourceRow,r.plan.rows[0].sourceRow);assert.equal(result.evidence[0].reference.ruleProof.evaluationDate,'2026-10-08');
+ assert.equal(result.evidence[0].reference.sourceRow,r.plan.rows[0].sourceRow);assert.equal(result.evidence[0].reference.ruleProof.evaluationDate,await bangkokToday(f));
  assert.equal(JSON.stringify(result).includes('evidenceEncrypted'),false);assert.equal(f.counters.embeddingBatches,0);
  const changedField=dataset==='academic_calendar_events'?'title':dataset==='tuition_fees'?'program_name':dataset==='transfer_courses'?'source_course_code':dataset==='university_services'?'service_code':dataset==='university_systems'?'code':dataset==='service_forms'?'name':'title';
  assert.equal((await exactSearch(f,r,{[changedField]:'not present in reviewed source'})).status,'EMPTY');
@@ -509,7 +515,7 @@ test('unrelated amendment does not block an exact hit; relevant amendment requir
   const epoch=(await f.pool.query('select rule_revision::text from public.document_families where id=$1',[base.receipt.familyId])).rows[0].rule_revision;
   const revision=(await f.pool.query('select revision from public.documents where id=$1',[base.receipt.documentId])).rows[0].revision;
   const effects=(await f.pool.query(`select r.source_document_id "sourceDocumentId",r.target_document_id "targetDocumentId",r.relation_type "relationType",d.revision from public.document_relationships r join public.documents d on d.id=r.source_document_id where r.source_document_id=any($1::uuid[])`,[[amended.receipt.documentId,(await getImportPublication(f.actor,cancellation.jobId,f.options))!.receipt!.documentId]])).rows;
-  assert.equal(effects.length,2);assert.deepEqual(current.evidence[0].reference.ruleProof,buildRuleProof({familyId:base.receipt.familyId,baseDocumentId:base.receipt.documentId,versionStream:'DEFAULT',ruleRevision:epoch,evaluationDate:'2026-10-08',members:[{documentId:base.receipt.documentId,revision}],effects}));
+  assert.equal(effects.length,2);assert.deepEqual(current.evidence[0].reference.ruleProof,buildRuleProof({familyId:base.receipt.familyId,baseDocumentId:base.receipt.documentId,versionStream:'DEFAULT',ruleRevision:epoch,evaluationDate:await bangkokToday(f),members:[{documentId:base.receipt.documentId,revision}],effects}));
  }
 }));
 
@@ -520,7 +526,7 @@ async function aiContext(f:Fixture){
  const conversation=(await f.pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
  const message=(await f.pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Synthetic exact library question') returning id",[conversation])).rows[0].id;
  const job=await transaction(client=>prepareAIJob(client,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.key),f.pool);
- return {session,conversation,job};
+ return {session,conversation,job,user};
 }
 for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH','HUMAN'] as const)test(`actual structured AI worker/outbox fences ${timing.toLowerCase()} context`,()=>fixture(async f=>{
  const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),publication=await publish(f,r),context=await aiContext(f);
@@ -564,7 +570,7 @@ test('LINE dispatch freezes new matching publication in a family absent from sav
  const payload=a.plan.rows[0].payload;assert('name' in payload);
  request.query=validateStructuredQuery({version:1,dataset:'university_services',filters:{name:payload.name},limit:20});
  const client=await f.pool.connect();let initial;
- try{await client.query('begin');initial=await searchStructured(client,request,f.key,'2026-10-08');await client.query('commit');}finally{client.release();}
+ try{await client.query('begin');initial=await searchStructured(client,request,f.key);await client.query('commit');}finally{client.release();}
  assert.equal(initial.status,'READY');if(initial.status!=='READY')return;assert.equal(initial.evidence.length,1);
  assert.equal((await runAICycle(f.pool,f.key,{produce:async()=>({kind:'STRUCTURED_ANSWER',output:{answer:'Synthetic exact answer',citationRowIds:[initial.evidence[0].rowId]},...request,evidence:initial.evidence})})).completed,1);
  let finished=false,pending:ReturnType<typeof publish>|undefined;
@@ -649,4 +655,41 @@ for(const changed of [false,true])test(`actual support-enabled worker preserves 
  assert.equal(delivery.failed,0);assert.equal(calls,changed?0:1);
  assert.equal((await transaction(c=>loadSupportSnapshot(c,owned,f.key),f.pool))?.input.deliveredGuidance,!changed);
  assert.equal((await f.pool.query('select count(*)::int n from private.ai_support_outcomes where conversation_id=$1',[context.conversation])).rows[0].n,0);
+}));
+
+for(const timing of ['PENDING','SENT','ALTERED','INFORMATION'] as const)test(`owned solved confirmation requires canonical troubleshooting: ${timing}`,()=>fixture(async f=>{
+ const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,r);const context=await aiContext(f),found=await exactSearch(f,r);
+ assert.equal(found.status,'READY');if(found.status!=='READY')return;
+ assert.equal((await runAICycle(f.pool,f.key,{supportEnabled:true,produce:async s=>{assert(s.support);return {
+  kind:'STRUCTURED_ANSWER',output:{answer:'Synthetic reviewed exact troubleshooting guide',citationRowIds:[found.evidence[0].rowId]},...exactRequest(r),evidence:found.evidence,
+  support:{version:1,sourceDigest:s.support.sourceDigest,directoryDigest:s.support.directoryDigest,minimumSensitivity:s.support.minimumSensitivity,deliveredGuidance:s.support.input.deliveredGuidance,
+   proposal:{intent:timing==='INFORMATION'?'INFORMATION':'TROUBLESHOOT',category:'LIBRARY',subcategory:'SERVICE',needsTicket:false,department:'LIBRARY',urgency:'low',needsKnowledgeSearch:false,needsStructuredSearch:true,needsWebSearch:false,
+    confidence:.99,missingContext:null,impact:'SINGLE_USER',sensitivity:'GENERAL',facts:[{field:'PROBLEM',source:'U0',quote:'Synthetic exact library question'}]}}};}})).completed,1);
+ const state=(await f.pool.query('select state_digest from private.ai_support_state where conversation_id=$1',[context.conversation])).rows[0];
+ const outbox=(await f.pool.query('select id,payload_encrypted from private.message_outbox where idempotency_key=$1',[`ai-job:${context.job}`])).rows[0];
+ const payload=JSON.parse(decryptValue(outbox.payload_encrypted,f.key));
+ let data=payload.messages[0].quickReply?.items.find((item:{action:{label:string}})=>item.action.label==='แก้ได้แล้ว')?.action.data;
+ if(timing==='INFORMATION'){
+  assert.equal(data,undefined,'GENERIC_INFORMATION_MUST_NOT_OFFER_SOLVED');
+  const forged=await transaction(async c=>createChoices(c,{sessionId:context.session,snapshot:candidateSnapshot(await loadCandidates(c,context.session)),choices:[
+   {label:'Synthetic unsupported action',value:{action:'SOLVED',conversationId:context.conversation,supportDigest:state.state_digest}}]},f.key),f.pool);data=forged.items[0].action.data;
+ }else assert(data,'TROUBLESHOOT_SOLVED_ACTION_MISSING');
+ if(timing!=='PENDING'){
+  assert.equal((await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>new Response(null,{status:200})})).sent,1);
+ }
+ if(timing==='ALTERED')await f.pool.query("update public.messages set content=content||' changed' where conversation_id=$1 and sender_type='AI'",[context.conversation]);
+ const event={type:'postback' as const,source:{type:'user' as const,userId:context.user},postback:{data}};
+ const eventId=(await f.pool.query("insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind) values('STUDENT',$1,$2,$3,'OTHER') returning id",
+  [randomUUID(),hashLineUserId(context.user,f.key),encryptValue(JSON.stringify(event),f.key)])).rows[0].id;
+ try{
+  const response=await transaction(c=>processStudentContent(c,{sessionId:context.session,eventId,receivedAt:new Date(),event},f.key,{aiEnabled:true}),f.pool);
+  assert.equal(response,timing==='SENT'?null:'INVALID_CHOICE');
+  assert.equal((await f.pool.query('select count(*)::int n from private.ai_support_outcomes where conversation_id=$1',[context.conversation])).rows[0].n,timing==='SENT'?1:0);
+  assert.equal((await f.pool.query('select count(*)::int n from public.tickets where conversation_id=$1',[context.conversation])).rows[0].n,0);
+  assert.equal((await f.pool.query('select status from public.conversations where id=$1',[context.conversation])).rows[0].status,timing==='SENT'?'RESOLVED':'ACTIVE');
+  if(timing==='SENT')assert.equal(await transaction(c=>confirmSupportSolved(c,{sessionId:context.session,conversationId:context.conversation,stateDigest:state.state_digest,eventId},f.key),f.pool),true,'EXACT_OUTCOME_REPLAY');
+ }finally{
+  await f.pool.query("update private.webhook_inbox set status='DONE',completed_at=clock_timestamp() where id=$1",[eventId]);
+  await f.pool.query("update private.message_outbox set status='SUPPRESSED',completed_at=clock_timestamp() where line_session_id=$1 and status='PENDING'",[context.session]);
+ }
 }));

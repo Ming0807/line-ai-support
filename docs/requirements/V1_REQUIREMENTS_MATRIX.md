@@ -1,5 +1,7 @@
 # V1 Requirements coverage matrix
 
+9October RAG-01B-3B/C [confirmed support evidence](../reports/AI_SUPPORT_CONFIRMATION_REPORT.md): CH024/027/028/031/051/057/060 gain actual owned outcomes, immutable encrypted scoped ticket context and observed outcome metrics.272ownedPG/34replay/RLS/advisors0ERROR0WARN/53normal regressions and compiled Ticket/Analytics1440/390/320 PASS. Full multi-turn FlowB/C pass with controlled generation/E5/LINE; live vendors/OAs/approved university corpus and final combined FlowA–F remain pending. Worker observations, incident context and full source cascade are separate required implementation.
+
 9October RAG-01B-3A [producer/worker evidence](../reports/AI_SUPPORT_PRODUCER_REPORT.md) adds actual USER continuation/full year scope, private advice/source fences and ticket sensitivity for CH023/027/028/031/057 and FlowB/C/E.255ownedPG/1928unit/type/full lint/build; local+DEVELOPMENT34versions/55RLS tables/actual grants/53normalPG PASS. Appropriate consumed actions, outcome transitions, copied ticket context and observed Analytics remain B3B; component/activation evidence does not complete these flows or V1.
 
 8October RAG-01B-2 [private support storage evidence](../reports/AI_SUPPORT_STATE_REPORT.md):243ownedPG/34replay/RLS/advisors0ERROR0WARN; encrypted literal context/fresh source/directory/lease/owner/privacy/department and canonical delivered-guidance boundary for CH027/028/031/057, FlowB/C. Fixed immutable outcome/ticket-copy tables alone do not prove confirmation, transitions, production producer or observed Analytics. Normal/DEVELOPMENT activation and B3 integration remain root work; no live/fullV1 pass.
@@ -149,8 +151,8 @@ Coverage ในตารางด้านบนเป็นสถานะข�
 | Flow | Test behavior | Evidence ปัจจุบัน / งานคงเหลือ |
 |---|---|---|
 | FLOW-A FAQ | เทียบโอน → approvedRAG → answer/citation → no ticket | controlledRAGfixtureมี; actualapprovedPDF/freeprovider/reallinepending PRV-05/IMP-04/FINAL-01 |
-| FLOW-B Troubleshooting | Wi-Fi → contextquestion → officialguide → solved → no ticket | producerclarificationcomponentsมี; actualmulti-turnfreeguide/solveconfirmationpending RAG-01/FINAL-01 |
-| FLOW-C Escalation | unresolvedWi-Fi → confirmedITticket → scopedStaffnotification | M4/receipts/notificationfixturesมี; freeAI→ticket+boundrealStaffOA pending ADV-01/FINAL-01 |
+| FLOW-B Troubleshooting | Wi-Fi → contextquestion → officialguide → solved → no ticket | RAG-01B-3B/C controlled full actualPG multi-turn reviewed guide/canonical SENT/owned solve/no ticket PASS; live approved corpus/free generation/real OA pending FINAL-01 |
+| FLOW-C Escalation | unresolvedWi-Fi → confirmedITticket → scopedStaffnotification | RAG-01B-3B/C controlled full actualPG USER continuation/confirmed IT/encrypted facts/scoped bound Staff notification/outcome PASS; live free generation/bound real Staff OA pending FINAL-01 |
 | FLOW-D Human | staffaccept → HUMAN → staffquestion/userreplysamecase → resolve → close | actualPG/HTTP/browsercomponentflowsมี; realOAfullticketcyclepending FINAL-01 |
 | FLOW-E NewtopicduringHUMAN | Registrationcase remainsactive while libraryquestion gets newAIconversation | RAG-01A real worker/PG semantic new topic and unchanged HUMAN pass; full currentlibrarycitation/freegeneration+realOA pending FINAL-01 |
 | FLOW-F Documentupdate | calendar2568 → import2569→family/conflictpreview→approve→oldsuperseded→newcurrent→answer2569 | current/historyretrievalfixturesมี; completeimport/version/structured/BOTHapprovalpending IMP-03/STR-02/FINAL-01 |

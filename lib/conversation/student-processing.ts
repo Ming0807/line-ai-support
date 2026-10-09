@@ -10,6 +10,8 @@ import {applyUserReply} from '../tickets/human-takeover';
 import {prepareAIJob} from '../ai/jobs';
 import {createTicketToolRegistry} from '../ai/backend-tools';
 import {validateRoutingAdvice,type SemanticRoutingAdvice} from './semantic-routing';
+import {loadSupportActionState} from '../ai/support-state';
+import {confirmSupportSolved} from '../ai/support-actions';
 
 export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice}
 
@@ -33,11 +35,21 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  const semantic=event.type==='message'?await validateRoutingAdvice(client,input,options.routingAdvice):null;
  const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId,newTopic:newTopic||semantic?.newTopic,confidence:semantic?.confidence});
  let conversationId=selected;
+ if(choice?.supportDigest){
+  const state=conversationId?await loadSupportActionState(client,sessionId,conversationId,key):null;
+  if(!state||state.stateDigest!==choice.supportDigest){await respond('ข้อมูลเรื่องนี้เปลี่ยนแล้วครับ กรุณาส่งข้อความใหม่เพื่อยืนยันอีกครั้ง');return 'INVALID_CHOICE';}
+ }
+ if(choice?.action==='SOLVED'){
+  if(!conversationId||!choice.supportDigest||!await confirmSupportSolved(client,{sessionId,conversationId,eventId,stateDigest:choice.supportDigest},key)){
+   await respond('ยังยืนยันผลของเรื่องนี้ไม่ได้ครับ กรุณาส่งรายละเอียดเพิ่มเติม');return 'INVALID_CHOICE';
+  }
+  await respond('ยืนยันว่าแก้ปัญหาได้แล้วครับ หากมีเรื่องอื่น ส่งคำถามใหม่ได้เลย');return null;
+ }
  if(choice?.action==='CONTACT'){
   conversationId=choice.conversationId;
   if(!conversationId||!candidates.some(c=>c.conversationId===conversationId&&c.mode==='AI')){await respond('กรุณาเลือกเรื่องใหม่ก่อนส่งต่อเจ้าหน้าที่');return 'INVALID_CHOICE';}
   const departments=(await client.query('select code,name_th from public.departments where active order by code')).rows;
-  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:departments.map(d=>({label:d.name_th,value:{action:'ESCALATE',conversationId:conversationId!,departmentCode:d.code}}))},key);
+  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:departments.map(d=>({label:d.name_th,value:{action:'ESCALATE',conversationId:conversationId!,departmentCode:d.code,...(choice.supportDigest?{supportDigest:choice.supportDigest}:{})}}))},key);
   await respond('เลือกหน่วยงานที่ต้องการติดต่อครับ',quickReply);return null;
  }
  if(choice?.action==='ESCALATE'){
@@ -47,7 +59,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   }
   const last=(await client.query("select content from public.messages where conversation_id=$1 and sender_type='USER' order by created_at desc,id desc limit 1",[conversationId])).rows[0];
   const summary=Array.from(last?.content??'ติดต่อเจ้าหน้าที่').slice(0,1000).join('');
-  if(options.aiEnabled){
+  if(options.aiEnabled||choice.supportDigest){
    const selectedContext=candidates.find(c=>c.conversationId===conversationId)!;
    await createTicketToolRegistry(client,key,eventId).execute({name:'create_ticket',arguments:{departmentCode:choice.departmentCode,summary}},
     {lineSessionId:sessionId,conversationId,conversationRevision:selectedContext.conversationRevision},['create_ticket']);
