@@ -1,5 +1,5 @@
 import {createHmac,hkdfSync} from 'node:crypto';
-import type {Pool} from 'pg';
+import type {Pool,PoolClient} from 'pg';
 import {z} from 'zod';
 import {transaction} from '../database/pool';
 import {copyStructuredJson,freezeStructuredData} from '../imports/structured-mapping-contract';
@@ -29,6 +29,20 @@ function admissionDigests(request:WebSearchRequest,encodedKey:string){
  const key=Buffer.from(hkdfSync('sha256',master,'yru-helpdesk-v1','web-search-admission',32));
  const digest=(parts:string[])=>createHmac('sha256',key).update(JSON.stringify(parts)).digest('hex');
  return {requestKey:digest(['request',request.consumer,request.operationId,request.purpose]),ownerDigest:digest(['owner',request.consumer,request.ownerId])};
+}
+/** Private admission identity; hashes never replace fresh actor/internal-source authorization. */
+export function webSearchAdmissionIdentity(input:unknown,key:string):Readonly<{requestKey:string;ownerDigest:string}>{
+ return freezeStructuredData(admissionDigests(parseWebSearchRequest(input),key));
+}
+/** Durable exact observation check for an owned EMPTY issuer, not general search authority by itself. */
+export async function readSuccessfulWebSearch(client:PoolClient,attemptId:string,input:unknown,key:string,providerRequestId:string){
+ const request=parseWebSearchRequest(input),identity=webSearchAdmissionIdentity(request,key);
+ if(!z.uuid().safeParse(attemptId).success||!z.uuid().safeParse(providerRequestId).success)throw new Error('WEB_SEARCH_OBSERVATION_INVALID');
+ const row=(await client.query('select * from private.web_search_attempts where attempt_id=$1',[attemptId])).rows[0];
+ if(!row||row.attempt_id!==attemptId||row.request_key!==identity.requestKey||row.owner_digest!==identity.ownerDigest||row.consumer!==request.consumer||
+  row.purpose!==request.purpose||row.topic!==request.topic||row.academic_year!==request.academicYear||row.observation!=='SUCCESS'||row.http_status!==200||
+  row.credits!==1||row.provider_request_id!==providerRequestId||!(row.reserved_at instanceof Date)||!Number.isFinite(row.reserved_at.getTime()))throw new Error('WEB_SEARCH_OBSERVATION_INVALID');
+ return {...identity,reservedAt:row.reserved_at};
 }
 
 /** Commit a retained attempt before HTTP. An uncertain commit grants no permission to send. */

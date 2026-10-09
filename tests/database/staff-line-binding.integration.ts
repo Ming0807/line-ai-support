@@ -12,10 +12,14 @@ import {runOutboxCycle} from '../../lib/queue/run-outbox';
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/.test(database),'OWNED_DATABASE_REQUIRED');
 const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${database}`,max:5,application_name:'staff-binding-owned-qa'});
-after(()=>pool.end());
+const ownedDepartments:string[]=[];
+after(async()=>{try{
+ await pool.query('update public.departments set active=false where id=any($1::uuid[])',[ownedDepartments]);
+}finally{await pool.end();}});
 async function fixture(){
  const key=randomBytes(32).toString('base64'),staff=randomUUID(),other=randomUUID(),department=randomUUID(),user='U'+randomUUID().replaceAll('-','');
  await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[department,'BIND_'+department.replaceAll('-','')]);
+ ownedDepartments.push(department);
  for(const id of [staff,other]){await pool.query('insert into auth.users(id) values($1)',[id]);await pool.query("insert into public.staff_profiles(id,department_id,role,display_name) values($1,$2,'STAFF','QA')",[id,department]);}
  const options={pool,encryptionKey:key};
  const issue=(actor=staff,requestId=randomUUID())=>createBindingChallenge(actor,{requestId},options);

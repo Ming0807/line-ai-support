@@ -1,5 +1,30 @@
 # YRU V1 — Current task board
 
+## Current acceptance — 9 October 2026
+
+This table is current authority. Dated checkpoints and the older decomposition below preserve historical scope; their uninstalled/PARTIAL/PLANNED wording does not override newer accepted runtime evidence. Required automated implementation and registered combined acceptance are complete. Human live/deployment acceptance remains separate and deferred; this is not a whole live-V1 pass.
+
+| Task IDs | Current state | Owner / evidence / remaining gate |
+|---|---|---|
+| PRV-01…05 | AUTOMATED_COMPLETE / MANUAL_PENDING | Root and actual scoped Luna work; provider acceptance report. Live free account/model quality/quota remains human evidence. |
+| RAG-01 | AUTOMATED_COMPLETE / MANUAL_PENDING | Root runtime/source/support; actual Luna max authored A–F, root final registered execution 389/25 groups including A–F 8/8. Real corpus/free model/E5/OA remain. |
+| IMP-01…04 | AUTOMATED_COMPLETE / MANUAL_PENDING | Private originals, five-format parsers, review/version/atomic publication and integrated UI; final controlled import/current-history Flow F PASS. Real corpus/host checks follow the [runbook](../operations/PRODUCTION_RUNBOOK.md). |
+| STR-00/01/02 | AUTOMATED_COMPLETE / MANUAL_PENDING | Seven datasets/provenance/atomic STRUCTURED+BOTH/exact search+delivery/readiness; 38 migrations/59 RLS local+DEVELOPMENT. Registered publication/delivery and Flow F PASS; approved actual corpus remains. |
+| ADV-01 | AUTOMATED_COMPLETE / MANUAL_PENDING | Scoped active Staff binding/actions/alerts, registered C/D recipient/HUMAN lifecycle PASS; real authorized OA cycle remains. |
+| ADV-02 | AUTOMATED_COMPLETE / MANUAL_PENDING | Scoped incidents/severity/system/location context, registered worker/read/race checks PASS; live embeddings/operator data remains. |
+| ADV-03 | AUTOMATED_COMPLETE / MANUAL_PENDING | Scoped operational endpoints/metrics/integrated observations; registered reads/readiness PASS. Production process evidence remains. |
+| ADV-04 | AUTOMATED_COMPLETE / MANUAL_PENDING | Loading/deadline/reply-push/idempotent outbox, registered worker and combined delivery PASS; actual provider/OA timing remains. |
+| ADV-05C-3D | AUTOMATED_COMPLETE / MANUAL_PENDING | [Procedural/general report](../reports/PROCEDURAL_WEB_CASCADE_REPORT.md): root integration/execution, actual Luna high validator/max source review; final gates PASS. Real search account/source quality remains. |
+| ADV-05 Rich Menu | EXPLICITLY_DEFERRED | DEC-059 optional entry design; context QuickReply remains implemented. |
+| FINAL-01-CTL | AUTOMATED_COMPLETE | Root final 389/389 in 25 groups including A–F 8/8; 38 replay/RLS/normal unchanged/advisors 0 ERROR 0 WARN/exact cleanup PASS. Actual Luna max author/source review and Luna high root-fix/runner reviews; [final report](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md). |
+| FINAL-01-LIVE | MANUAL_PENDING | Approved corpus, free account/quality, E5 on selected host, OA and production/restore checks. User authorized deferral; no whole-V1/live pass. |
+
+## Dated checkpoint ledger
+
+9 October **FINAL-01-CTL / FINAL-01-DOC / ADV-05C-3D AUTOMATED_COMPLETE**: [final acceptance](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) accounts for required implementation and preserves actual failed gates/fixes. Root executed 2,087 unit / 389 owned PG in 25 groups / 53 normal PG / A–F 8 / 11 compiled Staff browser groups; typecheck, full lint and build PASS. Final owned replay38/RLS/advisors0ERROR0WARN/exact cleanup PASS. No new migration/env/live enablement. [Human setup](../operations/FINAL_SETUP_CHECKLIST.md) and [production runbook](../operations/PRODUCTION_RUNBOOK.md) consolidate the deferred real account/corpus/E5/OA/host/restore checks; no live-V1 pass is claimed. Earlier entries below are historical.
+
+9October **ADV-05C-3D IN_PROGRESS**: root [procedural/general cascade plan](../superpowers/plans/2026-10-09-yru-procedural-web-cascade.md)/[design](../architecture/PROCEDURAL_WEB_CASCADE_DESIGN.md). C3C e03e4597dadc050c8991de0cfef6de989509a2f4 passed staged security/diff, committed/pushed and exact remote verified. Root now implements source-grounded Structured NOT_APPLICABLE and successful official-empty→closed general troubleshooting, then FINAL-01 combined FlowA–F. Current normal/local+DEVELOPMENT38versions/59RLS remain; no new human action/live search/V1 completion.
+
 9October **ADV-05C-3C COMPONENT_PASS / C3D_FINAL_PENDING**: root [owned web-lead report](../reports/WEB_LEAD_INTEGRATION_REPORT.md)/[design](../architecture/WEB_LEAD_INTEGRATION_DESIGN.md)/[plan](../superpowers/plans/2026-10-09-yru-web-lead-integration.md). Actual19focused/368PG/22groups/38replay/RLS/advisors0ERROR0WARN,2,041unit/160files/type/full lint/build,9compiled Staff-browser groups and53normal regressions PASS. Student producer/worker/outbox and HUMAN Staff advice return unverified cited YRU links only after fresh complete internal misses; late source/context/lease/expiry changes discard them. Local+selected DEVELOPMENT38versions/59RLS tables/exact grants/catalog guards/retained rows verified; no live search/source approval. C3D semantic NOT_APPLICABLE/general fallback and FINAL-01 combined FlowA–F remain root work. Root self-review; Git/security checkpoint follows; no new human action or V1 completion.
 
 9October **ADV-05C-3B COMPONENT_PASS / PRODUCTION_INTEGRATION_PENDING**: root [complete internal-miss receipts](../reports/INTERNAL_MISS_REPORT.md)/[design](../architecture/INTERNAL_MISS_DESIGN.md)/[plan](../superpowers/plans/2026-10-09-yru-complete-internal-miss.md). Actual23focused/349PG/21groups/38replay/RLS/advisors0ERROR0WARN/normal unchanged/cleanup and2,013unit/157files/type/full lint/build PASS. Source/day/policy/guard/HMAC checks repeat both searches; READ COMMITTED fixes two observed isolation RED cases. No production web caller/semantic NOT_APPLICABLE/whole V1 pass. C3A checkpointf66503c pushed and exact remote verified; normal36 remains. Root continues web and final combined FlowA–F; no new human action.
@@ -140,7 +165,7 @@ Execution plan: [free providers](../superpowers/plans/2026-10-04-yru-free-ai-pro
 
 Completed provider automated execution: [5Oct cooldown/compatible contracts](../superpowers/plans/2026-10-05-yru-provider-cooldown-compatible.md). Luna max helper/network/config scoped reviews are actual evidence; root owns integration/DB/full gates. An early Import contract-review assignment ended at usage limit; root then continued the contract and implementation. Current component reviews and their exact scopes are linked from the Import checkpoint; no unavailable review is claimed.
 
-## งานที่เหลือใน V1
+## Historical task decomposition — current acceptance is above
 
 ตารางนี้ระบุ scope ก่อน implementation. M8 มี [execution gates](../superpowers/plans/2026-10-06-yru-structured-data.md) แล้ว แต่ STR-00 ต้องตรึง types/provenance/query/review/mode decisions ก่อน schema/runtime implementation. M9 ยังต้องแตก files/contracts/tests ตาม working protocol
 

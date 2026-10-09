@@ -23,4 +23,4 @@ Files/acceptance:
 
 Expected files: this plan/design/report and shared status docs; `lib/ai/knowledge-snapshot.ts`, `lib/ai/jobs.ts`, `lib/ai/run-worker.ts`; `lib/knowledge/{public-web-plan,web-leads,owned-web-fallback,configured,answer-producer,web-search-runtime,delivery-fence}.ts`; Staff knowledge contracts/projection/service/panel; `.env.example` optional placeholders; owned/unit tests and verifier registration. No new schema is anticipated. Root will narrow exact files if existing helpers suffice.
 
-- [ ] Exact staged-file security/whitespace scan, root commit/noninteractive push and remote SHA verification. Record the implementation checkpoint when continuing C3D; no unavailable independent review is credited.
+- [x]37exact staged files security/whitespace PASS; e03e4597dadc050c8991de0cfef6de989509a2f4 root commit/noninteractive push and exact remote SHA verified. C3D records the implementation checkpoint; no unavailable independent review is credited.

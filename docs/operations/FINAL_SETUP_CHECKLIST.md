@@ -1,5 +1,42 @@
 # สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
 
+## สถานะปัจจุบัน — 9 ตุลาคม 2026
+
+Local และ DEVELOPMENT ที่เลือกมี 38 migrations / 59 RLS tables แล้ว ไม่ต้องติดตั้งฐานข้อมูลซ้ำ ส่วนคำสั่ง process, parser child, embedding virtualenv, shutdown, backup และ rollback ระบุใน [production runbook](PRODUCTION_RUNBOOK.md) แล้ว Root ปิดงาน code/test/docs ที่จำเป็นและตรวจระบบรวมอัตโนมัติแล้ว: 389/389 ใน 25 กลุ่ม รวม Flow A–F 8/8 ผ่าน ดู [หลักฐานรับงานอัตโนมัติ](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) ผลนี้ยังไม่ยืนยันการใช้งานจริงหรือ production
+
+งานที่ต้องยืนยันกับระบบจริงคือบัญชี AI ฟรีและลำดับโมเดลผ่าน Dashboard, local E5 จาก cache เดิม, เอกสารมหาวิทยาลัยที่คนตรวจและอนุมัติ, การเชื่อม Staff OA และ Flow A–F ผ่าน OA จริง, และ host/worker/Storage/backup/restore สำหรับ production ตาม runbook หากเลือกเปิดค้นเว็บ ต้องยืนยันบัญชีฟรีไม่มี PAYG และตั้งค่าฝั่ง server ตามหัวข้อด้านล่าง การทดสอบควบคุมไม่ทดแทนหลักฐานเหล่านี้
+
+## ขั้นตอนรวมสำหรับทดสอบระบบจริง
+
+1. เข้าบัญชี SUPER_ADMIN แล้วเปิด Providers เพิ่ม key ฝั่ง server ของ OpenCode Zen/OpenRouter และเลือกโมเดลที่ยืนยันว่าฟรี ใช้ปุ่มทดสอบรายโมเดลและปุ่มขึ้น/ลงจัด fallback ตรวจผล HTTP และ quota ตามข้อมูลที่สังเกตได้ สถานะไม่ทราบโควต้าไม่ใช่หลักฐานว่าเหลือโควต้า ตั้ง FREE_ONLY ตามเดิม
+2. เปิด local E5 ด้วย virtualenv/cache เดิมตาม [embedding setup](../../services/embedding/README.md) ตรวจ Settings และ query/passage จริง ไม่ต้องเพิ่ม embedding model ใน Providers หรือดาวน์โหลด model ใหม่
+3. นำเอกสารมหาวิทยาลัยที่ได้รับอนุญาตเข้า Knowledge ตรวจข้อเสนอ/ข้อความ/ตาราง/ปี/ขอบเขต/แหล่งที่มาและการเปลี่ยนรุ่น แล้วอนุมัติอย่างชัดเจน เอกสารที่ดาวน์โหลดไว้ยังไม่เป็นฐานคำตอบที่ approved อัตโนมัติ ตรวจทั้งคำถามปัจจุบันและย้อนหลัง
+4. ให้เจ้าหน้าที่เข้าสู่ Settings → สร้างรหัสเชื่อมต่อ → ส่งคำสั่งส่วนตัวเข้า Staff OA ภายใน10นาที แล้วตรวจสถานะเชื่อมต่อ ตั้ง OA ทั้งสองบน domain ที่เลือกด้วย `/api/line/student/webhook` และ `/api/line/staff/webhook` และทดสอบ A–F ตาม [รายงานรับงาน](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) ด้วยข้อความจริง ตรวจการแจ้งเตือน/รับเรื่อง/ตอบเอง/ปิดงาน และหัวข้อใหม่ระหว่าง HUMAN
+5. เมื่อติดตั้ง production เลือก host/domain และผู้รับผิดชอบ backup แล้วดำเนินตาม [runbook](PRODUCTION_RUNBOOK.md): web + inbox/AI/outbox/incidents + private E5, parser child, private Storage, environment และ graceful restart ทดสอบ restore ในพื้นที่แยกโดยไม่ส่งถึงผู้รับ LINE จริง ยังไม่มีหลักฐานว่าติดตั้ง production แล้ว
+
+ค้นเว็บเป็นการตั้งค่าเพิ่มเติม: หากเลือกเปิด ให้เจ้าของบัญชียืนยันแผนฟรีไม่มี PAYG/paid upgrade และตั้ง key/attestation ฝั่ง server ตามข้อกำหนดด้านล่าง ระบบยังปิดอยู่และการทดสอบควบคุมไม่เปิดบริการจริงแทนเจ้าของบัญชี
+
+ก่อนทดสอบ AI จริง เมื่อ free model ผ่านปุ่มทดสอบ, E5 พร้อม และมีเอกสาร PUBLIC ที่ตรวจอนุมัติแล้ว ให้ผู้ดูแล server ตั้ง `LINE_WEBHOOK_MODE=durable` และ `YRU_AI_ENABLED=true` ใน environment ที่ ignored แล้ว restart web และ workers ตาม [Local setup](LOCAL_SETUP.md) ค่าปิดเริ่มต้นยังไม่ได้เปิดแทนเจ้าของระบบ ต้องรัน `pnpm worker`, `pnpm worker:ai`, `pnpm worker:outbox` และ `pnpm worker:incidents` เป็น process แยก พร้อม embedding service ดูคำสั่งและการดูแล process ใน [runbook](PRODUCTION_RUNBOOK.md)
+
+## ข้อความและผลที่ต้องตรวจใน LINE จริง
+
+ใช้คำถามที่ตรงกับเอกสารซึ่งคุณตรวจอนุมัติแล้ว ตัวอย่างด้านล่างเป็นข้อความทดสอบ ไม่ใช่นโยบายมหาวิทยาลัยที่ระบบยืนยันไว้ก่อน
+
+| Flow | สิ่งที่ทำ | ผลที่ต้องเห็น |
+|---|---|---|
+| A | ส่ง “ขอทราบขั้นตอนการเทียบโอนหน่วยกิต” โดยมีคู่มือทางการที่อนุมัติ | คำตอบอ้างอิงเอกสารที่ถูกต้อง ไม่สร้าง ticket หากข้อมูลพอ |
+| B | ส่ง “เชื่อม Wi-Fi มหาวิทยาลัยไม่ได้” ตอบคำถามรายละเอียด แล้วลองขั้นตอนจากคู่มือ | มีคำแนะนำพร้อมแหล่งอ้างอิง เมื่อแก้ได้ให้กดปุ่มยืนยันของบทสนทนานี้ ผลเป็น SOLVED และไม่มี ticket; การส่งคำแนะนำอย่างเดียวไม่ใช่แก้ได้แล้ว |
+| C | เริ่มปัญหา Wi-Fi อีกกรณี แจ้งว่ายังแก้ไม่ได้ แล้วกดยืนยันส่งต่อจากปุ่มที่ระบบให้ | สร้าง ticket ฝ่าย IT พร้อมบริบท เฉพาะเจ้าหน้าที่ที่ผูก Staff OA และมีสิทธิ์รับแจ้งเตือน |
+| D | ให้เจ้าหน้าที่รับเรื่อง ตอบจาก Dashboard ให้ผู้ใช้ตอบกลับกรณีเดิม แล้วดำเนินการ resolve/close | อยู่ใน ticket HUMAN เดิม AI ไม่ตอบแทรก ข้อความเจ้าหน้าที่ถึง Student OA และปิดงานได้ |
+| E | ขณะ HUMAN ยังเปิด ส่ง “ห้องสมุดเปิดกี่โมง” โดยมีแหล่งข้อมูลที่อนุมัติ | แยกบทสนทนา AI ใหม่ ตอบจากแหล่งที่ถูกต้อง ticket HUMAN เดิมยังอยู่และไม่ถูกแก้ไข |
+| F | นำเข้าปฏิทินรุ่นใหม่ ตรวจ conflict/review แล้วอนุมัติ replacement ที่ถูกต้อง | ก่อนอนุมัติยังไม่เผยแพร่ หลังอนุมัติคำถามปัจจุบันอ้างรุ่นใหม่ ถามปีเก่าอ้างรุ่นเก่าที่เก็บไว้; ไม่มีการลบประวัติ |
+
+บันทึกผลจริงของแต่ละ Flow แยกจากผลทดสอบควบคุม หาก provider ไม่พร้อม/ข้อมูลไม่พอ ระบบต้องแสดงข้อจำกัดหรือขอรายละเอียด ไม่ถือว่าข้อนั้นผ่านด้วยคำตอบจำลอง
+
+## บันทึก checkpoint เดิม
+
+ข้อความวันที่เก่าด้านล่างเป็นประวัติ ไม่ได้เพิ่มงานตั้งค่าหรือเปลี่ยนสถานะปัจจุบัน
+
 9October C3C is implemented and root installed migrations37+38 in local+selected DEVELOPMENT:38versions/59RLS tables, exact catalog/least grants and retained rows verified;53normal regressions pass. [Evidence](../reports/WEB_LEAD_INTEGRATION_REPORT.md). No manual DB work is needed there. Root still owns C3D semantic NOT_APPLICABLE/general fallback and combined controlled FlowA–F; live evidence stays deferred.
 
 Optional live web-lead setup after remaining implementation: owner verifies a free Researcher account with no PAYG/automatic paid upgrade, stores its key server-only in `TAVILY_API_KEY`, confirms `TAVILY_FREE_NO_PAYG_ATTESTED=true`, sets exact key SHA-256 in `TAVILY_FREE_KEY_SHA256` and canonical UTC ISO timestamp in `TAVILY_FREE_ATTESTED_AT` (maximum24hours), then explicitly enables `YRU_WEB_SEARCH_ENABLED=true` with the existing free AI/worker configuration. The backend also requires fresh eligible account observations and shared quota admission. Do not paste the key into docs/UI/logs. Current `.env` was not changed and search remains disabled; controlled tests do not prove a live free account/source/OA. Staff must review the unverified links, edit and explicitly send. Remaining approved corpus/free generation/local E5/real OA/production checklist below still applies.

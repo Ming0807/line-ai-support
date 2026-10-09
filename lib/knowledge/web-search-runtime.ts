@@ -5,7 +5,7 @@ import {copyStructuredJson,freezeStructuredData} from '../imports/structured-map
 import {parseWebSearchRequest,reserveWebSearch,observeWebSearch,type WebSearchAdmission,type WebSearchRequest,type WebSearchObservation} from './web-search-admission';
 import {createTavilySearchAdapter,TavilySearchError,type TavilySearchAdapter,type TavilySearchResult,type TavilyUsage} from './tavily-search';
 
-export type WebSearchRuntimeResult=Readonly<{status:'READY';result:TavilySearchResult}|{
+export type WebSearchRuntimeResult=Readonly<{status:'READY';attemptId:string;result:TavilySearchResult}|{
  status:'NOT_CONFIGURED'|'FREE_ONLY_UNVERIFIABLE'|'QUOTA_EXHAUSTED'|'ALREADY_ATTEMPTED'|'UNAVAILABLE'}>;
 const configSchema=z.object({enabled:z.literal(true),apiKey:z.string().regex(/^[\x21-\x7e]{1,512}$/u),
  attestation:z.object({mode:z.string().max(80),keySha256:z.string().max(128),attestedAt:z.string().max(80)}).strict()}).strict();
@@ -75,7 +75,7 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
    await record({kind:'SUCCESS',httpStatus:200,providerRequestId:result.requestId,credits:1});
    if(signal.aborted)return {status:'UNAVAILABLE'};
    if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
-   return freezeStructuredData({status:'READY' as const,result});
+   return freezeStructuredData({status:'READY' as const,attemptId,result});
   }catch(error){
    await record({kind:'ERROR',httpStatus:error instanceof TavilySearchError?error.httpStatus??null:null});
    return {status:'UNAVAILABLE'};

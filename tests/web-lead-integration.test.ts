@@ -37,6 +37,16 @@ it('malformed semantic proposals never reach an owned search callback',async()=>
  const f=fixture();f.generate.mockImplementation(async input=>({output:input.taskType==='KNOWLEDGE_SCOPE'?scope:input.taskType==='KNOWLEDGE_METHOD'?{method:'STRUCTURED',query}:{...proposal,url:'https://evil.test/'},toolCalls:[],providerId:'fixture',modelId:'fixture',fallbackUsed:false}));
  expect((await f.produce(source,new AbortController().signal)).kind).toBe('CLARIFY');expect(f.webFallback).not.toHaveBeenCalled();
 });
+it('only a validated explicit PROCEDURE proposal can advance a RAG method to owned web fallback',async()=>{
+ const question='วิธีเข้าใช้บริการห้องสมุด',notApplicable={version:1,kind:'PROCEDURE',topic:'LIBRARY_SERVICES',quote:question};
+ const generate=vi.fn(async(input:{taskType:string})=>{const output:unknown=input.taskType==='KNOWLEDGE_SCOPE'?scope:input.taskType==='KNOWLEDGE_METHOD'?{method:'RAG',query:null,notApplicable}:proposal;return {output,toolCalls:[],providerId:'fixture',modelId:'fixture',fallbackUsed:false};});
+ const f=fixture({generate:generate as unknown as KnowledgeProducerOptions['generate']});
+ expect((await f.produce({...source,question},new AbortController().signal)).kind).toBe('WEB_LEADS');
+ expect(f.webFallback).toHaveBeenCalledWith({question,scope,structuredQuery:null,notApplicable,queryVector:vector,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,proposal},expect.any(AbortSignal));
+ expect(generate.mock.calls.map(([call])=>call.taskType)).toEqual(['KNOWLEDGE_SCOPE','KNOWLEDGE_METHOD','KNOWLEDGE_WEB_PLAN']);
+ const exact=fixture({generate:generate as unknown as KnowledgeProducerOptions['generate']});
+ expect((await exact.produce({...source,question:'วิธีเข้าใช้บริการห้องสมุดเวลาเปิดกี่โมง'},new AbortController().signal)).kind).toBe('CLARIFY');expect(exact.webFallback).not.toHaveBeenCalled();
+});
 it('private lead results require the catalog and reject additional persisted provider data',()=>{
  const parsed=aiResultSchema.parse(leads());expect(requiresStructuredCatalog(parsed)).toBe(true);
  expect(aiResultSchema.safeParse({...leads(),rawSnippet:'private external content'}).success).toBe(false);

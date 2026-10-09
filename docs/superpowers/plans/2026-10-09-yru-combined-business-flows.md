@@ -1,10 +1,10 @@
 # FINAL-01-CTL — combined controlled business-flow acceptance
 
-9 October 2026 root under continuous V1 authorization. Original overview §30/FlowA–F in the master guide and requirements matrix. Depends on the accepted36-migration runtime and source/support/ticket contracts. This is automated controlled acceptance only; real approved corpus/free inference/E5/OA/deployment remains MANUAL_PENDING. Missing web implementation cannot become a pass through these fixtures.
+9 October 2026 root under continuous V1 authorization. Original overview §30/FlowA–F in the master guide and requirements matrix. Depends on the current38-migration runtime and source/support/ticket contracts. This is automated controlled acceptance only; real approved corpus/free inference/E5/OA/deployment remains MANUAL_PENDING. Component web evidence is separately required and cannot be inferred from these fixtures.
 
 Actual requested Luna max owns only new `tests/database/v1-business-flows.integration.ts` and its report draft `docs/reports/V1_CONTROLLED_FLOW_TEST_DRAFT.md`. Root owns runner registration, schema/auth/contracts, integration and acceptance. Read AGENTS/index/board/master/requirements/system and the support/source/import designs before authoring. Use an owned disposable database matching the established `YRU_STRUCTURED_SCHEMA_DATABASE` guard, real production services/SQL, deterministic local E5-shaped vectors and explicitly synthetic inference/LINE transport. Do not use the normal or remote database, modify migrations/production behavior/existing tests, call live providers/OA, write credentials, or run Git.
 
-Execution update: that requested Luna max assignment hit its usage limit before execution. Neither new test nor draft report was delivered. Root retains implementation/acceptance ownership; no delegated result or combined-flow pass is credited.
+Execution update9October: the first Luna max assignment hit its limit before execution and received no credit. A fresh actual Luna max assignment delivered the test and draft report under the current38-migration source. Root ran isolated checks (first8fixture setup failures, second4/8, third6/8, fourth/fifth7/8, sixth8/8). Actual independent Luna max identified the unbound-Staff witness and rechecked its correction plus D/runner contracts. Root diagnosed/fixed the synthetic model's random heading/body first-chunk assumption without changing production behavior or required assertions. Root registered the group last and owns full runner/final acceptance. No live pass is credited from these controlled fixtures.
 
 ## Required witnesses
 
@@ -19,7 +19,17 @@ Keep every required assertion in the real business flow, rather than just callin
 
 ## Execution and acceptance
 
-- [ ] Author meaningful combined flow tests and a draft coverage matrix listing the actual production entry points/remaining gaps; do not claim RED without an observed run.
-- [ ] Root reviews source/coverage and grants a serialized focused check slot. Report source mistakes separately from production gaps; no changing tests solely to make counts pass.
-- [ ] Root registers the focused group in the owned runner after source review, executes actual checks and reviews results. Include web boundaries only once implemented.
-- [ ] Update final report/board/requirements and live setup separately. Passing six controlled flows does not finish V1 while required web/live/deployment evidence remains pending.
+### FINAL-01-CTL-ISO — exact fixture directory retirement
+
+Root first full registration passed381 earlier cases but final flows only2/8. A minimal owned replay of one operations test followed by the SOLVED flow reproduced RED:11active departments,2invalid fixture codes, AI stats claimed1/completed0/suppressed1. `supportInputSchema` correctly rejects the foreign synthetic directory; do not relax production validation or filter away real departments. Operations/Incidents/Staff-binding fixtures retain custom active department rows after their process closes. Root owns only `tests/database/operations-reads.integration.ts`, `incidents.integration.ts` and `staff-line-binding.integration.ts` cleanup amendments: track successfully inserted exact UUIDs, set those rows inactive in `after`, preserve rows/history/seeded departments and close pools in `finally`. Acceptance: same minimal RED→GREEN, then all three actual groups followed by A–F, fresh type/lint and complete registered replay/advisors/cleanup. No normal database/schema/env changes.
+
+### FINAL-01-CTL-BND — complementary bounded publication partitions
+
+Second full run reached publication but the52-case process exceeded its unchanged120second bound after the turn interruption; no business assertion failure was reported. Cleanup initially returned failure; resumed readonly verification found no remaining owned-schema database or test process. Root owns `scripts/database/verify-structured-schema.ts`: partition the existing72 publication/delivery cases into dataset14 (7publication+7exact retrieval), other-publication38, incident/Staff8 and other-delivery12 with exhaustive complementary name/skip patterns. Keep the same database, cases/assertions and120second per-process bound. Require aggregate72 executed cases before proceeding, full final replay/advisors/cleanup and fresh type/lint. A timeout is not a PASS or proof of a production defect.
+
+- [x] Author meaningful combined flow tests and a draft coverage matrix listing the actual production entry points/remaining gaps; do not claim RED without an observed run.
+- [x] Root reviews source/coverage and grants a serialized focused check slot. Report source mistakes separately from production gaps; no changing tests solely to make counts pass.
+- [x] Root registers the focused group in the owned runner after source review, executes actual checks and reviews results. Include web boundaries only once implemented.
+- [x] Update final report/board/requirements and live setup separately. Passing six controlled flows does not finish V1 while required web/live/deployment evidence remains pending.
+
+9 October final executed acceptance: registered 389/389 in 25 groups, including A–F 8/8 and all 72 publication/delivery cases; 38 migrations/foundation RLS/normal unchanged/advisors 0 ERROR / 0 WARN / 114 INFO/exact cleanup PASS. Compiler/full lint/unit 2,087/build/normal PG 53/compiled Staff browser 11 groups PASS with source scope in the [final report](../../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md). Actual Luna high separately source-reviewed exact directory retirement, passage selection and exhaustive bounded partitions. Git handoff is recorded in the final report after execution. Live corpus/free account/E5/web/OA/production remains MANUAL_PENDING.

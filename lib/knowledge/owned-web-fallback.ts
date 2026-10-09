@@ -12,15 +12,18 @@ import {knowledgeStructuredCatalogLock} from './delivery-fence';
 import {knowledgeScopeSchema} from './retrieval';
 import {structuredQuerySchema} from './structured-query';
 import {proveInternalMiss,internalMissStillApplies,internalMissSourceDigest,type InternalMissProof} from './internal-miss';
-import {validatePublicWebPlan,type PublicWebPlan} from './public-web-plan';
+import {validatePublicWebPlan,validateGeneralWebPlan,publicWebPlanProposalSchema,type PublicWebPlan,type GeneralWebPlan} from './public-web-plan';
+import {sealOfficialWebMiss,officialWebMissStillApplies,type OfficialWebMiss} from './official-web-miss';
 import {createWebSearchRuntime} from './web-search-runtime';
 import {createWebLeads,type WebLeadsResult} from './web-leads';
 import type {TavilySearchAdapter} from './tavily-search';
+import {validateStructuredProcedure} from './structured-not-applicable';
 
 export interface OwnedWebOptions {config?:unknown;adapter?:TavilySearchAdapter}
 export type OwnedWebFallback=(input:unknown,signal:AbortSignal)=>Promise<WebLeadsResult|null>;
-const inputSchema=z.object({question:z.string().min(1).max(6000),scope:knowledgeScopeSchema,structuredQuery:structuredQuerySchema,
- queryVector:z.array(z.number().finite()).length(384),fingerprint:z.string().regex(/^[a-f0-9]{64}$/u),proposal:z.unknown()}).strict();
+const inputSchema=z.object({question:z.string().min(1).max(6000),scope:knowledgeScopeSchema,structuredQuery:structuredQuerySchema.nullable(),notApplicable:z.unknown().optional(),
+ queryVector:z.array(z.number().finite()).length(384),fingerprint:z.string().regex(/^[a-f0-9]{64}$/u),proposal:z.unknown()}).strict()
+ .refine(value=>value.structuredQuery===null?value.notApplicable!==undefined:value.notApplicable===undefined);
 function configured(options:OwnedWebOptions):unknown{
  try{
   const value=copyStructuredJson(options.config??{enabled:process.env.YRU_WEB_SEARCH_ENABLED==='true',apiKey:process.env.TAVILY_API_KEY??'',
@@ -44,34 +47,50 @@ function callback(pool:Pool,key:string,consumer:'STUDENT'|'STAFF',operationId:st
   try{
    if(!before||!z.uuid().safeParse(operationId).success||!z.uuid().safeParse(ownerId).success||signal.aborted)return null;
    const value=freezeStructuredData(inputSchema.parse(copyStructuredJson(input,64*1024,2200)));
+   const procedure=value.structuredQuery===null?validateStructuredProcedure(value.notApplicable,value.question):undefined;
    // A semantic family/department proposal cannot hide a higher-authority PUBLIC source.
    const candidate={scope:{...value.scope,familyCodes:[],departmentCode:null},structuredQuery:value.structuredQuery,
-    queryVector:value.queryVector,fingerprint:value.fingerprint};
+    queryVector:value.queryVector,fingerprint:value.fingerprint,...(procedure?{notApplicable:procedure}:{})};
    const initial=await read(async(c,current)=>{
     if(!sameSource(before,current)||signal.aborted)return null;
     const questionAllowed=value.question===current.question||current.support?.input.sources.some(source=>
      source.code!=='U0'&&value.question===`${source.text}\n${current.question}`);
     if(!questionAllowed)return null;
-    const plan=validatePublicWebPlan(value.proposal,{userText:value.question,scope:candidate.scope,query:candidate.structuredQuery});
+    const plan=validatePublicWebPlan(value.proposal,{userText:value.question,scope:candidate.scope,query:candidate.structuredQuery,...(procedure?{proceduralTopic:procedure.topic}:{})});
+    const proposedGeneral=publicWebPlanProposalSchema.parse(value.proposal).general;
+    const general=proposedGeneral?validateGeneralWebPlan(proposedGeneral,plan,value.question):undefined;
     const receipt=await proveInternalMiss(c,candidate,current,key);
-    return receipt.status==='EMPTY'?{plan,proof:receipt.proof}:null;
+    return receipt.status==='EMPTY'?{plan,general,proof:receipt.proof}:null;
    });
    if(!initial||signal.aborted)return null;
-   const {plan,proof}: {plan:PublicWebPlan;proof:InternalMissProof}=initial;
-   let stamp:string|undefined;
-   const request={consumer,operationId,ownerId,purpose:plan.purpose,topic:plan.topic,academicYear:plan.academicYear};
-   const runtime=createWebSearchRuntime({pool,encryptionKey:key,config,adapter,preflight:async(current,inner)=>{
-    if(canonicalDigest('owned-web-request',current)!==canonicalDigest('owned-web-request',request)||inner.aborted||signal.aborted)return false;
-    return read(async(c,source)=>{
-     if(!sameSource(before,source)||inner.aborted||signal.aborted||!await internalMissStillApplies(c,proof,source,key))return false;
-     const observed=(await c.query('select clock_timestamp() observed_at')).rows[0]?.observed_at;
-     if(!(observed instanceof Date)||!Number.isFinite(observed.getTime())||inner.aborted||signal.aborted)return false;
-     stamp=observed.toISOString();return true;
-    });
-   }});
-   const result=await runtime(request,signal);
-   if(result.status!=='READY'||!stamp||!result.result.results.length||signal.aborted)return null;
-   return createWebLeads(plan,result.result.results,proof,stamp);
+   const {plan,general,proof}: {plan:PublicWebPlan;general?:GeneralWebPlan;proof:InternalMissProof}=initial;
+   async function stage(stagePlan:PublicWebPlan|GeneralWebPlan,officialMiss?:OfficialWebMiss){
+    let stamp:string|undefined;
+    const request={consumer,operationId,ownerId,purpose:stagePlan.purpose,topic:stagePlan.topic,academicYear:stagePlan.academicYear};
+    const runtime=createWebSearchRuntime({pool,encryptionKey:key,config,adapter,preflight:async(current,inner)=>{
+     if(canonicalDigest('owned-web-request',current)!==canonicalDigest('owned-web-request',request)||inner.aborted||signal.aborted)return false;
+     return read(async(c,source)=>{
+      if(!sameSource(before!,source)||inner.aborted||signal.aborted||!await internalMissStillApplies(c,proof,source,key))return false;
+      if(officialMiss&&!await officialWebMissStillApplies(c,officialMiss,proof,source,key))return false;
+      const observed=(await c.query('select clock_timestamp() observed_at')).rows[0]?.observed_at;
+      if(!(observed instanceof Date)||!Number.isFinite(observed.getTime())||inner.aborted||signal.aborted)return false;
+      stamp=observed.toISOString();return true;
+     });
+    }});
+    const result=await runtime(request,signal);
+    return result.status==='READY'&&stamp&&!signal.aborted?{result,stamp,request}:null;
+   }
+   const official=await stage(plan);if(!official)return null;
+   if(official.result.result.results.length)return createWebLeads(plan,official.result.result.results,proof,official.stamp);
+   if(!general)return null;
+   const officialMiss=await read(async(c,source)=>{
+    if(!sameSource(before,source)||signal.aborted||!await internalMissStillApplies(c,proof,source,key))return null;
+    return sealOfficialWebMiss(c,official.request,official.result.attemptId,official.result.result,plan,proof,source,key,official.stamp);
+   });
+   if(!officialMiss||signal.aborted)return null;
+   const fallback=await stage(general,officialMiss);
+   if(!fallback||!fallback.result.result.results.length)return null;
+   return createWebLeads(general,fallback.result.result.results,proof,fallback.stamp,officialMiss);
   }catch{return null;}
  };
 }

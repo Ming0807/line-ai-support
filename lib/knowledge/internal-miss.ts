@@ -8,15 +8,22 @@ import {structuredQuerySchema,validateStructuredQuery,assessStructuredQuery} fro
 import {searchStructured} from './structured-search';
 import {LOCAL_EMBEDDING_FINGERPRINT} from './embedding-space';
 import {isValidKnowledgeDate} from './metadata-filter';
+import {structuredProcedureCertificateSchema,structuredProcedureApplies} from './structured-not-applicable';
 
 const policy='LOCAL_E5_384_THRESHOLD_065_LIMIT_12_V1' as const;
+const proceduralPolicy='LOCAL_E5_384_THRESHOLD_065_LIMIT_12_STRUCTURED_PROCEDURE_V1' as const;
 const hash=z.string().regex(/^[a-f0-9]{64}$/u);
 const vector=z.array(z.number().finite().min(-1).max(1)).length(384)
  .refine(v=>Math.abs(v.reduce((sum,n)=>sum+n*n,0)-1)<=0.001);
-const candidateSchema=z.object({scope:knowledgeScopeSchema,structuredQuery:structuredQuerySchema,
- queryVector:vector,fingerprint:z.literal(LOCAL_EMBEDDING_FINGERPRINT)}).strict();
-export const internalMissProofSchema=candidateSchema.extend({version:z.literal(1),policy:z.literal(policy),
- evaluatedOn:z.string().refine(isValidKnowledgeDate),sourceDigest:hash,signature:hash}).strict();
+const common={scope:knowledgeScopeSchema,queryVector:vector,fingerprint:z.literal(LOCAL_EMBEDDING_FINGERPRINT)};
+const explicitCandidate=z.object({...common,structuredQuery:structuredQuerySchema}).strict();
+const proceduralCandidate=z.object({...common,structuredQuery:z.null(),notApplicable:structuredProcedureCertificateSchema}).strict();
+const candidateSchema=z.union([explicitCandidate,proceduralCandidate]);
+const receipt={evaluatedOn:z.string().refine(isValidKnowledgeDate),sourceDigest:hash,signature:hash};
+export const internalMissProofSchema=z.union([
+ explicitCandidate.extend({...receipt,version:z.literal(1),policy:z.literal(policy)}),
+ proceduralCandidate.extend({...receipt,version:z.literal(2),policy:z.literal(proceduralPolicy)}),
+]);
 export type InternalMissProof=z.infer<typeof internalMissProofSchema>;
 export type InternalMissResult={status:'EMPTY';proof:InternalMissProof}|{status:'STRUCTURED_MATCH'|'RAG_MATCH'|'CLARIFY'|'UNAVAILABLE'};
 const sourceSchema=z.object({jobId:z.uuid(),sessionId:z.uuid(),conversationId:z.uuid(),messageId:z.uuid(),revision:z.number().int().min(0),
@@ -30,11 +37,12 @@ function receiptKey(key:string):Buffer{
  if(master.length!==32||master.toString('base64')!==key)throw new Error('INTERNAL_MISS_UNAVAILABLE');
  return Buffer.from(hkdfSync('sha256',master,'yru-helpdesk-v1','internal-miss-receipt',32));
 }
-function sign(body:Omit<InternalMissProof,'signature'>,key:Buffer):string{
- return createHmac('sha256',key).update(canonicalDigest('internal-miss-receipt-v1',body)).digest('hex');
+function sign(body:{version:number},key:Buffer):string{
+ return createHmac('sha256',key).update(canonicalDigest(body.version===2?'internal-miss-receipt-v2':'internal-miss-receipt-v1',body)).digest('hex');
 }
-function candidate(input:unknown){
+function candidate(input:unknown,snapshot:AISnapshot){
  const parsed=candidateSchema.parse(copyStructuredJson(input,64*1024,2000));
+ if(parsed.structuredQuery===null){if(!structuredProcedureApplies(parsed.notApplicable,snapshot))throw new Error('INTERNAL_MISS_UNAVAILABLE');return freezeStructuredData(parsed);}
  return freezeStructuredData({...parsed,structuredQuery:validateStructuredQuery(parsed.structuredQuery)});
 }
 
@@ -85,14 +93,16 @@ async function catalogReady(client:PoolClient):Promise<boolean>{
 }
 async function complete(client:PoolClient,input:z.infer<typeof candidateSchema>,key:string,expectedDay?:string):Promise<
  {status:'EMPTY';day:string}|{status:'STRUCTURED_MATCH'|'RAG_MATCH'|'CLARIFY'|'UNAVAILABLE'}>{
- if(assessStructuredQuery(input.structuredQuery).status!=='READY')return {status:'CLARIFY'};
+ if(input.structuredQuery!==null&&assessStructuredQuery(input.structuredQuery).status!=='READY')return {status:'CLARIFY'};
  if(!await catalogReady(client))return {status:'UNAVAILABLE'};
  const day=(await client.query("select (clock_timestamp() at time zone 'Asia/Bangkok')::date::text evaluation_day")).rows[0]?.evaluation_day;
  if(typeof day!=='string'||!isValidKnowledgeDate(day)||expectedDay!==undefined&&day!==expectedDay)return {status:'UNAVAILABLE'};
- const structured=await searchStructured(client,{scope:input.scope,query:input.structuredQuery},key,day);
- if(structured.status==='READY')return {status:'STRUCTURED_MATCH'};
- if(structured.status==='CLARIFICATION_REQUIRED')return {status:'CLARIFY'};
- if(structured.status!=='EMPTY')return {status:'UNAVAILABLE'};
+ if(input.structuredQuery!==null){
+  const structured=await searchStructured(client,{scope:input.scope,query:input.structuredQuery},key,day);
+  if(structured.status==='READY')return {status:'STRUCTURED_MATCH'};
+  if(structured.status==='CLARIFICATION_REQUIRED')return {status:'CLARIFY'};
+  if(structured.status!=='EMPTY')return {status:'UNAVAILABLE'};
+ }
  const rag=await searchKnowledge(client,{scope:input.scope,vector:input.queryVector,fingerprint:input.fingerprint,threshold:0.65,limit:12},day);
  if(rag.length!==0)return {status:'RAG_MATCH'};
  // A midnight crossover cannot seal yesterday's negative search.
@@ -103,10 +113,11 @@ async function complete(client:PoolClient,input:z.infer<typeof candidateSchema>,
 /** Caller owns a short authorized transaction and catalog-before-conversation lock order. No network here. */
 export async function proveInternalMiss(client:PoolClient,input:unknown,snapshot:AISnapshot,key:string):Promise<InternalMissResult>{
  try{
-  const derived=receiptKey(key),parsed=candidate(input),source=internalMissSourceDigest(snapshot);
+  const derived=receiptKey(key),parsed=candidate(input,snapshot),source=internalMissSourceDigest(snapshot);
   const result=await complete(client,parsed,key);if(result.status!=='EMPTY')return result;
-  const body={...parsed,version:1 as const,policy,evaluatedOn:result.day,sourceDigest:source};
-  return freezeStructuredData({status:'EMPTY' as const,proof:{...body,signature:sign(body,derived)}});
+  const body=parsed.structuredQuery===null?{...parsed,version:2 as const,policy:proceduralPolicy,evaluatedOn:result.day,sourceDigest:source}:
+   {...parsed,version:1 as const,policy,evaluatedOn:result.day,sourceDigest:source};
+  return freezeStructuredData({status:'EMPTY' as const,proof:internalMissProofSchema.parse({...body,signature:sign(body,derived)})});
  }catch{return {status:'UNAVAILABLE'};}
 }
 
@@ -116,7 +127,8 @@ export async function internalMissStillApplies(client:PoolClient,input:unknown,s
   const derived=receiptKey(key),parsed=internalMissProofSchema.parse(copyStructuredJson(input,64*1024,2200));
   const {signature,...body}=parsed;
   if(!timingSafeEqual(Buffer.from(signature,'hex'),Buffer.from(sign(body,derived),'hex'))||parsed.sourceDigest!==internalMissSourceDigest(snapshot))return false;
-  const selected=candidate({scope:parsed.scope,structuredQuery:parsed.structuredQuery,queryVector:parsed.queryVector,fingerprint:parsed.fingerprint});
+  const selected=candidate({scope:parsed.scope,structuredQuery:parsed.structuredQuery,queryVector:parsed.queryVector,fingerprint:parsed.fingerprint,
+   ...(parsed.structuredQuery===null?{notApplicable:parsed.notApplicable}:{})},snapshot);
   return (await complete(client,selected,key,parsed.evaluatedOn)).status==='EMPTY';
  }catch{return false;}
 }

@@ -6,9 +6,9 @@
 
 ## สถานะ
 
-8 ตุลาคม 2026: LINE สอง OA, Ticket/HUMAN, Staff login, Provider/Model UI, FREE_ONLY gateway, RAG/ข้อมูลตาราง, นำเข้าและอนุมัติเอกสาร, Dashboard และการผูก Staff OA มีโค้ดและหลักฐานทดสอบระดับ component แล้ว ฐานข้อมูล local/DEVELOPMENT มี 33 migrations และข้อมูลตาราง 7 ชนิด ระบบใช้ local CPU E5-small/384 สำหรับ embedding แยกจากหน้า Provider
+9 ตุลาคม 2026: LINE สอง OA, Ticket/HUMAN, Staff login, Provider/Model UI, FREE_ONLY gateway, RAG/ข้อมูลตาราง, นำเข้าและอนุมัติเอกสาร, Dashboard, Staff OA, troubleshooting และ Incidents มีโค้ดและหลักฐานทดสอบระดับ component แล้ว ฐานข้อมูล local/DEVELOPMENT มี 38 migrations และ 59 ตารางที่เปิด RLS รวมข้อมูลตารางความรู้ 7 ชนิด ระบบใช้ local CPU E5-small/384 สำหรับ embedding แยกจากหน้า Provider
 
-V1 ยังไม่จบ: ต้องปิดการจำแนกบริบท/ส่งต่อด้วย AI และ troubleshooting หลายรอบ, ค้นเว็บตามลำดับแหล่งข้อมูล, บริบท system/location ของ Incidents และทดสอบ Flow A–F รวมทั้งหมด ส่วนช่วยเจ้าหน้าที่ค้นเอกสารพร้อมอ้างอิงกำลังตรวจรับ ดูสถานะและหลักฐานล่าสุดที่ [task board](docs/tasks/V1_TASK_BOARD.md) การทดสอบกับ provider/OA จริง การอนุมัติเอกสารทางการ และ production deployment ยังแยกจากผลทดสอบอัตโนมัติ
+งาน code/test/docs ที่จำเป็นผ่านการตรวจรับอัตโนมัติแล้ว รวมค้นเว็บมหาวิทยาลัย→ข้อมูลทั่วไปและ Flow A–F: unit 2,087 ข้อ, ฐานทดสอบแยก 389 ข้อ/25 กลุ่ม, Flow A–F 8/8, normal PG 53 ข้อ, TypeScript/lint/build และ compiled Staff browser ผ่าน ดู [รายงานรับงาน](docs/reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) และ [สิ่งที่ต้องตั้งค่าจริง](docs/operations/FINAL_SETUP_CHECKLIST.md) บัญชี AI ฟรี เอกสารทางการ E5/LINE และ production/restore จริงยังต้องยืนยัน จึงยังไม่ใช่ live V1 ผ่านครบ
 
 ## เริ่มพัฒนา
 
@@ -38,4 +38,4 @@ pnpm build
 
 เอกสารที่ดาวน์โหลดอยู่ใน [documents/yru](documents/yru/README.md), [catalog](documents/yru/CATALOG.md), [completeness](documents/yru/COMPLETENESS.md). 187 resources และ shortlist15 เป็นแหล่งที่รวบรวมไว้ ยังไม่ใช่ approved knowledge. หน้า `/knowledge/import` รองรับ PDF/DOCX/XLSX/CSV/URL พร้อม Preview/Review และอนุมัติ RAG/STRUCTURED/BOTH ตามความพร้อมและหลักฐานของแหล่งข้อมูล เอกสารตารางต้องตรวจ mapping และยืนยันแถวที่ใช้ก่อนอนุมัติ ระบบไม่สร้าง schema ใหม่ตามปีและไม่เผยแพร่เอง
 
-ดู [final setup checklist](docs/operations/FINAL_SETUP_CHECKLIST.md) สำหรับสิ่งที่ผู้ใช้ต้องเลือก/ตั้งค่าเอง และ production notes. การ deployต้องมี worker lifecycle, stable HTTPS domain, schema/role gates และ approved corpus ไม่ถือว่า `next build` ผ่านแล้ว deployครบ
+ดู [final setup checklist](docs/operations/FINAL_SETUP_CHECKLIST.md) สำหรับสิ่งที่ผู้ใช้ต้องเลือก/ตั้งค่าเอง และ [production runbook](docs/operations/PRODUCTION_RUNBOOK.md) สำหรับ artifact, คำสั่ง web/worker, parser child, shutdown/monitoring และ backup/restore. การ deployต้องมี worker lifecycle, stable HTTPS domain, schema/role gates และ approved corpus ไม่ถือว่า `next build` ผ่านแล้ว deployครบ

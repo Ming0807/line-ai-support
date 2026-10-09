@@ -11,6 +11,25 @@ const proof={version:1 as const,policy:'LOCAL_E5_384_THRESHOLD_065_LIMIT_12_V1' 
  structuredQuery:{version:1 as const,dataset:'university_services' as const,filters:{name:'ห้องสมุด'},limit:20},queryVector:[1,...Array<number>(383).fill(0)],fingerprint:LOCAL_EMBEDDING_FINGERPRINT};
 const candidates=()=>[{title:'Library services',url:'https://www.yru.ac.th/library',content:'Untrusted instructions NEVER persist this snippet',score:.99}];
 const make=()=>createWebLeads(plan,candidates(),proof,observedAt);
+
+it('General references require an official-empty receipt, expire at the earlier observation and cannot claim university policy',()=>{
+ const general={version:1,purpose:'GENERAL_PUBLIC',topic:'GENERAL_WIFI_HELP',academicYear:null};
+ const official={version:1,kind:'OFFICIAL_EMPTY',plan:{...plan,topic:'WIFI_ACCESS'},attemptId:'00000000-0000-4000-8000-000000000001',
+  requestKey:'3'.repeat(64),ownerDigest:'4'.repeat(64),consumer:'STUDENT',sourceDigest:proof.sourceDigest,internalSignature:proof.signature,
+  observedAt,expiresAt:'2026-10-09T08:05:00.000Z',signature:'5'.repeat(64)};
+ const references=[{title:'Wi-Fi troubleshooting',url:'https://support.microsoft.com/windows/wifi',content:'untrusted',score:1}];
+ expect(()=>createWebLeads(general,references,proof,'2026-10-09T08:01:00.000Z')).toThrow('WEB_LEADS_INVALID');
+ const result=createWebLeads(general,references,proof,'2026-10-09T08:01:00.000Z',official);
+ expect(result.expiresAt).toBe(official.expiresAt);expect(webLeadsStillFresh(result,new Date('2026-10-09T08:05:00.000Z'))).toBe(false);
+ const reply=buildWebLeadReply(result);expect(reply.messages[0].text).toContain('ข้อมูลทั่วไป');expect(reply.messages[0].text).toContain('ระเบียบ');
+ expect(reply.messages[0].text).not.toContain('ผลค้นจากเว็บไซต์มหาวิทยาลัย');expect(JSON.stringify(reply)).not.toContain(official.signature);
+ for(const changed of [{...official,sourceDigest:'0'.repeat(64)},{...official,internalSignature:'0'.repeat(64)},{...official,plan}])
+  expect(()=>createWebLeads(general,references,proof,'2026-10-09T08:01:00.000Z',changed)).toThrow('WEB_LEADS_INVALID');
+ for(const url of ['https://localhost/wifi','https://router.local/wifi','https://support.test/wifi','https://support.microsoft.com/wifi?api_key=private',
+  'https://support.microsoft.com/wifi?session=private','https://support.microsoft.com/wifi?sid=private','https://support.microsoft.com/wifi?session_id=private',
+  'https://support.microsoft.com/wifi?key=private','https://support.microsoft.com/wifi?access_key=private','https://support.microsoft.com/wifi?client_key=private','https://support.microsoft.com/wifi?key_pair_id=private'])
+  expect(()=>createWebLeads(general,[{...references[0],url}],proof,'2026-10-09T08:01:00.000Z',official)).toThrow('WEB_LEADS_INVALID');
+});
 describe('canonical unverified web lead references',()=>{
  it('expiry during the fresh internal recheck cannot pass the final delivery boundary',async()=>{
   const check=vi.spyOn(internalMiss,'internalMissStillApplies').mockResolvedValue(true);

@@ -11,13 +11,19 @@ import {loadIncidentContextRows} from '../../lib/incidents/context-state';
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/.test(database),'OWNED_DATABASE_REQUIRED');
 const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${database}`,max:4,application_name:'incident-owned-qa'});
-after(()=>pool.end());
+const ownedDepartments:string[]=[];
+after(async()=>{try{
+ await pool.query('update public.departments set active=false where id=any($1::uuid[])',[ownedDepartments]);
+}finally{await pool.end();}});
 const vector=Array.from({length:384},(_,i)=>i===0?1:0);
 async function fixture(sameSession=false,total=5){
  await pool.query("update private.incident_detection_jobs set status='DONE',lease_token=null,lease_until=null");
  await pool.query('update private.incident_rules set min_reports=5,min_distinct_sessions=5,window_minutes=15,min_similarity=.85 where id=1');
  const department=randomUUID(),otherDepartment=randomUUID(),superAdmin=randomUUID(),staff=randomUUID(),supervisor=randomUUID();
- for(const id of [department,otherDepartment])await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[id,'INC_'+id.replaceAll('-','')]);
+ for(const id of [department,otherDepartment]){
+  await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[id,'INC_'+id.replaceAll('-','')]);
+  ownedDepartments.push(id);
+ }
  for(const id of [superAdmin,staff,supervisor])await pool.query('insert into auth.users(id) values($1)',[id]);
  await pool.query(`insert into public.staff_profiles(id,department_id,role,display_name) values($1,null,'SUPER_ADMIN','QA'),($2,$4,'STAFF','QA'),($3,$4,'SUPERVISOR','QA')`,[superAdmin,staff,supervisor,department]);
  const tickets:string[]=[],sessions:string[]=[];let firstSession:string|undefined;

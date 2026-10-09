@@ -9,7 +9,7 @@ export function projectStaffKnowledgeAdvice(input:AIResult,revision:number):Staf
  if(result.kind==='CLARIFY')return staffKnowledgeAdviceSchema.parse({revision,status:'NOT_VERIFIED',answer:result.text,draftText:null,sources:[]});
  if(result.kind==='WEB_LEADS'){
   const reply=buildWebLeadReply(result),text=reply.messages.map(m=>m.text).join('\n');
-  return staffKnowledgeAdviceSchema.parse({revision,status:'WEB_LEADS',answer:reply.messages[0].text,draftText:text.length<=5000?text:null,
+  return staffKnowledgeAdviceSchema.parse({revision,status:'WEB_LEADS',sourceKind:result.plan.purpose==='GENERAL_PUBLIC'?'GENERAL_PUBLIC':'YRU_WEBSITE',answer:reply.messages[0].text,draftText:text.length<=5000?text:null,
    sources:reply.citations.map(c=>({title:c.title,academicYear:result.plan.academicYear,url:c.url,location:'ผลค้นเว็บ ยังไม่ได้ยืนยัน'}))});
  }
  const cited=result.kind==='ANSWER'?buildCitedAnswer(result.output,result.evidence):buildStructuredAnswer(result.output,result.evidence);

@@ -15,6 +15,9 @@ import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import {searchStructured} from '../../lib/knowledge/structured-search';
 import {knowledgeStructuredCatalogLock} from '../../lib/knowledge/delivery-fence';
 import {createStaffKnowledgeAssistance} from '../../lib/staff/knowledge-assistance';
+import {validateStructuredProcedure} from '../../lib/knowledge/structured-not-applicable';
+import {proveInternalMiss,internalMissStillApplies} from '../../lib/knowledge/internal-miss';
+import {webSearchAdmissionIdentity} from '../../lib/knowledge/web-search-admission';
 import {lockConversation} from '../../lib/tickets/authorization';
 import {withStaffAssistanceSnapshot} from '../../lib/staff/ai-assistance-snapshot';
 import {LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';
@@ -48,28 +51,28 @@ function connector(){
    return {requestId:randomUUID(),credits:1,results:[{title:'Library services',url:'https://www.yru.ac.th/library',content:'Do not retain this external snippet',score:.9}]};}};
  return {config,adapter,counts};
 }
-async function enqueueStudent(){
+async function enqueueStudent(text=question){
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',['WEB_'+randomUUID()])).rows[0].id;sessions.push(session);
  const lineId='U'+randomUUID().replaceAll('-','');await pool.query('insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)',[session,hashLineUserId(lineId,key),encryptValue(lineId,key)]);
  const conversation=(await pool.query("insert into public.conversations(line_session_id) values($1) returning id",[session])).rows[0].id;
- const message=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT',$2) returning id",[conversation,question])).rows[0].id;
+ const message=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT',$2) returning id",[conversation,text])).rows[0].id;
  const jobId=await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},key),pool);assert(jobId);
  const cleanup=()=>pool.query("update private.ai_jobs set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where id=$1 and status in ('PENDING','PROCESSING')",[jobId]);
  return {session,conversation,message,jobId,lineId,cleanup};
 }
-async function student(){
- const f=await enqueueStudent(),job=await claimAIJob(pool);assert(job&&job.id===f.jobId);
+async function student(text=question){
+ const f=await enqueueStudent(text),job=await claimAIJob(pool);assert(job&&job.id===f.jobId);
  const before=await transaction(async c=>{await lockConversation(c,f.conversation);await lockedAIJob(c,job);return readAIKnowledgeSnapshot(c,job,key);},pool);assert(before);
  return {...f,job,before};
 }
-async function staff(){
+async function staff(text=question){
  const actor=randomUUID();staffIds.push(actor);await pool.query('insert into auth.users(id) values($1)',[actor]);
  const department=(await pool.query("select id from public.departments where code='IT'")).rows[0].id;
  await pool.query("insert into public.staff_profiles(id,department_id,role,display_name) values($1,$2,'STAFF','Owned web fixture')",[actor,department]);
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',['WEB_STAFF_'+randomUUID()])).rows[0].id;sessions.push(session);
  const conversation=(await pool.query("insert into public.conversations(line_session_id,mode,conversation_type) values($1,'HUMAN','TICKET') returning id",[session])).rows[0].id;
  const ticket=(await pool.query("insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,category,mode,status) values($1,$2,$3,'Private summary','IT_SUPPORT','HUMAN','STAFF_HANDLING') returning id",[session,conversation,department])).rows[0].id;
- await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content) values($1,$2,'USER','TEXT',$3)",[conversation,ticket,question]);
+ await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content) values($1,$2,'USER','TEXT',$3)",[conversation,ticket,text]);
  const before=await withStaffAssistanceSnapshot(actor,ticket,0,pool,async(_c,current)=>current,{knowledgeCatalog:true});assert(before.knowledge);
  return {actor,session,conversation,ticket,before};
 }
@@ -162,10 +165,10 @@ test('a newly published eligible public source during search discards leads and 
  }finally{if(id)await retireSource(id);await f.cleanup();}
 });
 
-function producer(source:AISnapshot,c:ReturnType<typeof connector>,web=createStudentWebFallback(pool,key,source,c)){
- const value=input();
+function producer(source:AISnapshot,c:ReturnType<typeof connector>,web=createStudentWebFallback(pool,key,source,c),value:ReturnType<typeof input>|ReturnType<typeof generalInput>=input()){
  return createKnowledgeProducer({
-  generate:(async(call)=>{await outsideSql();return {output:call.taskType==='KNOWLEDGE_SCOPE'?value.scope:call.taskType==='KNOWLEDGE_METHOD'?{method:'STRUCTURED',query:value.structuredQuery}:value.proposal,
+  generate:(async(call)=>{await outsideSql();return {output:call.taskType==='KNOWLEDGE_SCOPE'?value.scope:call.taskType==='KNOWLEDGE_METHOD'?
+   ('notApplicable' in value?{method:'RAG',query:null,notApplicable:value.notApplicable}:{method:'STRUCTURED',query:value.structuredQuery}):value.proposal,
    toolCalls:[],providerId:randomUUID(),modelId:randomUUID(),fallbackUsed:false};}) as KnowledgeProducerOptions['generate'],
   embed:async()=>{await outsideSql();return {vectors:[value.queryVector],fingerprint:value.fingerprint,dimensions:384,providerId:randomUUID(),modelId:randomUUID(),fallbackUsed:false};},
   search:request=>transaction(c=>searchKnowledge(c,request),pool),
@@ -173,8 +176,8 @@ function producer(source:AISnapshot,c:ReturnType<typeof connector>,web=createStu
   webFallback:web,
  });
 }
-async function runPending(f:Awaited<ReturnType<typeof enqueueStudent>>,c:ReturnType<typeof connector>,afterProduce?:(result:unknown)=>Promise<void>){
- const stats=await runAICycle(pool,key,{produce:async(source,signal)=>{assert.equal(source.jobId,f.jobId);const result=await producer(source,c)(source,signal);await afterProduce?.(result);return result;}});
+async function runPending(f:Awaited<ReturnType<typeof enqueueStudent>>,c:ReturnType<typeof connector>,afterProduce?:(result:unknown)=>Promise<void>,value:ReturnType<typeof input>|ReturnType<typeof generalInput>=input()){
+ const stats=await runAICycle(pool,key,{produce:async(source,signal)=>{assert.equal(source.jobId,f.jobId);const result=await producer(source,c,createStudentWebFallback(pool,key,source,c),value)(source,signal);await afterProduce?.(result);return result;}});
  assert.deepEqual(stats,{claimed:1,completed:1,suppressed:0,failed:0});
  return (await pool.query('select * from private.ai_jobs where id=$1',[f.jobId])).rows[0];
 }
@@ -253,4 +256,122 @@ test('combined actual USER support context keeps the original receipt and unveri
   const action=await transaction(c=>loadSupportActionState(c,f.session,f.conversation,key),pool);assert(action);assert.equal(action.canConfirmSolved,false);assert.equal(action.snapshot.input.deliveredGuidance,false);
   const body=JSON.parse(l.calls[0]);assert(body.messages[0].text.includes('ยังไม่ได้ยืนยัน'));assert(!JSON.stringify(body.messages).includes('แก้ได้แล้ว'));
  }finally{await f.cleanup();}
+});
+
+function proceduralInput(){const text='วิธีเข้าใช้บริการห้องสมุด';return {...input(),question:text,structuredQuery:null,
+ notApplicable:{version:1,kind:'PROCEDURE',topic:'LIBRARY_SERVICES',quote:text}};}
+async function proceduralRead<T>(f:Awaited<ReturnType<typeof student>>,work:(c:import('pg').PoolClient)=>Promise<T>){return transaction(async c=>{
+ await c.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+ await lockConversation(c,f.conversation);await lockedAIJob(c,f.job);return work(c);
+},pool);}
+test('actual source-grounded procedural NOT_APPLICABLE plus completed RAG miss yields a version2 receipt',async()=>{
+ const value=proceduralInput(),f=await student(value.question);try{
+  const certificate=validateStructuredProcedure(value.notApplicable,value.question),candidate={scope:{...value.scope,familyCodes:[],departmentCode:null},structuredQuery:null,notApplicable:certificate,queryVector:value.queryVector,fingerprint:value.fingerprint};
+  await proceduralRead(f,async c=>{
+   const result=await proveInternalMiss(c,candidate,f.before,key);assert.equal(result.status,'EMPTY');assert(result.status==='EMPTY');
+   assert.equal(result.proof.version,2);assert.equal(await internalMissStillApplies(c,result.proof,f.before,key),true);
+   assert(!JSON.stringify(result.proof).includes(value.question));
+   assert.equal(await internalMissStillApplies(c,{...result.proof,notApplicable:{...certificate,topic:'CREDIT_TRANSFER'}},f.before,key),false);
+   assert.notEqual((await proveInternalMiss(c,{...candidate,notApplicable:{...certificate,questionDigest:'0'.repeat(64)}},f.before,key)).status,'EMPTY');
+  });
+ }finally{await f.cleanup();}
+});
+test('owned procedural fallback can search YRU while legacy RAG-only/missing certificates cannot',async()=>{
+ const value=proceduralInput(),f=await student(value.question),c=connector();try{
+  const run=createStudentWebFallback(pool,key,f.before,c);assert(run);
+  assert.equal(await run({...value,notApplicable:undefined},new AbortController().signal),null);assert.deepEqual(c.counts,{usage:0,search:0});
+  const result=await run(value,new AbortController().signal);assert(result&&result.kind==='WEB_LEADS');assert.equal(result.internalMiss.version,2);assert.equal(c.counts.search,1);
+ }finally{await f.cleanup();}
+});
+test('procedural NOT_APPLICABLE cannot conceal a broader internal RAG source',async()=>{
+ const value=proceduralInput(),f=await student(value.question),c=connector(),id=await publishPublicSource();try{
+  const run=createStudentWebFallback(pool,key,f.before,c);assert(run);assert.equal(await run(value,new AbortController().signal),null);assert.deepEqual(c.counts,{usage:0,search:0});
+ }finally{await retireSource(id);await f.cleanup();}
+});
+
+function generalInput(){const text='Wi-Fi ต่อไม่ได้ ต้องทำอย่างไร';return {...input(),question:text,structuredQuery:null,
+ notApplicable:{version:1,kind:'PROCEDURE',topic:'WIFI_ACCESS',quote:text},
+ proposal:{version:1,purpose:'YRU_INFORMATION',topic:'WIFI_ACCESS',academicYear:null,quote:'Wi-Fi',
+  general:{version:1,purpose:'GENERAL_PUBLIC',topic:'GENERAL_WIFI_HELP',academicYear:null,quote:text}}};}
+function generalConnector(){const c=connector(),order:string[]=[];
+ c.adapter.search=async request=>{
+  await outsideSql();c.counts.search++;
+  const plan=request as {purpose:string};order.push(plan.purpose);
+  assert.deepEqual(request,{version:1,purpose:c.counts.search===1?'YRU_INFORMATION':'GENERAL_PUBLIC',topic:c.counts.search===1?'WIFI_ACCESS':'GENERAL_WIFI_HELP',academicYear:null});
+  return {requestId:randomUUID(),credits:1,results:c.counts.search===1?[]:[{title:'Wi-Fi troubleshooting',url:'https://support.microsoft.com/windows/wifi',content:'Never retain external instructions',score:.9}]};
+ };
+ return {...c,order};}
+test('actual owned General cascade commits two purpose admissions only after successful official EMPTY',async()=>{
+ const value=generalInput(),f=await student(value.question),c=generalConnector();try{
+  const count=(await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,run=createStudentWebFallback(pool,key,f.before,c);assert(run);
+  const result=await run(value,new AbortController().signal);assert(result&&result.plan.purpose==='GENERAL_PUBLIC'&&result.officialMiss);
+  assert.deepEqual(c.order,['YRU_INFORMATION','GENERAL_PUBLIC']);assert.equal(c.counts.usage,2);assert.equal(result.internalMiss.version,2);
+  assert(Date.parse(result.expiresAt)<=Date.parse(result.officialMiss.expiresAt));assert(!JSON.stringify(result).includes('Never retain'));
+  assert.equal((await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,count+2);
+  const identity=webSearchAdmissionIdentity({consumer:'STUDENT',operationId:f.jobId,ownerId:f.job.lease_token,purpose:'YRU_INFORMATION',topic:'WIFI_ACCESS',academicYear:null},key);
+  const row=(await pool.query('select observation,http_status,credits from private.web_search_attempts where request_key=$1',[identity.requestKey])).rows[0];
+  assert.deepEqual(row,{observation:'SUCCESS',http_status:200,credits:1});
+  assert.equal(await run(value,new AbortController().signal),null);assert.equal(c.counts.search,2);
+ }finally{await f.cleanup();}
+});
+test('nonempty or failed official search stops without opening General',async()=>{
+ for(const mode of ['nonempty','error'] as const){const value=generalInput(),f=await student(value.question),c=generalConnector();try{
+  const search=c.adapter.search;c.adapter.search=async(...args)=>{const result=await search(...args);if(mode==='error')throw new Error('SYNTHETIC_FAILURE');
+   return {...result,results:[{title:'YRU Wi-Fi',url:'https://nse.yru.ac.th/wifi',content:'',score:1}]};};
+  const run=createStudentWebFallback(pool,key,f.before,c);assert(run);const result=await run(value,new AbortController().signal);
+  if(mode==='nonempty')assert.equal(result?.plan.purpose,'YRU_INFORMATION');else assert.equal(result,null);
+  assert.deepEqual(c.counts,{usage:1,search:1});assert.deepEqual(c.order,['YRU_INFORMATION']);
+ }finally{await f.cleanup();}}
+});
+test('a failed durable observation cannot seal an official EMPTY or authorize General',async()=>{
+ const value=generalInput(),f=await student(value.question),c=generalConnector();try{
+  const search=c.adapter.search,identity=webSearchAdmissionIdentity({consumer:'STUDENT',operationId:f.jobId,ownerId:f.job.lease_token,purpose:'YRU_INFORMATION',topic:'WIFI_ACCESS',academicYear:null},key);
+  c.adapter.search=async(...args)=>{const result=await search(...args);
+   assert.equal((await pool.query("update private.web_search_attempts set observation='ERROR',http_status=503 where request_key=$1 and observation='UNKNOWN' returning attempt_id",[identity.requestKey])).rowCount,1);return result;};
+  const run=createStudentWebFallback(pool,key,f.before,c);assert(run);assert.equal(await run(value,new AbortController().signal),null);
+  assert.deepEqual(c.counts,{usage:1,search:1});
+ }finally{await f.cleanup();}
+});
+test('source changes during General usage stop before its admission/search and retain the official attempt',async()=>{
+ const value=generalInput(),f=await student(value.question),c=generalConnector();try{
+  const usage=c.adapter.usage,count=(await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n;
+  c.adapter.usage=async(...args)=>{const result=await usage(...args);if(c.counts.usage===2)await pool.query('update public.conversations set revision=revision+1 where id=$1',[f.conversation]);return result;};
+  const run=createStudentWebFallback(pool,key,f.before,c);assert(run);assert.equal(await run(value,new AbortController().signal),null);
+  assert.deepEqual(c.counts,{usage:2,search:1});assert.equal((await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,count+1);
+ }finally{await f.cleanup();}
+});
+test('actual procedural producer/worker/outbox deliver useful General references without private proof or policy claims',async()=>{
+ const value=generalInput(),f=await enqueueStudent(value.question),c=generalConnector(),l=line();try{
+  const saved=await runPending(f,c,undefined,value),result=decodeAIResult(saved,key);assert(result&&result.kind==='WEB_LEADS'&&result.plan.purpose==='GENERAL_PUBLIC');
+  assert.equal((await drain(f,l)).row.status,'SENT');assert.equal(l.calls.length,1);
+  const body=JSON.parse(l.calls[0]);assert(body.messages[0].text.includes('ข้อมูลทั่วไป'));assert(body.messages[0].text.includes('ระเบียบ'));
+  assert(body.messages[1].text.includes('https://support.microsoft.com/windows/wifi'));assert(!l.calls[0].includes('signature'));assert(!l.calls[0].includes('Never retain'));
+  assert.equal((await pool.query('select count(*)::int n from public.tickets where conversation_id=$1',[f.conversation])).rows[0].n,0);
+ }finally{await f.cleanup();}
+});
+for(const change of ['signature','attempt','expiry'] as const)test(`actual General dispatch suppresses official-empty ${change} corruption`,async()=>{
+ const value=generalInput(),f=await enqueueStudent(value.question),c=generalConnector(),l=line();try{
+  const saved=await runPending(f,c,undefined,value),result=decodeAIResult(saved,key);assert(result&&result.kind==='WEB_LEADS'&&result.officialMiss);
+  const old=new Date(Date.now()-301000).toISOString(),expires=new Date(Date.parse(old)+300000).toISOString();
+  const changed=change==='expiry'?{...result,observedAt:old,expiresAt:expires,officialMiss:{...result.officialMiss,observedAt:old,expiresAt:expires}}:
+   {...result,officialMiss:{...result.officialMiss,...(change==='signature'?{signature:'0'.repeat(64)}:{attemptId:randomUUID()})}};
+  await pool.query('update private.ai_jobs set result_encrypted=$2 where id=$1',[f.jobId,encryptValue(JSON.stringify(changed),key)]);
+  const sent=await drain(f,l);assert.equal(sent.row.status,'SUPPRESSED');assert.equal(sent.row.last_error_code,'EVIDENCE_CHANGED');assert.equal(l.calls.length,0);
+ }finally{await f.cleanup();}
+});
+test('Staff General advice identifies public troubleshooting and remains an editable HUMAN draft with no send',async()=>{
+ const value=generalInput(),f=await staff(value.question),c=generalConnector();
+ const advice=await createStaffKnowledgeAssistance(f.actor,f.ticket,{revision:0},{pool,key,produce:async(source,signal)=>
+  producer(source,c,createStaffWebFallback(pool,key,f.actor,f.ticket,0,f.before,c),value)(source,signal)});
+ assert.equal(advice.status,'WEB_LEADS');assert(advice.status==='WEB_LEADS');assert.equal(advice.sourceKind,'GENERAL_PUBLIC');assert(advice.draftText?.includes('ข้อมูลทั่วไป'));
+ assert(!JSON.stringify(advice).includes('officialMiss'));assert(!JSON.stringify(advice).includes('signature'));
+ assert.equal((await pool.query('select count(*)::int n from private.message_outbox where ticket_id=$1',[f.ticket])).rows[0].n,0);
+ assert.deepEqual((await pool.query('select mode,revision from public.tickets where id=$1',[f.ticket])).rows,[{mode:'HUMAN',revision:0}]);
+});
+test('Staff final projection rejects a forged official EMPTY even when internal miss is otherwise valid',async()=>{
+ const value=generalInput(),f=await staff(value.question),c=generalConnector();
+ await assert.rejects(createStaffKnowledgeAssistance(f.actor,f.ticket,{revision:0},{pool,key,produce:async(source,signal)=>{
+  const result=await producer(source,c,createStaffWebFallback(pool,key,f.actor,f.ticket,0,f.before,c),value)(source,signal);
+  assert(result.kind==='WEB_LEADS'&&result.officialMiss);return {...result,officialMiss:{...result.officialMiss,signature:'0'.repeat(64)}};
+ }}),{code:'CONFLICT'});
 });

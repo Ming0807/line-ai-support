@@ -107,17 +107,28 @@ try {
  // Only synthetic test output; never dump SQL fixtures, auth data or environment.
  console.log(output.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  assert.equal(sql(database,'supabase_admin',installedCount).trim(),'7','SEVEN_STRUCTURED_TABLES_REQUIRED');
- // The expanded file exceeded one process's 120s bound while still completing
- // assertions. Complementary patterns execute every case exactly once, retaining
- // the same process deadline and owned database. Neither half omits acceptance.
+ // Complementary partitions retain all72 cases and the same120s process bound.
  const runtimePattern='^(?:incident runtime|source invalidation|unreadable owned|a lower current|valid ambiguous|publication and revision changes|corrupted proof|HUMAN staff|RAG fallback|actual structured AI|LINE dispatch|service department|typed structured tool|only canonical)';
- for(const [name,filter] of [['publication',`--test-skip-pattern=${runtimePattern}`],['delivery',`--test-name-pattern=${runtimePattern}`]] as const){
+ const datasetPattern='^(?:academic_calendar_events|tuition_fees|transfer_courses|university_services|university_systems|service_forms|announcements)';
+ const incidentPattern='^(?:incident runtime|source invalidation|unreadable owned|a lower current|valid ambiguous|publication and revision changes|corrupted proof|HUMAN staff)';
+ const partitions=[
+  ['publication_datasets',[`--test-name-pattern=${datasetPattern}`]],
+  ['publication_other',[`--test-skip-pattern=(?:${runtimePattern}|${datasetPattern})`]],
+  ['delivery_incidents',[`--test-name-pattern=${incidentPattern}`]],
+  ['delivery_other',[`--test-name-pattern=${runtimePattern}`,`--test-skip-pattern=${incidentPattern}`]],
+ ] as const;
+ let publicationCases=0;
+ for(const [name,filters] of partitions){
   stage=`structured_${name}_actual_PG`;
-  const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1',filter,'tests/database/import-structured-publication.integration.ts'],
+  const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1',...filters,'tests/database/import-structured-publication.integration.ts'],
    {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
-  console.log(JSON.stringify({stage,partition:name,filterMode:name==='publication'?'SKIP_RUNTIME':'ONLY_RUNTIME'}));
+  const executed=Number(publicationOutput.match(/^ℹ tests (\d+)$/mu)?.[1]);
+  assert(Number.isSafeInteger(executed)&&executed>0,'PUBLICATION_PARTITION_MUST_EXECUTE_CASES');
+  publicationCases+=executed;
+  console.log(JSON.stringify({stage,partition:name,executed}));
   console.log(publicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  }
+ assert.equal(publicationCases,72,'ALL_PUBLICATION_AND_DELIVERY_CASES_REQUIRED');
  stage='RAG_compatibility_actual_PG';
  const original=await readFile(resolve(root,'tests/database/import-publication.integration.ts'),'utf8');
  const normalConnection='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
@@ -149,6 +160,11 @@ try {
  const bindingOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-line-binding.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(bindingOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ // These flows publish retained PUBLIC fixtures; run last so earlier miss witnesses stay isolated.
+ stage='v1_combined_flows_actual_PG';
+ const combinedOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/v1-business-flows.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(combinedOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  if(cli){
   stage='isolated_advisors';
   const version=execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true,timeout:10_000,stdio:['pipe','pipe','pipe']}).trim();
