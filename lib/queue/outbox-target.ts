@@ -7,10 +7,10 @@ interface OutboxTarget {
 export function validateOutboxTarget(input:OutboxTarget):void {
  const allowed=input.channel==='STUDENT'
   ? ['AI','STAFF','SYSTEM'].includes(input.kind)
-  : input.channel==='STAFF'&&input.kind==='NOTIFICATION';
+  : input.channel==='STAFF'&&['NOTIFICATION','CONTROL','CHAT'].includes(input.kind);
  if(!allowed)throw new Error('INVALID_OUTBOX_CHANNEL_KIND');
  if(input.channel==='STUDENT'){
   if(!input.lineSessionId||input.recipientStaffId)throw new Error('INVALID_OUTBOX_TARGET');
- }else if(!input.recipientStaffId||input.lineSessionId||input.conversationId||!input.ticketId||
+ }else if(!input.recipientStaffId||input.lineSessionId||input.conversationId||(input.kind==='CONTROL'?!!input.ticketId:!input.ticketId)||
   (input.deliveryMode!==undefined&&input.deliveryMode!=='PUSH'))throw new Error('INVALID_OUTBOX_TARGET');
 }

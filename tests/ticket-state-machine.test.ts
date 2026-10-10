@@ -36,6 +36,8 @@ const allowed: Partial<Record<TicketStatus, Partial<Record<TicketAction, TicketS
     REASSIGN: 'STAFF_HANDLING',
   },
   WAITING_USER: {
+    STAFF_REPLY: 'WAITING_USER',
+    RESOLVE: 'RESOLVED',
     USER_REPLY: 'STAFF_HANDLING',
     REASSIGN: 'WAITING_USER',
   },
@@ -48,6 +50,12 @@ const allowed: Partial<Record<TicketStatus, Partial<Record<TicketAction, TicketS
 };
 
 describe('ticket pure state machine', () => {
+  it('lets the assigned staff continue a response and explicitly resolve while awaiting the user',()=>{
+    expect(nextTicketStatus('WAITING_USER','STAFF_REPLY')).toBe('WAITING_USER');
+    expect(nextTicketStatus('WAITING_USER','RESOLVE')).toBe('RESOLVED');
+    expect(nextTicketStatus('RESOLVED','STAFF_REPLY')).toBeNull();
+    expect(nextTicketStatus('WAITING_STAFF','STAFF_REPLY')).toBeNull();
+  });
   it('matches the complete allowed and rejected status/action matrix', () => {
     for (const status of statuses) {
       for (const action of actions) {

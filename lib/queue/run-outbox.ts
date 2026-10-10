@@ -5,6 +5,8 @@ import {deliverLine,type LineMessage} from '../line/delivery';
 import {eligibleScopeSql} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
 import {verifyAIOutboxEvidence,aiOutboxNeedsStructuredCatalog,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
+import {staffChatAccessLock} from '../staff/line-case-context';
+import {loadStaffChatDeliveryGuard,verifyStaffChatDelivery} from '../staff/line-chat-delivery';
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
 interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
@@ -25,13 +27,19 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
      locks.push(knowledgeStructuredCatalogLock);
     }
-    const contextLocks=[...(job.conversation_id?[`conversation:${job.conversation_id}`]:[]),`delivery:${channel}:${job.line_session_id??job.recipient_staff_id}`];
+    const chatGuard=await loadStaffChatDeliveryGuard(client,job.id);
+    if(chatGuard||['CHAT','CONTROL'].includes(job.kind)){
+     await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[staffChatAccessLock]);locks.push(staffChatAccessLock);
+    }
+    const conversations=[...new Set([...(job.conversation_id?[job.conversation_id]:[]),...(chatGuard?.cases.map(member=>member.conversation_id)??[])])].sort();
+    const contextLocks=[...conversations.map(id=>`conversation:${id}`),`delivery:${channel}:${job.line_session_id??job.recipient_staff_id}`];
     for(const lock of contextLocks){await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);locks.push(lock);}
     const current=(await client.query("select * from private.message_outbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()",[job.id,job.lease_token])).rows[0] as OutboxJob|undefined;
     if(!current)continue;job=current;
     validateOutboxTarget({channel:job.channel,kind:job.kind,lineSessionId:job.line_session_id,
      recipientStaffId:job.recipient_staff_id,conversationId:job.conversation_id,ticketId:job.ticket_id,deliveryMode:job.delivery_mode});
     let suppress:string|null=null;
+    if(!await verifyStaffChatDelivery(client,chatGuard,job))suppress='STAFF_CHAT_AUTHORITY_CHANGED';
     if(job.kind==='AI'){
      const allowed=(await client.query(`select c.id from public.conversations c where c.id=$1 and c.mode='AI' and c.revision=$2 and c.status in ('ACTIVE','WAITING')
       and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in ('CLOSED','CANCELLED'))`,[job.conversation_id,job.expected_conversation_revision])).rowCount===1;
@@ -42,6 +50,9 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     let identity:{user_id_encrypted:string;user_hash:string}|undefined;
     if(channel==='STUDENT'){
      identity=(await client.query('select i.user_id_encrypted,i.user_hash from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.line_session_id=$1',[job.line_session_id])).rows[0];
+    }else if(job.kind==='CONTROL'){
+     identity=(await client.query(`select i.user_id_encrypted,i.user_hash from private.staff_line_identities i join public.staff_profiles s on s.id=i.staff_id and s.active
+      where i.staff_id=$1 and i.active`,[job.recipient_staff_id])).rows[0];
     }else{
      const ticket=(await client.query('select department_id,sensitive_level from public.tickets where id=$1',[job.ticket_id])).rows[0];
      if(ticket){
@@ -79,7 +90,7 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     if(delivery.status==='SENT')result.sent++;else result.failed++;
     console.info('OUTBOX_DELIVERY',{channel,status:finalStatus});
    }finally{
-    try{for(const lock of [...locks].reverse())await client.query(lock===knowledgeStructuredCatalogLock?'select pg_advisory_unlock_shared(hashtextextended($1,0))':'select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
+    try{for(const lock of [...locks].reverse())await client.query([knowledgeStructuredCatalogLock,staffChatAccessLock].includes(lock)?'select pg_advisory_unlock_shared(hashtextextended($1,0))':'select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
     catch{discard=true;console.error('OUTBOX_UNLOCK_FAILED',{channel});}
     client.release(discard);
    }

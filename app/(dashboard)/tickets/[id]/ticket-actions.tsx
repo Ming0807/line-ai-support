@@ -6,7 +6,7 @@ import type { TicketDetail, StaffTicketAction } from '@/types/tickets';
 import StaffAiPanel from './staff-ai-panel';
 import StaffKnowledgePanel from './staff-knowledge-panel';
 
-type Props = Pick<TicketDetail, 'permissions' | 'assignees'> & { id: string; revision: number; assistAvailable?:boolean };
+type Props = Pick<TicketDetail, 'permissions' | 'assignees'> & { id: string; ticketNo:string; reporter:string; revision: number; assistAvailable?:boolean };
 type ActionDraft = { action: StaffTicketAction; fields: Record<string, string> };
 type PendingAction = ActionDraft & { body: Record<string, string | number> };
 
@@ -23,7 +23,7 @@ function responseMessage(status: number): string {
   return 'ยังดำเนินการไม่สำเร็จ กรุณาลองอีกครั้ง';
 }
 
-export default function TicketActions({ id, revision, permissions, assignees,assistAvailable=false }: Props) {
+export default function TicketActions({ id,ticketNo,reporter,revision,permissions,assignees,assistAvailable=false }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [retryPayload, setRetryPayload] = useState<PendingAction | null>(null);
@@ -79,7 +79,7 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
       } else if (pendingAction.action === 'REOPEN') {
         setReopenReason('');
       }
-      setNotice('บันทึกการเปลี่ยนแปลงแล้ว');
+      setNotice(pendingAction.action==='STAFF_REPLY'?`บันทึกคำตอบเพื่อส่งถึง ${ticketNo} · ผู้แจ้ง ${reporter} แล้ว ตรวจสถานะการส่งด้านข้างได้ครับ`:'บันทึกการเปลี่ยนแปลงแล้ว');
       setNoticeKind('success');
       setPending(false);
       router.refresh();
@@ -106,8 +106,10 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
   return (
     <section className="ticket-action-panel" aria-labelledby="action-heading">
       <div className="ticket-section-heading"><div><h2 id="action-heading">การดำเนินการ</h2></div></div>
-      {assistAvailable&&<><StaffAiPanel key={`summary:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/>
-        <StaffKnowledgePanel key={`knowledge:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/></>}
+      <div className="ticket-recipient-context" aria-label="เคสที่กำลังดำเนินการ">
+        <span>เคสที่เปิดอยู่</span><strong>{ticketNo}</strong><span>ผู้แจ้ง {reporter}</span>
+        <p>ข้อความในหน้านี้ส่งเฉพาะเคสนี้ การเปิดหน้าหรือเคสอื่นจะไม่เปลี่ยนเคสที่เลือกไว้ใน LINE</p>
+      </div>
       {notice && <p className={`ticket-action-notice ticket-action-notice-${noticeKind}`} role="status">{notice}</p>}
       {retryPayload && noticeKind === 'error' && notice.startsWith('การเชื่อมต่อขาดหาย') && <button className="ticket-button ticket-button-secondary" type="button" disabled={pending} onClick={() => void execute(retryPayload)}>ลองส่งซ้ำ</button>}
       {!hasAnyPermission ? (
@@ -131,7 +133,7 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
             <form className="ticket-action-form ticket-reply-form" onSubmit={submit('STAFF_REPLY', () => ({ text: replyText.trim() }))}>
               <label htmlFor="staff-reply">
                 ข้อความตอบกลับ
-                <span>ส่งคำตอบอย่างเป็นทางการไปยัง LINE ของผู้แจ้ง</span>
+                <span>ส่งถึง {ticketNo} · ผู้แจ้ง {reporter}</span>
               </label>
               <textarea
                 id="staff-reply"
@@ -144,7 +146,7 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
                 placeholder="เขียนคำตอบถึงผู้แจ้ง…"
               />
               <button className="ticket-button ticket-button-primary" disabled={pending || !replyText.trim()}>
-                {pending ? 'กำลังส่ง…' : 'ส่งคำตอบ'}
+                {pending ? 'กำลังบันทึก…' : `ส่งคำตอบ · ${ticketNo}`}
               </button>
             </form>
           )}
@@ -205,6 +207,8 @@ export default function TicketActions({ id, revision, permissions, assignees,ass
           )}
         </div>
       )}
+      {assistAvailable&&<><StaffAiPanel key={`summary:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/>
+        <StaffKnowledgePanel key={`knowledge:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/></>}
       {pending && <p className="ticket-pending" role="status">กำลังบันทึก…</p>}
     </section>
   );

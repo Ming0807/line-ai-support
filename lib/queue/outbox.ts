@@ -5,7 +5,7 @@ import {validateOutboxTarget} from './outbox-target';
 
 export interface OutboundText {type:'text';text:string;quickReply?:{items:{type:'action';action:{type:'postback';label:string;data:string;displayText?:string}}[]}}
 export interface EnqueueMessage {
- idempotencyKey:string;channel:'STUDENT'|'STAFF';kind:'AI'|'STAFF'|'SYSTEM'|'NOTIFICATION';
+ idempotencyKey:string;channel:'STUDENT'|'STAFF';kind:'AI'|'STAFF'|'SYSTEM'|'NOTIFICATION'|'CONTROL'|'CHAT';
  lineSessionId?:string;recipientStaffId?:string;conversationId?:string;ticketId?:string;
  conversationRevision?:number;replyToken?:string;receivedAt?:Date;messages:OutboundText[];
 }

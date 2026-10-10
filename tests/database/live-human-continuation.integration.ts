@@ -51,12 +51,12 @@ async function selectHuman(f:Fixture){
  await send(f,choice.action.data,true);
  return (await pool.query('select id from public.messages where ticket_id=$1 order by created_at desc,id desc limit 1',[f.ticket.id])).rows[0].id as string;
 }
-test('explicit HUMAN selection acknowledges delivery and notifies only the eligible bound assignee without user content',async()=>{
+test('explicit HUMAN selection acknowledges delivery and relays GENERAL facts only to the eligible bound assignee',async()=>{
  const f=await fixture();await selectHuman(f);const receipt=await latestStudent(f);
  assert.match(receipt.text,/ส่งข้อความ/);assert(receipt.text.includes(f.ticket.ticket_no));assert(!receipt.text.includes('PRIVATE_USER_MESSAGE'));
  assert(receipt.quickReply.items.some((x:{action:{label:string}})=>x.action.label==='เริ่มเรื่องใหม่'));
  const alerts=(await pool.query("select recipient_staff_id,payload_encrypted from private.message_outbox where ticket_id=$1 and channel='STAFF'",[f.ticket.id])).rows;
- assert.deepEqual(alerts.map(r=>r.recipient_staff_id),[f.staff]);const text=decryptValue(alerts[0].payload_encrypted,key);assert(text.includes(f.ticket.ticket_no));assert(!text.includes('PRIVATE_'));
+ assert.deepEqual(alerts.map(r=>r.recipient_staff_id),[f.staff]);const text=decryptValue(alerts[0].payload_encrypted,key);assert(text.includes(f.ticket.ticket_no));assert(text.includes('PRIVATE_USER_MESSAGE'));assert(text.includes('ยังไม่เปลี่ยนเคส'));
  assert.equal((await pool.query('select status from public.tickets where id=$1',[f.ticket.id])).rows[0].status,'STAFF_HANDLING');
 });
 test('explicit current HUMAN focus survives unavailable classification without asking again or creating an AI job',async()=>{

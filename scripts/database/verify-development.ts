@@ -11,6 +11,9 @@ const structuredTables=['academic_calendar_events','tuition_fees','transfer_cour
 const retainedTables=['public.incidents','public.incident_tickets','private.incident_ticket_vectors','private.incident_rules','private.incident_detection_jobs'];
 const immutableTables=['private.knowledge_import_revisions','private.knowledge_import_reviews','private.knowledge_import_publications',
  'private.structured_row_provenance','private.structured_publication_effects','private.incident_action_receipts','private.ticket_support_contexts','private.ai_support_outcomes'];
+const chatMutable=['staff_line_case_context','staff_chat_commands','staff_chat_read_cursors'];
+const chatAppendOnly=['staff_chat_message_order','staff_chat_delivery_guards','staff_chat_delivery_cases'];
+const chatTables=[...chatMutable,...chatAppendOnly];
 try {
  await client.connect();
  const sql=readFileSync('tests/database/foundation.sql','utf8')
@@ -27,7 +30,13 @@ try {
   where n.nspname in ('public','private') and c.relkind='r'
    and not (n.nspname||'.'||c.relname=any($1::text[]))
    and not has_table_privilege('service_role',c.oid,privilege)`,[
-    ['private.knowledge_import_jobs','private.worker_observations','private.structured_selection_epoch','private.incident_context_proofs','private.web_search_attempts',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`)]]);
+    ['private.knowledge_import_jobs','private.worker_observations','private.structured_selection_epoch','private.incident_context_proofs','private.web_search_attempts',...immutableTables,...retainedTables,...structuredTables.map(name=>`public.${name}`),...chatTables.map(name=>`private.${name}`)]]);
+ const chatGrants=(await client.query(`select c.relname,
+  has_table_privilege('service_role',c.oid,'SELECT') can_read,has_table_privilege('service_role',c.oid,'INSERT') can_append,
+  has_table_privilege('service_role',c.oid,'UPDATE') can_update,has_table_privilege('service_role',c.oid,'DELETE,TRUNCATE') can_remove,
+  not has_any_column_privilege('anon',c.oid,'SELECT,INSERT,UPDATE') and not has_any_column_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE') browser_denied
+  from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname=any($1::text[])`,[chatTables])).rows;
+ if(chatGrants.length!==chatTables.length||chatGrants.some(row=>!row.can_read||!row.can_append||row.can_update!==chatMutable.includes(row.relname)||row.can_remove||!row.browser_denied))throw new Error('DEVELOPMENT_STAFF_CHAT_GRANT_VERIFICATION_FAILED');
  const revisionGrants=await client.query(`select c.relname,
   has_table_privilege('service_role',c.oid,'SELECT') as can_read,
   has_table_privilege('service_role',c.oid,'INSERT') as can_append,
@@ -92,7 +101,7 @@ try {
  console.log(JSON.stringify({stage:'development_security',tableCount:tables.rows[0].count,allRls:true,
   rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,appendOnlyImportReviews:true,
   immutablePublicationReceipts:true,appendOnlySupportContexts:true,appendOnlySupportOutcomes:true,structuredLifecycleColumnsOnly:true,
-  incidentRetention:true,workerObservationTimestampOnly:true,webAdmissionObservationColumnsOnly:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
+  incidentRetention:true,workerObservationTimestampOnly:true,webAdmissionObservationColumnsOnly:true,staffChatLeastPrivilege:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
 } catch(error) {
  await client.query('rollback').catch(()=>undefined);
  const message=error instanceof Error?error.message:'';

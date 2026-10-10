@@ -29,6 +29,8 @@ const transitions: Readonly<Record<TicketStatus, Partial<Record<TicketAction, Ti
     REASSIGN: 'STAFF_HANDLING',
   },
   WAITING_USER: {
+    STAFF_REPLY: 'WAITING_USER',
+    RESOLVE: 'RESOLVED',
     USER_REPLY: 'STAFF_HANDLING',
     REASSIGN: 'WAITING_USER',
   },

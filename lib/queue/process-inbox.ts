@@ -2,9 +2,8 @@ import type { PoolClient } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { userEventSchema } from '../line/events';
 import { decryptValue, encryptValue, hashLineUserId } from '../security/identity';
-import { persistStaffInboxEvent } from './staff-inbox';
 import { processStudentContent,type StudentProcessingOptions } from '../conversation/student-processing';
-import { processStaffCommand } from '../tickets/staff-command';
+import {processStaffCaseEvent} from '../staff/line-case-chat';
 import { consumeStaffBinding } from '../staff/line-binding';
 export interface InboxJob { id:string; channel:'STUDENT'|'STAFF'; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
 
@@ -20,9 +19,10 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
   const event=parsed.data,hash=hashLineUserId(event.source.userId,key);
   if(job.user_hash!==hash) throw new Error('IDENTITY_MISMATCH');
   if(job.channel==='STAFF') {
-   errorCode=event.type==='postback'?await processStaffCommand(client,event,key):
-    event.type==='message'&&event.message.type==='text'&&event.message.text.trim().startsWith('yru:staff:bind:')?
-     await consumeStaffBinding(client,event.message.text,event.source.userId,key):await persistStaffInboxEvent(client,job,event,key);
+   if(event.type==='message'&&event.message.type==='text'&&event.message.text.trim().startsWith('yru:staff:bind:')){
+    errorCode=await consumeStaffBinding(client,event.message.text,event.source.userId,key);
+    if(!errorCode)errorCode=await processStaffCaseEvent(client,job,event,key,true);
+   }else errorCode=await processStaffCaseEvent(client,job,event,key);
   } else {
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:${job.channel}:${hash}`]);
   let session=(await client.query('select line_session_id from private.line_identities where user_hash=$1',[hash])).rows[0];

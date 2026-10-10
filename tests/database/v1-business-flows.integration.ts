@@ -557,7 +557,13 @@ test('FLOW-D uses Staff ACCEPT, manual reply, exact HUMAN continuation, RESOLVE 
   const reply=await ticketAction(f,ticket.id,'STAFF_REPLY',replyInput);assert.equal(reply.status,'WAITING_USER');
   const staffMessage=(await f.pool.query("select ticket_id,conversation_id,sender_type,sender_staff_id,content from public.messages where ticket_id=$1 and sender_type='STAFF'",[ticket.id])).rows[0];
   assert.deepEqual(staffMessage,{ticket_id:ticket.id,conversation_id:ticket.conversation_id,sender_type:'STAFF',sender_staff_id:f.staff,content:replyInput.text});
-  assert.equal((await deliverAll(f)),1,'MANUAL_STAFF_REPLY_IS_DELIVERED_TO_THE_STUDENT');
+  const delivered={bodies:[] as unknown[]};await deliverAll(f,delivered);
+  const recipientDeliveries=delivered.bodies.filter((value)=>{
+   const body=value as {to?:string;messages?:{text?:string}[]};
+   return body.to===f.studentLineId&&body.messages?.some(message=>message.text===replyInput.text);
+  });
+  assert.equal(recipientDeliveries.length,1,'MANUAL_STAFF_REPLY_IS_DELIVERED_ONCE_TO_THIS_STUDENT_WHILE_STAFF_RECEIPTS_ARE_SEPARATE');
+  assert.equal((await f.pool.query("select count(*)::int n from private.message_outbox where ticket_id=$1 and channel='STUDENT' and kind='STAFF' and status='SENT'",[ticket.id])).rows[0].n,1);
   const beforeAIOutbox=(await f.pool.query("select count(*)::int n from private.message_outbox where conversation_id=$1 and kind='AI'",[ticket.conversation_id])).rows[0].n;
   const continuation=await inbound(f,'ได้ส่งภาพข้อความผิดพลาดตามที่ขอแล้ว','CONTINUE','HUMAN',false);
   const routed=(await f.pool.query('select conversation_id,ticket_id,sender_type,content from public.messages where source_event_id=$1',[continuation.sourceEventId])).rows[0];

@@ -85,6 +85,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             )}
           </section>
 
+          <TicketActions key={ticket.id} id={ticket.id} ticketNo={ticket.ticket_no} reporter={ticket.anonymous_code} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} assistAvailable={ticket.mode==='HUMAN'&&['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)} />
+
           <section className="ticket-panel" aria-labelledby="history-heading">
             <div className="ticket-section-heading"><div><h2 id="history-heading">ประวัติการดำเนินการ</h2></div></div>
             {detail.history.length === 0 ? <p className="ticket-muted">ยังไม่มีประวัติการดำเนินการ</p> : (
@@ -114,7 +116,6 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <div><dt>อัปเดตล่าสุด</dt><dd>{dateTime(ticket.updated_at)}</dd></div>
             </dl>
           </section>
-          <TicketActions id={ticket.id} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} assistAvailable={ticket.mode==='HUMAN'&&['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)} />
           {support.status!=='NONE'&&<section className="ticket-panel ticket-facts" aria-labelledby="support-context-heading">
             <div className="ticket-section-heading"><h2 id="support-context-heading">รายละเอียดที่ผู้แจ้งให้ไว้</h2></div>
             {support.status==='UNAVAILABLE'?<p className="ticket-muted">ยังอ่านรายละเอียดส่วนนี้ไม่ได้ โปรดลองโหลดหน้าอีกครั้ง</p>:<>
@@ -128,7 +129,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </section>
           {detail.deliveries.length > 0 && <section className="ticket-panel ticket-delivery-panel" aria-labelledby="delivery-heading">
             <h2 id="delivery-heading">สถานะการส่งข้อความ</h2>
-            <ul>{detail.deliveries.map((delivery, index) => <li key={`${delivery.created_at}-${index}`}><span>{delivery.status === 'SENT' ? 'ส่งแล้ว' : delivery.status === 'RETRY' ? 'กำลังลองส่งอีกครั้ง' : delivery.status === 'UNKNOWN' ? 'กำลังตรวจสอบผลการส่ง' : 'ยังส่งไม่สำเร็จ'}</span><time dateTime={delivery.created_at}>{dateTime(delivery.created_at)}</time></li>)}</ul>
+            <ul>{detail.deliveries.map((delivery, index) => <li key={`${delivery.created_at}-${index}`}><span>{delivery.status === 'SENT' ? 'ส่งแล้ว' : delivery.status === 'PENDING' ? 'รอส่ง' : delivery.status === 'PROCESSING' ? 'กำลังส่ง' : delivery.status === 'RETRY' ? 'กำลังลองส่งอีกครั้ง' : delivery.status === 'UNKNOWN' ? 'กำลังตรวจสอบผลการส่ง' : delivery.status==='SUPPRESSED'?'ระงับการส่งเมื่อสถานะหรือสิทธิ์เปลี่ยน':'ยังส่งไม่สำเร็จ'}</span><time dateTime={delivery.created_at}>{dateTime(delivery.created_at)}</time></li>)}</ul>
           </section>}
         </aside>
       </div>

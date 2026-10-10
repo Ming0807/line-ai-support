@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults,defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   test: {
+    exclude:[...configDefaults.exclude,'.superpowers/**'],
     environment: 'node',
     clearMocks: true,
     restoreMocks: true,

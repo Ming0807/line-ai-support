@@ -359,6 +359,10 @@
   .ticket-page *, .ticket-page *::before, .ticket-page *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 .ticket-ai-panel { border-bottom: 1px solid #e4e1dd; padding-bottom: 1.25rem; margin-bottom: 1.25rem; }
+.ticket-recipient-context { display: flex; flex-wrap: wrap; gap: .35rem .75rem; padding: 1rem; margin-bottom: 1.25rem; background: var(--ticket-soft); border: 1px solid var(--ticket-line); border-radius: 1rem; overflow-wrap: anywhere; }
+.ticket-recipient-context > span { color: var(--ticket-muted); font-size: .88rem; }
+.ticket-recipient-context > strong { color: var(--ticket-ink); }
+.ticket-recipient-context p { flex-basis: 100%; margin: .2rem 0 0; color: var(--ticket-muted); font-size: .82rem; line-height: 1.6; }
 .ticket-ai-result p { overflow-wrap: anywhere; }
 .ticket-ai-draft { white-space: pre-wrap; padding: .75rem; background: #f4f3ef; border-radius: .75rem; }
 .ticket-knowledge-sources { padding-left: 1.4rem; overflow-wrap: anywhere; }

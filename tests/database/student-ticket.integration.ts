@@ -298,7 +298,11 @@ test('a selected WAITING_USER context attaches pending text to its ticket withou
 
     const continued = await process(client, student, postbackEvent(student.userId, continueChoice.action.data));
     assert.equal(continued.code, null);
-    assert.equal((await client.query('select count(*)::int as count from private.message_outbox where line_session_id=$1', [student.sessionId])).rows[0].count, before, 'HUMAN context sends no automatic AI response');
+    assert.equal((await client.query('select count(*)::int as count from private.message_outbox where line_session_id=$1', [student.sessionId])).rows[0].count, before+1, 'explicit continuation adds one routing acknowledgment');
+    assert.equal((await client.query("select count(*)::int as count from private.message_outbox where line_session_id=$1 and kind='AI'", [student.sessionId])).rows[0].count, 0, 'HUMAN context sends no automatic AI response');
+    assert.equal((await client.query('select count(*)::int as count from private.ai_jobs where line_session_id=$1', [student.sessionId])).rows[0].count, 0, 'HUMAN context creates no generation job');
+    assert.equal((await client.query('select kind from private.message_outbox where idempotency_key=$1',[`student-response:${continued.eventId}`])).rows[0].kind,'SYSTEM');
+    assert.match((await replyFor(client,continued.eventId)).messages[0].text,new RegExp(`ส่งข้อความเข้าเรื่อง ${ticket.ticketNo}`));
     const attached = (await client.query('select ticket_id,conversation_id,sender_type,content,metadata from public.messages where source_event_id=$1', [message.eventId])).rows[0];
     assert.equal(attached.ticket_id === ticket.ticketId, true, 'the pending message remains owned by its ticket');
     assert.equal(attached.conversation_id === ticket.conversationId, true, 'the pending message remains owned by its conversation');
