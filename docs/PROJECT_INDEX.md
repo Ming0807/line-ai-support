@@ -2,7 +2,7 @@
 
 อัปเดต 24 ตุลาคม 2026 โดย root สถานะ V1: **ยังไม่ผ่านการตรวจรับทั้งหมด** งานระบบมีหลักฐานทดสอบแล้ว แต่คุณภาพคำตอบจากโมเดลจริงและ Flow A–F บน LINE ยังไม่ผ่านครบ ผู้ใช้เลื่อนการทดสอบของตนไปท้ายงาน ห้ามขอให้ทดสอบทีละ implementation slice
 
-24–25 ต.ค. 2026: root ปิด remaining inventory ครบ (DEC-160) และหลังผู้ใช้อนุมัติ 25s timeout + RED-first outer-deadline retune (DEC-161/162) **original30 ผ่านเกณฑ์ครั้งแรก: main6 ครบ 30/30 ใน profile เดียว = 29/30 trajectories + 19/20 useful + safety gates ครบ** (A12 residual noncritical) โดย fixture/rubric ไม่ถูกแตะ คงค้างแยก: representative repeat rounds, Flow A–F จริงของผู้ใช้, corpus 9 รายการ, guarded activation; runtime ยัง STOPPED การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows) ห้าม reset/clean/stash working tree ทั้งสอง branch
+24–25 ต.ค. 2026: root ปิด remaining inventory ครบ (DEC-160) และหลังผู้ใช้อนุมัติ 25s timeout + RED-first outer-deadline retune (DEC-161/162) **original30 ผ่านเกณฑ์ครั้งแรก: main6 ครบ 30/30 = 29/30 + 19/20 + gates ครบ** และ **fixed representative repeat rounds ครบตามแผนเดิม: repeat2 = 3×7 ครบ 21/21** (DEC-163) โดย fixture/rubric ไม่ถูกแตะ คงค้างเฉพาะ user-gated: Flow A–F จริง, corpus 9 รายการ, guarded activation; runtime ยัง STOPPED การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows) ห้าม reset/clean/stash working tree ทั้งสอง branch
 
 ## อ่านตามลำดับนี้
 
