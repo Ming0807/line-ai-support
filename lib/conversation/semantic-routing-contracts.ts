@@ -1,18 +1,28 @@
 import {z} from 'zod';
 import type {RouteCandidate} from './router';
+import type {AIErrorCode} from '../ai/types';
+/** Sanitized infrastructure outcome; never a semantic proposal or routing authority. */
+export class SemanticRoutingUnavailableError extends Error {
+ constructor(readonly reason:AIErrorCode){super('ROUTING_UNAVAILABLE');this.name='SemanticRoutingUnavailableError';}
+}
 const candidateCode=z.string().regex(/^C(?:[1-9]|1[0-2])$/u);
 export const routingProposalSchema=z.strictObject({decision:z.enum(['NEW','CONTINUE','ASK']),candidateCode:candidateCode.nullable(),confidence:z.number().finite().min(0).max(1)})
  .refine(value=>value.decision==='CONTINUE'?value.candidateCode!==null:value.candidateCode===null);
 export type RoutingProposal=z.infer<typeof routingProposalSchema>;
-export interface SemanticCandidate extends RouteCandidate {topic:string|null;summary:string|null;history:{id:string;content:string;createdAt:string}[]}
-const bounded=(text:string,max:number)=>text.slice(0,max).replace(/[\uD800-\uDBFF]$/u,'');
+export const SEMANTIC_ROUTE_TIMEOUT_MS=25000;
+export function routingInferenceBudgetMs(remainingMs:unknown):number|null{
+ const remaining=Number(remainingMs);if(!Number.isFinite(remaining))return null;
+ const duration=Math.min(SEMANTIC_ROUTE_TIMEOUT_MS,remaining-7000);return duration>=1?duration:null;
+}
+export interface SemanticCandidate extends RouteCandidate {topic:string|null;summary:string|null;history:{id:string;content:string;createdAt:string;senderType?:'USER'|'AI'}[]}
 export function projectRoutingContext(candidates:SemanticCandidate[]){
  return candidates.slice(0,12).map((candidate,index)=>({code:`C${index+1}`,mode:candidate.mode,
-  topic:candidate.topic===null?null:bounded(candidate.topic,200),summary:candidate.summary===null?null:bounded(candidate.summary,600),
-  previousUserMessages:candidate.history.slice(-2).map(message=>bounded(message.content,300))}));
+  topic:candidate.topic,summary:candidate.summary,
+  previousUserMessages:candidate.history.filter(message=>message.senderType!=='AI').slice(-2).map(message=>message.content),
+  recentMessages:candidate.history.slice(-8).map(message=>({role:message.senderType==='AI'?'assistant' as const:'user' as const,content:message.content}))}));
 }
-const context=z.strictObject({code:candidateCode,mode:z.enum(['AI','HUMAN']),topic:z.string().max(200).nullable(),summary:z.string().max(600).nullable(),previousUserMessages:z.array(z.string().max(300)).max(2)});
-export const semanticPromptSchema=z.strictObject({question:z.string().trim().min(1).max(2000),contexts:z.array(context).max(12)})
+const context=z.strictObject({code:candidateCode,mode:z.enum(['AI','HUMAN']),topic:z.string().max(20000).nullable(),summary:z.string().max(20000).nullable(),previousUserMessages:z.array(z.string().max(20000)).max(2),recentMessages:z.array(z.strictObject({role:z.enum(['user','assistant']),content:z.string().max(20000)})).max(8).optional()});
+export const semanticPromptSchema=z.strictObject({question:z.string().min(1).max(20000).refine(value=>value.trim().length>0&&new TextEncoder().encode(value).byteLength<=60000),contexts:z.array(context).max(12)})
  .refine(value=>new Set(value.contexts.map(c=>c.code)).size===value.contexts.length);
 export type SemanticPrompt=z.infer<typeof semanticPromptSchema>;
 export type SemanticClassifier=(input:SemanticPrompt,signal:AbortSignal)=>Promise<RoutingProposal|null>;

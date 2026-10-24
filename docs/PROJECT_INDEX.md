@@ -2,7 +2,7 @@
 
 อัปเดต 24 ตุลาคม 2026 โดย root สถานะ V1: **ยังไม่ผ่านการตรวจรับทั้งหมด** งานระบบมีหลักฐานทดสอบแล้ว แต่คุณภาพคำตอบจากโมเดลจริงและ Flow A–F บน LINE ยังไม่ผ่านครบ ผู้ใช้เลื่อนการทดสอบของตนไปท้ายงาน ห้ามขอให้ทดสอบทีละ implementation slice
 
-24–25 ต.ค. 2026: root ปิด remaining inventory ครบ (DEC-160: A14+B04/B05+B06–B10 PASS รวม B06 full workflow ครั้งแรก) — ผู้ใช้อนุมัติเพิ่ม timeout Gemini Lite เป็น 25s (DEC-161, model rev3) แล้ววัด original30 รวม 4 complete attempts: ล่าสุด main5 **observe 24/24 useful PASS (A01–B04)** แต่หยุดที่ B05 ด้วย CANCELLED จาก provider latency ชน outer stage deadlines — **ทั้ง 30 เคสมี PASS อย่างน้อยหนึ่ง profile แต่ยังไม่มี profile เดียวที่ครบ 30 จึง NOT_ACCEPTED** ทางเลือกถัดไป (ต้องอนุมัติ): ปรับ bounded outer deadlines แบบ RED-first หรือรันซ้ำช่วง latency ต่ำ การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows) ห้าม reset/clean/stash working tree ทั้งสอง branch
+24–25 ต.ค. 2026: root ปิด remaining inventory ครบ (DEC-160) และหลังผู้ใช้อนุมัติ 25s timeout + RED-first outer-deadline retune (DEC-161/162) **original30 ผ่านเกณฑ์ครั้งแรก: main6 ครบ 30/30 ใน profile เดียว = 29/30 trajectories + 19/20 useful + safety gates ครบ** (A12 residual noncritical) โดย fixture/rubric ไม่ถูกแตะ คงค้างแยก: representative repeat rounds, Flow A–F จริงของผู้ใช้, corpus 9 รายการ, guarded activation; runtime ยัง STOPPED การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows) ห้าม reset/clean/stash working tree ทั้งสอง branch
 
 ## อ่านตามลำดับนี้
 
