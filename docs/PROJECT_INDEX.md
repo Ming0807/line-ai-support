@@ -2,7 +2,7 @@
 
 อัปเดต 24 ตุลาคม 2026 โดย root สถานะ V1: **ยังไม่ผ่านการตรวจรับทั้งหมด** งานระบบมีหลักฐานทดสอบแล้ว แต่คุณภาพคำตอบจากโมเดลจริงและ Flow A–F บน LINE ยังไม่ผ่านครบ ผู้ใช้เลื่อนการทดสอบของตนไปท้ายงาน ห้ามขอให้ทดสอบทีละ implementation slice
 
-24 ต.ค. 2026: root ทำ presentation-only consistency pass (DEC-159 / ROOT-UI-POLISH-01) บน branch `feat/yru-v1-final-polish` — gates เขียวครบ (typecheck/lint/build/unit3184) โดยรัน `pnpm test` ผ่าน PowerShell หรือ System32-first PATH เท่านั้น (Git Bash ทำให้ `whoami.exe` ของ Git บังของ Windows จน auth-bootstrap fail 2 เคสแบบ environment artifact) ก่อนหน้านี้มีงานหลายรอบยังไม่ commit ใน working tree ทั้งสอง branch ห้าม reset/clean/stash
+24 ต.ค. 2026 (บ่าย): root ปิด remaining inventory ครบตาม DEC-160 — A14+B04/B05+B06–B10 (tail2) **PASS รวม 8 เคส** รวม B06 ผ่าน full workflow ครั้งแรก, เคลียร์ DB ที่ตกค้าง 8 ใบตาม exact-cleanup; จากนั้น original30 measurement ครั้งเดียวบน source2 freeze เดียวกัน: A01–A11 observed (root review 9 useful PASS รวม semantic A04/A08/A09/A10 ที่เคย FAIL; A03/A11 BLOCKED จาก provider failure/15s TIMEOUT แบบ honest fallback) แล้ว fail-fast หยุดที่ 19 NOT_RUN — **NOT_ACCEPTED** ตาม thresholds, ไม่ retry; blocker คงเดิมคือ Gemini Lite latency (>15s เป็นครั้งคราว) การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows จน auth-bootstrap fail 2 เคสแบบ environment artifact) ห้าม reset/clean/stash working tree ทั้งสอง branch
 
 ## อ่านตามลำดับนี้
 
