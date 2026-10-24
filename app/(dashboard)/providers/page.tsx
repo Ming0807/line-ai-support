@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireStaff } from '@/lib/auth/staff';
-import { listProviders } from '@/lib/ai/provider-admin';
+import { listProviders,getLastSuccessfulGeneration } from '@/lib/ai/provider-admin';
 import { providerBases, type ProviderKind, type ProviderView } from '@/types/providers';
 import ProviderForms from './provider-forms';
 import '@/app/providers.css';
@@ -16,6 +16,9 @@ export default async function ProvidersPage() {
   let loadError = false;
   try { providers = await listProviders(staff.id); }
   catch { loadError = true; }
+  let lastGeneration:Awaited<ReturnType<typeof getLastSuccessfulGeneration>>=null;
+  let lastGenerationError=false;
+  try{lastGeneration=await getLastSuccessfulGeneration(staff.id);}catch{lastGenerationError=true;}
   let embedding:Awaited<ReturnType<typeof getEmbeddingStatus>>|null=null;
   try{embedding=await getEmbeddingStatus(staff.id);}catch{/* Read-only controlled unavailable state. */}
   const choices: { adapter: ProviderKind; baseUrl: string }[] = [
@@ -35,7 +38,7 @@ export default async function ProvidersPage() {
       </header>
 
       {/* Sub-Navigation */}
-      <nav className="activity-tabs-header" style={{ marginBottom: '1.25rem' }} aria-label="หมวดหมู่ผู้ให้บริการ AI">
+      <nav className="activity-tabs-header is-spaced" aria-label="หมวดหมู่ผู้ให้บริการ AI">
         <div className="activity-tabs-group">
           <Link href="#models" className="activity-tab is-active">
             โมเดลสร้างคำตอบ (#models)
@@ -55,7 +58,7 @@ export default async function ProvidersPage() {
         <p>โมเดลเริ่มต้นสำหรับค้นหาเอกสาร จัดการการเชื่อมต่อผ่านการตั้งค่าระบบ</p>
         {embedding&&<p className="provider-field-hint">ตรวจล่าสุด <time dateTime={embedding.observedAt}>{new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'short',timeStyle:'short'}).format(new Date(embedding.observedAt))}</time>{embedding.httpStatus!==null?` · HTTP ${embedding.httpStatus}`:''}</p>}
       </section>
-      <ProviderForms providers={providers} choices={choices} loadError={loadError} />
+      <ProviderForms providers={providers} choices={choices} loadError={loadError} lastGeneration={lastGeneration} lastGenerationError={lastGenerationError} />
     </main>
   );
 }

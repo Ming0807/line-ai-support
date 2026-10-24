@@ -115,7 +115,7 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
             </Link>
           </div>
         </header>
-        <nav className="activity-tabs-header" aria-label="เมนูกิจกรรมและบันทึกระบบ" style={{ marginBottom: '1.5rem' }}>
+        <nav className="activity-tabs-header is-spaced" aria-label="เมนูกิจกรรมและบันทึกระบบ">
           <div className="activity-tabs-group">
             <Link href="/activities" className="activity-tab">
               ประวัติกิจกรรมงาน (Activities)
@@ -162,7 +162,7 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
           </Link>
         </div>
       </header>
-      <nav className="activity-tabs-header" aria-label="เมนูกิจกรรมและบันทึกระบบ" style={{ marginBottom: '1.5rem' }}>
+      <nav className="activity-tabs-header is-spaced" aria-label="เมนูกิจกรรมและบันทึกระบบ">
         <div className="activity-tabs-group">
           <Link href="/activities" className="activity-tab">
             ประวัติกิจกรรมงาน (Activities)
@@ -172,24 +172,22 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
           </span>
         </div>
       </nav>
-      <div className="dashboard-white-card" style={{ marginBottom: '1.5rem', background: '#f8fafc', borderColor: '#e2e8f0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 1 1 8 0v3" /></svg></span>
-          <div>
-            <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>
-              การรักษาความลับและความปลอดภัยระดับระบบ
-            </strong>
-            <p style={{ margin: 0, color: '#475569', fontSize: '0.875rem' }}>
-              ใช้เฉพาะรหัสและฟิลด์ที่ผ่านสัญญาอ่านแบบจำกัด ไม่มี raw error, request body, token หรือ LINE identity
-            </p>
-          </div>
+      <div className="dashboard-white-card ops-note-card">
+        <span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 1 1 8 0v3" /></svg></span>
+        <div>
+          <strong className="ops-note-title">
+            การรักษาความลับและความปลอดภัยระดับระบบ
+          </strong>
+          <p className="ops-note-text">
+            ใช้เฉพาะรหัสและฟิลด์ที่ผ่านสัญญาอ่านแบบจำกัด ไม่มี raw error, request body, token หรือ LINE identity
+          </p>
         </div>
       </div>
-      <div className="dashboard-white-card" style={{ marginBottom: '2rem' }}>
-        <div className="white-card-head" style={{ marginBottom: '1.25rem' }}>
+      <div className="dashboard-white-card dashboard-card-section">
+        <div className="white-card-head stacked">
           <div>
             <span className="white-card-label">บันทึกการทำงานของระบบ (Sanitized Logs)</span>
-            <p style={{ margin: '0.25rem 0 0', color: '#70757d', fontSize: '0.875rem' }}>
+            <p className="white-card-sublabel">
               เฉพาะการสังเกตการณ์ข้อผิดพลาด AI Gateway และการส่ง LINE ที่ยืนยันแล้ว
             </p>
           </div>

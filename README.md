@@ -6,13 +6,15 @@
 
 ## สถานะ
 
+24 ตุลาคม 2026: รอบ presentation-only consistency pass (DEC-159) บน branch `feat/yru-v1-final-polish` — focus ring/::selection/scrollbar ตาม DESIGN.md, inline styles → คลาสร่วม, ไอคอน SVG แทน emoji/glyph ทั้ง dashboard; typecheck/lint/build/unit 3184 ผ่าน (รัน `pnpm test` ผ่าน PowerShell หรือให้ `C:\Windows\System32` นำ PATH เมื่อเรียกจาก Git Bash)
+
 9 ตุลาคม 2026: LINE สอง OA, Ticket/HUMAN, Staff login, Provider/Model UI, FREE_ONLY gateway, RAG/ข้อมูลตาราง, นำเข้าและอนุมัติเอกสาร, Dashboard, Staff OA, troubleshooting และ Incidents มีโค้ดและหลักฐานทดสอบระดับ component แล้ว ฐานข้อมูล local/DEVELOPMENT มี 38 migrations และ 59 ตารางที่เปิด RLS รวมข้อมูลตารางความรู้ 7 ชนิด ระบบใช้ local CPU E5-small/384 สำหรับ embedding แยกจากหน้า Provider
 
 งาน code/test/docs ที่จำเป็นผ่านการตรวจรับอัตโนมัติแล้ว รวมค้นเว็บมหาวิทยาลัย→ข้อมูลทั่วไปและ Flow A–F: unit 2,087 ข้อ, ฐานทดสอบแยก 389 ข้อ/25 กลุ่ม, Flow A–F 8/8, normal PG 53 ข้อ, TypeScript/lint/build และ compiled Staff browser ผ่าน ดู [รายงานรับงาน](docs/reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) และ [สิ่งที่ต้องตั้งค่าจริง](docs/operations/FINAL_SETUP_CHECKLIST.md) บัญชี AI ฟรี เอกสารทางการ E5/LINE และ production/restore จริงยังต้องยืนยัน จึงยังไม่ใช่ live V1 ผ่านครบ
 
 ## เริ่มพัฒนา
 
-ทดลองครบทั้งเว็บ/E5/workers/LINE tunnel ด้วย `pnpm local:test` หรือดับเบิลคลิก `start-local.cmd` และหยุดด้วย `pnpm local:stop` ดู [ขั้นตอนทดสอบ local](docs/operations/LOCAL_TEST.md) ใช้ DEVELOPMENT เดิมและเปิด AI เฉพาะรอบทดสอบโดยไม่แก้ `.env`
+ทดลอง AI สนทนาแบบใหม่ด้วย `pnpm local:ai` (explicit preview; คุณภาพโมเดลยังไม่ผ่านครบ) เปิดเว็บ/E5/workers/LINE tunnel ในคำสั่งเดียวและแสดง webhook URL ทั้งสอง ส่วน `pnpm local:test` / `start-local.cmd` ใช้ค่า natural assistant เดิมซึ่งยังปิดอยู่ หยุดด้วย `pnpm local:stop` ดู [ขั้นตอนทดสอบ local](docs/operations/LOCAL_TEST.md) ใช้ DEVELOPMENT เดิมและไม่แก้ `.env`; preview ประมวลผลคิวและตอบ LINE จริง
 
 Prerequisites: Node.js 24 ที่ใช้ทดสอบ, pnpm ตาม `package.json` (10.33.4), Docker สำหรับ local Supabase, LINE Student/Staff OA และ Supabase development project. ใช้ repository นี้เป็น workspace
 

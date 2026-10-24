@@ -23,11 +23,11 @@ function formatDate(value: string): string {
 
 // Visual color themes for row avatars matching reference photo
 const avatarThemes = [
-  { bg: '#fef3c7', text: '#b45309', icon: 'A' },
-  { bg: '#fee2e2', text: '#b91c1c', icon: 'B' },
-  { bg: '#e0e7ff', text: '#4338ca', icon: 'C' },
-  { bg: '#ffedd5', text: '#c2410c', icon: 'D' },
-  { bg: '#f1f5f9', text: '#334155', icon: 'E' },
+  { tint: 'a', icon: 'A' },
+  { tint: 'b', icon: 'B' },
+  { tint: 'c', icon: 'C' },
+  { tint: 'd', icon: 'D' },
+  { tint: 'e', icon: 'E' },
 ];
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
@@ -314,7 +314,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
               </div>
             ) : actionableTickets.length === 0 ? (
               <div className="dashboard-empty-panel">
-                <p className="dashboard-empty-icon" aria-hidden="true">✓</p>
+                <p className="dashboard-empty-icon" aria-hidden="true">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>
+                </p>
                 <h3>ไม่มีเรื่องค้างที่ต้องดำเนินการในขณะนี้</h3>
                 <p>ทุกเรื่องในขอบเขตของคุณได้รับการตอบกลับหรือปิดงานเรียบร้อยแล้ว</p>
                 <Link className="dashboard-pill-btn dashboard-pill-btn-dark" href="/tickets">
@@ -328,7 +330,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
                   return (
                     <div key={ticket.id} className="activity-row-item">
                       {/* Avatar Thumbnail */}
-                      <div className="activity-avatar" style={{ background: theme.bg, color: theme.text }} aria-hidden="true">
+                      <div className={`activity-avatar tint-${theme.tint}`} aria-hidden="true">
                         <span>{theme.icon}</span>
                       </div>
 
@@ -400,7 +402,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <div className="white-card-head">
               <div>
                 <span className="white-card-label">รับเรื่องรายวัน (Asia/Bangkok)</span>
-                <small style={{ display: 'block', color: '#70757d', fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                <small className="white-card-microcopy">
                   เฉพาะช่วงวันที่เลือก · รวมทุกหน้าตามสิทธิ์
                 </small>
               </div>
@@ -408,10 +410,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             </div>
 
             {metricsError || metricsInvalid || !summary ? (
-              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#70757d', fontSize: '0.85rem' }} role="status"><p style={{ margin: 0 }}>อ่านสรุปการรับเรื่องไม่ได้</p></div>
+              <div className="dashboard-inline-note" role="status"><p>อ่านสรุปการรับเรื่องไม่ได้</p></div>
             ) : summary.intake.every(item => item.count === 0) ? (
-              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#70757d', fontSize: '0.85rem' }}>
-                <p style={{ margin: 0 }}>ไม่มีคำร้องใหม่ในช่วงวันที่เลือก</p>
+              <div className="dashboard-inline-note">
+                <p>ไม่มีคำร้องใหม่ในช่วงวันที่เลือก</p>
               </div>
             ) : (
               <>
@@ -519,7 +521,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
                 <div className="admin-sidepanel-item">
                   <span className="admin-item-title">งานนำเข้าขั้นตรวจ (Staging)</span>
                   {importJobsError ? (
-                    <strong className="admin-item-val" style={{ color: '#dc2626' }}>ไม่สามารถเชื่อมต่อได้</strong>
+                    <strong className="admin-item-val is-error">ไม่สามารถเชื่อมต่อได้</strong>
                   ) : (
                     <strong className="admin-item-val" title={`สกัดสำเร็จ ${readyImportJobs.length} ฉบับ, มีข้อผิดพลาด ${failedImportJobs.length} ฉบับ จากทั้งหมด ${importJobs.length} ฉบับ`}>
                       {readyImportJobs.length} ฉบับ

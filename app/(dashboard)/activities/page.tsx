@@ -93,7 +93,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: S
             </Link>
           </div>
         </header>
-        <nav className="activity-tabs-header" aria-label="เมนูกิจกรรมและบันทึกระบบ" style={{ marginBottom: '1.5rem' }}>
+        <nav className="activity-tabs-header is-spaced" aria-label="เมนูกิจกรรมและบันทึกระบบ">
           <div className="activity-tabs-group">
             <span className="activity-tab is-active" aria-current="page">
               ประวัติกิจกรรมงาน (Activities)
@@ -140,7 +140,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: S
           </Link>
         </div>
       </header>
-      <nav className="activity-tabs-header" aria-label="เมนูกิจกรรมและบันทึกระบบ" style={{ marginBottom: '1.5rem' }}>
+      <nav className="activity-tabs-header is-spaced" aria-label="เมนูกิจกรรมและบันทึกระบบ">
         <div className="activity-tabs-group">
           <span className="activity-tab is-active" aria-current="page">
             ประวัติกิจกรรมงาน (Activities)
@@ -150,11 +150,11 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: S
           </Link>
         </div>
       </nav>
-      <div className="dashboard-white-card" style={{ marginBottom: '2rem' }}>
-        <div className="white-card-head" style={{ marginBottom: '1.25rem' }}>
+      <div className="dashboard-white-card dashboard-card-section">
+        <div className="white-card-head stacked">
           <div>
             <span className="white-card-label">รายการกิจกรรมล่าสุดในขอบเขตของคุณ</span>
-            <p style={{ margin: '0.25rem 0 0', color: '#70757d', fontSize: '0.875rem' }}>
+            <p className="white-card-sublabel">
               ครอบคลุมการรับเรื่อง (Takeover), การตอบกลับ, การเปลี่ยนหน่วยงาน, และการอนุมัติคลังความรู้
             </p>
           </div>

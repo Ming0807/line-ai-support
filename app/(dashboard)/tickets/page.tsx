@@ -104,7 +104,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
           </div>
           <span className="ticket-count">ไม่ระบุจำนวนรวม (รอการเชื่อมต่อ API แบ่งหน้า)</span>
         </div>
-        <nav className="activity-tabs-header" style={{ marginBottom: '1.25rem' }} aria-label="หมวดหมู่งานรับเรื่อง">
+        <nav className="activity-tabs-header is-spaced" aria-label="หมวดหมู่งานรับเรื่อง">
           <div className="activity-tabs-group">
             <span className="activity-tab is-active" aria-current="page">
               คำร้องทั้งหมด (Tickets)
@@ -114,12 +114,12 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
             </Link>
           </div>
         </nav>
-        <p className="ticket-notice ticket-notice-error" role="alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+        <p className="ticket-notice ticket-notice-error" role="alert">
           {canonical.validationError} · <Link href="/tickets">ล้างตัวกรองทั้งหมด</Link>
         </p>
         <FilterForm canonical={canonical} departments={[]} assignees={[]} />
         <section className="ticket-empty" aria-labelledby="empty-title">
-          <p className="ticket-empty-mark" aria-hidden="true">—</p>
+          <p className="ticket-empty-mark" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" /></svg></p>
           <h2 id="empty-title">ตัวกรองไม่ถูกต้อง</h2>
           <p>โปรดตรวจสอบค่าที่กรอกแล้วลองอีกครั้ง หรือล้างตัวกรองทั้งหมดเพื่อดูรายการทั้งหมด</p>
           <Link className="ticket-button ticket-button-secondary" href="/tickets">ล้างตัวกรองทั้งหมด</Link>
@@ -173,7 +173,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
       </div>
 
       {/* Sub-Navigation */}
-      <nav className="activity-tabs-header" style={{ marginBottom: '1.25rem' }} aria-label="หมวดหมู่งานรับเรื่อง">
+      <nav className="activity-tabs-header is-spaced" aria-label="หมวดหมู่งานรับเรื่อง">
         <div className="activity-tabs-group">
           <span className="activity-tab is-active" aria-current="page">
             คำร้องทั้งหมด (Tickets)
@@ -194,7 +194,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
 
       {isZeroMatch ? (
         <section className="ticket-empty" aria-labelledby="empty-title">
-          <p className="ticket-empty-mark" aria-hidden="true">—</p>
+          <p className="ticket-empty-mark" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" /></svg></p>
           <h2 id="empty-title">
             {canonical.q ? 'ไม่พบรายการที่ตรงกับคำค้นหา' : 'ยังไม่มีรายการตรงกับตัวกรอง'}
           </h2>
@@ -207,12 +207,12 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
         </section>
       ) : isOutOfRange && serverPagination ? (
         <section className="ticket-empty" aria-labelledby="out-of-range-title">
-          <p className="ticket-empty-mark" aria-hidden="true">—</p>
+          <p className="ticket-empty-mark" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" /></svg></p>
           <h2 id="out-of-range-title">หน้านี้ไม่มีรายการ (หน้าที่ {serverPagination.page} จาก {serverPagination.totalPages})</h2>
           <p>
             มีทั้งหมด {serverPagination.total} รายการที่ตรงเงื่อนไข แต่หน้านี้อยู่เกินขอบเขต โปรดกลับไปหน้าที่มีข้อมูล
           </p>
-          <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div className="ticket-empty-actions">
             <Link className="ticket-button ticket-button-secondary" href={buildPageUrl(params, 1)}>กลับหน้าแรก</Link>
             <Link className="ticket-button ticket-button-primary" href={buildPageUrl(params, Math.max(1, lastPage))}>
               ไปหน้าสุดท้าย ({Math.max(1, lastPage)})
@@ -221,7 +221,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
         </section>
       ) : displayedTickets.length === 0 && serverPagination === null ? (
         <section className="ticket-empty" aria-labelledby="empty-title">
-          <p className="ticket-empty-mark" aria-hidden="true">—</p>
+          <p className="ticket-empty-mark" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" /></svg></p>
           <h2 id="empty-title">ยังไม่ทราบผลการค้นหา</h2>
           <p>ข้อมูลจำนวนรวมและการแบ่งหน้ายังไม่พร้อม โปรดลองโหลดรายการอีกครั้ง</p>
           <Link className="ticket-button ticket-button-secondary" href={buildPageUrl(params,canonical.page)}>ลองอีกครั้ง</Link>
@@ -287,7 +287,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Sear
           </div>
         </nav>
       ) : (
-        <div style={{ textAlign: 'center', margin: '1rem 0', fontSize: '.84rem', color: 'var(--text-muted)' }} role="status">
+        <div className="ticket-hint" role="status">
           ระบบแสดงผลคำร้องตามสิทธิ์การเข้าถึงของหน่วยงาน (ระบบแบ่งหน้าข้อมูลกำลังอยู่ระหว่างเชื่อมต่อกับฐานข้อมูลเซิร์ฟเวอร์)
         </div>
       )}

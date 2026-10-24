@@ -4,16 +4,20 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {ImportReviewState} from '@/lib/imports/import-review';
 import type {ImportPublicationReceipt} from '@/lib/imports/import-publication';
 import {
+  applyImportAssistance,
   parseAssistanceEnvelope,
   requiredReviewFields,
   type ImportAssistance,
 } from '@/lib/imports/assistance-contract';
+import CommonValueField from './common-value-field';
 import VersionPanel from './version-panel';
 import ChunkPlanPanel from './chunk-plan-panel';
 import ApprovalPanel from './approval-panel';
 import StructuredMappingPanel from './structured-mapping-panel';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {StructuredMappingChange} from './structured-client-contract';
+import ModelAssistancePanel,{applyModelSuggestionsToDraft} from './model-assistance-panel';
+import type {ImportModelSuggestion} from '@/lib/imports/model-assistance-contract';
 import {changeReviewMode,acknowledgeReviewChunks,restartReviewDraft,reviewPublicationEvidence} from './review-state';
 import {getImportReviewChecklist} from './import-flow';
 import type {VersionCandidate} from '@/lib/imports/version-candidates';
@@ -61,6 +65,25 @@ const authorityPresets=[
   {value:70,label:'70 · ประกาศคณะ / สำนัก / สถาบัน'},
   {value:50,label:'50 · แนวปฏิบัติ / ข้อมูลทั่วไป'},
 ] as const;
+const documentTypeOptions=[
+  {value:'CALENDAR',label:'ปฏิทิน'},
+  {value:'FEE',label:'ค่าธรรมเนียม'},
+  {value:'COURSE_TABLE',label:'ตารางรายวิชา'},
+  {value:'REGULATION',label:'ระเบียบ'},
+  {value:'GUIDE',label:'คู่มือ'},
+  {value:'FORM',label:'แบบฟอร์ม'},
+  {value:'ANNOUNCEMENT',label:'ประกาศ'},
+] as const;
+const audienceOptions=[
+  {value:'ALL',label:'ทุกกลุ่ม (ALL)'},
+  {value:'STUDENT',label:'นักศึกษา'},
+  {value:'STAFF',label:'บุคลากร'},
+] as const;
+const studentTypeOptions=[
+  {value:'ALL',label:'ทุกประเภท (ALL)'},
+  {value:'ภาคปกติ',label:'ภาคปกติ'},
+  {value:'กศ.บป.',label:'กศ.บป.'},
+] as const;
 
 function emptyDraft(warnings:ImportReviewState['warnings']):ImportReviewDraft{
   return {
@@ -79,16 +102,6 @@ function emptyDraft(warnings:ImportReviewState['warnings']):ImportReviewDraft{
 
 function cloneDraft(draft:ImportReviewDraft):ImportReviewDraft{
   return JSON.parse(JSON.stringify(draft)) as ImportReviewDraft;
-}
-
-function applyAssistanceToDraft(draft:ImportReviewDraft,a:ImportAssistance):ImportReviewDraft{
-  const next=cloneDraft(draft);
-  for(const field of ['title','familyCode','departmentCode','documentType','versionName','versionStream','academicYear','publishedAt','effectiveFrom','effectiveTo','authorityLevel','sourceUrl','sourcePageUrl','visibility','storageMode','datasetType'] as const){
-    if(next.metadata[field]===null&&a.metadata[field]!==null){
-      Object.assign(next.metadata,{[field]:a.metadata[field]});
-    }
-  }
-  return next;
 }
 
 function normalizeDraft(draft:ImportReviewDraft):ImportReviewDraft{
@@ -255,6 +268,10 @@ export default function ReviewForm({
     setMutation(current=>({...current,metadata:{...current.metadata,scope:{...current.metadata.scope,[key]:value}}}));
   },[setMutation]);
 
+  const applyModelSuggestions=useCallback((suggestions:readonly ImportModelSuggestion[])=>{
+    setMutation(current=>applyModelSuggestionsToDraft(current,suggestions));
+  },[setMutation]);
+
   const updateCohort=useCallback((value:number|null)=>{
     setMutation(current=>({...current,metadata:{...current.metadata,scope:{...current.metadata.scope,cohort:value}}}));
   },[setMutation]);
@@ -331,7 +348,7 @@ export default function ReviewForm({
       }else{
         // Unsaved new draft: apply assistance proposals, keeping a separate empty baseline so proposals can be saved
         const rawEmpty=emptyDraft(next.warnings);
-        const assistedDraft=loadedAssistance?applyAssistanceToDraft(rawEmpty,loadedAssistance):rawEmpty;
+        const assistedDraft=loadedAssistance?applyImportAssistance(rawEmpty,loadedAssistance):rawEmpty;
         setDraft(assistedDraft);
         setBaseline(cloneDraft(rawEmpty));
       }
@@ -354,7 +371,7 @@ export default function ReviewForm({
           setAssistance(parsed);
           setAssistanceError(false);
           if(!review?.saved){
-            setDraft(current=>current?applyAssistanceToDraft(current,parsed):current);
+            setDraft(current=>current?applyImportAssistance(current,parsed):current);
           }
         }else{
           setAssistanceError(true);
@@ -385,7 +402,7 @@ export default function ReviewForm({
     if(!review||reviewLocked)return;
     if(dirty&&!window.confirm('เริ่มตรวจจากฉบับปัจจุบันและทิ้งร่างในเครื่องหรือไม่? ใบตรวจที่บันทึกไว้จะยังคงอยู่ในประวัติ'))return;
     const rawEmpty = emptyDraft(review.warnings);
-    const next=restartReviewDraft(assistance?applyAssistanceToDraft(rawEmpty,assistance):rawEmpty,review.saved?.draft??null);
+    const next=restartReviewDraft(assistance?applyImportAssistance(rawEmpty,assistance):rawEmpty,review.saved?.draft??null);
 
     if(review.saved){
       next.action=review.saved.draft.action;
@@ -555,6 +572,13 @@ export default function ReviewForm({
             <button type="button" className="knowledge-button knowledge-button-primary" onClick={onContinue} disabled={busy||!readyForKey}>{publicationReceipt?'เปิดข้อมูลตรวจย้อนหลัง':'ตรวจรายละเอียดต่อ'}</button>
           </div>
         </div>
+        <ModelAssistancePanel
+          jobId={jobId}
+          jobRevision={jobRevision}
+          extractionRevision={extractionRevision}
+          disabled={disabled||parentPending||reviewLocked}
+          onApply={applyModelSuggestions}
+        />
       </>}
 
       {readyForKey&&review&&draft&&mode==='review'&&<>
@@ -562,7 +586,7 @@ export default function ReviewForm({
         {assistanceError&&(
           <div className="knowledge-assisted-alert" role="alert">
             <div className="knowledge-assisted-alert-content">
-              <span className="knowledge-alert-icon" aria-hidden="true">⚠️</span>
+              <span className="knowledge-alert-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4M12 17h.01" /></svg></span>
               <div>
                 <strong>เตรียมข้อมูลอัตโนมัติไม่สำเร็จ</strong>
                 <p>ร่างที่บันทึกไว้ยังอยู่ครบ คุณกรอกเฉพาะช่องที่ยังว่างได้</p>
@@ -636,7 +660,15 @@ export default function ReviewForm({
 
               <label className="knowledge-field">
                 ประเภทเอกสาร *
-                {nullableText(draft.metadata.documentType,value=>updateMetadata('documentType',value),{maxLength:80,disabled,placeholder:'เช่น ประกาศ, ข้อบังคับ, ระเบียบ'})}
+                <CommonValueField
+                  id="review-document-type"
+                  label="ประเภทเอกสาร"
+                  value={draft.metadata.documentType}
+                  options={documentTypeOptions}
+                  onChange={value=>updateMetadata('documentType',value)}
+                  disabled={disabled}
+                  maxLength={80}
+                />
                 <span className="knowledge-hint">ประเภทตามระเบียบสารบรรณ <OriginTag origin={origins.documentType}/></span>
               </label>
 
@@ -722,13 +754,29 @@ export default function ReviewForm({
 
               <label className="knowledge-field">
                 กลุ่มผู้ใช้ข้อมูล *
-                {nullableText(draft.metadata.scope.audience,v=>updateScopeText('audience',v),{maxLength:80,disabled,placeholder:'เช่น นักศึกษาทุกชั้นปี, บุคลากร'})}
+                <CommonValueField
+                  id="review-audience"
+                  label="กลุ่มผู้ใช้ข้อมูล"
+                  value={draft.metadata.scope.audience}
+                  options={audienceOptions}
+                  onChange={value=>updateScopeText('audience',value)}
+                  disabled={disabled}
+                  maxLength={80}
+                />
                 <span className="knowledge-hint">ระบุว่าใครควรใช้ข้อมูลนี้</span>
               </label>
 
               <label className="knowledge-field">
                 ประเภทนักศึกษา *
-                {nullableText(draft.metadata.scope.studentType,v=>updateScopeText('studentType',v),{maxLength:80,disabled,placeholder:'เช่น ภาคปกติ, กศ.บป.'})}
+                <CommonValueField
+                  id="review-student-type"
+                  label="ประเภทนักศึกษา"
+                  value={draft.metadata.scope.studentType}
+                  options={studentTypeOptions}
+                  onChange={value=>updateScopeText('studentType',value)}
+                  disabled={disabled}
+                  maxLength={80}
+                />
                 <span className="knowledge-hint">กรอกตามขอบเขตที่ระบุในเอกสาร</span>
               </label>
 

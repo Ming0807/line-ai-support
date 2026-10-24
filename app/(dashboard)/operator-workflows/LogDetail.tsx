@@ -72,7 +72,7 @@ export default function LogDetail({ item, titleId, onClose, onReturnFocus }: Log
         <div className="opw-dialog-head">
           <h2 id={titleId}>รายละเอียดบันทึก {item.code}</h2>
           <button type="button" className="opw-dialog-close" onClick={onClose} aria-label="ปิดรายละเอียด">
-            ปิด ✕
+            ปิด <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
           </button>
         </div>
         <dl className="opw-facts">

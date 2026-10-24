@@ -21,7 +21,7 @@ export default async function KnowledgePage(){
    <div><h1>คลังความรู้</h1><p>จัดเก็บและตรวจข้อความจากเอกสารก่อนเข้าสู่ขั้นตอนเผยแพร่</p></div>
    <Link className="knowledge-button knowledge-button-primary" href="/knowledge/import">นำเข้าเอกสาร</Link>
   </header>
-  <nav className="activity-tabs-header" style={{ marginBottom: '1.25rem' }} aria-label="หมวดหมู่คลังความรู้">
+  <nav className="activity-tabs-header is-spaced" aria-label="หมวดหมู่คลังความรู้">
     <div className="activity-tabs-group">
       <span className="activity-tab is-active" aria-current="page">
         คลังความรู้ที่เผยแพร่ (Catalog)
