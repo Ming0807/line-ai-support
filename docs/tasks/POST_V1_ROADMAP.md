@@ -61,6 +61,13 @@
 | EXT-07 Custom document families | เพิ่ม family นอก 19 แรกผ่าน UI (CH064 เปิดไว้) พร้อม proof/versioning เดิม | มีเอกสารจริงจำนวนมากพอ |
 | EXT-08 Local AI (ผู้ใช้ยืนยันจะเพิ่มภายหลัง) | โมเดลท้องถิ่นบน **host ปรับใช้จริง** ไม่ใช่เครื่องพัฒนา (สเปคไม่พอ) — ผูกกับ EXT-01 paid/provider phase เดียวกัน | DEC-165; เมื่อมี host จริง + ผู้ใช้เปิดหัวข้อ |
 
+## เอกสารเตรียมพร้อมสำหรับทุกประตูของผู้ใช้ (25 ต.ค.)
+
+- **วันทดสอบ Flow A–F:** [TEST_DAY_RUNBOOK](../operations/TEST_DAY_RUNBOOK.md) (ขั้นตอน+แบบบันทึกผล) คู่กับ [LIVE_TEST_QA_PREP](../operations/LIVE_TEST_QA_PREP.md)
+- **ตัดสิน corpus 9 รายการ:** [CORPUS_DECISION_PACKETS](../operations/CORPUS_DECISION_PACKETS.md) — คำถามสำเร็จรูปส่งเจ้าของข้อมูลได้ทันที
+- **เลือก host/วัน deploy:** [DEPLOYMENT_WORKSHEET](../operations/DEPLOYMENT_WORKSHEET.md)
+- **วันเพิ่ม provider/local AI (เฟสภายหลังตาม DEC-165):** [PROVIDER_ONBOARDING_PLAYBOOK](../operations/PROVIDER_ONBOARDING_PLAYBOOK.md)
+
 ## เพิ่มเติมจากรอบ 25 ต.ค. (หลังปิดเฟส 0)
 
 - สร้าง **[เอกสารเตรียมทดสอบจริง](../operations/LIVE_TEST_QA_PREP.md)** แล้ว — ตรวจฐานจริงพบ: PUBLIC 5 เอกสาร/52 chunks พร้อมตอบ, **structured 7 ตาราง = 0 แถวจริง** (คำถามค่าเทอม/ปฏิทินต้องได้คำตอบ "ยังไม่พบเอกสาร")
