@@ -1,5 +1,10 @@
 # RAG-01A execution plan
 
+AI-CHAT-02 continuation,10October, root contract DEC-096:
+- [ ] Independent Luna max pure RED tests for exported exact offered command resolver: NEW, unique HUMAN/AI label, duplicate/unknown/mixed text, overflow. No DB/network/report ownership delegated.
+- [ ] Root `quick-reply.ts` same-session latest-PENDING/TTL/snapshot choice read/consume sharing existing consumption guard; `semantic-routing.ts` skips only validated offered navigation; `student-processing.ts` stores typed control separately, routes original pending source and reuses postback NEW/AI/HUMAN behavior. `explicit-focus.ts` ignores ROUTE_CONTROL for anchor/latest-source semantics. No migration.
+- [ ] Root ownedPG RED→GREEN proves full original question and one AI job, HUMAN exact ticket/noAI/explicitfocus, wrong/duplicate/stale/expired/replayed choice safety, stale lease and original postback compatibility. Run relevant unit/type/lint/fresh isolatedbuild/ownedPG, record actual reviewer provenance and deferred liveOA in existing board/matrix/checklist. No new Markdown report.
+
 Root owns design/contracts/auth/leases/privacy/integration; user continues V1 work. [Design](../../architecture/AI_CONTEXT_ROUTING_DESIGN.md), CH023/028/031, original§§17–19/21, master§§23/28/31/66/69. No migration. Existing explicit confirmations and all HUMAN/outbox/source invariants remain.
 
 - [x] RED unit tests `tests/semantic-context-routing.test.ts` for strict proposal/mapping/low-confidence/unknown/stale/private projection and free-adapter/no tools bounds. Contract files `lib/conversation/semantic-routing-contracts.ts` and `semantic-routing-provider.ts`.

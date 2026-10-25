@@ -1,0 +1,31 @@
+# SOL-02V — retrieval hint without authority
+
+Root owns contracts/privacy/DB/integration/acceptance. User explicitly authorizes continued V1 fixes and asks whether model tuning targeted the RAG cause. Sourcea157 evidence establishes a natural-path integration gap: the model already proposes a complete query, but lookup embeds only the latest question. It does not establish that every wrong answer was a retrieval failure. [Diagnosis](../../reports/SOL02V_RAG_CONTEXT_AUDIT_2026-10-19.md).
+
+## Alternatives and selected experiment
+
+Keep current-only retrieval as the baseline. Blindly append the nearest/all prior USER text is rejected: actual local E5 shows a fresh-topic rank regression, and persisted AI_EXISTING selects ownership rather than proving retrieval relevance. An exact-source extraction instruction is also rejected by actual two-round samples; no new enum/copying prompt or context classifier is introduced.
+
+The selected minimal candidate reuses existing strict `decision.query` **only as an unverified semantic ranking hint**, via a separate retrievalHint option. The existing retrievalQuery remains source-validated support text. No schema/prompt/new inference stage is added. This is a backend-executed bounded parameter, not a model tool permission. Its relevance still needs empirical comparison; no gain is presumed from the boundary review.
+
+## Data flow and authority
+
+LOOKUP/MIXED_REPLY call `lookup(originalSnapshot, signal, decision.query)`. The configured lookup binds the hint solely to `createKnowledgeProducer`'s retrievalHint option. The original snapshot is never mutated or replaced. Fallback lookups from screened GENERAL/CLARIFY have no hint and retain current behavior.
+
+Original question/history continue to own temporal/applicability validation, scope and structured selectors, planning/composition, `search_knowledge.arguments.query`, complete miss/web admission, action confirmation and delivery digests. Hint text enters only local embedding; existing server-injected vector plus independently validated scope enter the same filtered Postgres search. Approved/reviewed/PUBLIC/current-or-explicit-historical/fingerprint/rule-group filters, leases/revisions/HUMAN and publication/delivery locks remain.
+
+The existing decision schema bounds query to nonblank4,000characters; the producer independently rejects over6,000characters or UTF-8 bytes before embedding, with the existing honest long-input clarification. Blank/invalid proposals fail the existing strict schema. No clipping, automatic mode retry, extra provider call or deadline/budget increase. Legacy support retrievalQuery semantics remain unchanged. An invented topic/year may harm ranking but cannot set scope, create a ticket or access private evidence. Negation/qualifier/topic relevance is a quality risk, not proven by citations.
+
+Actual Luna max implementation review finds a required correction: the first implementation's hint vector also entered the internal-miss receipt. An empty unverified hint is not sufficient proof that the original query has no answer. Do not promote that implementation. Distinguish a new `retrievalHint` from the existing grounded support `retrievalQuery`. On an empty hinted search that differs from the grounded query (default original question), perform at most one additional bounded local E5/search recheck with the grounded query. An original-query hit supplies its actual evidence/vector for the answer and prevents web fallback. Only a successful original-query empty search may carry the original vector into existing internal-miss/web gates. Equal/no hint takes the existing one-search path; legacy grounded support behavior remains. Invalid/oversize original input, embedding/search error, ambiguity or cancellation stops without web. No clipping, extra generation/external call, new paid cost or relaxed stage/outer deadline. This adds a bounded local read only on hint miss; measure its latency/CPU and preserve current source/delivery locks.
+
+Required paired regressions use a valid PROCEDURE NOT_APPLICABLE or structured EMPTY path: hint EMPTY/original HIT must answer internally with no web callback; both EMPTY must seal/recheck only the original vector; a failed/cancelled original check must stop. Preserve the finding and old technical results as rejected source-scoped evidence. The previous empty-hint test without an eligible fallback branch was insufficient for this boundary.
+
+## Concrete scope and tests
+
+Runtime files: `lib/ai/assistant-orchestrator.ts`, `lib/knowledge/configured.ts`, `lib/knowledge/answer-producer.ts`. Tests: existing orchestrator/form-directory contracts, configured retrieval-boundary suite, new `tests/knowledge-retrieval-hint.test.ts` and existing real owned assistant-grounding suite; run downstream internal-miss/owned-web PostgreSQL checks as well. No DB migration, UI, fixture/rubric, model ordering/key/enable or normal publication changes.
+
+Before implementation: finish/collect the unchanged U full30 and three representative rounds; preserve sourcea157. RED must demonstrate lost hint while original snapshot remains unchanged. GREEN must show LOOKUP/MIXED embed the hint but planner/answer/tool query/scope remain original; screened fallback remains current-only. Verify bounded blank/oversize UTF-8/injection/invented-scope cases without clipping, cancellation and independent mixed general text.
+
+Use a real owned DB flow through configured Gateway/producer, reviewed publication, worker and controlled LINE delivery to prove parameter separation, citations and current/HUMAN/changed-source fences. Controlled generation/embedding is disclosed separately from actual model/retrieval quality. Compare actual local E5/DB top-K and final cited answers against current-only for ellipsis, fresh/self-contained facets, chained history, years/negation and long inputs. Run affected/current technical gates and unchanged model30/repeats before activation. A component fix is not model qualification or V1 completion.
+
+Actual Luna max source audit confirms no extra authority/private access for this exact wiring and explicitly requires causal relevance/nonregression evidence. It performs no edits/tests/inference. Root self-reviews this design; implementation review must have its own actual provenance.

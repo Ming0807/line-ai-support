@@ -1,5 +1,9 @@
 # Provider management — Product minimal brief
 
+10 October UI-MODEL-ORDER-02: place the configured first choice and ordered backup chain above provider configuration, visible immediately. Distinguish 'ตัวแรกที่จะลอง' from 'เรียกสำเร็จล่าสุด' (real usage/time/task, not a permanently running model or delivery proof). Explain automatic bounded fallback and its auth/deadline stops with plain Thai disclosure. Keep provider-first/model-second up/down ordering with separate save/cancel, visible unsaved state and existing conflict recovery. Current UNKNOWN prices/cooldowns are labelled honestly; no inferred readiness or background generation tests. Preserve accepted dark-rail/alabaster/white/coral product identity and provider-owned add/edit forms. Root runtime DTO is independent of presentation; no new Markdown report.
+
+10October UI-PROVIDER-CONTEXT-01 / DEC-088 **COMPONENT_PASS**: add/edit models from their own named provider card; the form/result repeats owner, connection format and hostname. Provider creation continues to its real returned ID; related drafts remain stable and substantive409 conflicts offer an explicit per-form reset. [Actual report](../reports/PROVIDER_MODEL_CONTEXT_REPORT.md) records125focused/type/lint/final build and labelled desktop/mobile browser checks, plus actual Luna source review. Actual-account workflows, eligibility and OA remain separate.
+
 สถานะ: **UI component implemented and browser verified; final provider acceptance pending**. อิงคำขอผู้ใช้, [PRODUCT](../../PRODUCT.md), [DESIGN baseline](../../DESIGN.md) และ [provider behavior](../architecture/AI_PROVIDER_DESIGN.md). ใช้ guidance จาก skill `impeccable` ในโหมด **Operate**: scanability/consistency สำคัญกว่าการตกแต่ง. [5Oct evidence](../reports/PRV_OBSERVATIONS_COMPONENT_REPORT.md) ระบุ actual browser/screenshots/fixture scope และ cooldown/compatible gaps
 
 ## งานและผู้ใช้

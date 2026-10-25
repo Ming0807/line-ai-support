@@ -1,152 +1,69 @@
-# สิ่งที่ผู้ใช้ต้องตั้งค่า/ยืนยันก่อนใช้งานจริง
+# สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-## สถานะปัจจุบัน — 10 ตุลาคม 2026
+อัปเดต21ตุลาคม2026 ผู้ใช้เลื่อนการทดสอบ LINE ไปท้ายงาน **ยังไม่ต้องทำรายการด้านล่างตอนนี้** งานคุณภาพ AI ยังเป็นงานของ root; checklistนี้ไม่ใช่การประกาศV1พร้อมใช้งาน
 
-Local ชุดใหม่พร้อมแล้วที่ `http://127.0.0.1:3000/login` หลังอัปเดต Staff chat ตั้ง URL ใหม่ใน LINE Developers ทั้งสอง channel แล้วกด Verify: Student `https://fairfield-amazing-shadows-cashiers.trycloudflare.com/api/line/student/webhook` และ Staff `https://fairfield-amazing-shadows-cashiers.trycloudflare.com/api/line/staff/webhook` ตัวรันตรวจลายเซ็นผ่านทั้ง local/public แล้ว แต่ยังต้องตรวจข้อความจากบัญชีจริง อย่าใช้ tunnel URL จากรายงานเก่า
+## Runtime ตอนนี้และคำสั่งที่ใช้
 
-STAFF-LINE-CHAT-01/CHAT-01E พัฒนาและตรวจ component แล้ว: Dashboard เป็นพื้นที่หลัก แยกประวัติและช่องตอบตามเคส แสดงรหัสเคส/ผู้แจ้ง และไม่ย้ายร่างหรือคำขอส่งซ้ำไปอีกคน Staff OA ใช้รับงาน → “เปิดคุยเคสนี้” → พิมพ์ต่อเนื่องในเคสที่เลือก ใช้ “งานของฉัน”, “คิวฝ่าย”, “หยุดคุย” เพื่อเลือก/เปลี่ยน/หยุด การรับเคสอื่นหรือข้อความแจ้งเตือนอื่นไม่เปลี่ยนผู้รับ; การเปิด Dashboard ก็ไม่เปลี่ยนผู้รับ LINE ข้อมูลจำกัดให้อ่าน/ตอบใน Dashboard “รับทราบข้อความ” ครอบคลุมเฉพาะข้อความที่แสดงครบ ไม่ใช่หลักฐานอ่านจาก LINE ดู [หลักฐาน](../reports/STAFF_LINE_CHAT_REPORT.md)/DEC-083 ต้องตรวจจริงด้วยเจ้าหน้าที่สองบัญชีและผู้แจ้งหลาย session ส่วน INC-BATCH-01 ส่งคำตอบร่วมที่ตรวจรายชื่อผู้รับยังเป็นงาน implementation ของทีม ไม่ใช่งานตั้งค่าที่ให้ผู้ใช้ทำเอง
+Rootทดลองlocal:aiถึงREADYแล้วหยุดownedsessionเรียบร้อย **serverและtunnelหยุดอยู่** URLในรายงานเก่าทั้งหมดเป็นประวัติ ต้องคัดลอกStudent/Staff webhook URLจากREADYของรอบที่กำลังรันเท่านั้น
 
-10ตุลาคม UX-LIVE-01: บัญชี SUPER_ADMIN มีการผูก Staff OA แล้ว แต่ ticket YRU-00000174 ปิดหลังข้อความ00:31/00:34 จึงต้องใช้เรื่องใหม่เพื่อทดสอบการแจ้งเตือนที่เพิ่มครั้งนี้ ไม่มีการส่งย้อนหลังให้เรื่องเก่า ต้องตรวจข้อความถึง Staff OA จริงหลังเปิด worker รุ่นใหม่ ผล Metadata200 ของ Zen ยังไม่ใช่ผลสร้างคำตอบ; การเรียกโมเดลล่าสุดได้403 ต้องยืนยันสิทธิ์บัญชี/โมเดลให้ทดสอบสร้างคำตอบผ่านก่อนทดสอบ AI สนทนาและเอกสารจริง ขณะตรวจยังมี0 approved PUBLIC documents การนำเข้า/วิเคราะห์ไม่เผยแพร่อัตโนมัติ
+เมื่อถึงรอบทดสอบธรรมชาติของAI ให้ใช้คำสั่ง **pnpm local:ai** จากโฟลเดอร์โปรเจกต์ คำสั่งนี้เปิดเว็บ, offlineE5,Inbox/AI/Outbox/Incidentsและtunnel พร้อมเปิดnaturalassistantเฉพาะsession เป็นpreviewของโมเดลที่ยังNOT_QUALIFIED ไม่ใช่ release promotion และจะตอบ LINE จริง/ประมวลผลฐานDEVELOPMENTจริง ไม่ใช่ sandboxสังเคราะห์
 
-ทดสอบบนเครื่องนี้ก่อน deploy: ใช้ `pnpm local:test` หรือดับเบิลคลิก `start-local.cmd` เพื่อเปิดเว็บ/E5/workers/tunnel พร้อมกัน ดู [คู่มือ local](LOCAL_TEST.md) และหยุดด้วย `pnpm local:stop` ตัวรันเปิด AI/durable เฉพาะ process ทดสอบและไม่เปลี่ยน `.env` หลักฐานเปิด/หยุด/เปิดใหม่ผ่านแล้ว; development ยังมี0 approved PUBLIC documents จึงต้องตรวจอนุมัติเอกสารก่อนทดสอบคำถามอ้างอิงจริง
+21ตุลาคม root คัด Gemini 3.5 Flash Lite เป็นตัวหลักเพียงตัวเดียวและตรวจ registry ปัจจุบันแล้ว; อีก17ตัวปิดไว้ ไม่ได้ลบ. Candidate `scopeFirst`/`ragCoverage` ยังไม่เปิดในคำสั่งนี้ เพราะ actual target ยังมีข้อผิดพลาดและ timeout. ห้ามถือผล model-test HTTP200 หรือ technical tests ว่าคุณภาพการคุยผ่านแล้ว; งานแก้/ตรวจรับยังเป็นของ root ไม่ย้ายให้ผู้ใช้ทดสอบแทน.
 
-Local และ DEVELOPMENT ที่เลือกมี39 migrations /65 RLS tablesแล้ว ไม่ต้องติดตั้งฐานข้อมูลซ้ำ Root ตรวจชุดรวมล่าสุด422/422ใน27กลุ่ม รวม Flow A–F8/8และStaff chat20/20 ดู [หลักฐาน Staff extension](../reports/STAFF_LINE_CHAT_REPORT.md) ส่วน [หลักฐาน baseline](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) เป็นขอบเขตก่อนส่วนขยายนี้ คำสั่ง process/parser/embedding/shutdown/backup/rollback อยู่ใน [production runbook](PRODUCTION_RUNBOOK.md) ผลนี้ยังไม่ยืนยันการใช้งาน OAจริง/production หรือปิดงาน INC-BATCH-01
+- pnpm local:staff: natural assistantOFF, legacy supportAIยังON สำหรับงานStaffเดิม
+- pnpm local:test: ใช้ค่าassistantที่ตั้งไว้เดิม; pnpm local:test --hermes-check เพิ่มเฉพาะHermes synthetic2turncheck ไม่เปลี่ยนตัวตอบLINE
+- pnpm local:check: ตรวจconfiguration/cache/database ไม่เปิดservicesหรือเรียกprovider
+- pnpm local:stop หรือCtrl+C: หยุดเฉพาะownedsession
 
-งานที่ต้องยืนยันกับระบบจริงคือบัญชี AI ฟรีและลำดับโมเดลผ่าน Dashboard, local E5 จาก cache เดิม, เอกสารมหาวิทยาลัยที่คนตรวจและอนุมัติ, การเชื่อม Staff OA และ Flow A–F ผ่าน OA จริง, และ host/worker/Storage/backup/restore สำหรับ production ตาม runbook หากเลือกเปิดค้นเว็บ ต้องยืนยันบัญชีฟรีไม่มี PAYG และตั้งค่าฝั่ง server ตามหัวข้อด้านล่าง การทดสอบควบคุมไม่ทดแทนหลักฐานเหล่านี้
+รายละเอียดใน [local instructions](LOCAL_TEST.md) บัญชีdevelopmentเดิมอยู่ไฟล์ignored .superpowers/staging/dev-staff-credentials.json บนเครื่องนี้ เปิดเอง ไม่ส่งpasswordในchat/docs
 
 ## ขั้นตอนรวมสำหรับทดสอบระบบจริง
 
-1. เข้าบัญชี SUPER_ADMIN แล้วเปิด Providers เพิ่ม key ฝั่ง server ของ OpenCode Zen/OpenRouter และเลือกโมเดลที่ยืนยันว่าฟรี ใช้ปุ่มทดสอบรายโมเดลและปุ่มขึ้น/ลงจัด fallback ตรวจผล HTTP และ quota ตามข้อมูลที่สังเกตได้ สถานะไม่ทราบโควต้าไม่ใช่หลักฐานว่าเหลือโควต้า ตั้ง FREE_ONLY ตามเดิม
-2. เปิด local E5 ด้วย virtualenv/cache เดิมตาม [embedding setup](../../services/embedding/README.md) ตรวจ Settings และ query/passage จริง ไม่ต้องเพิ่ม embedding model ใน Providers หรือดาวน์โหลด model ใหม่
-3. นำเอกสารมหาวิทยาลัยที่ได้รับอนุญาตเข้า Knowledge ตรวจข้อเสนอ/ข้อความ/ตาราง/ปี/ขอบเขต/แหล่งที่มาและการเปลี่ยนรุ่น แล้วอนุมัติอย่างชัดเจน เอกสารที่ดาวน์โหลดไว้ยังไม่เป็นฐานคำตอบที่ approved อัตโนมัติ ตรวจทั้งคำถามปัจจุบันและย้อนหลัง
-4. ให้เจ้าหน้าที่เข้าสู่ Settings → สร้างรหัสเชื่อมต่อ → ส่งคำสั่งส่วนตัวเข้า Staff OA ภายใน10นาที แล้วตรวจสถานะเชื่อมต่อ ตั้ง OA ทั้งสองบน domain ที่เลือกด้วย `/api/line/student/webhook` และ `/api/line/staff/webhook` และทดสอบ A–F ตาม [รายงานรับงาน](../reports/V1_AUTOMATED_ACCEPTANCE_REPORT.md) ด้วยข้อความจริง ตรวจการแจ้งเตือน/รับเรื่อง/ตอบเอง/ปิดงาน และหัวข้อใหม่ระหว่าง HUMAN
-5. เมื่อติดตั้ง production เลือก host/domain และผู้รับผิดชอบ backup แล้วดำเนินตาม [runbook](PRODUCTION_RUNBOOK.md): web + inbox/AI/outbox/incidents + private E5, parser child, private Storage, environment และ graceful restart ทดสอบ restore ในพื้นที่แยกโดยไม่ส่งถึงผู้รับ LINE จริง ยังไม่มีหลักฐานว่าติดตั้ง production แล้ว
-
-ค้นเว็บเป็นการตั้งค่าเพิ่มเติม: หากเลือกเปิด ให้เจ้าของบัญชียืนยันแผนฟรีไม่มี PAYG/paid upgrade และตั้ง key/attestation ฝั่ง server ตามข้อกำหนดด้านล่าง ระบบยังปิดอยู่และการทดสอบควบคุมไม่เปิดบริการจริงแทนเจ้าของบัญชี
-
-ก่อนทดสอบ AI จริง เมื่อ free model ผ่านปุ่มทดสอบ, E5 พร้อม และมีเอกสาร PUBLIC ที่ตรวจอนุมัติแล้ว ให้ผู้ดูแล server ตั้ง `LINE_WEBHOOK_MODE=durable` และ `YRU_AI_ENABLED=true` ใน environment ที่ ignored แล้ว restart web และ workers ตาม [Local setup](LOCAL_SETUP.md) ค่าปิดเริ่มต้นยังไม่ได้เปิดแทนเจ้าของระบบ ต้องรัน `pnpm worker`, `pnpm worker:ai`, `pnpm worker:outbox` และ `pnpm worker:incidents` เป็น process แยก พร้อม embedding service ดูคำสั่งและการดูแล process ใน [runbook](PRODUCTION_RUNBOOK.md)
+1. รอการส่งมอบจากroot แล้วเปิดlocal:ai รอREADY เก็บterminalไว้เพื่อดูlog ปัจจุบันมีapprovedPUBLIC5ฉบับ (เพิ่มระเบียบเทียบโอนที่ตรวจครบ5หน้า/22chunks) ไม่ใช่ทุกไฟล์ในdocuments/yruพร้อมตอบ
+2. LoginDashboard→Providers ตรวจmodel/order/statusและFree-account permissionตามบัญชีจริง Rootต่อmanagedGeminipermissionผ่านCASตามคำสั่งล่าสุดและคำยืนยันFree/no-billingเดิมแล้วถึง28ตุลาคม2026 13:15Bangkok; นี่คือoperatorattestationไม่ใช่การตรวจvendorbillingจริง. ต่อผ่านSuperAdminUIเมื่อจำเป็น ไม่หมุนบัญชี/keyเพื่อหลบquota ไม่เปิดpaidหรือ17ตัวที่ยังไม่qualified
+3. ตั้งWebhookURLจากREADYทั้งStudent/StaffในLINE Developers กดVerify/UseWebhook ปิดOAauto-replyที่ตอบซ้ำ Quicktunnelเปลี่ยนURLเมื่อเปิดใหม่
+4. StaffLoginของแต่ละคน→Settings→สร้างbindingcode→ส่งให้StaffOAภายใน10นาที ตรวจdepartment/roleและสถานะbindingก่อนทดสอบแจ้งเตือน
+5. ทดสอบStudentกับStaffของตน ไม่ใช้ข้อมูลส่วนตัวจริง สองStaffลองclaimเคสเดียวกันต้องมีผู้ชนะคนเดียว Dashboardแยกประวัติ/ร่างตามเคส StaffLINEต้องกดเปิดเคสก่อนพิมพ์ ข้อความแจ้งเตือนไม่เปลี่ยนเคสที่เลือกเอง
+6. ตรวจทั้งStudentOA/StaffOA/Dashboard→Logs/Usage/Tickets HTTP200หรือmodeltestผ่านอย่างเดียวไม่ยืนยันsemantic/source/deliveryจริง หากผิดให้เก็บเวลา/รหัสเคส/ข้อความที่ไม่ลับ ไม่ส่งcredentials
 
 ## ข้อความและผลที่ต้องตรวจใน LINE จริง
 
-ใช้คำถามที่ตรงกับเอกสารซึ่งคุณตรวจอนุมัติแล้ว ตัวอย่างด้านล่างเป็นข้อความทดสอบ ไม่ใช่นโยบายมหาวิทยาลัยที่ระบบยืนยันไว้ก่อน
-
 | Flow | สิ่งที่ทำ | ผลที่ต้องเห็น |
-|---|---|---|
-| A | ส่ง “ขอทราบขั้นตอนการเทียบโอนหน่วยกิต” โดยมีคู่มือทางการที่อนุมัติ | คำตอบอ้างอิงเอกสารที่ถูกต้อง ไม่สร้าง ticket หากข้อมูลพอ |
-| B | ส่ง “เชื่อม Wi-Fi มหาวิทยาลัยไม่ได้” ตอบคำถามรายละเอียด แล้วลองขั้นตอนจากคู่มือ | มีคำแนะนำพร้อมแหล่งอ้างอิง เมื่อแก้ได้ให้กดปุ่มยืนยันของบทสนทนานี้ ผลเป็น SOLVED และไม่มี ticket; การส่งคำแนะนำอย่างเดียวไม่ใช่แก้ได้แล้ว |
-| C | เริ่มปัญหา Wi-Fi อีกกรณี แจ้งว่ายังแก้ไม่ได้ แล้วกดยืนยันส่งต่อจากปุ่มที่ระบบให้ | สร้าง ticket ฝ่าย IT พร้อมบริบท เฉพาะเจ้าหน้าที่ที่ผูก Staff OA และมีสิทธิ์รับแจ้งเตือน |
-| D | ให้เจ้าหน้าที่รับเรื่อง ตอบจาก Dashboard ให้ผู้ใช้ตอบกลับกรณีเดิม แล้วดำเนินการ resolve/close | อยู่ใน ticket HUMAN เดิม AI ไม่ตอบแทรก ข้อความเจ้าหน้าที่ถึง Student OA และปิดงานได้ |
-| E | ขณะ HUMAN ยังเปิด ส่ง “ห้องสมุดเปิดกี่โมง” โดยมีแหล่งข้อมูลที่อนุมัติ | แยกบทสนทนา AI ใหม่ ตอบจากแหล่งที่ถูกต้อง ticket HUMAN เดิมยังอยู่และไม่ถูกแก้ไข |
-| F | นำเข้าปฏิทินรุ่นใหม่ ตรวจ conflict/review แล้วอนุมัติ replacement ที่ถูกต้อง | ก่อนอนุมัติยังไม่เผยแพร่ หลังอนุมัติคำถามปัจจุบันอ้างรุ่นใหม่ ถามปีเก่าอ้างรุ่นเก่าที่เก็บไว้; ไม่มีการลบประวัติ |
+| --- | --- | --- |
+| A | ถามFAQที่มีคู่มือทางการอนุมัติ เช่นคู่มือWi-Fi/Passportใน4แหล่งปัจจุบัน | ตอบตรงคำถามพร้อมอ้างแหล่งจริง ไม่สร้างticketเมื่อข้อมูลพอ ไม่ใช้เอกสารheldเป็นauthority |
+| B | แจ้งWi-Fiมีปัญหา ตอบรายละเอียด/ลองขั้นตอนตามหลักฐานที่ใช้ได้ | ถามเฉพาะที่ขาด จำขั้นตอนเดิม ไม่แนะนำล้างการตั้งค่าโดยขาดprerequisites; แก้ได้ต้องได้การยืนยันของผู้ใช้ ไม่ถือว่าส่งคำแนะนำ=solved |
+| C | แจ้งยังแก้ไม่ได้ในบริการมหาวิทยาลัยแล้วกดยืนยันส่งต่อจากข้อเสนอที่ส่งถึงจริง | สร้างticketITครั้งเดียวพร้อมบริบท แจ้งเฉพาะStaffที่ผูกOAและมีสิทธิ์ ไม่ส่งต่อจากAI/networkerrorอย่างเดียว |
+| D | Staffรับ/เปิดเคส/ตอบ Studentตอบเรื่องเดิม แล้วStaffresolve/close | HUMANเดิมAIไม่ตอบแทรก ถูกผู้รับเดียว ข้อความครบ; สลับเคสปลอดภัย ปุ่มเก่า/expired/ต่างฝ่ายไม่ส่งผิดเคส |
+| E | ขณะHUMANยังเปิด ถามเรื่องใหม่ เช่นเวลาเปิดห้องสมุด | แยกAIconversation ไม่แก้HUMANเดิม ถ้าแหล่งเวลาเปิดยังheldต้องไม่เดาชั่วโมงจากความจำ |
+| F | Importรุ่นใหม่ที่มีหลักฐานครบ review/previewแล้วapprove replacement | ก่อนapproveไม่เผยแพร่; รุ่นปัจจุบันตอบใหม่ รุ่นเก่าถามย้อนหลังได้ ประวัติไม่หาย ไม่มีDDLจากเอกสารใหม่ |
 
-บันทึกผลจริงของแต่ละ Flow แยกจากผลทดสอบควบคุม หาก provider ไม่พร้อม/ข้อมูลไม่พอ ระบบต้องแสดงข้อจำกัดหรือขอรายละเอียด ไม่ถือว่าข้อนั้นผ่านด้วยคำตอบจำลอง
+เพิ่มเติม: คุยทั่วไป/คำนวณ/เขียนข้อความ/ติดตามบริบทจริง, คำถามยาวและคำตอบหลายLINEmessagesต้องครบ,staff2คนแย่งรับ,studentหลายคนพร้อมกัน,staffเปลี่ยนเคสขณะstudentตอบ,LINE/AIล่มแล้วretryไม่ซ้ำหรือข้ามคน ต้องตรวจหลังtechnical/model acceptanceตามแผน ไม่ยกcomponentpassมาทดแทน
 
-## บันทึก checkpoint เดิม
+## ข้อมูลเอกสารที่ต้องให้เจ้าของข้อมูลตัดสิน
 
-ข้อความวันที่เก่าด้านล่างเป็นประวัติ ไม่ได้เพิ่มงานตั้งค่าหรือเปลี่ยนสถานะปัจจุบัน
+Rootเตรียมextraction/locatedtranscriptionและตรวจarchiveแล้ว ไม่ส่งงานOCR/เดาวันที่ให้ผู้ใช้ทำใหม่ ดู [technical review9รายการ](../../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md)
 
-9October C3C is implemented and root installed migrations37+38 in local+selected DEVELOPMENT:38versions/59RLS tables, exact catalog/least grants and retained rows verified;53normal regressions pass. [Evidence](../reports/WEB_LEAD_INTEGRATION_REPORT.md). No manual DB work is needed there. Root still owns C3D semantic NOT_APPLICABLE/general fallback and combined controlled FlowA–F; live evidence stays deferred.
+| กลุ่ม | คำตัดสินที่ยังไม่มีหลักฐาน |
+| --- | --- |
+| Registrar: YRU010/011 | governingcalendar/amendments/ขอบเขตregular-weekend; วันในPDFบางรายการมีข้อสงสัย ห้ามแก้ปีเอง |
+| Registrar: YRU007/034/047/027 | อัตราค่าธรรมเนียมแยกprogram/cohortและrowผิดรูป, แบบเกินหน่วยกิต/ช่วงยื่น, currentnessของformaltransferguideและfeeinstrument2565ที่อ้าง50บาท, title/sensitivityของblankform;43วันกับ30/15วันเป็นคนละpath ไม่ใช่ข้อขัดกันที่พิสูจน์แล้ว |
+| StudentDevelopment: YRU149/166 | currentamendments/annualcriteria/transferdiscrepancyและประกาศรายcohort; indexเป็นdiscoveryไม่ใช่กฎเดียวครอบทุกคน |
+| Library: YRU182 | วันที่เผยแพร่ที่พิสูจน์ได้/normalhoursและข้อยกเว้น/สาธารณะของcontact; ไม่ใช้วันcaptureเป็นวันประกาศ |
 
-Optional live web-lead setup after remaining implementation: owner verifies a free Researcher account with no PAYG/automatic paid upgrade, stores its key server-only in `TAVILY_API_KEY`, confirms `TAVILY_FREE_NO_PAYG_ATTESTED=true`, sets exact key SHA-256 in `TAVILY_FREE_KEY_SHA256` and canonical UTC ISO timestamp in `TAVILY_FREE_ATTESTED_AT` (maximum24hours), then explicitly enables `YRU_WEB_SEARCH_ENABLED=true` with the existing free AI/worker configuration. The backend also requires fresh eligible account observations and shared quota admission. Do not paste the key into docs/UI/logs. Current `.env` was not changed and search remains disabled; controlled tests do not prove a live free account/source/OA. Staff must review the unverified links, edit and explicitly send. Remaining approved corpus/free generation/local E5/real OA/production checklist below still applies.
+บทความMAC/Passport/Wi-Fi/ห้องstudyroomที่อนุมัติแล้วรับรองเฉพาะข้อความอ้างแหล่ง ไม่รับรองบริการเปิดทำงานจริงหรือเนื้อหาattachmentที่ยังเข้าไม่ได้ ถ้าเพิ่มเอกสารให้ใช้normalreview/publicationservice ห้ามautoapproveทั้งโฟลเดอร์
 
-9October C3B adds no human setup/key/migration. [Miss receipts](../reports/INTERNAL_MISS_REPORT.md) pass349ownedPG/38replay and full app gates, but remain private unused preparation for web. Root owns Student/Staff source/ownership/finalization/dispatch integration and final controlled FlowA–F. Normal/local+DEVELOPMENT remain36/58RLS; missing production code is not a human setup task.
+## เมื่อต้อง deploy ภายหลัง
 
-9 October C3A adds no human setup. Root verified the [chunk catalog guard](../reports/RAG_CATALOG_FENCE_REPORT.md) with38 owned migrations/326PG;37+38 remain owned-only and normal/local+DEVELOPMENT stay36/58RLS. Root owns complete-miss/web/runtime integration and guarded activation before live account/corpus/OA checks. Controlled tests are not live evidence.
+ยังไม่ต้องdeployVercelตอนทดสอบlocal เจ้าของระบบเลือกhost/domainและผู้ดูแลbackup จากนั้นตรวจworkerlifecycle/scheduling/verifiedTLS/roles/restoreจริง:
 
-9 October C2-T/R needs no human action now. The default-disabled [connector/admission](../reports/FREE_WEB_CONNECTOR_REPORT.md) is not wired to Student/Staff; its37th migration remains owned-verification only and normal/local+DEVELOPMENT stay36. Root still owns internal-miss/source/delivery/Staff implementation and guarded activation. After that integration, live free web search needs an owner-controlled free Researcher account with PAYG/automatic paid upgrades disabled, a server-only key and fresh key-bound attestation; fresh account observations must also pass. No live no-charge proof is inferred from fixtures. Do not put keys/attestation credentials in reports. Existing approved-corpus/free-generation/E5/OA/production checks remain deferred.
+- Node24+, parserchildและtsxครบในpackage; all5formatprocessจริงและOSresource/concurrencylimits
+- E5offlinecacheเดิม/384/URL/auth/private networkingบนhostใหม่ ไม่มีautomaticweightdownloadหรือเปลี่ยนembeddingcohort
+- PrivateStorage bucketknowledge-originals:public=false,limit20971553bytes,MIMEapplication/octet-stream,ไม่มีbrowserobjectpolicies; servicekeyserver-onlyและbackup/restore/role-denialจริง
+- StaffAuth/department/sensitivity, production provider-account status/FREE_ONLY/quota, retry/queueobservability, backuplifecycleและrestore
+- เปลี่ยนcredentialsสำหรับproductionผ่านsecretconfiguration ไม่commit.env/accountpassword/privateoriginals
 
-9October ADV-02B-2B needs no new key/model download/manual migration: root applied exactly36 to local+selected DEVELOPMENT and verified58RLS tables/exact grants/retained rows/53normal regressions. [Runtime evidence](../reports/INCIDENT_CONTEXT_RUNTIME_REPORT.md) covers authenticated system/location context and scoped stale suppression. Live reviewed corpus/local E5/operator/OA and final combined flows remain deferred. [C2-Q](../reports/PUBLIC_SEARCH_QUERY_PREPARATION_REPORT.md) also requires no setup; it is unused pure preparation. Actual free search connector/reservations/source proof/Student delivery/Staff draft implementation remains root work, not a setup task for the human. Earlier dated notes below describe prior checkpoints.
+Deployment/actualOA/sourceowner evidenceยังไม่ถูกนับว่าผ่าน [บอร์ดงานปัจจุบัน](../tasks/V1_TASK_BOARD.md) เป็นสถานะหลัก [สำเนาchecklistเดิม](FINAL_SETUP_CHECKLIST_HISTORY_2026-10-20.md) เก็บbytesเดิมและURLเก่าทั้งหมดเป็นประวัติ
 
-9October ADV-02B-2A adds no human setup/migration task: migration36 was verified only in owned disposable databases. Root owns remaining proof/worker/read integration, guarded local+DEVELOPMENT activation, web and final FlowA–F. [Evidence](../reports/INCIDENT_CONTEXT_INFRASTRUCTURE_REPORT.md). Normal targets remain35versions/56RLS; do not treat infrastructure fixtures as approved corpus/live incident evidence. Existing real account/OA/corpus/production steps stay deferred.
+22ตุลาคม: ทดลอง typed guided advice เฉพาะฐานทดสอบแล้ว ไม่มีการเปิดใช้ใน local:ai/normal workers. Actual A09/A04 ตอบสำเร็จแต่ยังไม่ผ่านคุณภาพ (คำอธิบาย cache และรักษาความหมายเรื่องด่วน). Current3,125unit/type/changed-file lint/buildผ่าน ไม่ใช่การส่งมอบให้ผู้ใช้เทส; runtimeยังหยุดและไม่มี current webhook URL.
 
-9October ADV-02B-1 adds no manual field/key/migration/model setup. [Preparation evidence](../reports/INCIDENT_CONTEXT_PREPARATION_REPORT.md) is not worker/live incident acceptance. Root still owns private proof freshness and incident integration, web and final FlowA–F. Existing real corpus/free-provider/OA/production checks stay deferred; no campus registry is invented or source automatically approved.
-
-9October ADV-05C-1 adds no human setup/key/migration. [Internal cascade evidence](../reports/SOURCE_CASCADE_INTERNAL_REPORT.md) verifies Structured miss→reviewed RAG and repeated higher-tier freshness without new external calls or approvals. Incident system/location enrichment, official/general web and final combined FlowA–F remain agent work. Existing live corpus/free-provider/OA/deployment checks stay deferred; controlled284PG/1946unit/build evidence is not a live pass.
-
-9October ADV-03B-2 needs no manual migration for local+DEVELOPMENT: root applied exactly35 and verified56RLS tables, least grants and unchanged retained knowledge rows. [Evidence](../reports/WORKER_OBSERVATIONS_REPORT.md). When deploying, run each configured worker as a managed process using [local commands](LOCAL_SETUP.md), then observe new check-ins in SUPER_ADMIN Settings and separately verify queue/delivery behavior. AI-disabled startup intentionally records no AI check-in. Existing timestamps do not prove current health. No new key/model download/source approval; live corpus/free-provider/OA/production checks remain deferred while root continues the remaining code.
-
-9October RAG-01B-3B/C adds no new setup/key/migration. Owned confirmations, copied scoped ticket context and observed outcome Analytics now pass controlled business-flow and compiled UI checks; [evidence](../reports/AI_SUPPORT_CONFIRMATION_REPORT.md). Live reviewed university corpus/free-provider/Student+Staff OA and production deployment checks remain deferred. Synthetic outcomes/controlled transport do not prove real student resolution. Worker observations, incident context, full source cascade and final combined FlowA–F are remaining agent implementation, not tasks transferred to the user.
-
-9October RAG-01B-3A requires no new human key or migration action. Root completed local+DEVELOPMENT34versions/55RLS tables and actual role/retention checks;53normalPG regressions PASS. Owned outcomes/ticket context/scoped Analytics remain root implementation work. Existing real approved-corpus/free-provider/OA/production checks stay deferred;0development publication receipts/0documents means no university source was approved automatically.
-
-8October RAG-01B-2 adds no human key or setup action. Migration34/private support advice/outcome infrastructure passes243ownedPG/replay/RLS/advisors in a disposable DB; normal local/DEVELOPMENT remain33versions until root completes guarded integration activation. Producer, consumed solved/escalated confirmation, ticket context and observed Analytics remain agent work. No delivery or synthetic immutable row is evidence that a real student problem was solved. Existing approved-corpus/free-provider/OA/production checks stay deferred.
-
-8October RAG-01A requires no new key or migration. Deferred live FlowE: keep a Registration HUMAN case active, send a library-hours question, confirm a separate AI conversation gives a current cited answer and the original HUMAN ticket is unchanged; a same-case follow-up must reach that HUMAN case without AI reply. Low-confidence/unavailable classification must offer owned context choices.235ownedPG/1902unit/build are component evidence, not live Thai free-provider/OA acceptance. Root continues business support/outcomes and final flows independently.
-
-8October ADV-05B-1 internal Staff knowledge requires no new key or migration. On an authorized HUMAN ticket, click “ค้นเอกสารประกอบ”, check the approved source/year/location, insert the canonical answer/references explicitly, edit, then use the existing Send action. Asking or insertion must send nothing. A no-question/ambiguous/unavailable state is intentional; real approved corpus, existing free generation and local E5 are needed for live verification.1897unit/225ownedPG/compiled fixture browser PASS does not replace actual provider/OA/source evidence. Semantic routing/troubleshooting, incident context, bounded web and final flows remain agent work.
-
-8October ADV-05A adds no new migration/key/provider type. With the existing configured free generation settings enabled, the deferred live Staff check is: authorized HUMAN ticket → “ช่วยสรุปและร่างคำตอบ” → review → “นำร่างไปแก้ไขก่อนส่ง” → edit → explicitly “ส่งคำตอบ”. Asking/inserting a draft must send nothing to Student OA. Current advice explicitly has not searched documents. Root owns remaining verified-knowledge/web/context/outcome/Flow implementation;1889unit/219ownedPG/build/fixture browser is component evidence, not live inference/delivery.
-
-8October ADV-01 implemented: DEVELOPMENT/local33migrations/52RLS tables; no manual migration needed there. When performing the deferred live Staff OA check: log in with your staff account → Settings → สร้างรหัสเชื่อมต่อ → copy the entire temporary command → send it privately into Staff OA within10minutes → return to Settings and verify “เชื่อมต่อแล้ว”. Durable inbox worker must be running. Then verify a scoped ticket notification/รับเรื่อง/Open Dashboard. Unlink is explicit and invalidates action/setup tokens; technical LINE IDs or commands must not be pasted into reports. Signed HTTP fixture8checks/214ownedPG/build are component evidence, not actual OA delivery. Remaining AI/context/outcome/Flow work stays with root.
-
-STR-ACT-01 root completed local+DEVELOPMENT32migrations/51RLS tables/readinesstrue; no manual schema installation is needed for this development environment. No official source was approved. Staff binding/remaining Advanced/full automatic flows stay agent implementation work; the human's corpus/OA/free-provider/production checklist stays deferred.
-
-8October combined UI/readiness/metrics/Incidents/loading require no new human key or manual database action. Root owns guarded DEVELOPMENT activation, Staff binding implementation, context enrichment, staff AI drafts/bounded web tools and full automated FlowA–F. Compiled3-role browser/36viewports and206ownedPG are component evidence; real university approvals/free-provider/OA/deployment remain deferred rows below. The planned Settings binding command will be issuer-only/temporary; raw LINE IDs or commands never belong in reports. No live animation, incident, delivery or corpus approval is inferred from fixtures.
-
-ADV-03A-1 adds no human setting. Actual Activities/Logs APIs and five owned PostgreSQL cases pass; UI adapters/combined browser gates and other M9 remain agent work. No private log data requires human relay.
-
-STR-01C-3 review3 RAG compatibility adds no configuration. UI/readiness/M9 remain agent work; official source approval/configured live services remain the deferred human checklist. No account picker is required for the verified root Git handoff.
-
-8October STR-02B-1 adds no human setting: [actual structured search/delivery](../reports/STRUCTURED_SEARCH_DELIVERY_REPORT.md) passed183ownedPG/1664unit/type/lint/build. Normal activation, review3 RAG, combined UI and remaining M9 are agent work in progress. Configured free-provider/CPU/OA and official document approval stay deferred; controlled fixtures are not live acceptance. Root integrates approved presentation in a managed worktree without external push or account-picker request.
-
-8 October STR-01C-2/OC-UI-02R adds no human configuration: [atomic publication](../reports/STRUCTURED_ATOMIC_PUBLICATION_REPORT.md) is verified only in an owned disposable database; normal database unchanged. [OpenCode review/root repairs](../reports/OPENCODE_OPERATOR_WORKFLOWS_ROOT_REVIEW.md) are committed local-only458c76f. Exact query/delivery, normal installation/readiness, advanced read endpoints and combined UI/browser verification are agent work. Existing real corpus review/live free-provider/OA/production acceptance remains deferred; fixture/PG/build success does not satisfy it. No external push or manual account selection is requested.
-
-7 October latest OC-UI-01R/STR-01C-1: user may relay the [12-package OpenCode Activities/Logs prompt](../agents/OPENCODE_OPERATOR_WORKFLOWS_PROMPT.md); root already repaired small ticket defects in local-only9437654. No additional LINE/provider/login/key/database configuration is required for the private prepared-rows component. Backend adapter synchronization, normal schema/atomic modes/query and browser/combined FlowA–F are agent work, not setup requests to the human. Existing actual corpus review/live free-provider/OA/production evidence remains deferred and is not satisfied by fixture/unit/build results.
-
-7October GEM-REV-06/STR-01C-0: relay the [bounded OpenCode ticket pilot](../agents/OPENCODE_UI_PILOT_PROMPT.md) when choosing that coding model; the existing Gemini worktree/immutable045daa5/localbranch are specified. No new provider/LINE/key/login/schema setup is required for the unused encrypted row-evidence component. Agent work still includes actual atomic publication/query/combined UI; existing real-source approval/live free-provider/OA/production checks stay deferred. Helper/crypto test passes are not manual/live acceptance.
-
-7October GEM-REV-05 adds no configuration requirement. User can relay the [20-package Round5 prompt](../agents/GEMINI_UI_UX_ROUND5_PROMPT.md) to Gemini in its existing worktree; [actual Round4 review](../reports/GEMINI_UI_UX_ROUND4_REVIEW.md) leaves frontend/backend synchronization and combined acceptance as agent work. No request for new LINE/provider/password/schema setup is made for this assignment. Existing real corpus/live OA/free-provider/production manual checks remain deferred; no live pass is implied by helper tests.
-
-นี่เป็น checklistสะสมตามคำสั่งให้ทำimplementationต่อแล้วรวมmanualstepsตอนท้าย **ยังไม่ใช่ final handoff**. Agentต้องทำtasksที่เป็นcode/testให้เสร็จเองก่อน ไม่โยนช่องว่างimplementationให้ผู้ใช้ตั้งค่าแทน
-
-7October STR-00Q-1 requires no new human setup: [pure query/reference preparation](../reports/STRUCTURED_QUERY_EVIDENCE_REPORT.md) has no runtime/SQL/mode-readiness change. [Gemini Round4 prompt](../agents/GEMINI_UI_UX_ROUND4_PROMPT.md) is prepared for the user's existing relay workflow; review fixes, backend snapshot synchronization, missing M9 contracts and final combined acceptance are agent implementation work. No new university key, upload, account or configuration is requested here; prior live/corpus/deployment rows remain deferred.
-
-7October TKT-READ-02 scoped search/pagination requires no new user configuration, migration, key or account. Root owns backend acceptance; Gemini wiring and combined search/mobile/error flow are agent work. Matching scoped ticket totals do not replace analytics. [Evidence](../reports/TICKET_SEARCH_PAGINATION_REPORT.md).
-
-| สิ่งที่ต้องทำเอง | เมื่อระบบส่วนใดพร้อม | หลักฐานที่ต้องได้ |
-|---|---|---|
-| เลือก/create Zen/OpenRouter freeaccountและAPIkeys | PRV-01…04 | แอดprovider/keyผ่านDashboard ไม่ส่งkeyในlog |
-| เลือกfreemodel/capabilitiesและจัดfallbackpriority | PRV-03/04 | ปุ่มtestต่อmodelผ่านจริง, catalogfreeverified, saveorderตรงbackend; paidยังdisabled/FREE_ONLY |
-| ดูแล embedding service เมื่อใช้ระบบ/ย้าย deployment | EMB-01…05 / deployment | E5 CPU/384ถูกเลือกและทดสอบlocalแล้ว; ไม่ต้องเพิ่มModelผ่านUI. Start `services/embedding/run.py`, configurecache/URL; remoteHTTPS+serverkey/private networking. Weightsย้ายแยกจากNext.js/Git; actualnew-hostThai/English/passage/healthchecks. C:เก็บไว้; ลบเฉพาะselectedmodelcacheเองได้หลังตรวจใช้งานD: |
-| ตรวจและapproveเอกสารshortlist | IMP-04/STR-02 | officialprovenance/year/audience/dates/authority/sensitivity/OCR/AMENDSถูกต้อง; firstPDFRAG+current/historicalcitations |
-| ตั้งcurrentHTTPSwebhookURLทั้งStudent/StaffOAและUseWebhook | durable/freeflowพร้อม | Verify200ทั้งสองchannel, invalidHMACrejected, freshmessagesผ่านจริง |
-| ผูกStaffLINEกับactiveStaffaccount/department | ADV-01 | boundauthorizedrecipientเท่านั้น; unrelateddepartmentไม่รับalert; sensitivepayloadไม่มีdetailleak |
-| ทดสอบจริงFlowA–Fผ่านLINEและDashboard | FINAL-01 | FAQ/troubleshoot/escalate/HUMAN/newtopic/importupdateครบ; ไม่ตอบซ้ำกับOAautoreply |
-| เลือกproductionhosting/domain/Authstaff/storage/backupoperator | FINAL-01deploymentcontract | workerprocesses/lifecycle/verifiedTLS/queueobservability/backuprestore/rolesพร้อม |
-| ตรวจ private Storage bucket `knowledge-originals` ใน production deployment | IMP-01C-STORAGE/final deployment | public=false, limit20971553bytes, MIMEapplication/octet-stream, ไม่มี browser object policies; backend service keyอยู่เฉพาะserver; actualrole-denial/restore test. Local+DEVELOPMENT setup/byte-recovery/role-denial passed6October; production/backuprestore evidenceยังแยกและpending |
-| จัด runtime และไฟล์สำหรับ parser ใน hosting ที่เลือก | IMP-01B-CHILD/FINAL deployment | Node24+, production dependenciesรวมtsx, checked-in child/import sources; actualall-formatprocess testในdeployment, boundedconcurrency/15s/256MiBJSheap/32MiBstdout; standalone packagingและOSresourceconfigurationต้องตรวจจริง |
-
-คำสั่งexact/หน้าจอขั้นตอนจะอัปเดตหลังแต่ละtaskสร้างroute/UIจริง. ตอนนี้ห้ามบอกว่าquotaAPI/paidtoggle/importapproveพร้อมเพียงเพราะมีdesign. Stablewebhookpathsคือ `/api/line/student/webhook` และ `/api/line/staff/webhook`; domainรอตามserver/tunnelจริงตอนทดสอบ
-
-บัญชีDashboarddevelopmentเก็บlocalใน `.superpowers/staging/dev-staff-credentials.json`; ไม่อยู่Git/READMEและไม่แสดงpasswordในreport. ผู้ใช้เปลี่ยน/เลือกproductionstaffaccountsภายหลังโดยไม่ต้องลบdevelopmentevidence
-
-ถ้าmanualข้อใดยังไม่ผ่าน ให้finalreportระบุ `MANUAL_PENDING` พร้อมผลที่ทำแล้ว ไม่เดาว่าผู้ใช้configuredครบ และไม่ใช้elapsedtimeแทนanswer/approval
-
-6October IMP-03A private draft UI is implemented and tested. It can retain unfinished metadata and warning choices; it does not approve/index the shortlist. Version-target resolution/publication remains root implementation work before asking the university to perform the corpus approval row. No additional user configuration is needed for this slice; existing keys/originals/accounts stay local.
-
-
-6October version-choice checkpoint: DEVELOPMENT has all19initial family reference rows; this is not19approved documents or complete real corpus coverage. Save reviewed metadata before version lookup, select the applicable action and exact target explicitly, and review scope/source/dates/sensitivity independently. Approval/published data effects remain agent implementation work; human document review follows after those required gates. No additional manual configuration was required for this resolver component. [Evidence](../reports/IMP_VERSION_RESOLVER_REPORT.md).
-
-6October located preparation checkpoint requires no additional user configuration: all5format private plans and deliberate saved review-v2 acknowledgment passed actual browser checks. This acknowledgment does not approve or publish; the15source shortlist remains pending university review. Approval/relationship/M8 code remains root work under PUB-01…05, not a human configuration task. [Evidence](../reports/IMP_LOCATED_PREPARATION_REPORT.md).
-
-
-6October PUB-01/02 private backend requires no additional human configuration. Local+DEVELOPMENT27migrations and runtime retention checks passed; actual synthetic publications/original recovery remain isolated private QA evidence. Approval API/UI and relationship behavior are still agent implementation work, not tasks for the user. Real university shortlist review, live free generation/OA flows and production checks remain pending. [Evidence](../reports/IMP_PUBLICATION_BACKEND_REPORT.md).
-
-
-6October PUB-03 requires no additional human setup. Complete synthetic relationship/date/legacy drift and actual paused-LINE publication fences passed locally; guardedDEVELOPMENT28migrations remain development evidence. Approval UI/API is agent work; real corpus review and live final flows remain pending. [Evidence](../reports/IMP_RELATIONSHIP_RETRIEVAL_REPORT.md).
-
-6October IMP-PDF-01 requires no new configuration or re-upload. Both user-reported originals were re-analyzed successfully through authenticated APIs; reload the import page to see READY extraction. Check located table/page warnings against the original before approval. This is review of source quality, not a permission needed for independent implementation. [Recovery evidence](../reports/IMP_PDF_RECOVERY_REPORT.md).
-
-6October PUB-04/05 approval API/UI requires no additional setup: deliberate INTERNAL synthetic approval, unknown-response receipt recovery, exact replay/retained originals and three-role desktop/mobile checks passed in isolated QA. Current mode is reviewed RAG; STRUCTURED/BOTH stay unavailable until M8 implementation. Published catalog remains agent work, not a human task. Real university review/live free generation/OA/production items above remain deferred. [Evidence](../reports/IMP_PUBLICATION_APPROVAL_REPORT.md).
-
-6October CAT-01/UX-01A adds private approved family/history/detail and bound metadata preparation without new configuration/migration/provider keys. Backend actual-PG and compiled three-role HTTP/private-original checks are in the [backend report](../reports/KNOWLEDGE_CATALOG_ASSISTANCE_BACKEND_REPORT.md). Gemini is implementing Dashboard presentation in its isolated worktree; submitting its local commit/report and root combined acceptance are development handoff steps, not a new university configuration task. Existing real corpus/live OA/free generation/production rows above remain pending. Latest backend success does not close UI usability or fullV1.
-
-7October STR-01A-0 requires no new user setup: pure validators/immutable metadata cover seven fixed datasets, all installed:false. Do not select STRUCTURED/BOTH as working publication modes yet; fixed SQL/mappers/reviewed preview/atomic persistence/exact query proof remain agent work. Root completed scoped fixes/tests/review in the [component report](../reports/STRUCTURED_PAYLOAD_CONTRACT_REPORT.md). No new key, model download, migration, original re-upload or real source approval was performed. Existing final live/corpus/production items stay pending while independent implementation continues.
-
-7October STR-01B-0 adds no human setup: [pure mapping preparation](../reports/STRUCTURED_MAPPING_PREPARATION_REPORT.md) passed scoped/full unit/type/lint, all installed:false. Saved review-v3, fixed SQL/authorized preview/publication/query integration remain agent work. No new key/upload/real source approval; existing live/corpus/production checks remain deferred. Gemini reported443c227 for root review; it is not yet combined acceptance.
-
-7October GEM-REV-02: user already submittedGemini443c227. [Round2prompt](../agents/GEMINI_UI_UX_CONTINUATION_PROMPT.md) can be sent directly; review fixes, missingbackendcontracts and combinedUIacceptance are agent work, not new universityconfiguration. No livewrite/corpusapproval is requested for this planning task.
-
-7October STR-01B-1 adds private encrypted review3/source-bound preview without new human configuration. [Evidence](../reports/STRUCTURED_REVIEW_PREVIEW_REPORT.md) records backend/CAS/auth/limits and isolated compiled HTTP; mapping UI/fixed7schema/atomicBOTH/exactquery remain agent work. No new key/upload/model/migration/real source approval. STRUCTURED/BOTH publication stays explicitly unavailable until those contracts and acceptance are complete. Existing deferred live/corpus/OA/production rows remain.
-
-7October STR-01A-1 requires no new user setup. Root authored and tested the seven fixed tables/private provenance in a newly owned disposable database:29migration replay/foundationRLS/121actualPG+15existing RAG compatibility/1621unit/type/lint/advisors. [Evidence](../reports/STRUCTURED_SCHEMA_COMPONENT_REPORT.md). Normal local0/7 and remote schema are not migrated; all registry installed:false. Normal installation after integration, authenticated row-envelope/atomic STRUCTURED/BOTH/exact queries and combined Gemini UI remain agent work, not a request for human migration/configuration now. Existing real-source review/live OA/free generation/production checklist remains deferred.
+23October update: routing outages now preserve the pending original message and explain temporary AI unavailability with owned context-choice buttons. This does not qualify the model. Actual network-phase diagnostic completed TLS/request finish at~192ms but received no HTTP headers before15s; no key/timeout/provider setting change or inference retry. User manual checks remain deferred; no new webhook URL while app/tunnel stopped.

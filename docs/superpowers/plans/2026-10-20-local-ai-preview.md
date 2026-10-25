@@ -1,0 +1,25 @@
+# ROOT-LOCAL-AI-01 — explicit local natural-assistant test
+
+Root owns implementation and self-review. Latest human authorizes continuous completion and defers their actual LINE testing. Requirements: CH023/024/026/031/069, USR-AI-AUTONOMY and one-command local run. Dependencies: existing development-target guard, durable ingress, Gateway FREE_ONLY, ownership/HUMAN/publication fences and authenticated launcher lifecycle. No independent reviewer is available (recorded Luna quota/network failures).
+
+Observed product gap: `local:test` inherits the assistant setting, currently OFF; `local:staff` deliberately forces it OFF. Consequently a user can run the existing command and exercise the legacy support pipeline while expecting the new natural assistant. Technical READY does not identify quality acceptance.
+
+Options: changing `.env` or making normal startup enable the unqualified assistant silently would conflate evaluation and acceptance. Requiring several manual environment edits is error prone. Chosen: an explicit `pnpm local:ai` / `--assistant-preview` command enables the existing natural path only in this development session, before both initial and tunnel environment builds. Existing defaults and `local:staff` remain unchanged. The evidence-first MIXED experiment is not enabled. This command prepares a user-invoked preview, not promotion, production readiness or a full quality pass.
+
+Files: `package.json`, `scripts/local/{config,run}.mjs`, `tests/local-test-runner.test.ts`, `docs/operations/LOCAL_TEST.md`, current board/index/matrix and final setup checklist. No Next.js handler, SQL/schema, credential or provider/model change.
+
+Acceptance / execution:
+
+- [x] Meaningful RED: explicit flag is accepted; conflicting Staff/check/stop and duplicates rejected; natural flag overrides inherited false in both environment builds without mutating source env; ready output clearly says unqualified preview, real development/LINE side effects and both current webhook URLs.
+- [x] Minimal implementation; original default options/output and Staff tests remain green. Normal assistant production gate remains held.
+- [x] Focused launcher/regression tests, TypeScript, relevant lint and whitespace/credential checks; final documentation links/archive hashes and complete credential scan verified21October.
+- [x] Exercise the actual command through ready, verify all worker check-ins and signed local/public empty-event/invalid HMAC; stop the exact owned session afterward. No model inference or real conversation is required by this startup check. Preserve a failed startup if any; do not call it LINE dialogue or model acceptance.
+- [x] Update the handoff so one command for natural preview is distinct from Staff-only/default/Hermes checks, and actual OA/model/corpus gates remain deferred/open rather than passed.
+
+No automatic startup for the user, paid calls, key rotation, new model settings, arbitrary tools or inferred corpus approval. The preview processes the existing DEVELOPMENT queues and sends real configured LINE replies when work exists; it is not a synthetic sandbox. Existing final model and Flow A–F gates stay open. The command must disclose this before services start as well as at READY.
+
+Executed20October: meaningful RED3/26existingPASS (`root-local-ai-red.log`), GREEN29, typecheck/scopedlint/local:check PASS, full3030unit/224files PASS92.63s (`root-local-ai-full-unit.log`). Actual canonical command reached READY with offlineE5, web/four worker observations and local/public valid200/invalid401 Student/Staff checks8; authenticated local:stop then all exact owned children exit0. Runtime is now STOPPED; generated URLs are historical. Fresh read-only observation from the startup timestamp finds0generationlogs,0providerupdates,0modelupdates,0publications,4workercheckins. `root-local-ai-proof.{ts,json}` and the named redacted startup log retain source hashes and evidence; no actual model call/LINE conversation/whole V1 pass follows.
+
+Navigation repair during this slice: old index98,055bytes/board174,280bytes/setup114,637bytes each preserved byte-identically in a same-directory `_HISTORY_2026-10-20.md` archive before writing concise current documents. `root-current-docs-proof.json` stores before-hashes and sizes. Relative links remain rooted in the same directories; no old report/score is edited or erased. No external approval or independent review claimed. Current board becomes the status authority instead of prepending duplicated statuses in every design.
+
+21October final scoped closure: current3044unit/type/relevantlint/build402inputs/645registeredownedPG/43migrations/exactcleanup PASS; complete known-credential scan618files including129Unicodepaths PASS, documentation links/archive hashes checked. Original launcher lifecycle evidence is the20October run, not an actual LINE dialogue or a new runtime run after the import-only change. Grade-policy/source-review and launcher acceptance remain distinct; actual parent publication is separately authorized/documented in its plan. No semantic/model/FlowA–F acceptance follows.

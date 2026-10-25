@@ -1,14 +1,39 @@
 # ทดลอง YRU Helpdesk บนเครื่องนี้
 
+## ทดสอบ AI สนทนาแบบใหม่โดยตรง
+
+เมื่อถึงรอบทดสอบที่ส่งมอบให้แล้ว ใช้ **`pnpm local:ai`** และรอ `[READY]` คำสั่งนี้เปิดเว็บ/E5/workers/tunnel เหมือนเดิม พร้อมบังคับ `YRU_ASSISTANT_ENABLED=true` เฉพาะ child session ทั้งก่อนและหลังสร้าง tunnel ไม่แก้ `.env` หรือ provider/model/key คำสั่ง `start-local.cmd --assistant-preview` ใช้แทนกันได้
+
+นี่คือ **preview ของโมเดลที่ยังไม่ผ่านเกณฑ์คุณภาพทั้งหมด** ไม่ใช่การเปิด production หรือรับรอง V1; จะประมวลผลคิว DEVELOPMENT และส่งคำตอบ LINE จริงเมื่อมีงานอยู่ ระบบยังตรวจ FREE_ONLY/source/ownership/HUMAN ตามเดิม ไม่เปิด evidence-first MIXED experiment และไม่รัน Hermes เว้นแต่ใส่ `--hermes-check` เอง
+
+`pnpm local:test` ใช้ค่า natural assistant เดิม ซึ่งตอนนี้ยังปิดอยู่ จึงอาจกำลังทดสอบ legacy support pipeline หากต้องการทดสอบ AI แบบใหม่ให้เลือก `local:ai` ชัดเจน อย่าเปิด runners ซ้อนกัน หยุดด้วย `pnpm local:stop` หรือ Ctrl+C
+
+ล่าสุด root ตรวจ startup ของคำสั่งนี้จริงแล้ว signed local/public Student+Staff8checks และ workers4 ผ่าน จากนั้นหยุด session เรียบร้อย URL เก่าใช้ไม่ได้จนกว่าจะเปิดใหม่ **ผู้ใช้เลื่อน actual LINE tests ไปท้ายงาน จึงยังไม่ต้องทดสอบตอนนี้** ดู [สถานะหลัก](../tasks/V1_TASK_BOARD.md)
+
+## รอบทดสอบงานเจ้าหน้าที่ก่อนเปิด AI เต็มรูปแบบ
+
+ใช้ `pnpm local:staff` แล้วรอ `[READY]` และคัดลอก URL Student/Staff ของรอบนั้น คำสั่งนี้ปิด natural assistant เฉพาะ session แม้ `.env` เคยเปิดไว้ แต่ **legacy support AI ยังทำงาน** สำหรับ flow เดิม ไม่ใช่โหมดปิด AI ทั้งหมด และไม่รับรองคุณภาพคำตอบทั่วไป ไม่รัน Hermes หรือเปลี่ยน model/key โดยอัตโนมัติ
+
+1. Login Dashboard ด้วยบัญชี Staff → Settings → เชื่อมบัญชี LINE ส่วนตัวกับ Staff OA
+2. Student OA ส่ง “ติดต่อเจ้าหน้าที่” และเลือกฝ่ายที่มี Staff ทดสอบ
+3. ให้ Staff สองคนในฝ่ายเดียวกันลองรับเคสเดียวกัน ผู้ชนะต้องมีคนเดียว
+4. ผู้รับกดเปิดคุยเคสนั้นแล้วตอบ ตรวจรหัสเคสและผู้รับใน Student OA
+5. ลองอีกเคสและสลับเคสอย่างชัดเจน การรับแจ้งเตือนใหม่ต้องไม่เปลี่ยนผู้รับข้อความเอง
+6. ปิดเคส แล้วลองปุ่มเก่า ต้องไม่ส่งข้อความใหม่เข้าเคสที่ปิด
+
+ข้อใดไม่ตรงให้หยุดส่งข้อความและแจ้งเวลา/รหัสเคส ไม่ส่ง token หรือข้อมูลส่วนตัวจริง การตรวจนี้ไม่แทนการทดสอบคุณภาพ AI และ Flow A–F ทั้งหมด
+
 ## เปิดและหยุดด้วยคำสั่งเดียว
 
 เปิด PowerShell ในโฟลเดอร์โปรเจกต์แล้วรัน:
 
 ```powershell
-pnpm local:test
+pnpm local:test --hermes-check
 ```
 
 หรือดับเบิลคลิก `start-local.cmd` ที่โฟลเดอร์หลัก รอข้อความ `[READY]` เว็บจะอยู่ที่ **http://127.0.0.1:3000/login** ตัวรันเปิด Next dev, local E5 จาก cache เดิม, Inbox/AI/Outbox/Incidents และ Cloudflare HTTPS tunnel รวมกัน และแสดง URL webhook ทั้งสองเส้นให้คัดลอก ไม่ต้อง deploy Vercel
+
+`--hermes-check` เพิ่มการทดสอบ Hermes CLI สองข้อความสังเคราะห์ผ่าน FREE_ONLY ในคำสั่งเดียว และแสดง PASS/FAIL พร้อมขั้นตอนที่หยุด โดยไม่พิมพ์คำตอบหรือ credentials ใช้เวลาได้ถึง150วินาที ซึ่งครอบคลุมงบเปิด interpreter15วินาทีและ Python110วินาที พร้อมช่วงเริ่ม/ปิดบริการ หาก pilot ไม่ผ่านจะแสดง FAIL แต่เว็บกับ workers ยังทำงานได้ Hermes ยังเป็น pilot แยก ไม่ใช่ตัวตอบ LINE โดยตรง; `[READY]` แสดงสถานะการเปิด natural assistant แยกต่างหาก การรัน `pnpm local:test` หรือดับเบิลคลิกโดยไม่ใส่ flag จะข้ามการทดสอบ Hermes เพื่อไม่เรียกโมเดลทุกครั้ง
 
 Local ในที่นี้หมายถึงเว็บและ workers อยู่บนเครื่องคุณ ฐานข้อมูลยังเป็น Supabase DEVELOPMENT ที่ตั้งไว้เดิม การทดสอบจะบันทึกข้อมูลลงฐาน development และ workers จะประมวลผลงานในคิวตามปกติ ไม่มีการล้างข้อมูล/รัน migration/ดาวน์โหลดโมเดล/อนุมัติเอกสารแทนคน
 

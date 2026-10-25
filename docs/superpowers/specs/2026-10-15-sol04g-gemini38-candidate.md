@@ -1,0 +1,9 @@
+# SOL-04G — existing Gemini 3.8 candidate
+
+Root; USR-FREE/TEST/AUTONOMY, CH029/031. Current Lite wire B06 now completes all confirmation stages, but A09 still asks an unnecessary initial device-model question despite supplied Android and symptom. No recovered full30 or primary qualification is claimed. Groq120B original and appended-precedence B06 fail; do not promote SOL-02O.
+
+The normal registry already contains disabled `gemini-3.8-flash` with JSON=false and15s; historical10October alias-compatible timeout is not current exact-model protocol evidence. Official15October pricing lists a Free tier and the model page supports structured outputs: https://ai.google.dev/gemini-api/docs/pricing.md and https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash . Existing DEC-110 confirms Gemini Free/no billing; this is operator attestation, not independently verified billing.
+
+Root owns only ignored `sol04g-*` helpers/evidence initially. Read the exact configured row and current same-key catalog. Use production probeModel with a clearly identified ephemeral descriptor setting supportsJson=true for the capability experiment, the same existing key/endpoint, unchanged10s probe and FREE_ONLY admission. Prefer its own valid source grant; otherwise project the existing Lite account confirmation only to this already-allowlisted, officially Free model with the exact source expiry, no extension. Record this distinction. Hash normal provider/model rows before and after, no normal configuration writes. No paid mode, new account/key, prompt change or automatic activation.
+
+Only successful exact structured protocol permits a separately hashed owned synthetic candidate workflow with original production policy and15s/8s. B06 and A09 critical prequalification precede full30; stop on429 and preserve Retry-After. Probe or prototype success gives no model qualification or normal capability update by itself. Existing release gates remain open.

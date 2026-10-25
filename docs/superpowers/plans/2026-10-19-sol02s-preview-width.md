@@ -1,0 +1,7 @@
+# SOL-02S — narrow import preview width repair
+
+Root implementation/self-review. Depends on SOL-02R current build and broader browser failure, preserved in sol02r-broader-overflow.json and screenshot. Linked requirements: V1 import review usability, SOL-07 responsive browser acceptance and SOL-05 source preview; no publication/authority behavior change.
+
+At320px the preview header's filename div extends to321.56px, document/body322px. Header uses column flex with align-items:start; its text child has no width constraint. The long synthetic original filename determines an oversized intrinsic width. Preserve visible complete filename and chosen design; do not clip content or weaken overflow assertion.
+
+Files: app/knowledge.css only for production; isolated browser diagnostic/runners in ignored staging; task board, matrix and diagnosis report for evidence. First use identical controlled browser fixture and collect before/after DOM dimensions with a temporary child width/wrapping rule. Promote only if original320px assertion passes with full source information retained. Then build current CSS and rerun unmodified19 broader groups plus9 Free groups at1440/390/320. Preserve failed attempt. Check exact owned cleanup, CSS diff and source hashes. No new DB schema, real LINE/model calls, publication, key or grant changes. Existing source-bound model evidence remains valid only where its recorded input/runtime hashes still match; do not claim that a CSS repair improves model quality.

@@ -31,6 +31,7 @@ Root เป็นผู้ตัดสิน integration/contract และต�
 - ทดสอบเฉพาะที่สัมพันธ์กับงานแล้วทำ required gates; component pass ไม่ถือว่า whole V1 หรือ live OA ผ่าน
 - Independent review ต้องมี verdict จริง; root self-review ห้ามเรียก independent. งาน RED หรือ draft ไม่เปลี่ยนเป็น COMPLETE
 - ก่อน commit/push ตรวจ staged files ด้วย `node scripts/security/check-staged.mjs`; ไม่ stage ทั้ง workspace ขณะที่มี worker changes หรือ credentials ที่ไม่เกี่ยวข้อง
+- การตรวจฐานข้อมูลแบบอ่านอย่างเดียวผ่าน transaction pool ต้องใช้ connection ที่ยึดไว้ใน `BEGIN READ ONLY` แล้ว `ROLLBACK`/release ใน `finally`; ห้าม `SET SESSION default_transaction_read_only` ค้างไว้ใน pool. จบ transaction ก่อนเรียก provider/LINE/network และอ่าน grant ปัจจุบันใหม่ตาม gateway contract. เหตุ SOL-02W/X ทำให้ backend session หนึ่งค้างค่าและ worker ได้25006; การคืนค่าต้องตรวจ exact observed backend, source=session, reset_val=off และ primary ก่อน ไม่แก้ role/database defaults หรือ reset pool ทั้งหมด.
 - เมื่อ context/limit ขาด ให้ resume task ID เดิมจาก board ไม่เริ่มแผนใหม่จนทับคำสั่งผู้ใช้
 
 ## สถานะที่ใช้
