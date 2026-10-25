@@ -16,14 +16,14 @@
 
 ## แนวทางต่อยอดแบบละเอียด (4 เฟส)
 
-### เฟส 0 — เก็บระเบียบทันที (agent ทำได้เลย ไม่แตะพฤติกรรม)
+### เฟส 0 — เก็บระเบียบทันที — **ปิดครบแล้ว 25 ต.ค. 2026**
 
 | Task | สิ่งที่ทำ / ผลลัพธ์ | ข้อกำหนดที่โยง |
 | --- | --- | --- |
-| HYG-01 ต่ออายุ Gemini attestation | ต่อ managed Free-account grant ผ่าน Super Admin UI/CAS ก่อน 28 ต.ค. 13:15 (operator attestation ตามขอบเขตเดิม ไม่ใช่ตรวจ billing จริง) — **เร่งด่วนที่สุดในลิสต์นี้** | CH029, USR-FREE, DEC-146 |
-| HYG-02 อัปเดต matrix/report ตาม DEC-162/163 | แก้แถว CH023/CH029/CH031/CH069 และ V1_AUTOMATED_ACCEPTANCE_REPORT ให้สะท้อน model-quality ACCEPTED + ข้อจำกัด (synthetic fixture, A12 residual, A10 variance) | CH066/071, DEC-149 |
-| HYG-03 ไล่ commit งานเก่าที่ค้าง | แบ่ง commit เป็นก้อนตามหัวข้อ (lib/ai round, docs reports, manifests) จาก 140 ไฟล์ที่เหลือ พร้อม credential scan ทุกก้อน — ห้าม stage ทั้ง workspace | WORKING_PROTOCOL |
-| HYG-04 เก็บกวาดสิ่งแปลกปลอม | ลบไฟล์ขยะ `b.memoryMB-a.memoryMB)` (0 ไบต์) หลังยืนยันกับผู้ใช้ · ตรวจ untracked ที่ไม่ควรอยู่ | — |
+| HYG-01 ต่ออายุ Gemini attestation | **เสร็จ:** ต่อผ่าน saveFreeAccountGrant จริง (grant rev1, audit AI_FREE_ACCOUNT_CONFIRMED) — หมดอายุใหม่ **24 พ.ย. 2026**; สคริปต์รอบหน้า `scripts/ai/renew-gemini-free-grant.ts` | CH029, USR-FREE, DEC-146 |
+| HYG-02 อัปเดต matrix/report ตาม DEC-162/163 | **เสร็จ (ส่วน matrix):** CH023/CH029/CH031/CH069 อัปเดตแล้วใน commit 51010b5; V1_AUTOMATED_ACCEPTANCE_REPORT ยังไม่ได้แตะ — โยนไปรวมกับ QUA-01 เมื่อมีผล corpus จริง | CH066/071, DEC-149 |
+| HYG-03 ไล่ commit งานเก่าที่ค้าง | **เสร็จ:** commit 6 ก้อน (โค้ด 275/corpus 235/docs 107/เศษ) ผ่าน scan ทุกก้อน — **git status = 0 ไฟล์ค้าง ครั้งแรกของโปรเจ็ค** + tag `checkpoint/v1-agent-complete` | WORKING_PROTOCOL |
+| HYG-04 เก็บกวาดสิ่งแปลกปลอม | **เสร็จ:** ลบไฟล์ขยะ `b.memoryMB-a.memoryMB)` แล้ว · `output/` (playwright) เพิ่มใน .gitignore · sdd report ที่เหลือ commit แล้ว | — |
 
 ### เฟส 1 — ปิด V1 จริง (นำโดยผู้ใช้ + agent สนับสนุน)
 
@@ -60,13 +60,18 @@
 | EXT-06 มุมมองหลายภาษา | DEC-148 จำกัด: เงื่อนไข guided เขียนด้วยภาษาไทย — ถ้ามีผู้ใช้ต่างชาติ ต้องทำ multilingual contract + ทดสอบใหม่ | ความต้องการจริง |
 | EXT-07 Custom document families | เพิ่ม family นอก 19 แรกผ่าน UI (CH064 เปิดไว้) พร้อม proof/versioning เดิม | มีเอกสารจริงจำนวนมากพอ |
 
+## เพิ่มเติมจากรอบ 25 ต.ค. (หลังปิดเฟส 0)
+
+- สร้าง **[เอกสารเตรียมทดสอบจริง](../operations/LIVE_TEST_QA_PREP.md)** แล้ว — ตรวจฐานจริงพบ: PUBLIC 5 เอกสาร/52 chunks พร้อมตอบ, **structured 7 ตาราง = 0 แถวจริง** (คำถามค่าเทอม/ปฏิทินต้องได้คำตอบ "ยังไม่พบเอกสาร")
+- ต้นไม้สะอาด + tag `checkpoint/v1-agent-complete` — ย้อนกลับด้วย `git reset --hard checkpoint/v1-agent-complete`
+
 ## ลำดับแนะนำ (critical path)
 
 ```
-HYG-01 (attestation ก่อน 28 ต.ค.!) → HYG-02/03/04
-→ V1L-01 Flow A–F จริง ──┬→ V1L-02 corpus 9 รายการ → QUA-01 bracket ของจริง
-                          └→ V1L-03 activation → V1L-04 deploy → PRF-02/OPS-01
-QUA-02/03/04, PRF-01, UX-02, OPS-02 = ขนานกันหลังเฟส 1
+เฟส 0 ปิดครบแล้ว (attestation ถึง 24 พ.ย. / เอกสาร / commits / tag)
+→ ถัดไป: V1L-01 Flow A–F จริง (ใช้ LIVE_TEST_QA_PREP) ──┬→ V1L-02 corpus 9 รายการ → QUA-01 bracket ของจริง
+                                                        └→ V1L-03 activation → V1L-04 deploy → PRF-02/OPS-01
+QUA-02/03/04 เริ่มได้เลยตอนนี้ (agent) · PRF-01, UX-02, OPS-02 = หลังเฟส 1
 EXT-* = เมื่อมหาวิทยาลัยเลือก (เฟส 3 ไม่มี deadline)
 ```
 

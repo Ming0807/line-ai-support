@@ -1,6 +1,10 @@
 # YRU V1 — Current task board
 
-อัปเดต 24 ตุลาคม 2026 โดย root ใช้ [working protocol](../agents/WORKING_PROTOCOL.md) และ [requirements matrix](../requirements/V1_REQUIREMENTS_MATRIX.md) สถานะนี้แทน checkpoint ปัจจุบันที่ขัดกันในเอกสารรุ่นก่อน โดยไม่แก้คะแนนหรือหลักฐานเดิม
+อัปเดต 25 ตุลาคม 2026 โดย root ใช้ [working protocol](../agents/WORKING_PROTOCOL.md) และ [requirements matrix](../requirements/V1_REQUIREMENTS_MATRIX.md) สถานะนี้แทน checkpoint ปัจจุบันที่ขัดกันในเอกสารรุ่นก่อน โดยไม่แก้คะแนนหรือหลักฐานเดิม
+
+**งาน agent ของ V1 ปิดครบทั้งหมดแล้ว** (25 ต.ค.): original30 **ACCEPTED** 29/30+19/20+gates (DEC-162) · representative repeats 3×7 ครบ (DEC-163) · remaining inventory ปิด (DEC-160) · UI consistency (DEC-159) · attestation ต่ออายุถึง **24 พ.ย. 2026** · ต้นไม้ git สะอาด 100% + tag `checkpoint/v1-agent-complete`
+
+**ที่เหลือทั้งหมดเป็น user-gated หรือรอของจริง** — ดูรายการเต็มพร้อมลำดับใน [Post-V1 roadmap](POST_V1_ROADMAP.md): Flow A–F จริง (เตรียมทดสอบได้ที่ [LIVE_TEST_QA_PREP](../operations/LIVE_TEST_QA_PREP.md)) · corpus 9 รายการรอเจ้าของข้อมูล · activation/deployment · งานเฟส 2 ของ agent (QUA-02/03/04 เริ่มได้เลยเมื่อสั่ง)
 
 **V1 NOT_COMPLETE.** ผู้ใช้เลื่อน actual OA/manual tests ไปท้ายงาน ห้ามย้าย defect ของ agent ให้ผู้ใช้แก้ และห้ามเรียก component pass ว่า whole V1 complete
 
