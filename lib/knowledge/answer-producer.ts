@@ -402,15 +402,18 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
      const directory=formDirectoryResultSchema.parse({kind:'FORM_DIRECTORY',scope,evidence:found.evidence});
      buildFormDirectory(directory);return directory;
     }
-    if(['DISCOVER_CALENDAR','DISCOVER_SERVICES','DISCOVER_FORM_PURPOSE'].includes(parsed.data.method)){
-     if(!options.discoverStructured)return clarify(NO_EVIDENCE_HANDOFF);
-     const dataset=parsed.data.method==='DISCOVER_CALENDAR'?'academic_calendar_events':parsed.data.method==='DISCOVER_SERVICES'?'university_services':'service_forms';
+    // Selector-completeness correction: when the planner picks STRUCTURED on a
+    // dataset whose reviewed discovery operation exists but required/grounded
+    // selectors are missing, the deterministic renderer is the designed path.
+    const DISCOVERY_REROUTE:Partial<Record<string,boolean>>={academic_calendar_events:true,university_services:true};
+    const runDiscovery=async(dataset:'academic_calendar_events'|'university_services'|'service_forms'):Promise<Awaited<ReturnType<AIWorkerOptions['produce']>>|'CONTINUE_RAG'>=>{
      const found=await bounded(()=>options.discoverStructured!({dataset,scope}),SEARCH_TIMEOUT_MS,signal);
      if(signal.aborted)throw cancelled();
      if(found.status==='EMPTY'&&dataset==='service_forms'){
       // An empty form-purpose catalog says nothing about approved narrative
       // guidance. Continue through the same original-question, scoped RAG path.
-     }else{
+      return 'CONTINUE_RAG';
+     }
      if(found.status!=='READY')return clarify(found.status==='CONTEXT_INCOMPLETE'||found.status==='CLARIFICATION_REQUIRED'?SCOPE_CLARIFICATION:NO_EVIDENCE_HANDOFF);
      const evidence=validateStructuredEvidenceList(found.evidence);
      if(evidence.some(row=>row.dataset!==dataset))return clarify(PROVIDER_HANDOFF);
@@ -438,7 +441,12 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
      if(!output.success||completion.toolCalls.length||output.data.citationRowIds.some(id=>!answerEvidence.some(row=>row.rowId===id)))return clarify(PROVIDER_HANDOFF);
      buildStructuredAnswer(output.data,evidence);
      return structuredDiscoveryResultSchema.parse({kind:'STRUCTURED_DISCOVERY',dataset,scope,output:output.data,evidence});
-     }
+    };
+    if(['DISCOVER_CALENDAR','DISCOVER_SERVICES','DISCOVER_FORM_PURPOSE'].includes(parsed.data.method)){
+     if(!options.discoverStructured)return clarify(NO_EVIDENCE_HANDOFF);
+     const dataset=parsed.data.method==='DISCOVER_CALENDAR'?'academic_calendar_events':parsed.data.method==='DISCOVER_SERVICES'?'university_services':'service_forms';
+     const outcome=await runDiscovery(dataset);
+     if(outcome!=='CONTINUE_RAG')return outcome;
     }
     if(parsed.data.notApplicable){
      try{validateStructuredProcedure(parsed.data.notApplicable,snapshot.question);notApplicable=parsed.data.notApplicable;}
@@ -463,10 +471,22 @@ export function createKnowledgeProducer(options:KnowledgeProducerOptions):AIWork
         query=validateStructuredQuery({...query,filters:{...query.filters,program_name:value.data.programName}});
       }catch{if(signal.aborted)throw cancelled();}
      }
-     if(!structuredSelectorsGrounded(query,snapshot,scope))return clarify(query.dataset==='service_forms'
-      ?missingStructuredDetails(['name|form_url']):SCOPE_CLARIFICATION);
+     if(!structuredSelectorsGrounded(query,snapshot,scope)){
+      if(options.discoverStructured&&DISCOVERY_REROUTE[query.dataset]){
+       const outcome=await runDiscovery(query.dataset as 'academic_calendar_events'|'university_services');
+       if(outcome!=='CONTINUE_RAG')return outcome;
+      }
+      return clarify(query.dataset==='service_forms'
+       ?missingStructuredDetails(['name|form_url']):SCOPE_CLARIFICATION);
+     }
      const assessment=assessStructuredQuery(query);
-     if(assessment.status!=='READY')return clarify(missingStructuredDetails(assessment.missing));
+     if(assessment.status!=='READY'){
+      if(options.discoverStructured&&DISCOVERY_REROUTE[query.dataset]){
+       const outcome=await runDiscovery(query.dataset as 'academic_calendar_events'|'university_services');
+       if(outcome!=='CONTINUE_RAG')return outcome;
+      }
+      return clarify(missingStructuredDetails(assessment.missing));
+     }
      const result=await bounded(()=>options.structuredSearch!({query,scope}),SEARCH_TIMEOUT_MS,signal);
      if(signal.aborted)throw cancelled();
      if(result.status==='CLARIFICATION_REQUIRED')return clarify(SCOPE_CLARIFICATION);

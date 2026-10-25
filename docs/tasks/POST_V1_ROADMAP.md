@@ -39,14 +39,14 @@
 | Task | สิ่งที่ทำ / ผลลัพธ์ | ข้อกำหนดที่โยง |
 | --- | --- | --- |
 | QUA-01 quality bracket บน corpus จริง | สร้าง frozen fixture ใหม่จากเอกสาร PUBLIC จริง (คำถามจริง+คำตอบที่เอกสารรองรับ) แล้ววัดด้วยเกณฑ์เดิม 27/30+18/20 — ปิดช่องว่าง "synthetic-only acceptance"; รวมถึงเช็ค A12-discovery กับปฏิทินจริง | CH063/069, DEC-149 |
-| QUA-02 qualified fallback model | ปัจจุบัน Gemini Lite เดี่ยว (17 ตัวปิด) — เมื่อมี quota/เหตุผลใหม่ ให้ประเมิน 1 โมเดลสำรองผ่าน harness เดิม (ไม่ pool คะแนน) เพื่อให้เครื่องไม่ตายตัวเดียว | CH029 §22, USR-FREE |
-| QUA-03 ทนทาน latency spike | เหตุการณ์ call เกิน 25 วิ (เจอ 2 ครั้งใน 55 executions) — ทางเลือก: อนุมัติ ceiling สูงขึ้น (DEC-108 รองรับถึง 45s) / ออกแบบ bounded retry ระดับ turn / ยอมรับ fallback UI ตาม DEC-160 availability path | DEC-161/162 |
-| QUA-04 A12-discovery หยุดกะพริบ | A12 สลับระหว่าง discovery-render (main5/main6 รอบอื่น) กับ clarify — วิเคราะห์ transcript จับเงื่อนไขที่ทำให้ planner เลือก STRUCTURED-clarify แทน DISCOVER_CALENDAR แล้วแก้ 1 จุดแบบ RED-first | CH018/031, DEC-157 |
+| QUA-02 qualified fallback model | **BLOCKED_BY_AUTHORIZATION (DEC-164):** หลักฐาน registry — สองโมเดลที่เหลือในบัญชี Gemini (3.8/flash-latest) supports_json=false ใช้กับ pipeline strict-JSON ไม่ได้; fallback ที่ qualified ต้องมาจาก provider อื่น = รอผู้ใช้ถอยคำสั่งหยุดทดสอบเจ้าอื่น | CH029 §22, USR-FREE |
+| QUA-03 ทนทาน latency spike | **คำตอบชั่วคราว = availability path ตามดีไซน์ (DEC-164):** ไม่มี failover target ในบัญชี (ดู QUA-02) spike >25s จึงตกเป็น fallback ตรงไปตรงมา; ทางเลือกอนุมัติ ceiling 45s/retry ยังคงรอผู้ใช้ | DEC-161/162 |
+| QUA-04 A12-discovery หยุดกะพริบ | **เสร็จ (DEC-164):** กลไก = planner แปลงชื่อเหตุการณ์เป็น title selector + เลือก STRUCTURED ทั้งขาด required — แก้ด้วย backend reroute ไป deterministic discovery (calendar/services) RED2→GREEN11/11 + gates exit0 + live target12b 3/3 (A12=STRUCTURED_DISCOVERY พร้อม citations) | CH018/031, DEC-157 |
 | PRF-01 ANN + ประสิทธิภาพ corpus จริง | CH019 เลื่อน ANN ไว้: เมื่อ chunks จริงเป็นหมื่น+ ให้ benchmark pgvector IVFFlat/HNSW เทียบ exact cosine ก่อนเปลี่ยน cohort; รวม E5 warm-cache strategy ตอน deploy | CH019, EMBEDDING_DESIGN |
 | PRF-02 โหลดจริงซ้ำ | ทำ controlled load A–J บน corpus จริง + worker concurrency จริงของ host ที่เลือก | SOL-06 |
 | UX-02 UX รอบถัดไปจากของจริง | เก็บ feedback จากการใช้จริง: loading UX บน LINE, Analytics/Usage กับข้อมูลจริง, ช่วย Staff เข้าใจ quick-reply/สถานะ, ม.สอบ ZOOM/contrast ตาม DEC-159 พื้นฐานเดิม | CH051/058, DESIGN.md |
 | OPS-01 backup/restore drill ประจำ | ตารางเวลา backup + ซ้อม restore รายเดือน + credential rotation policy | runbook, CH060 |
-| OPS-02 security audit รอบที่ 2 | รีรัน credential scan ทั้ง repo หลัง commit งานเก่าครบ + advisors + RLS review กับ migration ใหม่ถ้ามี | CH017/070 |
+| OPS-02 security audit รอบที่ 2 | **เสร็จ (ส่วน scan):** credential scan ต้นไม้เต็ม 1,576 ไฟล์ = สะอาด (เจอเฉพาะ fixture/ชื่อไฟล์), .env ไม่ถูก track; advisors/RLS ไม่มี migration ใหม่นับจากรอบตรวจล่าสุด (43 migrations เท่าเดิม) | CH017/070 |
 
 ### เฟส 3 — ส่วนขยายหลัง V1 (ต้องมหาวิทยาลัยเลือก/อนุมัติ ตาม CH073)
 

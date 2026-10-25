@@ -72,3 +72,24 @@ it.each(['ambiguous','too-many','cancelled'] as const)('does not bypass %s disco
  if(mode==='cancelled')await expect(promise).rejects.toMatchObject({code:'CANCELLED'});else expect((await promise).kind).toBe('CLARIFY');
  expect(generate).toHaveBeenCalledTimes(1);
 });
+it('reroutes a grounded-but-incomplete calendar STRUCTURED plan to deterministic discovery instead of clarifying',async()=>{
+ const yearScope={...scope,academicYear:2569};
+ const discoverStructured=vi.fn(async()=>({status:'READY' as const,evidence:[evidence]}));
+ const generate=vi.fn(async(input:{taskType:string})=>({output:input.taskType==='KNOWLEDGE_PLAN'
+  ?{scope:yearScope,selection:{method:'STRUCTURED',query:{version:1,dataset:'academic_calendar_events',filters:[{field:'academic_year',value:2569},{field:'title',value:'เปิดภาคเรียน'}],limit:20},notApplicable:null}}
+  :{answer:'เปิดภาคเรียนวันที่ 2026-06-15 ตามปฏิทินทดสอบ',citationRowIds:[uuid(1)]},toolCalls:[]}));
+ const result=await createKnowledgeProducer({compactPlanning:true,generate,discoverStructured,structuredSearch:vi.fn(),embed:vi.fn(),search:vi.fn()} as unknown as KnowledgeProducerOptions)(
+  {jobId:uuid(10),sessionId:uuid(11),conversationId:uuid(12),messageId:uuid(13),revision:0,question:'ปฏิทินมหาวิทยาลัยปีการศึกษา 2569 ระบุวันเปิดภาคเรียนเมื่อไร',history:[]},new AbortController().signal);
+ expect(result.kind).toBe('STRUCTURED_DISCOVERY');
+ expect(discoverStructured).toHaveBeenCalledWith(expect.objectContaining({dataset:'academic_calendar_events',scope:expect.objectContaining({academicYear:2569})}));
+});
+it('reroutes an ungrounded service STRUCTURED plan to discovery that renders complete records with ambiguity notice',async()=>{
+ const row=serviceRow();
+ const discoverStructured=vi.fn(async()=>({status:'READY' as const,evidence:[row]}));
+ const generate=vi.fn(async(input:{taskType:string})=>{if(input.taskType!=='KNOWLEDGE_PLAN')throw new Error('MODEL_COMPLETION_UNAVAILABLE');
+  return {output:{scope,selection:{method:'STRUCTURED',query:{version:1,dataset:'university_services',filters:[{field:'service_code',value:'INVENTED-CODE'}],limit:20},notApplicable:null}},toolCalls:[]};});
+ const result=await createKnowledgeProducer({compactPlanning:true,generate,discoverStructured,structuredSearch:vi.fn(),embed:vi.fn(),search:vi.fn()} as unknown as KnowledgeProducerOptions)(
+  {jobId:uuid(10),sessionId:uuid(11),conversationId:uuid(12),messageId:uuid(13),revision:0,question:'ห้องสมุดเปิดวันเสาร์ถึงกี่โมง',history:[]},new AbortController().signal);
+ expect(result.kind).toBe('STRUCTURED_DISCOVERY');
+ expect(discoverStructured).toHaveBeenCalledWith({dataset:'university_services',scope});
+});
