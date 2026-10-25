@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ระบบเทียบโอนผลการเรียน มรย.">
+<meta name="author" content="กองบริการการศึกษา มหาวิทยาลัยราชภัฏยะลา">
+<title>ระบบเทียบโอนผลการเรียน มรย.</title>
+
+<!-- Bootstrap Core CSS -->
+<link href="../bower_components/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- DataTables CSS -->
+<link href="../bower_components/datatables-plugins/integration/bootstrap/3/dataTables.bootstrap.css" rel="stylesheet">
+
+<!-- DataTables Responsive CSS -->
+<link href="../bower_components/datatables-responsive/css/dataTables.responsive.css" rel="stylesheet">
+
+<!-- Date -->
+<link href="css/bootstrap-datetimepicker.css" rel="stylesheet">
+
+<!-- Timeline CSS -->
+<link href="../dist/css/timeline.css" rel="stylesheet">
+
+<!-- Custom CSS -->
+<link href="../dist/css/sb-admin-2.css" rel="stylesheet">
+
+<!-- Morris Charts CSS -->
+<link href="../bower_components/morrisjs/morris.css" rel="stylesheet">
+
+<!-- Custom Fonts -->
+<link href="../bower_components/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+<!--fancybox -->
+<link rel="stylesheet" href="../fancy/jquery.fancybox.css" type="text/css" media="screen" />
+
+<!-- Optionally add helpers - button, thumbnail and/or media -->
+<link rel="stylesheet" href="../fancy/helpers/jquery.fancybox-buttons.css" type="text/css" media="screen" />
+
+<!-- fullcalendar -->
+<link href='../fullcalendar.css' rel='stylesheet' />
+<link href='../fullcalendar.print.css' rel='stylesheet' media='print' />
+	
+<!-- Tooltips -->
+<link href="css/tooltips.css" rel="stylesheet">
+	
+<!-- Google Tag Manager -->
+	<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+	new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+	j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+	'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+	})(window,document,'script','dataLayer','GTM-NBD3MZG');</script>
+	<!-- End Google Tag Manager -->
+	
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-W0FVB9HKCW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-W0FVB9HKCW');
+</script>
+
+<!-- jQuery --> 
+<script src="../bower_components/jquery/dist/jquery.min.js"></script> 
+
+<!-- Bootstrap Core JavaScript --> 
+<script src="../bower_components/bootstrap/dist/js/bootstrap.min.js"></script> 
+
+<!-- Metis Menu Plugin JavaScript --> 
+<script src="../bower_components/metisMenu/dist/metisMenu.min.js"></script> 
+
+<!-- Morris Charts JavaScript --> 
+<script src="../bower_components/raphael/raphael-min.js"></script> 
+<script src="../bower_components/morrisjs/morris.min.js"></script> 
+
+<!-- DataTables JavaScript --> 
+<script src="../bower_components/DataTables/media/js/jquery.dataTables.min.js"></script> 
+<script src="../bower_components/datatables-plugins/integration/bootstrap/3/dataTables.bootstrap.min.js"></script> 
+
+<!-- Custom Theme JavaScript --> 
+<script src="../dist/js/sb-admin-2.js"></script> 
+<script src='../lib/moment.min.js'></script> 
+<script src='../fullcalendar.min.js'></script> 
+<script src='../lang/th.js'></script> 
+<script  src="../fancy/jquery.fancybox.pack.js"></script> 
+<script  src="../fancy/helpers/jquery.fancybox-thumbs.js"></script> 
+<script  src="../fancy/helpers/jquery.fancybox-buttons.js"></script> 
+
+<!-- script src="js/moment-with-locales.js"></script--> 
+<script src="src/bootstrap-datetimepicker.js"></script> 
+<script type="text/javascript">
+jQuery( document ).ready(function() {   
+      //var currentLangCode = 'th';
+      $('#calendar').fullCalendar({
+            header: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'month,agendaWeek,agendaDay'
+            },          
+            eventLimit: true, // allow "more" link when too many events
+            defaultDate: new Date(),
+            //lang: currentLangCode,
+			timezone: 'Asia/Bangkok',
+            events: {
+            url: 'data_events.php',
+         	},  
+            loading: function(bool) {
+                $('#loading').toggle(bool);
+            },
+			
+			eventClick: function(event) {
+    if (event.url) {
+      $.fancybox({
+        		'href' : event.url,
+        		'type' : 'iframe',
+				'autoScale'     	: false,
+				'openEffect' : 'elastic',
+        		'openSpeed'  : 'fast',
+                'closeEffect' : 'elastic',
+        		'closeSpeed'  : 'fast',
+				'closeBtn'  : true,
+				onClosed	:	function() {
+					parent.location.reload(true); 
+				},
+				helpers : {
+					thumbs : {
+						width  : 50,
+						height : 50
+					},
+					
+					overlay : {
+            				css : {
+                				'background' : 'rgba(49, 176, 213, 0.7)'
+           			 }
+       				 }
+				}
+            });
+      return false;
+    }
+  },
+			
+		
+        });
+    });
+</script> 
+<script>
+    $(document).ready(function() {
+        $('#dataTables-example').DataTable({
+                responsive: true,
+				 "order": [[ 1, "desc" ]]
+        });
+		
+		$('[data-toggle="tooltip"]').tooltip();
+    });
+</script>
+<style>
+#calendar {
+    max-width: 900px;
+    margin: 0 auto;
+}
+</style>
+</head>
+
+<body>
+	
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NBD3MZG"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+	
+<div id="wrapper"> 
+  
+  <!-- Navigation -->
+  <nav class="navbar navbar-default navbar-static-top" role="navigation" style="margin-bottom: 0">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse"> <span class="sr-only">Toggle navigation</span> <span class="icon-bar"></span> <span class="icon-bar"></span> <span class="icon-bar"></span> </button>
+      <a class="navbar-brand" href="#">ระบบเทียบโอนผลการเรียน และยกเว้นหน่วยกิต กองบริการการศึกษา มหาวิทยาลัยราชภัฏยะลา</a> </div>
+    
+    <!-- /.navbar-header --> 
+    
+    <!-- /.dropdown-user --> 
+    
+    <!-- /.navbar-top-links -->
+    
+    <div class="navbar-default sidebar" role="navigation" >
+      <div class="sidebar-nav navbar-collapse">
+        <ul class="nav" id="side-menu"  style="font-size:16px;">
+          <li> <a href="/../" target="new"><i class="fa fa-home fa-fw"></i> กองบริการการศึกษา</a> </li>
+          <li class="btn-danger divider" style="height:3px;"></li>
+          <li> <a href="?menu=home" > <i class="fa fa-calendar fa-fw"></i> ข้อมูลแบบปฏิทิน</a> </li>
+          <!--<li>
+                            <a href="?menu=#" ><i class="fa fa-table fa-fw"></i> แสดงรายชื่อผู้เทียบโอน</a>                        </li>
+                         <li>
+                            <a href="?menu=report-cara" ><i class="fa fa-bar-chart fa-fw"></i> สถิติการผู้เทียบโอน</a>                        </li>
+                         <li>
+                            <a href="http://eduservice.yru.ac.th/tiab/guide.pdf"  target="_blank"><i class="fa fa-book fa-fw"></i> ดาวน์โหลดคู่มือ</a>                        
+						 </li>-->
+          <li> <a href="?menu=manual" class="active alert-danger" ><i class="fa fa-book fa-fw"></i> คู่มือการใช้งานระบบ</a> </li>
+          <li> <a href="?menu=compare"  ><i class="fa fa-book fa-fw"></i> ตารางเทียบโอนหลักสูตร</a> </li>
+          <li> <a href="?menu=news" ><i class="fa fa-book fa-fw"></i> เอกสารประกอบ</a> </li>
+          <li> <a href="https://acdservice.yru.ac.th/page/358" target="_blank"><i class="fa fa-list fa-fw"></i> ข้อมูลหลักสูตร</a> </li>
+		  <li> <a href="https://acdservice.yru.ac.th/page/31" target="_blank"><i class="fa fa-list fa-fw"></i> แผนการเรียน</a> </li>
+          <li> <a href="/../except" target="_blank"><i class="fa fa-desktop fa-fw"></i> ระบบยกเว้นหน่วยกิต</a> </li>
+          <li class="btn-danger divider" style="height:3px;"></li>
+          <li class="sidebar-search">
+            <div class="input-group custom-search-form">
+              <p>เพื่อความสะดวกในการใช้งาน แนะนำให้เข้าระบบด้วยเครื่องคอมพิวเตอร์</p>
+              <form role="form" action="?menu=home#chkuser" method="post" name="login">
+                <div class="form-group input-group"> <span class="input-group-addon"><i class="fa fa-user"></i> </span>
+                  <input type="text" class="form-control" name="username" placeholder="Username" required >
+                </div>
+                <div class="form-group input-group"> <span class="input-group-addon"><i class="fa fa-lock"></i> </span>
+                  <input type="password" class="form-control" name="password" placeholder="Password" required >
+                </div>
+                <p>
+                  <button type="submit" class="btn btn-success btn-sm" >Log In</button>
+                </p>
+              </form>
+              <!--<span class="text-warning">ไม่สามารถใช้งานระบบได้ เนื่องจากไม่ได้อยู่ในช่วงเวลาที่กำหนด</span>--> 
+            </div>
+          </li>
+          <a id="chkuser"></a>
+                    <li class="btn-danger divider" style="height:3px;"></li> </ul>
+      </div>
+      <!-- /.sidebar-collapse --> 
+    </div>
+    <!-- /.navbar-static-side --> 
+  </nav>
+  <div id="page-wrapper">
+    
+	<!-- Bootstrap core CSS -->
+	<link rel="stylesheet" href="assets/css/bootstrap/bootstrap.css" /> 
+
+	<!-- Timeline Styling  -->
+    <link rel="stylesheet" href="assets/css/app/timeline.css" />
+    
+    <!-- Fonts  -->
+    <link href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,300" rel='stylesheet' type='text/css'>
+    
+    <!-- Base Styling  -->
+    <link rel="stylesheet" href="assets/css/app/app.v1.css" />
+
+<div class="row">
+                <div class="col-lg-12">
+                 <h3 class="page-header alert btn-info"><i class="fa fa-list-alt fa-2x"></i> คู่มือและตัวอย่างการใช้งานระบบ</h3>
+                </div>
+     </div>
+
+		  	<div class="warper container-fluid">
+            	<div class="col-sm-12">
+                	<div class="list-group">
+                      <a href="docs/คู่มือเทียบโอนผลการเรียน68.pdf" class="list-group-item" target="_blank"><i class="fa fa-book"></i> คู่มือ เทียบโอนผลการเรียน</a>	
+					  <a href="https://www.canva.com/design/DAGmLknaTd4/HHLUSKFVFa_NUSRgoUyoeg/view" class="list-group-item" target="_blank"><i class="fa fa-file-powerpoint-o fa-fw"></i>  คู่มือ เทียบโอนผลการเรียน (silde)</a>
+                      <!--<a href="docs/คู่มือ-การยกเว้นหน่วยกิต-2565 จบการศึกษาอนุฯ .pdf" class="list-group-item" target="_blank"><i class="fa fa-book"></i> คู่มือ การยกเว้นหน่วยกิต (สำหรับผู้จบการศึกษาระดับอนุปริญญา และปวส.)</a>-->
+					  <a href="docs/คู่มือการยกเว้นหน่วยกิต66.pdf" class="list-group-item" target="_blank"><i class="fa fa-book"></i> คู่มือ การยกเว้นหน่วยกิต</a>
+					  <a href="https://eduservice.yru.ac.th/except" target="_blank" class="list-group-item" target="_blank"><i class="fa fa-sign-in"></i> เข้าระบบยกเว้นหน่วยกิต</a>
+                    </div>
+					<div class="col-sm-12">
+						<b>วีดีโอแนะนำการใช้งานระบบเทียบโอนผลการเรียน</b>
+						<iframe width="853" height="480" src="https://www.youtube.com/embed/zKUhJX4H5wI" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+					</div>
+					<!--<div class="col-sm-12">
+						<b>วีดีโอแนะนำการใช้งานระบบยกเว้นหน่วยกิต</b>
+						<iframe width="853" height="480" src="https://www.youtube.com/embed/6MSImSlikjk" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+					</div>-->
+                </div>
+            </div>
+
+			<!--<div class="warper container-fluid">
+            	<div class="col-sm-12">
+                	<iframe width="853" height="480" src="https://www.youtube.com/embed/zKUhJX4H5wI" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+				<div class="col-sm-12">
+                	<iframe width="853" height="480" src="https://www.youtube.com/embed/6MSImSlikjk" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+            </div>-->  </div>
+</div>
+</div>
+<!-- /.panel .chat-panel -->
+</div>
+<!-- /.col-lg-4 -->
+</div>
+<!-- /.row -->
+</div>
+<!-- /#page-wrapper -->
+
+</div>
+<!-- /#wrapper -->
+
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4513c2b5a781c2f',t:'MTc5MTA4NTk1OA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"333422acb4054b01897a7bf4f344697f","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
+<!-- script src="../js/morris-data.js"></script -->

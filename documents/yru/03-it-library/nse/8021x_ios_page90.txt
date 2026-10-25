@@ -1,0 +1,22 @@
+# การเชื่อมต่อ YRU-802.1X สำหรับ iOS (iPhone, iPad)
+Source: https://nse.yru.ac.th/page/90/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-802.1X(IOS_(iPhone%2C_iPad)).html
+Fetched: 2026-10-04T11:05:24+07:00
+
+การเชื่อมต่อ YRU-802.1X(IOS (iPhone, iPad))
+4 เมษายน 2565
+(Root)
+ระบบเครือข่ายไร้สาย (YRU-WiFi)
+การเชื่อมต่อ YRU-802.1X สำหรับ ระบบปฏิบัติการ IOS (iPhone, iPad และ iPod touch)
+เปิด WiFi ในเครื่อง ไปที่ Setting
+ค้นหาสัญญาณ : YRU-802.1X หรือ YRU-802.1X(Dorm)
+เชื่อมต่อสัญญาณ YRU-802.1X หรือ YRU-802.1X(Dorm)
+ลงชื่อเข้าใช้งานอินเทอร์เน็ตในช่อง
+ใส่ Username Password
+Username : ผู้ใช้งานอินเทอร์เน็ต (ใช้บัญชีผู้ใช้งานเดียวกับระบบ passport.yru.ac.th)
+Password : รหัสผ่านในการเข้าใช้งานอินเทอร์เน็ต (ใช้บัญชีผู้ใช้งานเดียวกับระบบ passport.yru.ac.th)
+กดปุ่ม Join
+จะขึ้นหน้าจอให้ยืนยัน Certificate กดปุ่ม Accept
+แสดงสถานะการเชื่อมต่อเรียบร้อยแล้ว
+สอบถามข้อมูลเพิ่มเติมได้ที่
+Line ID : @iwo5069y
+URL : https://lin.ee/CeJTx4F

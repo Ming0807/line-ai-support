@@ -1,0 +1,22 @@
+# คู่มือการลงทะเบียนอุปกรณ์ (Mac Address) สำหรับใช้งาน YRU-WiFi
+Source: https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html
+Fetched: 2026-10-04T11:05:21+07:00
+
+คู่มือการลงทะเบียนอุปกรณ์ (Mac Address) สําหรับใช้งานระบบเครือข่ายอินเทอร์เน็ตไร้สาย YRU-WiFi
+6 พฤษภาคม 2563
+(Root)
+ระบบเครือข่ายไร้สาย (YRU-WiFi)
+คู่มือการลงทะเบียนอุปกรณ์ (Mac Address) สําหรับใช้งานระบบเครือข่ายอินเทอร์เน็ตไร้สาย YRU-WiFi
+การลงทะเบียน YRU-WiFi ผ่านระบบ YRU Passport
+1. เข้าสู่ระบบ YRU Passport ผ่านทางเว็บไซต์ http://passport.yru.ac.th
+2. ลงชื่อเข้าใช้งานระบบ YRU Passport
+(Username Password เดียวกับการลงชื่อเข้าใช้งานอินเทอร์เน็ต)
+3. เลือกเมนู Register YRU WIFI
+4. กดปุ่ม New
+4.1 กรอกชื่อ หรือยี่ห้ออุปกรณ์ในช่อง Device Name
+4.2 กรอกข้อมูลอุปกรณ์ (Mac Address) จํานวน 12 หลัก ในช่อง Mac Address
+***คู่มือตรวจสอบค่า Mac Address Wi-Fi ***
+4.3 กดปุ่ม Submit และจะมีข้อมูลอุปกรณ์ที่ลงทะเบียนแล้วปรากฏขึ้น
+‹
+›
+×

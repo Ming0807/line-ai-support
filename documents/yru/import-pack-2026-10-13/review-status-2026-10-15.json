@@ -1,0 +1,489 @@
+{
+  "recordedAt": "2026-10-14T21:32:03.624712+00:00",
+  "decision": "DEC117",
+  "sourceIndexPreserved": true,
+  "archiveOriginalsChanged": false,
+  "normalDatabaseWrites": false,
+  "sources": [
+    {
+      "catalogId": "YRU-172",
+      "archivedPath": "01-existing-approved-guides/YRU-172_wifi_connection_page31.html",
+      "archiveSha256": "7ffea67995b005aaddac5c6db19d9cb1ec1418c8a1adf354250e745f50bb666e",
+      "bytes": 28944,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "BOUNDED_PUBLIC_NEW_WEB_VERSION",
+      "archiveReceiptChecksumMatches": false,
+      "publication": {
+        "catalogId": "YRU-172",
+        "query": "เชื่อมต่อ YRU-WiFi ต้องทำอย่างไร",
+        "expectedFamily": "YRU_WIFI_CONNECTION_WEB",
+        "receiptDocument": "0faea75a-1959-401d-a53b-8a648852e8c0",
+        "planDigest": "287e04ccaf72dcd07ede9d1b6f210c97c5da005934a1230a81d4927b80ed9652",
+        "chunks": 12,
+        "sourceChecksum": "31a8069504ee3c0729835e13ecef27f18d628ab36df52b79e402a5b81a66427f",
+        "matches": [
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.914173570697712,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.895385357875072,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.870203945928698,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.833279654388468,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.911639083819282,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.904775354123854,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.901422932956063,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.874940361825835,
+            "ruleProof": true
+          }
+        ]
+      },
+      "reason": "Only complete reviewed official article claims approved; current operation/legal applicability is not guaranteed."
+    },
+    {
+      "catalogId": "YRU-180",
+      "archivedPath": "01-existing-approved-guides/YRU-180_passport_service_page86.html",
+      "archiveSha256": "fd8b541ff4731f47b63587a2ada7a42263740709d79e576f8bad7827b3a71f8f",
+      "bytes": 26850,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "BOUNDED_PUBLIC_NEW_WEB_VERSION",
+      "archiveReceiptChecksumMatches": false,
+      "publication": {
+        "catalogId": "YRU-180",
+        "query": "YRU Passport ใช้ทำอะไรได้บ้าง",
+        "expectedFamily": "YRU_PASSPORT_SERVICE_WEB",
+        "receiptDocument": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+        "planDigest": "e0b1c0372e6f956f1d602523867942b8a3ef1633c73c6d8f166d0be3d2cfe77d",
+        "chunks": 7,
+        "sourceChecksum": "17f1ef6502bb96485fda88d7a6cdb67faeaa1a26827ab4c07f117e40e1938795",
+        "matches": [
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.919704198837287,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.892159753570544,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.892154329547546,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.838247010812355,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.911849975585944,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.910538727673218,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.896352967293826,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.816069890026445,
+            "ruleProof": true
+          }
+        ]
+      },
+      "reason": "Only complete reviewed official article claims approved; current operation/legal applicability is not guaranteed."
+    },
+    {
+      "catalogId": "YRU-010",
+      "archivedPath": "02-review-before-import/YRU-010_calendar_regular_2569.pdf",
+      "archiveSha256": "1d96b8d0c3b6eaf7891e7ae600ec5f71e7b633247154b4b87cce6e6e146bd453",
+      "bytes": 1802783,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Complete calendar pages reviewed/transcribed; current amendments and regular-term/cohort applicability remain unestablished. No structured publication.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-011",
+      "archivedPath": "02-review-before-import/YRU-011_calendar_weekend_2569.pdf",
+      "archiveSha256": "86ec43ef9912f75f39a268e88f0c7bc9913fe40278a4f411804051275c4cb7fc",
+      "bytes": 1941944,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Complete calendar pages reviewed/transcribed; weekend group and amendment/current applicability remain unestablished. No structured publication.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-047",
+      "archivedPath": "02-review-before-import/YRU-047_transfer_guide_2568.pdf",
+      "archiveSha256": "57dcffbcacee3fe064dcf4823e7decdd0e78e210d02f82a5a1f62a8919149cf0",
+      "bytes": 135622,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Older guide conflicts with separately acquired2568regulation. Current process/fee claims held; no guessed relationship/effective date.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-007",
+      "archivedPath": "02-review-before-import/YRU-007_tuition_fee_index.html",
+      "archiveSha256": "029abd0324d32ae6b1a8aa83c5f1e4b700303acaa626179f59a107cd13e9623e",
+      "bytes": 42418,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Changing fee index is not an exact cohort/program/rate schedule; amounts held pending exact applicable source mapping.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-034",
+      "archivedPath": "02-review-before-import/YRU-034_over_22_credit_request.pdf",
+      "archiveSha256": "f7561e468e57f26e65e5e54a1e814c8df7a77627f00dc0a12d480597d84b0fe8",
+      "bytes": 93965,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Undated two-page form with audience/procedure uncertainty. No eligibility threshold or current procedure approved.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-149",
+      "archivedPath": "02-review-before-import/YRU-149_extracurricular_activity_2568.pdf",
+      "archiveSha256": "6ac829a3047abc53b485bf6759751f0ed288841773845c5c12b123543eed6502",
+      "bytes": 2728667,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Root complete located working transcription of all6 scanned pages; explicit regular-undergraduate definition/2568entry and source-internal transfer-row discrepancy retained. Still held: university currentness/amendment chain, annual transfer criteria, authority and approved metadata required.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held149/root-review.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-166",
+      "archivedPath": "02-review-before-import/YRU-166_student_affairs_rules_index.html",
+      "archiveSha256": "59f648b4620db1b429df47b641b5781204a2576412e5c608f8769e575daac3c0",
+      "bytes": 63336,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Changing discovery index only; underlying notices require separate review and publication receipts.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-171",
+      "archivedPath": "02-review-before-import/YRU-171_wifi_mac_registration_page79.html",
+      "archiveSha256": "18cdc976370b14e79f50de24deb82ce6d120a055ec52bade682ab7d5678efb45",
+      "bytes": 28207,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "BOUNDED_PUBLIC_NEW_WEB_VERSION",
+      "archiveReceiptChecksumMatches": false,
+      "publication": {
+        "catalogId": "YRU-171",
+        "query": "Register YRU WIFI ลงทะเบียน MAC Address อุปกรณ์ทำอย่างไร",
+        "expectedFamily": "YRU_WIFI_MAC_REGISTRATION_WEB",
+        "receiptDocument": "a2949d23-ae25-426a-8352-b9439fc7087f",
+        "planDigest": "11c9439fcbf16273b72a310a5c14804e48afa9f88ff4c2ee97e4d921bb88501f",
+        "chunks": 6,
+        "sourceChecksum": "1f213112e0077a6d4abec2345b33395bedf03832415275eb6488120a5d548596",
+        "matches": [
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.941583756114022,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.908090949058533,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.889519929885864,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.833706517969791,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.898126435503199,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.898126435503199,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.898126435503199,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.891485333442688,
+            "ruleProof": true
+          }
+        ]
+      },
+      "reason": "Only complete reviewed official article claims approved; current operation/legal applicability is not guaranteed."
+    },
+    {
+      "catalogId": "YRU-182",
+      "archivedPath": "02-review-before-import/YRU-182_library_contact.html",
+      "archiveSha256": "c470b59d642c864eafddb752bc637d3eadde213a7e5cf481f9a3e320f36b1416",
+      "bytes": 40904,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Publication date is unknown; existing publication contract rejects it. Capture/header date is not substituted. Institutional-phone sensitivity finding also remains unresolved; no PUBLIC override.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    },
+    {
+      "catalogId": "YRU-184",
+      "archivedPath": "02-review-before-import/YRU-184_library_study_room_booking.html",
+      "archiveSha256": "6b460a8a9f67ed0f0973cbce80b124490330643308c08caf0517e921626d7ff5",
+      "bytes": 33933,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "BOUNDED_PUBLIC_NEW_WEB_VERSION",
+      "archiveReceiptChecksumMatches": false,
+      "publication": {
+        "catalogId": "YRU-184",
+        "query": "จองห้องประชุม ห้องสมุด eBooking",
+        "expectedFamily": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+        "receiptDocument": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+        "planDigest": "d8543d74bf0e75a1b7535580a84efa1f5c6de9856ea488df9e4af9235c0c3581",
+        "chunks": 5,
+        "sourceChecksum": "8f8af671d70615578181dd7dffc2bdf9ba9bfee82253729e17bbc893bd09328c",
+        "matches": [
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.8842730923647,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_PASSPORT_SERVICE_WEB",
+            "documentId": "2760cd6e-2b4d-46bd-aa1a-09776b1c85eb",
+            "sourceUrl": "https://nse.yru.ac.th/page/86/%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8A%E0%B8%B5%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AA%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%A8_(YRU_Passport).html",
+            "similarity": 0.840757523752528,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_CONNECTION_WEB",
+            "documentId": "0faea75a-1959-401d-a53b-8a648852e8c0",
+            "sourceUrl": "https://nse.yru.ac.th/page/31/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%8A%E0%B8%B7%E0%B9%88%E0%B8%AD%E0%B8%A1%E0%B8%95%E0%B9%88%E0%B8%AD_YRU-WiFi.html",
+            "similarity": 0.830070281924912,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_WIFI_MAC_REGISTRATION_WEB",
+            "documentId": "a2949d23-ae25-426a-8352-b9439fc7087f",
+            "sourceUrl": "https://nse.yru.ac.th/page/79/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%AD%E0%B8%B8%E0%B8%9B%E0%B8%81%E0%B8%A3%E0%B8%93%E0%B9%8C_(Mac_Address)_%E0%B8%AA%E0%B9%8D%E0%B8%B2%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B7%E0%B8%AD%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%80%E0%B8%97%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B9%80%E0%B8%99%E0%B9%87%E0%B8%95%E0%B9%84%E0%B8%A3%E0%B9%89%E0%B8%AA%E0%B8%B2%E0%B8%A2_YRU-WiFi.html",
+            "similarity": 0.817025707630014,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.8842730923647,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.86093310765031,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.829691931930915,
+            "ruleProof": true
+          },
+          {
+            "family": "YRU_LIBRARY_ROOM_BOOKING_WEB",
+            "documentId": "43ce5ef9-02c0-43f5-b05f-7992006ed7e2",
+            "sourceUrl": "https://library.yru.ac.th/view/1655",
+            "similarity": 0.823090767172257,
+            "ruleProof": true
+          }
+        ]
+      },
+      "reason": "Only complete reviewed official article claims approved; current operation/legal applicability is not guaranteed."
+    },
+    {
+      "catalogId": "YRU-027",
+      "archivedPath": "03-hold-reference/YRU-027_education_evidence_request_sensitive_form.pdf",
+      "archiveSha256": "d4d856a7621a4a3138c14825a18dfd75827bae62b5e911a145d9773b06e2a376",
+      "bytes": 104290,
+      "reviewer": "Root authorized corpus review; current13-source integrity independently reviewed by Luna high",
+      "status": "HELD",
+      "archiveReceiptChecksumMatches": null,
+      "publication": null,
+      "reason": "Sensitivity held blank form with personal-identifier fields and title/embedded-metadata mismatch; no public RAG/directory approval.",
+      "technicalPreparation": {
+        "recordedAt": "2026-10-15T05:00:24.700Z",
+        "status": "LOCATED_REVIEW_AID_PREPARED_HELD",
+        "evidence": ".superpowers/staging/sol05-held-prep/source-drafts.json",
+        "rootIntegrityRecomputed": true,
+        "runtimeImportTested": false,
+        "publicationApproved": false
+      }
+    }
+  ],
+  "technicalPreparationUpdatedAt": "2026-10-15T05:00:24.700Z"
+}
