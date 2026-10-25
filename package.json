@@ -10,8 +10,11 @@
   "scripts": {
     "dev": "next dev",
     "local:test": "node --import tsx scripts/local/run.mjs",
+    "local:staff": "node --import tsx scripts/local/run.mjs --staff-test",
+    "local:ai": "node --import tsx scripts/local/run.mjs --assistant-preview",
     "local:check": "node --import tsx scripts/local/run.mjs --check",
     "local:stop": "node --import tsx scripts/local/run.mjs --stop",
+    "hermes:test": "node --import tsx scripts/ai/hermes-pilot.ts --synthetic",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
