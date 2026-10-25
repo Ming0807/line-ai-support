@@ -21,7 +21,7 @@ async function fixture(sameSession=false,total=5){
  await pool.query('update private.incident_rules set min_reports=5,min_distinct_sessions=5,window_minutes=15,min_similarity=.85 where id=1');
  const department=randomUUID(),otherDepartment=randomUUID(),superAdmin=randomUUID(),staff=randomUUID(),supervisor=randomUUID();
  for(const id of [department,otherDepartment]){
-  await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[id,'INC_'+id.replaceAll('-','')]);
+  await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[id,'INC_'+id.replaceAll('-','').toUpperCase()]);
   ownedDepartments.push(id);
  }
  for(const id of [superAdmin,staff,supervisor])await pool.query('insert into auth.users(id) values($1)',[id]);

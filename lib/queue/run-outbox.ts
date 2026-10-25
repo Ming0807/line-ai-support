@@ -7,10 +7,12 @@ import {validateOutboxTarget} from './outbox-target';
 import {verifyAIOutboxEvidence,aiOutboxNeedsStructuredCatalog,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 import {staffChatAccessLock} from '../staff/line-case-context';
 import {loadStaffChatDeliveryGuard,verifyStaffChatDelivery} from '../staff/line-chat-delivery';
+import {loadIncidentBatchDelivery,verifyIncidentBatchDelivery} from '../incidents/batch-delivery';
+import {loadStaffAlertDelivery,verifyStaffAlertDelivery,staffAlertReferences,staffAlertCatalogLock} from '../incidents/staff-alert-delivery';
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
-interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;first_attempt_at:Date|null}
-const payloadSchema=z.object({messages:z.array(z.object({type:z.literal('text'),text:z.string().min(1).max(5000),quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action:z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().max(300),displayText:z.string().max(300).optional()}).strict()}).strict()).min(1).max(13)}).strict().optional()}).strict()).min(1).max(5),replyToken:z.string().min(1).max(512).optional()}).strict();
+interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;attempt_limit?:number;first_attempt_at:Date|null}
+const payloadSchema=z.object({messages:z.array(z.object({type:z.literal('text'),text:z.string().min(1).max(5000),quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action:z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().max(300),displayText:z.string().max(300).optional()}).strict()}).strict()).min(1).max(13)}).strict().optional()}).strict()).min(1).max(5),replyToken:z.string().min(1).max(512).optional(),selectionExpiresAt:z.iso.datetime().optional()}).strict();
 
 /** Pool must be a dedicated session-mode pool, never a transaction-mode PgBouncer pool. */
 export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions={}):Promise<{claimed:number;sent:number;failed:number}> {
@@ -20,6 +22,9 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
   try{
    job=(await pool.query('select * from private.claim_outbox($1)',[channel])).rows[0];if(!job)continue;result.claimed++;
    const client=await pool.connect(),locks:string[]=[];let discard=false;
+   const connectionLost=new AbortController();
+   const onConnectionError=()=>{discard=true;connectionLost.abort();};
+   client.on('error',onConnectionError);
    try{
     // Acquire the catalog before conversation locks, and retain it across outside-SQL delivery.
     if(job.kind==='AI'&&await aiOutboxNeedsStructuredCatalog(client,{idempotencyKey:job.idempotency_key,
@@ -27,11 +32,18 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
      locks.push(knowledgeStructuredCatalogLock);
     }
+    const batchRequired=job.kind==='BATCH';
+    const alertRequired=['ALERT','DIGEST'].includes(job.kind)||job.idempotency_key.startsWith('staff-alert:');
+    const alert=alertRequired?await loadStaffAlertDelivery(client,job.id):null;
+    const batch=batchRequired?await loadIncidentBatchDelivery(client,job.id):null;
     const chatGuard=await loadStaffChatDeliveryGuard(client,job.id);
-    if(chatGuard||['CHAT','CONTROL'].includes(job.kind)){
+    if(alertRequired||chatGuard||['CHAT','CONTROL','BATCH'].includes(job.kind)){
      await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[staffChatAccessLock]);locks.push(staffChatAccessLock);
     }
-    const conversations=[...new Set([...(job.conversation_id?[job.conversation_id]:[]),...(chatGuard?.cases.map(member=>member.conversation_id)??[])])].sort();
+    if(alertRequired){await client.query('select pg_advisory_lock_shared(hashtextextended($1,0))',[staffAlertCatalogLock]);locks.push(staffAlertCatalogLock);}
+    const alertRefs=alert?await staffAlertReferences(client,alert):[];
+    const conversations=[...new Set([...(job.conversation_id?[job.conversation_id]:[]),...(chatGuard?.cases.map(member=>member.conversation_id)??[]),
+     ...(batch?.cases.flatMap(member=>[member.conversation_id,member.current_conversation_id])??[]),...alertRefs.map(member=>member.conversation_id)])].sort();
     const contextLocks=[...conversations.map(id=>`conversation:${id}`),`delivery:${channel}:${job.line_session_id??job.recipient_staff_id}`];
     for(const lock of contextLocks){await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);locks.push(lock);}
     const current=(await client.query("select * from private.message_outbox where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()",[job.id,job.lease_token])).rows[0] as OutboxJob|undefined;
@@ -39,7 +51,10 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     validateOutboxTarget({channel:job.channel,kind:job.kind,lineSessionId:job.line_session_id,
      recipientStaffId:job.recipient_staff_id,conversationId:job.conversation_id,ticketId:job.ticket_id,deliveryMode:job.delivery_mode});
     let suppress:string|null=null;
-    if(!await verifyStaffChatDelivery(client,chatGuard,job))suppress='STAFF_CHAT_AUTHORITY_CHANGED';
+    const payload=payloadSchema.parse(JSON.parse(decryptValue(job.payload_encrypted,key)));
+    if(!await verifyStaffChatDelivery(client,chatGuard,job,payload))suppress='STAFF_CHAT_AUTHORITY_CHANGED';
+    if((batchRequired||job.kind==='BATCH')&&!await verifyIncidentBatchDelivery(client,batch,chatGuard,job,payload,key))suppress='INCIDENT_BATCH_CHANGED';
+    if((alertRequired||['ALERT','DIGEST'].includes(job.kind))&&!await verifyStaffAlertDelivery(client,alert,job,payload,key))suppress='STAFF_ALERT_CHANGED';
     if(job.kind==='AI'){
      const allowed=(await client.query(`select c.id from public.conversations c where c.id=$1 and c.mode='AI' and c.revision=$2 and c.status in ('ACTIVE','WAITING')
       and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in ('CLOSED','CANCELLED'))`,[job.conversation_id,job.expected_conversation_revision])).rowCount===1;
@@ -65,7 +80,6 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     const recipientId=job.recipient_user_id_encrypted?decryptValue(job.recipient_user_id_encrypted,key):currentRecipient;
     if(recipientId!==currentRecipient){await client.query("update private.message_outbox set status='SUPPRESSED',last_error_code='RECIPIENT_CHANGED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where id=$1 and lease_token=$2 and lease_until>clock_timestamp()",[job.id,job.lease_token]);continue;}
     if(identity!.user_hash!==(channel==='STUDENT'?hashLineUserId(recipientId,key):hashStaffLineUserId(recipientId,key)))throw new Error('RECIPIENT_IDENTITY_MISMATCH');
-    const payload=payloadSchema.parse(JSON.parse(decryptValue(job.payload_encrypted,key)));
     const now=new Date();
     const validToken=typeof payload.replyToken==='string'&&payload.replyToken.trim()===payload.replyToken;
     const remaining=job.reply_deadline_at?job.reply_deadline_at.getTime()-now.getTime():0;
@@ -75,9 +89,18 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() returning id`,[job.id,job.lease_token,mode,identity!.user_id_encrypted]);
     if(begun.rowCount!==1)continue;
     const delivery=await deliverLine({channel,mode,recipientId,replyToken:payload.replyToken,messages:payload.messages as LineMessage[],retryKey:job.line_retry_key,firstAttemptAt:job.first_attempt_at,replyDeadlineAt:job.reply_deadline_at,attempts:job.attempts},
-     {accessToken:options.accessTokens?.[channel]??process.env[`LINE_${channel}_CHANNEL_ACCESS_TOKEN`]??'',fetchImpl:options.fetchImpl,timeoutMs:5000,now:()=>now});
+     {accessToken:options.accessTokens?.[channel]??process.env[`LINE_${channel}_CHANNEL_ACCESS_TOKEN`]??'',
+      fetchImpl:async(input,init)=>{
+       // Losing the session loses its authority locks. Do not start or continue
+       // HTTP under that stale guard; a dispatched request may still be ambiguous.
+       connectionLost.signal.throwIfAborted();
+       const signal=init?.signal?AbortSignal.any([init.signal,connectionLost.signal]):connectionLost.signal;
+       const response=await (options.fetchImpl??fetch)(input,{...init,signal});
+       connectionLost.signal.throwIfAborted();
+       return response;
+      },timeoutMs:5000,now:()=>now});
     const errorCode='errorCode' in delivery?delivery.errorCode:null;
-    const finalStatus=delivery.status==='RETRY'?(job.attempts+1>=5?'DEAD':'PENDING'):delivery.status;
+    const finalStatus=delivery.status==='RETRY'?(job.attempts+1>=(job.attempt_limit??5)?'DEAD':'PENDING'):delivery.status;
     await client.query('begin');
     try{
      const finished=await client.query(`update private.message_outbox set status=$3,last_error_code=$4,lease_token=null,lease_until=null,
@@ -90,9 +113,9 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     if(delivery.status==='SENT')result.sent++;else result.failed++;
     console.info('OUTBOX_DELIVERY',{channel,status:finalStatus});
    }finally{
-    try{for(const lock of [...locks].reverse())await client.query([knowledgeStructuredCatalogLock,staffChatAccessLock].includes(lock)?'select pg_advisory_unlock_shared(hashtextextended($1,0))':'select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
+    try{for(const lock of [...locks].reverse())await client.query([knowledgeStructuredCatalogLock,staffChatAccessLock,staffAlertCatalogLock].includes(lock)?'select pg_advisory_unlock_shared(hashtextextended($1,0))':'select pg_advisory_unlock(hashtextextended($1,0))',[lock]);}
     catch{discard=true;console.error('OUTBOX_UNLOCK_FAILED',{channel});}
-    client.release(discard);
+    try{client.release(discard);}finally{client.removeListener('error',onConnectionError);}
    }
   }catch(error){
    result.failed++;console.error('OUTBOX_PROCESSING_FAILED',{channel});
@@ -100,12 +123,12 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     (error instanceof Error&&['INVALID_ENCRYPTED_VALUE','INVALID_ENCRYPTION_KEY','RECIPIENT_IDENTITY_MISMATCH','INVALID_OUTBOX_CHANNEL_KIND','INVALID_OUTBOX_TARGET'].includes(error.message));
    if(job)await pool.query(`update private.message_outbox set processing_failures=processing_failures+1,
      status=case when delivery_mode='REPLY' and attempts>0 then 'UNKNOWN'
-      when $3 or processing_failures+1>=5 or attempts>=5 or first_attempt_at<=clock_timestamp()-interval '24 hours' then 'DEAD' else 'PENDING' end,
+      when $3 or processing_failures+1>=5 or attempts>=$4 or first_attempt_at<=clock_timestamp()-interval '24 hours' then 'DEAD' else 'PENDING' end,
      last_error_code='DELIVERY_PROCESSING_FAILED',lease_token=null,lease_until=null,
-     completed_at=case when (delivery_mode='REPLY' and attempts>0) or $3 or processing_failures+1>=5 or attempts>=5 or first_attempt_at<=clock_timestamp()-interval '24 hours' then clock_timestamp() else null end,
+     completed_at=case when (delivery_mode='REPLY' and attempts>0) or $3 or processing_failures+1>=5 or attempts>=$4 or first_attempt_at<=clock_timestamp()-interval '24 hours' then clock_timestamp() else null end,
      available_at=clock_timestamp()+make_interval(secs=>least(300,power(2,processing_failures+1)::int))
     where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()`,
-    [job.id,job.lease_token,permanent]).catch(()=>console.error('OUTBOX_FAILURE_UPDATE_FAILED',{channel}));
+    [job.id,job.lease_token,permanent,job.attempt_limit??5]).catch(()=>console.error('OUTBOX_FAILURE_UPDATE_FAILED',{channel}));
   }
  }
  return result;

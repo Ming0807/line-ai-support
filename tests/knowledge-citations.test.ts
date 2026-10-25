@@ -68,4 +68,35 @@ describe('backend-owned source citations',()=>{
   expect(answer.messages.every(m=>m.text.length<=5000)).toBe(true);
   expect(answer.messages.map(m=>m.text).join('')).toContain('😀'.repeat(1400));
  });
+ it('reconstructs a full answer above 5000 characters with complete source references and grapheme-safe packet bounds',()=>{
+  const rows=[evidence,{...evidence,chunkId:'44444444-4444-4444-8444-444444444444',pageNumber:13,
+   title:'แนวทางประกอบ',sectionTitle:'เงื่อนไขเพิ่มเติม'}];
+  const answerText='กำลังเรียน👨‍👩‍👧‍👦 กฎข้อกำหนด'.repeat(200);
+  const expected=`${answerText}\n\nแหล่งอ้างอิง:\n1. ${evidence.title} (ปี ${evidence.academicYear}) หน้า ${evidence.pageNumber} · ${evidence.sectionTitle}\n${evidence.sourceUrl}\n2. แนวทางประกอบ (ปี ${evidence.academicYear}) หน้า 13 · เงื่อนไขเพิ่มเติม\n${evidence.sourceUrl}`;
+  const result=buildCitedAnswer({answer:answerText,citationChunkIds:rows.map(row=>row.chunkId)},rows);
+  const parts=result.messages.map(message=>message.text),joined=parts.join('');
+  expect(answerText.length).toBeGreaterThan(5000);
+  expect(joined).toBe(expected);
+  expect(parts.length).toBeLessThanOrEqual(5);
+  expect(parts.every(part=>part.length<=5000)).toBe(true);
+  const boundaries=new Set<number>([0]);let offset=0;
+  for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(expected)){offset+=segment.length;boundaries.add(offset);}
+  offset=0;
+  for(const part of parts){offset+=part.length;expect(boundaries.has(offset)).toBe(true);}
+ });
+ it('throws a distinct packet overflow error without returning a partial cited answer',()=>{
+  const rows=Array.from({length:5},(_,index)=>({...evidence,
+   chunkId:`44444444-4444-4444-8444-${String(index+1).padStart(12,'0')}`,
+   title:'ก'.repeat(500),sectionTitle:'ข'.repeat(180),sourceUrl:'https://fixture.yru.ac.th/'+ 'a'.repeat(1974)}));
+  expect(()=>buildCitedAnswer({answer:'x'.repeat(11999),citationChunkIds:rows.map(row=>row.chunkId)},rows))
+   .toThrow('LINE_TEXT_PACKET_TOO_LARGE');
+ });
+ it('preserves leading and trailing answer whitespace while rejecting whitespace-only answers',()=>{
+  const answerText=' \n  คำตอบที่ครบถ้วน\t \n';
+  const expected=`${answerText}\n\nแหล่งอ้างอิง:\n1. ${evidence.title} (ปี ${evidence.academicYear}) หน้า ${evidence.pageNumber} · ${evidence.sectionTitle}\n${evidence.sourceUrl}`;
+  const result=buildCitedAnswer({answer:answerText,citationChunkIds:[evidence.chunkId]},[evidence]);
+  expect(result.messages.map(message=>message.text).join('')).toBe(expected);
+  expect(()=>buildCitedAnswer({answer:' \n\t ',citationChunkIds:[evidence.chunkId]},[evidence]))
+   .toThrow('KNOWLEDGE_CITATION_INVALID');
+ });
 });

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "task": "SOL-02AG",
+  "syntheticOnly": true,
+  "rubric": "docs/agents/SOL02AG_ACTION_FAIRNESS.md",
+  "rubricVersion": 1,
+  "originalFrozen30Changed": false,
+  "semanticReviewRequired": true,
+  "cases": [
+    {
+      "id": "GENERAL_PREPARATION_AND_FORMS",
+      "question": "ช่วยแนะนำการเตรียมตัวก่อนยื่นคำร้องทั่วไปและหาลิงก์แบบคำร้องให้ด้วยครับ",
+      "history": [
+        {"role": "user", "content": "ยังไม่ได้ระบุประเภทคำร้อง"},
+        {"role": "assistant", "content": "ผมช่วยแนะนำการเตรียมตัวทั่วไปและตรวจแบบคำร้องที่เผยแพร่ได้ครับ"}
+      ],
+      "expected": {"requestedYear": null, "generalFollowUp": false, "usefulIndependentPreparation": true, "noInventedRequirements": true, "noInventedFormLink": true, "unknownFormMayNeedClarification": true}
+    },
+    {
+      "id": "TRANSFER_REVIEWED_REQUIREMENTS",
+      "question": "คำร้องเทียบโอนรายวิชา ปี2569 ต้องใช้เอกสารอะไรบ้าง",
+      "history": [
+        {"role": "user", "content": "ผมจะยื่นคำร้องเทียบโอนรายวิชา ปี2569"},
+        {"role": "assistant", "content": "ผมช่วยตรวจรายการจากหลักเกณฑ์ที่ทบทวนแล้วได้ครับ"}
+      ],
+      "expected": {"requestedYear": 2569, "generalFollowUp": false, "onlyReviewedTransferRequirements": true, "noInventedRequirements": true, "noPersonalFieldList": true}
+    },
+    {
+      "id": "MISSING_DORM_REQUIREMENTS",
+      "question": "ยื่นคำร้องขอย้ายหอพักของมหาวิทยาลัย ปี2569 ต้องแนบเอกสารและข้อมูลส่วนตัวอะไรบ้าง",
+      "history": [
+        {"role": "user", "content": "ต้องการสอบถามหลักเกณฑ์ขอย้ายหอพักของมหาวิทยาลัย ปี2569"},
+        {"role": "assistant", "content": "ผมช่วยตรวจจากแหล่งที่ทบทวนแล้วได้ครับ"}
+      ],
+      "expected": {"requestedYear": null, "generalFollowUp": false, "truthfulMissingEvidence": true, "noInventedRequirements": true, "noIrrelevantTransferCitation": true}
+    }
+  ]
+}

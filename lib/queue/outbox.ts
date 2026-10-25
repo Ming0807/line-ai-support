@@ -5,9 +5,12 @@ import {validateOutboxTarget} from './outbox-target';
 
 export interface OutboundText {type:'text';text:string;quickReply?:{items:{type:'action';action:{type:'postback';label:string;data:string;displayText?:string}}[]}}
 export interface EnqueueMessage {
- idempotencyKey:string;channel:'STUDENT'|'STAFF';kind:'AI'|'STAFF'|'SYSTEM'|'NOTIFICATION'|'CONTROL'|'CHAT';
+ idempotencyKey:string;channel:'STUDENT'|'STAFF';kind:'AI'|'STAFF'|'SYSTEM'|'NOTIFICATION'|'CONTROL'|'CHAT'|'BATCH'|'ALERT'|'DIGEST';
  lineSessionId?:string;recipientStaffId?:string;conversationId?:string;ticketId?:string;
  conversationRevision?:number;replyToken?:string;receivedAt?:Date;messages:OutboundText[];
+ alertPriority?:0|1;
+ /** Server-derived original LINE selection deadline; never forwarded to LINE. */
+ selectionExpiresAt?:string;
 }
 export async function enqueueOutbound(client:DbClient,input:EnqueueMessage,key:string):Promise<string|null> {
  validateOutboxTarget({...input,deliveryMode:input.replyToken?'REPLY':'PUSH'});
@@ -20,16 +23,21 @@ export async function enqueueOutbound(client:DbClient,input:EnqueueMessage,key:s
  }
  const lane=input.lineSessionId??input.recipientStaffId;
  if(!lane||input.messages.length<1||input.messages.length>5)throw new Error('INVALID_OUTBOX_INPUT');
+ if(['ALERT','DIGEST'].includes(input.kind)&&input.alertPriority===undefined)throw new Error('INVALID_OUTBOX_INPUT');
+ if(input.alertPriority!==undefined&&(!['ALERT','DIGEST'].includes(input.kind)||![0,1].includes(input.alertPriority)))throw new Error('INVALID_OUTBOX_INPUT');
  await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`outbox:${input.channel}:${lane}`]);
  const safeWindow=20;
  const deadline=input.replyToken&&input.receivedAt?new Date(input.receivedAt.getTime()+safeWindow*1000):null;
+ const priorityColumn=input.alertPriority===undefined?'':',alert_priority';
+ const priorityValue=input.alertPriority===undefined?'':',$12';
  const result=await client.query(`insert into private.message_outbox
  (idempotency_key,channel,kind,line_session_id,recipient_staff_id,conversation_id,ticket_id,
- expected_conversation_revision,payload_encrypted,delivery_mode,reply_deadline_at)
- values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict(idempotency_key) do nothing returning id`,
+ expected_conversation_revision,payload_encrypted,delivery_mode,reply_deadline_at${priorityColumn})
+ values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11${priorityValue}) on conflict(idempotency_key) do nothing returning id`,
  [input.idempotencyKey,input.channel,input.kind,input.lineSessionId??null,input.recipientStaffId??null,
  input.conversationId??null,input.ticketId??null,input.conversationRevision??null,
- encryptValue(JSON.stringify({messages:input.messages,replyToken:input.replyToken}),key),deadline?'REPLY':'PUSH',deadline]);
+ encryptValue(JSON.stringify({messages:input.messages,replyToken:input.replyToken,selectionExpiresAt:input.selectionExpiresAt}),key),deadline?'REPLY':'PUSH',deadline,
+ ...(input.alertPriority===undefined?[]:[input.alertPriority])]);
  if(result.rows[0])return result.rows[0].id;
  const existing=(await client.query('select id from private.message_outbox where idempotency_key=$1',[input.idempotencyKey])).rows[0];
  if(!existing)throw new Error('OUTBOX_INSERT_FAILED');return existing.id;

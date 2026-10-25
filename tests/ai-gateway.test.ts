@@ -19,6 +19,104 @@ function fixture(models=[config(1),config(2)]){
 }
 
 describe('AI gateway validation, deadlines and observed attempts',()=>{
+ it('records a started reserved attempt after caller cancellation without trying fallback',async()=>{
+  const f=fixture(),controller=new AbortController(),finish=vi.fn(async()=>{});
+  vi.mocked(f.adapter.generate).mockImplementationOnce(async()=>{
+   controller.abort();throw new AIProviderError('CANCELLED');
+  });
+  await expect(generate({...f.request,signal:controller.signal},{...f.options,turnBudget:{used:0,
+   canAttempt:async()=>true,reserve:async()=>({finish}),
+  }})).rejects.toMatchObject({code:'CANCELLED'});
+  expect(finish).toHaveBeenCalledExactlyOnceWith('CANCELLED');
+  expect(f.attempts).toHaveLength(1);expect(f.attempts[0]).toMatchObject({status:'ERROR',errorCode:'CANCELLED'});
+  expect(f.adapter.generate).toHaveBeenCalledTimes(1);
+ });
+ it('bounds stalled cancellation bookkeeping and preserves cancellation',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture(),controller=new AbortController(),finish=vi.fn(()=>new Promise<void>(()=>{}));
+   vi.mocked(f.adapter.generate).mockImplementationOnce(async()=>{controller.abort();throw new AIProviderError('CANCELLED');});
+   const outcome=generate({...f.request,signal:controller.signal},{...f.options,turnBudget:{used:0,
+    canAttempt:async()=>true,reserve:async()=>({finish}),
+   }}).then(()=> 'UNEXPECTED_SUCCESS',error=>error.code);
+   await vi.advanceTimersByTimeAsync(501);
+   expect(await outcome).toBe('CANCELLED');expect(finish).toHaveBeenCalledTimes(1);
+   expect(f.adapter.generate).toHaveBeenCalledTimes(1);expect(f.attempts).toHaveLength(0);
+  }finally{vi.useRealTimers();}
+ });
+ it('does not lose a successful HTTP observation when cancellation arrives during ledger finish',async()=>{
+  const f=fixture(),controller=new AbortController(),finish=vi.fn(async()=>{controller.abort();});
+  await expect(generate({...f.request,signal:controller.signal},{...f.options,turnBudget:{used:0,
+   canAttempt:async()=>true,reserve:async()=>({finish}),
+  }})).rejects.toMatchObject({code:'CANCELLED'});
+  expect(finish).toHaveBeenCalledTimes(1);expect(f.adapter.generate).toHaveBeenCalledTimes(1);
+  expect(f.attempts).toHaveLength(1);expect(f.attempts[0]).toMatchObject({errorCode:'CANCELLED',inputTokens:20,outputTokens:10});
+ });
+ it('records timeout rather than leaving an invoked attempt reserved at the total deadline',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture(),finish=vi.fn(async()=>{});
+   vi.mocked(f.adapter.generate).mockImplementationOnce(()=>new Promise(()=>{}));
+   const outcome=generate({...f.request,timeoutMs:20},{...f.options,turnBudget:{used:0,
+    canAttempt:async()=>true,reserve:async()=>({finish}),
+   }}).then(()=> 'UNEXPECTED_SUCCESS',error=>error.code);
+   await vi.advanceTimersByTimeAsync(21);
+   expect(await outcome).toBe('TIMEOUT');expect(finish).toHaveBeenCalledExactlyOnceWith('TIMEOUT');
+   expect(f.attempts[0]).toMatchObject({status:'ERROR',errorCode:'TIMEOUT'});
+   expect(f.adapter.generate).toHaveBeenCalledTimes(1);
+  }finally{vi.useRealTimers();}
+ });
+ it('does not grant a fresh adapter deadline after slow durable eligibility',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture([config(1)]);f.models[0].timeoutMs=100;
+   vi.mocked(f.adapter.generate).mockImplementation(()=>new Promise(()=>{}));
+   const outcome=generate({...f.request,timeoutMs:100},{...f.options,turnBudget:{
+    used:0,canAttempt:async()=>{vi.setSystemTime(Date.now()+80);return true;},reserve:async()=>({finish:async()=>{}}),
+   }}).then(()=> 'UNEXPECTED_SUCCESS',error=>error.code);
+   await vi.advanceTimersByTimeAsync(25);
+   expect(await Promise.race([outcome,Promise.resolve('STILL_PENDING')])).toBe('TIMEOUT');
+  }finally{await vi.runAllTimersAsync();vi.useRealTimers();}
+ });
+ it.each(['OPENROUTER','ZEN','COMPATIBLE'])('forwards only the remaining configured chat deadline for %s',async(adapter)=>{
+  vi.useFakeTimers();
+  try{
+   const model={...config(1),adapter,apiFormat:'CHAT' as const,costMode:'FREE_ONLY' as const,timeoutMs:20000};
+   const f=fixture([model]);
+   await generate({...f.request,timeoutMs:25000},{...f.options,adapters:{[adapter]:f.adapter},priceReader:async()=>{
+    vi.setSystemTime(Date.now()+2500);
+    return {status:'FREE',inputPricePerMillion:0,outputPricePerMillion:0,checkedAt:new Date().toISOString(),apiFormat:'CHAT'};
+   }});
+   expect(vi.mocked(f.adapter.generate).mock.calls[0][0]).toMatchObject({timeoutMs:17500});
+  }finally{vi.useRealTimers();}
+ });
+ it('tries another provider before rate-limited siblings without changing the saved registry order',async()=>{
+  const models=[config(1),config(1),config(1),config(2)];
+  models.forEach((model,index)=>{model.modelId=`candidate-${index+1}`;model.priority=index;model.timeoutMs=1000;});
+  models[1].providerId=models[0].providerId;models[2].providerId=models[0].providerId;
+  const f=fixture(models),savedOrder=models.map(model=>model.id);
+  vi.mocked(f.adapter.generate).mockRejectedValueOnce(new AIProviderError('RATE_LIMITED',429));
+  const result=await generate(f.request,f.options);
+  expect(vi.mocked(f.adapter.generate).mock.calls.map(([request])=>request.modelId)).toEqual(['candidate-1','candidate-4']);
+  expect(result.fallbackUsed).toBe(true);expect(f.attempts).toHaveLength(2);
+  expect(models.map(model=>model.id)).toEqual(savedOrder);
+ });
+ it('retains sibling priority after an ordinary retryable failure',async()=>{
+  const models=[config(1),config(1),config(2)];models[1].providerId=models[0].providerId;
+  models.forEach((model,index)=>{model.modelId=`candidate-${index+1}`;model.priority=index;});
+  const f=fixture(models);vi.mocked(f.adapter.generate).mockRejectedValueOnce(new AIProviderError('SERVER_ERROR',503));
+  await generate(f.request,f.options);
+  expect(vi.mocked(f.adapter.generate).mock.calls.map(([request])=>request.modelId)).toEqual(['candidate-1','candidate-2']);
+ });
+ it('may return to deferred siblings after another provider fails, within the same three-inference budget',async()=>{
+  const models=[config(1),config(1),config(1),config(2)];models[1].providerId=models[0].providerId;models[2].providerId=models[0].providerId;
+  models.forEach((model,index)=>{model.modelId=`candidate-${index+1}`;model.priority=index;});
+  const f=fixture(models);vi.mocked(f.adapter.generate).mockRejectedValueOnce(new AIProviderError('RATE_LIMITED',429))
+   .mockRejectedValueOnce(new AIProviderError('INVALID_OUTPUT',200));
+  await generate(f.request,f.options);
+  expect(vi.mocked(f.adapter.generate).mock.calls.map(([request])=>request.modelId)).toEqual(['candidate-1','candidate-4','candidate-2']);
+  expect(f.attempts).toHaveLength(3);
+ });
  it('normalizes a registry failure without exposing internal error text',async()=>{
   const f=fixture();f.options.store.loadModels=async()=>{throw new Error('private-registry-details');};
   await expect(generate(f.request,f.options)).rejects.toMatchObject({message:'PROVIDER_UNAVAILABLE',code:'PROVIDER_UNAVAILABLE'});

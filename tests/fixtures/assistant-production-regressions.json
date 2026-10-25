@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "task": "SOL-02AG",
+  "syntheticOnly": true,
+  "rubric": "docs/agents/SOL02AG_ACTION_FAIRNESS.md",
+  "rubricVersion": 1,
+  "originalFrozen30Changed": false,
+  "semanticReviewRequired": true,
+  "cases": [
+    {
+      "id": "ANDROID_ATTEMPT",
+      "question": "ลองปิดเปิด Wi-Fi แล้ว ยังเป็นเหมือนเดิม",
+      "history": [
+        {"role": "user", "content": "มือถือ Android ต่อ Wi-Fi ไม่ได้และขึ้นว่าเชื่อมต่อแล้วแต่ไม่มีอินเทอร์เน็ต"},
+        {"role": "assistant", "content": "ลองปิดแล้วเปิด Wi-Fi บนมือถือ จากนั้นสังเกตว่าอุปกรณ์อื่นที่ใช้เครือข่ายเดียวกันเข้าอินเทอร์เน็ตได้หรือไม่ครับ"}
+      ],
+      "expected": {"requestedYear": null, "generalFollowUp": true, "noRepeatKnownPlatformOrSymptom": true, "newMaterialDiagnosticOrSafeUsefulNextStep": true, "noForgetWithoutCredentials": true}
+    },
+    {
+      "id": "ANDROID_NEXT_SAFE_STEP",
+      "question": "ควรลองอะไรต่อ โดยไม่ล้างการตั้งค่าทั้งหมด",
+      "history": [
+        {"role": "user", "content": "มือถือ Android ขึ้นว่าเชื่อมต่อ Wi-Fi แล้วแต่ไม่มีอินเทอร์เน็ต ลองปิดเปิด Wi-Fi แล้วไม่ได้ เครื่องอื่นใช้เครือข่ายเดียวกันเข้าเน็ตได้"},
+        {"role": "assistant", "content": "จากที่เล่าอาการเกิดเฉพาะมือถือเครื่องนี้ครับ ก่อนเปลี่ยนการตั้งค่าให้ตรวจทีละจุด"}
+      ],
+      "expected": {"requestedYear": null, "generalFollowUp": true, "noRepeatKnownPlatformOrSymptom": true, "newMaterialDiagnosticOrSafeUsefulNextStep": true, "noForgetWithoutCredentials": true}
+    },
+    {
+      "id": "TRANSFER_DOCUMENT_FOLLOW_UP",
+      "question": "แล้วต้องเตรียมเอกสารอะไรบ้าง",
+      "history": [
+        {"role": "user", "content": "อยากยื่นคำร้องขอเทียบโอนรายวิชา ปี2569"},
+        {"role": "assistant", "content": "ต้องการตรวจสอบขั้นตอนหรือรายการเอกสารประกอบครับ"}
+      ],
+      "expected": {"requestedYear": 2569, "generalFollowUp": false, "onlyTransferDocuments": true, "noKnownYearQuestion": true, "noInventedRequirements": true}
+    }
+  ]
+}

@@ -9,6 +9,27 @@ function preview(text:string):ImportPreview{
   extraction:{title:'ปฏิทินการศึกษา',pages:[{text}],tables:[]},analysis:{title:'ปฏิทินการศึกษา',familyCode:'ACADEMIC_CALENDAR',departmentCode:'ACADEMIC_AFFAIRS',documentType:'CALENDAR',academicYear:2569,versionName:'ปีการศึกษา 2569'}} as unknown as ImportPreview;
 }
 const references={families:[{code:'ACADEMIC_CALENDAR',name:'ปฏิทินการศึกษา',category:'การศึกษา'}],departments:[{code:'ACADEMIC_AFFAIRS',name:'งานวิชาการ'}]};
+it('carries an available table recommendation into review without granting mapping or publication consent',()=>{
+ const p=preview('ปฏิทินการศึกษา');
+ Object.assign(p.analysis,{containsTables:true,datasetCandidate:'academic_calendar_events',recommendedStorageMode:'BOTH',flags:[]});
+ const assistance=buildImportAssistance(p,references);
+ expect(assistance.metadata).toMatchObject({datasetType:'academic_calendar_events',storageMode:'BOTH'});
+ expect(assistance.origins.datasetType?.kind).toBe('CLASSIFIED');
+ const draft=unfinishedReviewDraft();draft.metadata.storageMode='RAG';
+ const applied=applyImportAssistance(draft,assistance);
+ expect(applied.metadata.storageMode).toBe('RAG');expect(applied.action).toBeNull();
+ expect(Object.values(applied.attestations).every(value=>!value)).toBe(true);
+});
+it('keeps text defaults when a table candidate is unavailable or ambiguous',()=>{
+ for(const changes of [
+  {containsTables:true,datasetCandidate:'academic_calendar_events',recommendedStorageMode:'BOTH',flags:['STRUCTURED_SCHEMA_UNAVAILABLE']},
+  {containsTables:true,datasetCandidate:null,recommendedStorageMode:'BOTH',flags:[]},
+  {containsTables:false,datasetCandidate:'academic_calendar_events',recommendedStorageMode:'BOTH',flags:[]},
+ ]){
+  const p=preview('');Object.assign(p.analysis,changes);
+  expect(buildImportAssistance(p,references).metadata).toMatchObject({storageMode:'RAG',datasetType:null});
+ }
+});
 it('prepares evidence-backed proposals and distinguishes operational defaults without consent',()=>{
  const a=buildImportAssistance(preview('ประกาศ ณ วันที่ ๖ ตุลาคม พ.ศ. ๒๕๖๙\nมีผลตั้งแต่วันที่ 1 พฤศจิกายน 2569'),references);
  expect(a.metadata).toMatchObject({publishedAt:'2026-10-06',effectiveFrom:'2026-11-01',familyCode:'ACADEMIC_CALENDAR',departmentCode:'ACADEMIC_AFFAIRS',versionStream:'main',visibility:'INTERNAL',storageMode:'RAG',authorityLevel:null});

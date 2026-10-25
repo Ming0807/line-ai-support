@@ -12,7 +12,9 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 import {databaseConnection} from '../../lib/database/connection.ts';
 import {structuredInfrastructureReady} from '../../lib/knowledge/structured-readiness.ts';
-import {buildSessionEnvironment,parseArguments,redactLine,validateEmbeddingHealth,REVISION} from './config.mjs';
+import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth,REVISION} from './config.mjs';
+import {forceStopOwnedTree} from './process-tree.mjs';
+import {parsePilotStatusLine} from '../ai/hermes-pilot-status.mjs';
 
 const root=realpathSync(resolve(fileURLToPath(new URL('../..',import.meta.url))));
 const require=createRequire(import.meta.url);
@@ -64,13 +66,20 @@ function shutdown(code=0){
  stopping=true;process.exitCode=code;state.status='STOPPING';persist();
  stopPromise=(async()=>{
   log('LOCAL','Stopping only services created by this session; waiting for workers to close');
-  for(const name of ['TUNNEL','INBOX','INCIDENT','AI','OUTBOX','WEB','E5']){
+  for(const name of ['TUNNEL','HERMES','INBOX','INCIDENT','AI','OUTBOX','WEB','E5']){
    const child=children.get(name);if(!child||!active(child))continue;
-   if(child.connected)child.send({type:'local-stop'},()=>{});else child.kill('SIGTERM');
+   if(name==='HERMES'){
+    try{await forceStopOwnedTree(child);}catch{log('HERMES','Exact process-tree stop failed; retrying within the bounded shutdown window');}
+   }else if(child.connected)child.send({type:'local-stop'},()=>{});else child.kill('SIGTERM');
   }
   const deadline=Date.now()+90_000;
   while([...children.values()].some(active)&&Date.now()<deadline)await delay(200);
-  for(const [name,child]of children)if(active(child)){log(name,'Grace period ended; stopping exact owned process tree');await forceStop(child);}
+  for(const [name,child]of children)if(active(child)){
+   log(name,'Grace period ended; stopping exact owned process tree');
+   if(name==='HERMES'){
+    try{await forceStopOwnedTree(child);}catch{try{await forceStop(child);}catch{/* Keep failure diagnostics generic; the pilot has its own bounded child timer. */}}
+   }else await forceStop(child);
+  }
   if(control)await new Promise(done=>control.close(done));
   if(lockOwned){
    if(existsSync(stateFile)&&JSON.parse(readFileSync(stateFile,'utf8')).runId===runId)unlinkSync(stateFile);
@@ -83,9 +92,13 @@ function shutdown(code=0){
 async function portAvailable(port,host='127.0.0.1'){
  return new Promise(done=>{const server=createSocket();server.once('error',()=>done(false));server.listen(port,host,()=>server.close(()=>done(true)));});
 }
-async function waitFor(label,work,timeout=90_000){
- const deadline=Date.now()+timeout;
- while(Date.now()<deadline){if(stopping)throw new Error('LOCAL_STOPPING');try{const result=await work();if(result)return result;}catch{/* Fixed outer diagnostic, no remote error/body disclosure. */}await delay(700);}
+async function waitFor(label,work,timeout=90_000,onProgress){
+ const deadline=Date.now()+timeout;let nextProgress=Date.now()+15_000;
+ while(Date.now()<deadline){
+  if(stopping)throw new Error('LOCAL_STOPPING');try{const result=await work();if(result)return result;}catch{/* Fixed outer diagnostic, no remote error/body disclosure. */}
+  if(onProgress&&Date.now()>=nextProgress){onProgress();nextProgress=Date.now()+15_000;}
+  await delay(700);
+ }
  throw new Error(`LOCAL_${label}_TIMEOUT`);
 }
 function findCloudflared(){
@@ -130,6 +143,35 @@ async function workerObservations(since){
   const rows=(await pool.query('select worker from private.worker_observations where observed_at>=$1',[since])).rows;
   return ['INBOX','AI','OUTBOX','INCIDENT'].every(name=>rows.some(row=>row.worker===name));
  }finally{await pool.end();}
+}
+async function runHermesPilot(){
+ let child;
+ try{
+  child=spawn(process.execPath,['--import','tsx',join(root,'scripts/ai/hermes-pilot.ts'),'--synthetic'],
+   {cwd:root,env:sessionEnv,windowsHide:true,stdio:['ignore','pipe','ignore'],detached:process.platform!=='win32'});
+ }catch{return {status:'FAIL',phase:'CONFIGURATION'};}
+ children.set('HERMES',child);persist();
+ return new Promise(resolveResult=>{
+  let completed=false,pending='',lastStatus={phase:'CONFIGURATION'};
+  child.stdout.on('data',chunk=>{
+   pending+=String(chunk);if(pending.length>8192)pending=pending.slice(-8192);
+   let end;
+   while((end=pending.indexOf('\n'))!==-1){
+    const parsed=parsePilotStatusLine(pending.slice(0,end).replace(/\r$/,''));pending=pending.slice(end+1);
+    if(parsed)lastStatus=parsed;
+   }
+  });
+  const finish=status=>{
+   if(completed)return;completed=true;clearTimeout(timer);children.delete('HERMES');persist();
+   resolveResult({status,phase:lastStatus.phase,turns:lastStatus.turns??0});
+  };
+  const timer=setTimeout(async()=>{
+   try{if(active(child))await forceStopOwnedTree(child);}catch{try{child.kill('SIGTERM');}catch{/* Report failure without exposing process output. */}}
+   finally{finish('FAIL');}
+  },150_000); // 15s interpreter activation + 110s Python budget + bounded setup/cleanup margin.
+  child.once('error',()=>finish('FAIL'));
+  child.once('close',code=>finish(code===0&&!stopping&&lastStatus.status==='PASS'&&lastStatus.phase==='COMPLETE'?'PASS':'FAIL'));
+ });
 }
 async function smokeWeb(base,env){
  const login=await fetch(base+'/login',{signal:AbortSignal.timeout(15_000)});if(login.status!==200)return false;
@@ -180,7 +222,7 @@ async function main(){
  const service=dotenv.parse(readFileSync(join(root,'services/embedding/.env')));
  const serviceKeys=new Set(['EMBEDDING_MODEL','EMBEDDING_DIMENSION','EMBEDDING_MODEL_REVISION','EMBEDDING_MODEL_CACHE_DIR','EMBEDDING_API_KEY','EMBEDDING_HOST','EMBEDDING_PORT']);
  if(Object.keys(service).some(key=>!serviceKeys.has(key)))throw new Error('LOCAL_EMBEDDING_CONFIG_INVALID');
- sessionEnv=buildSessionEnvironment(process.env,service,`http://127.0.0.1:${options.port}`,options.port);
+ sessionEnv=buildSessionEnvironment(process.env,service,`http://127.0.0.1:${options.port}`,options.port,options);
  const python=join(root,'services/embedding/.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
  if(!existsSync(python))throw new Error('LOCAL_EMBEDDING_PYTHON_MISSING');
  phase='CACHE';checkCache(service);phase='DATABASE';await databaseCheck(sessionEnv);phase='START';
@@ -188,12 +230,14 @@ async function main(){
  if(!await portAvailable(options.port))throw new Error('LOCAL_WEB_PORT_IN_USE');
  const cloudflared=options.tunnel?findCloudflared():undefined;
  await acquire();log('LOCAL',`Logs: ${relative(root,logFile)}; stop: pnpm local:stop or Ctrl+C`);
+ if(options.assistantPreview)for(const message of assistantPreviewMessages())log('PREVIEW',message);
  let embeddingReady=false;try{embeddingReady=await checkEmbedding(sessionEnv);}catch{/* A missing service is started below. */}
  if(embeddingReady)log('E5','Reusing existing verified E5; it will not be stopped by this session');
  else{
   if(!await portAvailable(Number(sessionEnv.EMBEDDING_PORT),sessionEnv.EMBEDDING_HOST))throw new Error('LOCAL_EMBEDDING_PORT_IN_USE');
   launch('E5',python,[join(root,'services/embedding/run.py')],sessionEnv);
-  await waitFor('E5',()=>checkEmbedding(sessionEnv),120_000);log('E5','Ready: offline CPU multilingual-e5-small / 384');
+  await waitFor('E5',()=>checkEmbedding(sessionEnv),120_000,()=>log('E5','Still loading cached offline CPU multilingual-e5-small / 384'));
+  log('E5','Ready: offline CPU multilingual-e5-small / 384');
  }
  if(options.tunnel){
   let tunnelUrl;
@@ -201,7 +245,7 @@ async function main(){
    const found=line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/);if(found)tunnelUrl=found[0];
   });
   const url=await waitFor('TUNNEL',()=>tunnelUrl,60_000);
-  sessionEnv=buildSessionEnvironment(process.env,service,url,options.port);
+  sessionEnv=buildSessionEnvironment(process.env,service,url,options.port,options);
  }
  const entry=join(root,'scripts/local/node-service.mjs');
  launch('WEB',process.execPath,['--import','tsx',entry,'WEB',String(options.port)],sessionEnv,true);
@@ -212,13 +256,14 @@ async function main(){
  for(const name of ['INBOX','AI','OUTBOX','INCIDENT'])launch(name,process.execPath,['--import','tsx',entry,name],sessionEnv,true);
  await waitFor('WORKERS',()=>workerObservations(startedAt),30_000);log('CHECK','All four worker check-ins observed after startup; processes are running');
  if(options.tunnel){await waitFor('PUBLIC_WEB',()=>smokeWeb(sessionEnv.APP_BASE_URL,sessionEnv),90_000);log('TUNNEL','Public signed verification requests PASS');}
- state={...state,status:'READY',localUrl:`http://127.0.0.1:${options.port}`,publicUrl:options.tunnel?sessionEnv.APP_BASE_URL:null};persist();
- log('READY',`Dashboard: http://127.0.0.1:${options.port}/login`);
- if(options.tunnel){
-  log('READY',`Student webhook: ${sessionEnv.APP_BASE_URL}/api/line/student/webhook`);
-  log('READY',`Staff webhook: ${sessionEnv.APP_BASE_URL}/api/line/staff/webhook`);
- }
+ let hermesStatus='SKIPPED',hermesPhase='CONFIGURATION';
+ if(options.hermesCheck){log('HERMES','Running isolated two-turn synthetic FREE_ONLY pilot; responses are suppressed');
+  const result=await runHermesPilot();hermesStatus=result.status;hermesPhase=result.phase;log('HERMES',hermesReadiness(result.status,result.phase));if(stopping)throw new Error('LOCAL_STOPPING');}
+ state={...state,status:'READY',assistantMode:options.assistantPreview?'NATURAL_PREVIEW':sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'NATURAL':'LEGACY',
+  localUrl:`http://127.0.0.1:${options.port}`,publicUrl:options.tunnel?sessionEnv.APP_BASE_URL:null};persist();
+ for(const message of readyMessages(options.port,options.tunnel?sessionEnv.APP_BASE_URL:null,hermesStatus,hermesPhase,options))log('READY',message);
  log('READY','Durable + AI enabled for this session; .env unchanged; web search remains off');
+ log('READY',sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'Natural assistant: enabled; Hermes remains an isolated pilot':'Natural assistant: not activated; legacy support pipeline is running');
  log('READY','Manual tests: docs/operations/LOCAL_TEST.md; login accounts: .superpowers/staging/dev-staff-credentials.json');
 }
 try{await main();}catch(error){

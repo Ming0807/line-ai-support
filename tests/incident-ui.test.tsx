@@ -97,7 +97,7 @@ describe('ADV-02 incident operational views', () => {
   });
 
   it('renders persisted rule values without implying defaults when the read is unavailable', () => {
-    const markup = html(<IncidentRulesEditor initial={{ revision: 2, rules: { minReports: 7, minDistinctSessions: 4, windowMinutes: 30, minSimilarity: 0.91 } }} canManage />);
+    const markup = html(<IncidentRulesEditor initial={{ revision: 2, rules: { minReports: 7, minDistinctSessions: 4, windowMinutes: 30, minSimilarity: 0.91 }, notifications: null }} canManage />);
     expect(markup).toContain('value="7"');
     expect(markup).toContain('value="4"');
     expect(markup).toContain('value="30"');

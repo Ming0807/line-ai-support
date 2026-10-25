@@ -26,7 +26,7 @@ import type {LocalE5EmbeddingProvider} from '../../lib/knowledge/embedding-clien
 import {LOCAL_EMBEDDING_FINGERPRINT,LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION} from '../../lib/knowledge/embedding-space';
 import type {ImportFormat,ImportSource} from '../../lib/imports/types';
 import type {StructuredMappingPlan} from '../../lib/imports/structured-mapping-contract';
-import {searchStructured} from '../../lib/knowledge/structured-search';
+import {searchStructured,discoverPublicForms} from '../../lib/knowledge/structured-search';
 import {validateStructuredQuery} from '../../lib/knowledge/structured-query';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../../lib/knowledge/structured-citations';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
@@ -685,11 +685,20 @@ async function aiContext(f:Fixture){
  const job=await transaction(client=>prepareAIJob(client,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.key),f.pool);
  return {session,conversation,job,user};
 }
-for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH','HUMAN'] as const)test(`actual structured AI worker/outbox fences ${timing.toLowerCase()} context`,()=>fixture(async f=>{
- const r=await ready(f,'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),publication=await publish(f,r),context=await aiContext(f);
- const initial=await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;
+test('actual form directory excludes internal sources and refuses corrupted provenance',()=>fixture(async f=>{
+ const internal=await ready(f,'service_forms','STRUCTURED');await publish(f,internal);
+ const scope=exactRequest(internal).scope;
+ assert.equal((await transaction(c=>discoverPublicForms(c,{scope},f.key),f.pool)).status,'EMPTY');
+ const published=await ready(f,'service_forms','STRUCTURED','HTML',{visibility:'PUBLIC'});await publish(f,published);
+ const request={scope:exactRequest(published).scope};
+ assert.equal((await transaction(c=>discoverPublicForms(c,request,f.key),f.pool)).status,'READY');
+ assert.equal((await transaction(c=>discoverPublicForms(c,request,Buffer.alloc(32,62).toString('base64')),f.pool)).status,'CONTEXT_INCOMPLETE');
+}));
+for(const directory of [false,true])for(const timing of ['UNCHANGED','BEFORE_FINALIZE','BEFORE_DISPATCH','HUMAN'] as const)test(`actual ${directory?'form directory':'structured'} AI worker/outbox fences ${timing.toLowerCase()} context`,()=>fixture(async f=>{
+ const r=await ready(f,directory?'service_forms':'university_services','STRUCTURED','HTML',{visibility:'PUBLIC'}),publication=await publish(f,r),context=await aiContext(f);
+ const initial=directory?await transaction(client=>discoverPublicForms(client,{scope:exactRequest(r).scope},f.key),f.pool):await exactSearch(f,r);assert.equal(initial.status,'READY');if(initial.status!=='READY')return;
  const request=exactRequest(r);
- const result={kind:'STRUCTURED_ANSWER' as const,output:{answer:'Synthetic reviewed exact library answer',citationRowIds:[initial.evidence[0].rowId]},...request,evidence:initial.evidence};
+ const result=directory?{kind:'FORM_DIRECTORY' as const,scope:request.scope,evidence:initial.evidence}:{kind:'STRUCTURED_ANSWER' as const,output:{answer:'Synthetic reviewed exact library answer',citationRowIds:[initial.evidence[0].rowId]},...request,evidence:initial.evidence};
  const stats=await runAICycle(f.pool,f.key,{produce:async()=>{
   const open=(await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.applicationName])).rows[0].n;assert.equal(open,0,'PRODUCER_OUTSIDE_SQL');
   if(timing==='BEFORE_FINALIZE')await f.pool.query('update public.documents set revision=revision+1 where id=$1',[publication.receipt.documentId]);

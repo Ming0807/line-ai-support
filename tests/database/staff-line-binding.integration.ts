@@ -18,7 +18,7 @@ after(async()=>{try{
 }finally{await pool.end();}});
 async function fixture(){
  const key=randomBytes(32).toString('base64'),staff=randomUUID(),other=randomUUID(),department=randomUUID(),user='U'+randomUUID().replaceAll('-','');
- await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[department,'BIND_'+department.replaceAll('-','')]);
+ await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[department,'BIND_'+department.replaceAll('-','').toUpperCase()]);
  ownedDepartments.push(department);
  for(const id of [staff,other]){await pool.query('insert into auth.users(id) values($1)',[id]);await pool.query("insert into public.staff_profiles(id,department_id,role,display_name) values($1,$2,'STAFF','QA')",[id,department]);}
  const options={pool,encryptionKey:key};

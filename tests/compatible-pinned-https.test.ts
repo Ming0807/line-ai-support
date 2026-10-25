@@ -23,6 +23,42 @@ beforeEach(()=>{
 });
 
 describe('native pinned HTTPS',()=>{
+ it('reports safe connection phases and distinguishes a stalled TLS handshake from response waiting',async()=>{
+  const events:unknown[]=[],controller=new AbortController();
+  const pending=createPinnedHttpsRequest({observe:event=>events.push(event)})(input(controller.signal));
+  const assertion=expect(pending).rejects.toMatchObject({code:'CANCELLED'});
+  const socket=Object.assign(new EventEmitter(),{authorized:false});
+  req.emit('socket',socket);socket.emit('connect');controller.abort();await assertion;
+  expect(events).toEqual([
+   {phase:'TCP_CONNECTED',elapsedMs:expect.any(Number)},
+   {phase:'FAILED',elapsedMs:expect.any(Number),errorCode:'CANCELLED'},
+  ]);
+  expect(JSON.stringify(events)).not.toMatch(/canary|Authorization|provider-support|1\.1\.1\.1/);
+ });
+ it('observes authorized TLS, one request finish and one first body chunk without changing response parsing',async()=>{
+  const events:{phase:string}[]=[];
+  const pending=createPinnedHttpsRequest({observe:event=>events.push(event)})(input());
+  const socket=Object.assign(new EventEmitter(),{authorized:true});req.emit('socket',socket);
+  socket.emit('connect');socket.emit('secureConnect');req.emit('finish');
+  const stream=response();stream.write('{"data":');stream.end('[]}');
+  await expect(pending).resolves.toMatchObject({status:200,json:{data:[]}});
+  expect(events.map(e=>e.phase)).toEqual(['TCP_CONNECTED','TLS_AUTHORIZED','REQUEST_FINISH','RESPONSE_HEADERS','FIRST_BODY_CHUNK','RESPONSE_END']);
+ });
+ it('never lets a failing phase observer alter successful HTTP or expose raw errors',async()=>{
+  const observe=vi.fn(()=>{throw Error('private observer failure');});
+  const pending=createPinnedHttpsRequest({observe})(input());response().end('{"data":[]}');
+  await expect(pending).resolves.toMatchObject({status:200});expect(observe).toHaveBeenCalled();
+ });
+ it('does not report unauthorized TLS or late socket events after cancellation',async()=>{
+  const events:{phase:string}[]=[],controller=new AbortController();
+  const pending=createPinnedHttpsRequest({observe:event=>events.push(event)})(input(controller.signal));
+  const assertion=expect(pending).rejects.toMatchObject({code:'CANCELLED'});
+  const socket=Object.assign(new EventEmitter(),{authorized:false});req.emit('socket',socket);
+  socket.emit('secureConnect');expect(events).toEqual([]);
+  controller.abort();await assertion;
+  socket.authorized=true;socket.emit('connect');req.emit('finish');
+  expect(events.map(event=>event.phase)).toEqual(['FAILED']);
+ });
  it('uses the configured hostname for Host/SNI and checks TLS with no reusable agent',async()=>{
   const pending=createPinnedHttpsRequest()(input());response().end('{"data":[]}');
   await expect(pending).resolves.toEqual({status:200,contentType:'application/json',retryAfter:null,json:{data:[]}});

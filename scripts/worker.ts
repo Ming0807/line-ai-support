@@ -8,6 +8,8 @@ import {createAIStore} from '../lib/ai/store';
 import {createProviderRegistry} from '../lib/ai/provider-registry';
 import {createPriceReader} from '../lib/ai/pricing';
 import {createWorkerObserver} from '../lib/operations/worker-observations';
+import {createDurableTurnBudget,ASSISTANT_TURN_ATTEMPT_LIMIT} from '../lib/ai/durable-turn-budget';
+import type {InboxJob} from '../lib/queue/process-inbox';
 
 const key=process.env.ENCRYPTION_KEY;
 if(!key || !process.env.DATABASE_URL) throw new Error('WORKER_NOT_CONFIGURED');
@@ -15,6 +17,10 @@ const pool=getDatabasePool();
 const observe=createWorkerObserver(pool,'INBOX');
 const aiEnabled=process.env.YRU_AI_ENABLED==='true',store=createAIStore(pool),adapters=createProviderRegistry(),priceReader=createPriceReader();
 const classify=aiEnabled?createSemanticRoutingClassifier(input=>generate(input,{store,key,adapters,priceReader})):undefined;
+const classifyForJob=aiEnabled&&process.env.YRU_ASSISTANT_ENABLED==='true'?(job:InboxJob)=>{
+ const turnBudget=createDurableTurnBudget(pool,{kind:'INBOX',id:job.id,leaseToken:job.lease_token!},key,{limit:ASSISTANT_TURN_ATTEMPT_LIMIT,reservedSlots:2});
+ return createSemanticRoutingClassifier(input=>generate(input,{store,key,adapters,priceReader,turnBudget}));
+}:undefined;
 let stopped=false;
 process.on('SIGINT',()=>{stopped=true;});
 process.on('SIGTERM',()=>{stopped=true;});
@@ -22,7 +28,7 @@ process.on('SIGTERM',()=>{stopped=true;});
 try {
  while(!stopped) {
   await observe();
-  const result=await runInboxCycle(pool,key,{aiEnabled,classify});
+  const result=await runInboxCycle(pool,key,{aiEnabled,classify,classifyForJob});
   if(process.argv.includes('--once')) {if(result.failed) process.exitCode=1;break;}
   if(!result.claimed || result.failed) await delay(1000);
  }

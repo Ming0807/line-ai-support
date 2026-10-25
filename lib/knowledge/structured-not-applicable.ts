@@ -2,7 +2,8 @@ import {z} from 'zod';
 import type {AISnapshot} from '../ai/run-worker';
 import {copyStructuredJson,freezeStructuredData,canonicalDigest} from '../imports/structured-mapping-contract';
 import {publicWebTopicSchema,hasPublicTopicAnchor,requestsExactPublicInformation} from './public-web-plan';
-export const structuredProcedureProposalSchema=z.object({version:z.literal(1),kind:z.literal('PROCEDURE'),topic:publicWebTopicSchema,
+// Keep the same sole accepted tag, with an enum constraint in the provider decoder.
+export const structuredProcedureProposalSchema=z.object({version:z.literal(1),kind:z.enum(['PROCEDURE']),topic:publicWebTopicSchema,
  quote:z.string().min(1).max(500).refine(value=>value.trim().length>0&&!/[\p{Cc}\p{Cf}]/u.test(value))}).strict();
 export const structuredProcedureCertificateSchema=z.object({version:z.literal(1),kind:z.literal('PROCEDURE'),topic:publicWebTopicSchema,
  questionDigest:z.string().regex(/^[a-f0-9]{64}$/u)}).strict();

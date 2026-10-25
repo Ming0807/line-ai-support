@@ -9,8 +9,15 @@ export async function loadStaffChatDeliveryGuard(c:DbClient,outboxId:string):Pro
  return {...header,cases};
 }
 /** Called under the shared access and every selected conversation's session lock, outside SQL transactions. */
-export async function verifyStaffChatDelivery(c:DbClient,guard:StaffChatDeliveryGuard|null,job:{channel:string;kind:string;recipient_staff_id:string|null;line_session_id:string|null;ticket_id:string|null}):Promise<boolean>{
- if(!guard)return !['CHAT','CONTROL'].includes(job.kind);
+export async function verifyStaffChatDelivery(c:DbClient,guard:StaffChatDeliveryGuard|null,job:{channel:string;kind:string;recipient_staff_id:string|null;line_session_id:string|null;ticket_id:string|null;conversation_id?:string|null},payload:{selectionExpiresAt?:string}={}):Promise<boolean>{
+ if(!guard)return !['STAFF','CHAT','CONTROL','BATCH'].includes(job.kind);
+ const manual=job.channel==='STUDENT'&&job.kind==='STAFF';
+ if(manual&&(guard.purpose!=='CASE'||guard.cases.length!==1||guard.cases[0]!.ticket_id!==job.ticket_id
+  ||guard.cases[0]!.conversation_id!==job.conversation_id))return false;
+ if(manual&&guard.binding_hash!==null){
+  if(!payload.selectionExpiresAt||!Number.isFinite(Date.parse(payload.selectionExpiresAt)))return false;
+  if((await c.query('select $1::timestamptz>clock_timestamp() as fresh',[payload.selectionExpiresAt])).rows[0]?.fresh!==true)return false;
+ }else if(payload.selectionExpiresAt!==undefined)return false;
  const staff=(await c.query(`select s.id,s.role from public.staff_profiles s where s.id=$1 and s.active and ($2::text is null or exists(
   select 1 from private.staff_line_identities i where i.staff_id=s.id and i.active and i.user_hash=$2))`,[guard.staff_id,guard.binding_hash])).rows[0];
  if(!staff)return false;
@@ -27,10 +34,11 @@ export async function verifyStaffChatDelivery(c:DbClient,guard:StaffChatDelivery
  }
  if(!guard.cases.length)return false;
  for(const member of guard.cases){
-  const ticket=(await c.query(`select t.*,c.mode as conversation_mode,c.status as conversation_status from public.tickets t
+  const ticket=(await c.query(`select t.*,c.mode as conversation_mode,c.status as conversation_status,c.active_ticket_id from public.tickets t
    join public.conversations c on c.id=t.conversation_id where t.id=$1`,[member.ticket_id])).rows[0];
-  if(!ticket||String(ticket.staff_line_epoch)!==String(member.assignment_epoch)||ticket.mode!=='HUMAN'||ticket.conversation_mode!=='HUMAN'
-   ||!['STAFF_HANDLING','WAITING_USER'].includes(ticket.status)||ticket.sensitive_level!=='GENERAL')return false;
+  if(!ticket||ticket.conversation_id!==member.conversation_id||String(ticket.staff_line_epoch)!==String(member.assignment_epoch)||ticket.mode!=='HUMAN'||ticket.conversation_mode!=='HUMAN'
+   ||!['STAFF_HANDLING','WAITING_USER'].includes(ticket.status)||((!manual||guard.binding_hash!==null)&&ticket.sensitive_level!=='GENERAL')
+   ||!['ACTIVE','WAITING'].includes(ticket.conversation_status)||ticket.active_ticket_id!==ticket.id)return false;
   if(job.channel==='STUDENT'&&ticket.line_session_id!==job.line_session_id)return false;
   if(ticket.assigned_staff_id!==guard.staff_id&&(job.channel==='STAFF'||!['SUPERVISOR','ADMIN','SUPER_ADMIN'].includes(staff.role)))return false;
   if(!(await c.query(`select s.id from public.staff_profiles s where s.id=$3 and ${eligibleScopeSql}`,[ticket.department_id,ticket.sensitive_level,guard.staff_id])).rowCount)return false;

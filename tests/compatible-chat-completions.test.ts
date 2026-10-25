@@ -37,6 +37,13 @@ function bodyAt(transport:CompatibleTransport,index=0):Record<string,unknown> {
 const lookupTool:AITool={name:'lookup_service',description:'Look up an approved service.',parameters:{type:'object',
  properties:{code:{type:'string'}},required:['code'],additionalProperties:false}};
 
+it('passes the backend deadline to transport without sending it to the provider',async()=>{
+ const transport=transportFor(response(completion('{"answer":"hello"}')));
+ await createCompatibleChatAdapter({transport}).generate(request({timeoutMs:18000}));
+ expect(vi.mocked(transport.request).mock.calls[0][1]).toHaveProperty('timeoutMs',18000);
+ expect(bodyAt(transport)).not.toHaveProperty('timeoutMs');
+});
+
 it('sends standard strict Chat Completions JSON without provider-specific routing or model remapping',async()=>{
  const transport=transportFor(response(completion('{"answer":"hello"}')));
  const input=request();

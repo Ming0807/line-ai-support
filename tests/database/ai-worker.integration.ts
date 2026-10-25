@@ -6,6 +6,7 @@ import {transaction} from '../../lib/database/pool';
 import {prepareAIJob} from '../../lib/ai/jobs';
 import {runAICycle} from '../../lib/ai/run-worker';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
+import {LINE_TEXT_PACKET_LIMIT_MESSAGE} from '../../lib/knowledge/citations';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {decryptValue,encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
@@ -122,6 +123,110 @@ test('a committed generation result resumes finalization without paying for a se
  }finally{
   await f.pool.query('drop trigger if exists fixture_ai_finalize_failure on private.message_outbox');
   await f.pool.query('drop function if exists private.fixture_ai_finalize_failure()');await f.cleanup();
+ }
+});
+
+test('a long cited answer replays as one exact LINE packet and HUMAN takeover suppresses the whole packet',async()=>{
+ const f=await fixture();let family='',document='',calls=0;
+ const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,
+  studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
+ const fingerprint='c'.repeat(64),vector=[1,0];
+ const answer='ก'.repeat(4998)+'ก้ 👩🏽‍💻 ข้อความท้ายคำตอบต้องอยู่ครบ';
+ try{
+  family=(await f.pool.query("insert into public.document_families(code,name,category) values($1,'Long packet fixture','REGULATION') returning id",
+   ['PACKET_'+randomUUID().replaceAll('-','').toUpperCase()])).rows[0].id;
+  scope.familyCodes=[(await f.pool.query('select code from public.document_families where id=$1',[family])).rows[0].code];
+  document=(await f.pool.query(`insert into public.documents(document_family_id,title,version_name,version_stream,status,is_current,
+   approval_status,approved_at,official_source,extraction_reviewed,requires_review,effective_from,source_url,checksum)
+   values($1,'Controlled YRU source','2569','packet','ACTIVE',true,'APPROVED',clock_timestamp(),true,true,false,'2026-01-01',
+   'https://fixture.yru.ac.th/controlled.pdf',$2) returning id`,[family,'c'.repeat(64)])).rows[0].id;
+  await f.pool.query(`insert into public.knowledge_chunks(document_id,chunk_index,page_number,section_title,content,embedding,embedding_dimensions,embedding_fingerprint)
+   values($1,0,12,'ข้อ 5','Controlled source evidence','[1,0]',2,$2)`,[document,fingerprint]);
+  const produce=async()=>{
+   calls++;const evidence=await transaction(c=>searchKnowledge(c,{scope,vector,fingerprint}),f.pool);
+   return {kind:'ANSWER' as const,output:{answer,citationChunkIds:[evidence[0].chunkId]},scope,evidence,queryVector:vector,fingerprint};
+  };
+  const suffix=randomUUID().replaceAll('-','');
+  const fn=`fixture_long_packet_failure_${suffix}`,trigger=`fixture_long_packet_trigger_${suffix}`;
+  await f.pool.query(`create function private.${fn}() returns trigger language plpgsql as $$
+   begin if new.idempotency_key='ai-job:${f.job}' then raise exception 'LONG_PACKET_FINALIZE_ROLLBACK';end if;return new;end $$`);
+  await f.pool.query(`create trigger ${trigger} before insert on private.message_outbox for each row execute function private.${fn}()`);
+  try{
+   const first=await runAICycle(f.pool,f.key,{produce});assert.equal(first.failed,1);assert.equal(calls,1);
+   const saved=(await f.pool.query('select status,result_encrypted from private.ai_jobs where id=$1',[f.job])).rows[0];
+   assert.equal(saved.status,'PENDING');assert(saved.result_encrypted,'LONG_PACKET_RESULT_MUST_SURVIVE_FINALIZATION_ROLLBACK');
+   await f.pool.query(`drop trigger ${trigger} on private.message_outbox`);await f.pool.query(`drop function private.${fn}()`);
+   await f.pool.query('update private.ai_jobs set available_at=clock_timestamp() where id=$1',[f.job]);
+   const retry=await runAICycle(f.pool,f.key,{produce});assert.equal(retry.completed,1);assert.equal(calls,1,'REPLAY_MUST_NOT_REPEAT_GENERATION');
+  }finally{
+   await f.pool.query(`drop trigger if exists ${trigger} on private.message_outbox`);
+   await f.pool.query(`drop function if exists private.${fn}()`);
+  }
+  const rows=(await f.pool.query('select id,payload_encrypted,status from private.message_outbox where conversation_id=$1',[f.conversation])).rows;
+  assert.equal(rows.length,1,'REPLAY_MUST_CREATE_ONE_ATOMIC_OUTBOX');
+  const payload=JSON.parse(decryptValue(rows[0].payload_encrypted,f.key));
+  const exact=`${answer}\n\nแหล่งอ้างอิง:\n1. Controlled YRU source หน้า 12 · ข้อ 5\nhttps://fixture.yru.ac.th/controlled.pdf`;
+  assert(exact.length>5000,'FIXTURE_MUST_EXERCISE_MULTIMESSAGE_PACKET');
+  assert(payload.messages.length>1&&payload.messages.length<=5);
+  assert(payload.messages.every((message:{text:string})=>message.text.length<=5000));
+  assert.equal(payload.messages.map((message:{text:string})=>message.text).join('')===exact,true,'PACKET_CONCATENATION_MUST_PRESERVE_THE_COMPLETE_CITED_ANSWER');
+  const graphemeBoundaries=new Set<number>([0]);let graphemeOffset=0;
+  for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(exact)){graphemeOffset+=segment.length;graphemeBoundaries.add(graphemeOffset);}
+  let packetOffset=0;
+  for(const message of payload.messages.slice(0,-1)){packetOffset+=message.text.length;assert(graphemeBoundaries.has(packetOffset),'LINE_PACKET_MUST_NOT_SPLIT_A_THAI_OR_EMOJI_GRAPHEME');}
+  const aiMessages=(await f.pool.query("select content,metadata from public.messages where conversation_id=$1 and sender_type='AI'",[f.conversation])).rows;
+  assert.equal(aiMessages.length,1);assert.equal(aiMessages[0].content,exact,'ANSWER_HISTORY_MUST_NOT_INSERT_ARBITRARY_CHUNK_SEPARATORS');
+  assert.equal(aiMessages[0].metadata.citations.length,1);
+  await f.pool.query("update public.conversations set mode='HUMAN',revision=revision+1 where id=$1",[f.conversation]);
+  let sends=0;
+  const delivery=await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'controlled-fixture',STAFF:'controlled-fixture'},
+   fetchImpl:async()=>{sends++;return new Response(null,{status:200});}});
+  assert.equal(sends,0,'HUMAN_TAKEOVER_MUST_NOT_SEND_ANY_PACKET_MEMBER');assert.equal(delivery.failed,0);
+  const final=(await f.pool.query('select status from private.message_outbox where id=$1',[rows[0].id])).rows[0];
+  assert.equal(final.status,'SUPPRESSED','HUMAN_TAKEOVER_SUPPRESSES_THE_WHOLE_OUTBOX_PACKET');
+ }finally{
+  if(document)await f.pool.query('delete from public.knowledge_chunks where document_id=$1',[document]);
+  if(document)await f.pool.query('delete from public.documents where id=$1',[document]);
+  if(family)await f.pool.query('delete from public.document_families where id=$1',[family]);await f.cleanup();
+ }
+});
+
+test('a cited answer exceeding five LINE messages yields one explicit size limitation, never partial text or evidence-changed',async()=>{
+ const f=await fixture();let family='',document='';
+ const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,
+  studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
+ const fingerprint='e'.repeat(64),vector=[1,0],answer='ก'.repeat(12000);
+ const sourceLocations=Array.from({length:5},(_,index)=>({kind:'DOCX' as const,blockStart:index+1,blockEnd:index+1,
+  headingPath:Array.from({length:20},()=> 'หัวข้อ'.padEnd(200,'ก')),tableIndex:null}));
+ try{
+  family=(await f.pool.query("insert into public.document_families(code,name,category) values($1,'Overflow packet fixture','REGULATION') returning id",
+   ['OVERFLOW_'+randomUUID().replaceAll('-','').toUpperCase()])).rows[0].id;
+  scope.familyCodes=[(await f.pool.query('select code from public.document_families where id=$1',[family])).rows[0].code];
+  document=(await f.pool.query(`insert into public.documents(document_family_id,title,version_name,version_stream,status,is_current,
+   approval_status,approved_at,official_source,extraction_reviewed,requires_review,effective_from,source_url,checksum)
+   values($1,'Overflow source','2569','overflow','ACTIVE',true,'APPROVED',clock_timestamp(),true,true,false,'2026-01-01',
+   'https://fixture.yru.ac.th/overflow.pdf',$2) returning id`,[family,'e'.repeat(64)])).rows[0].id;
+  await f.pool.query(`insert into public.knowledge_chunks(document_id,chunk_index,page_number,section_title,content,embedding,embedding_dimensions,embedding_fingerprint,source_locations)
+   values($1,0,null,'Long source location','Controlled source evidence','[1,0]',2,$2,$3::jsonb)`,[document,fingerprint,JSON.stringify(sourceLocations)]);
+  let calls=0;
+  const stats=await runAICycle(f.pool,f.key,{produce:async()=>{
+   calls++;const evidence=await transaction(c=>searchKnowledge(c,{scope,vector,fingerprint}),f.pool);
+   return {kind:'ANSWER' as const,output:{answer,citationChunkIds:[evidence[0].chunkId]},scope,evidence,queryVector:vector,fingerprint};
+  }});
+  assert.equal(calls,1);assert.deepEqual(stats,{claimed:1,completed:1,suppressed:0,failed:0},'SIZE_LIMITATION_IS_A_COMPLETED_SAFE_REPLY');
+  const job=(await f.pool.query('select status,last_error_code from private.ai_jobs where id=$1',[f.job])).rows[0];
+  assert.equal(job.status,'DONE');assert.equal(job.last_error_code,null,'A_COMPLETED_SIZE_LIMITATION_IS_NOT_A_PROCESSING_OR_SOURCE_ERROR');
+  const rows=(await f.pool.query('select payload_encrypted from private.message_outbox where conversation_id=$1',[f.conversation])).rows;
+  assert.equal(rows.length,1);const payload=JSON.parse(decryptValue(rows[0].payload_encrypted,f.key));
+  assert.equal(payload.messages.length,1);assert.equal(payload.messages[0].text,LINE_TEXT_PACKET_LIMIT_MESSAGE);
+  assert(!payload.messages[0].text.includes(answer.slice(0,100)),'OVERFLOW_MUST_NOT_DELIVER_A_PARTIAL_ANSWER');
+  const saved=(await f.pool.query("select content,metadata from public.messages where conversation_id=$1 and sender_type='AI'",[f.conversation])).rows;
+  assert.equal(saved.length,1);assert.equal(saved[0].content,LINE_TEXT_PACKET_LIMIT_MESSAGE);
+  assert.deepEqual(saved[0].metadata.citations,[],'SIZE_LIMITATION_MUST_NOT_MASQUERADE_AS_EVIDENCE_CHANGED');
+ }finally{
+  if(document)await f.pool.query('delete from public.knowledge_chunks where document_id=$1',[document]);
+  if(document)await f.pool.query('delete from public.documents where id=$1',[document]);
+  if(family)await f.pool.query('delete from public.document_families where id=$1',[family]);await f.cleanup();
  }
 });
 

@@ -6,6 +6,11 @@ import type {ImportSource} from '../lib/imports/types';
 const source=(html:string,sourceUrl:string|null='https://yru.ac.th/guide')=>createImportSource({
  bytes:new TextEncoder().encode(html),filename:'guide.html',mimeType:'text/html',sourceUrl,acquiredFrom:'UPLOAD',fetchedAt:null,
 });
+it('retains nested paragraphs in address, blockquote and list blocks without hiding contact hours or warnings',()=>{
+ const result=parseHtmlSource(source('<!doctype html><html><body><h1>บริการ</h1><address><p>จ-ศ 08.00-17.00 น.</p><p>ส-อา 08.30-16.30 น.</p><p>(หยุดทุกวันหยุดนักขัตฤกษ์)</p></address><blockquote><p>คำเตือน</p></blockquote><ul><li><p>ขั้นตอนแรก</p><ul><li>ขั้นตอนย่อย</li></ul></li></ul></body></html>'));
+ expect(result.pages.map(page=>page.text)).toEqual(['บริการ','จ-ศ 08.00-17.00 น.','ส-อา 08.30-16.30 น.','(หยุดทุกวันหยุดนักขัตฤกษ์)','คำเตือน','ขั้นตอนแรก','ขั้นตอนย่อย']);
+ expect(result.locations.pages.map(location=>location.kind==='HTML'?location.blockStart:null)).toEqual([1,2,3,4,5,6,7]);
+});
 
 it('extracts decoded Thai title, headings and text with aligned stable locations and measured report',()=>{
  const input=source('<!doctype html><html><head><title>คู่มือ &amp; ระเบียบ</title></head><body><h1>ค่าธรรมเนียม &amp; ปฏิทิน</h1><p>สวัสดี <strong>นักศึกษา</strong></p></body></html>');

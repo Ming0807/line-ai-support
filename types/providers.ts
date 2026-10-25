@@ -51,12 +51,18 @@ export const previewProfileSchema=z.object({purpose:z.enum(['GENERATION','EMBEDD
 export type PreviewProfile=z.infer<typeof previewProfileSchema>;
 export interface FallbackPreviewView {
  profile:PreviewProfile;generatedAt:string;maxInferenceAttempts:3;
- pricingEvidence:'LAST_CATALOG_OBSERVATION';
+ pricingEvidence:'LAST_CATALOG_OBSERVATION'|'ACCOUNT_CONFIRMATION_OR_CATALOG';
  /** Positions are 1-based; null identifies an excluded or beyond-limit row. */
  rows:{providerId:string;modelId:string;position:number|null;cooldownUntil?:string|null;reason:'DISABLED'|'KEY_MISSING'|'PRICE_UNKNOWN'|'PAID_BLOCKED'|'CAPABILITY_UNSUPPORTED'|'COOLDOWN'|'VECTOR_COHORT_MISMATCH'|'REGISTRY_LIMIT'|'ATTEMPT_LIMIT'|null}[];
 }
 export type ModelPurpose='GENERATION'|'EMBEDDING';
+/** Actual successful generation call; no prompt, student/ticket identity or credentials. */
+export interface LastGenerationView {
+ providerId:string;providerName:string;modelId:string;modelName:string;requestType:string;
+ observedAt:string;fallbackUsed:boolean;configurationChanged:boolean;
+}
 export interface ModelView {
+ accountFreeUntil?:string|null;
  id:string;modelId:string;displayName:string;supportsTools:boolean;supportsJson:boolean;supportsVision:boolean;
  purpose:ModelPurpose;embeddingDimensions:number|null;enabled:boolean;priority:number;timeoutMs:number;
  inputPricePerMillion:number|null;outputPricePerMillion:number|null;revision:number;
@@ -65,7 +71,12 @@ export interface ModelView {
  cooldownUntil?:string|null;
 }
 export interface ProviderView {
+ freeAccount?:FreeAccountView;
  id:string;name:string;adapter:ProviderKind;baseUrl:string;enabled:boolean;priority:number;healthStatus:ProviderHealth;costMode:CostMode;
  lastHealthCheck:string|null;keyConfigured:boolean;revision:number;models:ModelView[];
  quota?:QuotaReadResult|null;
+}
+export interface FreeAccountView {
+ schemaReady:boolean;status:'ACTIVE'|'EXPIRED'|'REVOKED'|'STALE'|'LEGACY'|'NONE';revision:number|null;
+ models:string[];eligibleModels:string[];confirmedAt:string|null;expiresAt:string|null;
 }

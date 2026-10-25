@@ -8,9 +8,11 @@ assertDevelopmentTarget({environment:process.env.YRU_DEPLOYMENT_ENV,projectRef:p
  supabaseUrl:process.env.SUPABASE_URL,directUrl:process.env.DIRECT_URL},'tqgbodenouvcwepoxwbu');
 const client=new Client(databaseConnection(process.env.DIRECT_URL!));
 const structuredTables=['academic_calendar_events','tuition_fees','transfer_courses','university_services','university_systems','service_forms','announcements'];
-const retainedTables=['public.incidents','public.incident_tickets','private.incident_ticket_vectors','private.incident_rules','private.incident_detection_jobs'];
+// Mutable lifecycle records retain history: service_role must not DELETE them.
+const retainedTables=['public.incidents','public.incident_tickets','private.incident_ticket_vectors','private.incident_rules','private.incident_detection_jobs','private.ai_turn_attempts','private.staff_alert_events','private.ai_free_account_grants'];
 const immutableTables=['private.knowledge_import_revisions','private.knowledge_import_reviews','private.knowledge_import_publications',
- 'private.structured_row_provenance','private.structured_publication_effects','private.incident_action_receipts','private.ticket_support_contexts','private.ai_support_outcomes'];
+ 'private.structured_row_provenance','private.structured_publication_effects','private.incident_action_receipts','private.ticket_support_contexts','private.ai_support_outcomes',
+ 'private.incident_reply_batches','private.incident_reply_recipients','private.incident_reply_cases','private.incident_reply_retry_receipts','private.staff_alert_deliveries','private.staff_alert_delivery_cases'];
 const chatMutable=['staff_line_case_context','staff_chat_commands','staff_chat_read_cursors'];
 const chatAppendOnly=['staff_chat_message_order','staff_chat_delivery_guards','staff_chat_delivery_cases'];
 const chatTables=[...chatMutable,...chatAppendOnly];
@@ -101,7 +103,7 @@ try {
  console.log(JSON.stringify({stage:'development_security',tableCount:tables.rows[0].count,allRls:true,
   rolePrivacyFixture:true,effectiveBrowserGrants:true,effectiveServerGrants:true,appendOnlyImportRevisions:true,appendOnlyImportReviews:true,
   immutablePublicationReceipts:true,appendOnlySupportContexts:true,appendOnlySupportOutcomes:true,structuredLifecycleColumnsOnly:true,
-  incidentRetention:true,workerObservationTimestampOnly:true,webAdmissionObservationColumnsOnly:true,staffChatLeastPrivilege:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
+  incidentRetention:true,aiTurnAttemptRetention:true,freeAccountGrantRetention:true,workerObservationTimestampOnly:true,webAdmissionObservationColumnsOnly:true,staffChatLeastPrivilege:true,runtimeOriginalRetention:true,crossDepartmentDenied:true,inactiveDenied:true,anonymousDenied:true,fixtureRolledBack:true}));
 } catch(error) {
  await client.query('rollback').catch(()=>undefined);
  const message=error instanceof Error?error.message:'';

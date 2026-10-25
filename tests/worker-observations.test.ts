@@ -83,7 +83,7 @@ it('does not create a check-in when the AI worker is disabled',async()=>{
 
 it('checks in before each outbox worker cycle, including --once',async()=>{
  vi.resetModules();
- const events:string[]=[],pool={end:vi.fn()},createWorkerObserver=vi.fn((_pool:unknown,worker:string)=>async()=>{events.push(`observe:${worker}`);});
+ const events:string[]=[],pool={end:vi.fn(),on:vi.fn()},createWorkerObserver=vi.fn((_pool:unknown,worker:string)=>async()=>{events.push(`observe:${worker}`);});
  vi.doMock('dotenv/config',()=>({}));
  vi.doMock('pg',()=>({Pool:class{constructor(){return pool;}}}));
  vi.doMock('../lib/database/connection',()=>({databaseConnection:()=>({})}));

@@ -11,7 +11,7 @@ const newTopicSchema=z.object({version:z.literal(1),selectedAt:z.iso.datetime({o
 export async function readExplicitNewTopic(client:DbClient,sessionId:string):Promise<boolean>{
  const latest=(await client.query(`select m.metadata,clock_timestamp() as server_now
   from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.sender_type='USER' order by m.created_at desc,m.id desc limit 1`,[sessionId])).rows[0];
+  where c.line_session_id=$1 and m.sender_type='USER' and m.metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by m.created_at desc,m.id desc limit 1`,[sessionId])).rows[0];
  const parsed=newTopicSchema.safeParse(latest?.metadata?.routing_new_topic);
  if(!parsed.success)return false;
  const age=new Date(latest.server_now).getTime()-Date.parse(parsed.data.selectedAt);
@@ -22,7 +22,7 @@ export async function rememberExplicitNewTopic(client:DbClient,sessionId:string)
  const result=await client.query(`update public.messages set metadata=(metadata-'routing_focus')||jsonb_build_object(
   'routing_new_topic',jsonb_build_object('version',1,'selectedAt',clock_timestamp())) where id=(
   select m.id from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.sender_type='USER' order by m.created_at desc,m.id desc limit 1)`,[sessionId]);
+  where c.line_session_id=$1 and m.sender_type='USER' and m.metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by m.created_at desc,m.id desc limit 1)`,[sessionId]);
  if(result.rowCount!==1)throw new Error('EXPLICIT_NEW_SOURCE_MISSING');
 }
 
@@ -31,7 +31,7 @@ export async function readExplicitHumanFocus(client:DbClient,sessionId:string,ca
  if(candidates.length>12||!candidates.some(c=>c.mode==='HUMAN'))return null;
  const latest=(await client.query(`select m.id,m.conversation_id,m.metadata,clock_timestamp() as server_now
   from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.sender_type='USER' order by m.created_at desc,m.id desc limit 1`,[sessionId])).rows[0];
+  where c.line_session_id=$1 and m.sender_type='USER' and m.metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by m.created_at desc,m.id desc limit 1`,[sessionId])).rows[0];
  const parsed=focusSchema.safeParse(latest?.metadata?.routing_focus);
  if(!parsed.success||latest.metadata.routing_status!=='ROUTED')return null;
  const focus=parsed.data,age=new Date(latest.server_now).getTime()-Date.parse(focus.selectedAt);
@@ -58,5 +58,5 @@ export async function rememberExplicitHumanFocus(client:DbClient,sessionId:strin
 export async function clearExplicitHumanFocus(client:DbClient,sessionId:string):Promise<void>{
  await client.query(`update public.messages set metadata=metadata-'routing_focus'-'routing_new_topic' where id=(
   select m.id from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.sender_type='USER' order by m.created_at desc,m.id desc limit 1)`,[sessionId]);
+  where c.line_session_id=$1 and m.sender_type='USER' and m.metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by m.created_at desc,m.id desc limit 1)`,[sessionId]);
 }

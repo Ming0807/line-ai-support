@@ -5,17 +5,21 @@ const loopbacks=new Set(['127.0.0.1','localhost','[::1]']);
 const pgOptions=new Set(['pgbouncer','ssl','sslmode','sslcert','sslkey','sslrootcert','uselibpqcompat']);
 const fail=code=>{throw new Error(code);};
 export function parseArguments(args){
- let mode='start',port=3000,tunnel=true;const seen=new Set();
+ let mode='start',port=3000,tunnel=true,hermesCheck=false,staffTest=false,assistantPreview=false;const seen=new Set();
  for(let i=0;i<args.length;i++){
-  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
+  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port','--hermes-check','--staff-test','--assistant-preview'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
   if(arg==='--check'||arg==='--stop'){if(mode!=='start')fail('LOCAL_ARGUMENTS_INVALID');mode=arg.slice(2);}
   if(arg==='--no-tunnel')tunnel=false;
+  if(arg==='--hermes-check')hermesCheck=true;
+  if(arg==='--staff-test')staffTest=true;
+  if(arg==='--assistant-preview')assistantPreview=true;
   if(arg==='--port'){const raw=args[++i];if(!/^[1-9]\d{0,4}$/.test(raw??'')||Number(raw)>65535)fail('LOCAL_ARGUMENTS_INVALID');port=Number(raw);}
  }
- if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')))fail('LOCAL_ARGUMENTS_INVALID');
- return {mode,port,tunnel};
+ if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview)||staffTest&&(hermesCheck||assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
+ return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{})};
 }
-export function buildSessionEnvironment(env,service,baseUrl,port){
+export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
+ if(options.staffTest&&options.assistantPreview)fail('LOCAL_ARGUMENTS_INVALID');
  for(const key of ['DATABASE_URL','DIRECT_URL','ENCRYPTION_KEY','SUPABASE_URL','NEXT_PUBLIC_SUPABASE_URL',
  'SUPABASE_SECRET_KEY','LINE_STUDENT_CHANNEL_SECRET','LINE_STUDENT_CHANNEL_ACCESS_TOKEN','LINE_STAFF_CHANNEL_SECRET','LINE_STAFF_CHANNEL_ACCESS_TOKEN'])
   if(typeof env[key]!=='string'||!env[key].trim())fail('LOCAL_MISSING_'+key);
@@ -47,9 +51,37 @@ export function buildSessionEnvironment(env,service,baseUrl,port){
  if(base.username||base.password||base.search||base.hash||base.pathname!=='/'||!(base.protocol==='https:'&&/^[a-z0-9-]+\.trycloudflare\.com$/.test(base.hostname)||base.protocol==='http:'&&base.hostname==='127.0.0.1'&&base.port===String(port)))fail('LOCAL_BASE_URL_INVALID');
  return {...env,...service,EMBEDDING_HOST:host,EMBEDDING_PORT:embeddingPort,EMBEDDING_MODEL:MODEL,EMBEDDING_MODEL_REVISION:REVISION,EMBEDDING_DIMENSION:'384',
   EMBEDDING_API_URL:endpoint.origin,APP_BASE_URL:base.origin,LINE_WEBHOOK_MODE:'durable',YRU_AI_ENABLED:'true',YRU_WEB_SEARCH_ENABLED:'false',
-  HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1'};
+  HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',
+  ...(options.staffTest?{YRU_ASSISTANT_ENABLED:'false'}:options.assistantPreview?{YRU_ASSISTANT_ENABLED:'true'}:{})};
 }
 export function validateEmbeddingHealth(value){return value?.status==='ok'&&value.model===MODEL&&value.revision===REVISION&&value.dimension===384;}
+const hermesPhases=new Set(['CONFIGURATION','PRIVATE_HOME','DATABASE_CONNECT','DATABASE_READY','BRIDGE_START','BRIDGE_READY','HERMES_RUNTIME_CONFIG','INTERPRETER_DISCOVERY','INTERPRETER_ACTIVATION','INTERPRETER_READY','AGENT_RUNNING','BEFORE_IMPORT','AFTER_IMPORT','AGENT_INIT','AGENT_READY','TURN_1_START','TURN_1_DONE','TURN_2_START','TURN_2_DONE','AGENT_EXITED','COMPLETE']);
+export function hermesReadiness(status,phase='CONFIGURATION'){
+ const safePhase=hermesPhases.has(phase)?phase:'CONFIGURATION';
+ if(status==='PASS')return 'Hermes CLI pilot: PASS at COMPLETE (two synthetic FREE_ONLY turns)';
+ if(status==='FAIL')return `Hermes CLI pilot: FAIL at ${safePhase} (response content is suppressed)`;
+ return 'Hermes CLI pilot: SKIPPED (add --hermes-check for two bounded FREE_ONLY model calls)';
+}
+export function assistantPreviewMessages(){
+ return ['Natural assistant preview: ON; model quality NOT_QUALIFIED; not V1 acceptance',
+  'Preview processes DEVELOPMENT queues and sends real LINE replies; saved settings unchanged; Gateway FREE_ONLY and ownership/source checks remain enforced'];
+}
+export function readyMessages(port,publicUrl,hermesStatus='SKIPPED',hermesPhase='CONFIGURATION',options={}){
+ const messages=[`Dashboard: http://127.0.0.1:${port}/login`];
+ if(publicUrl){
+  messages.push(`Student webhook: ${publicUrl}/api/line/student/webhook`);
+  messages.push(`Staff webhook: ${publicUrl}/api/line/staff/webhook`);
+ }
+ if(options.staffTest){
+  messages.push('Staff workflow pilot: natural assistant OFF; legacy support AI remains enabled; not V1 acceptance');
+  messages.push('Hermes: not run in staff pilot; retrieval comparison is separate');
+  messages.push('Test: bind Staff account in Settings; request staff on Student OA; claim, open case, reply, switch case and close');
+ }else{
+  if(options.assistantPreview)messages.push(...assistantPreviewMessages());
+  messages.push(hermesReadiness(hermesStatus,hermesPhase));
+ }
+ return messages;
+}
 export function redactLine(line,env){
  let safe=String(line).replace(/\x1b\[[0-9;]*[A-Za-z]/g,'');
  const values=Object.entries(env).filter(([key,value])=>/SECRET|TOKEN|KEY|PASSWORD|DATABASE_URL|DIRECT_URL/.test(key)&&typeof value==='string'&&value.length>3)

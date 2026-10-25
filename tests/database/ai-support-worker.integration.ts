@@ -18,11 +18,11 @@ after(async()=>{try{
  await pool.query("update private.ai_jobs set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where line_session_id=any($1::uuid[]) and status in('PENDING','PROCESSING')",[sessions]);
  await pool.query("update private.message_outbox set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where line_session_id=any($1::uuid[]) and status in('PENDING','PROCESSING')",[sessions]);
 }finally{await pool.end();}});
-async function fixture(){
+async function fixture(question='Wi-Fi ต่อไม่ได้ครับ'){
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;sessions.push(session);
  const user='U'+randomUUID().replaceAll('-','');await pool.query('insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)',[session,hashLineUserId(user,key),encryptValue(user,key)]);
  const conversation=(await pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
- const message=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Wi-Fi ต่อไม่ได้ครับ') returning id",[conversation])).rows[0].id;
+ const message=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT',$2) returning id",[conversation,question])).rows[0].id;
  const job=await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},key),pool);assert(job);
  return {session,conversation,message,job,user};
 }
@@ -33,6 +33,32 @@ function proposed(s:AISnapshot){
    needsKnowledgeSearch:true,needsStructuredSearch:false,needsWebSearch:false,confidence:.99,missingContext:'DEVICE' as const,impact:'SINGLE_USER' as const,sensitivity:'GENERAL' as const,
    facts:[{field:'PROBLEM' as const,source:'U0',quote:'Wi-Fi ต่อไม่ได้ครับ'}]}}};
 }
+test('a complete long Thai current USER message reaches support-enabled production and is preserved',async()=>{
+ const tail='สำคัญท้ายข้อความ: Wi-Fi ต่อไม่ได้ครับ กรุณาตรวจสอบอาคาร 7 ชั้น 2 และติดต่อห้องสมุดทันที 👩🏽‍💻';
+ const question='ก'.repeat(4990-tail.length)+tail;assert.equal(question.length,4990);
+ const f=await fixture(question);let produced=false;
+ const stats=await runAICycle(pool,key,{supportEnabled:true,produce:async snapshot=>{
+  produced=true;assert.equal(snapshot.question,question);
+  assert(snapshot.support,'SUPPORT_SNAPSHOT_MISSING');
+  assert.equal(snapshot.support.input.sources[0].code,'U0');
+  assert.equal(snapshot.support.input.sources[0].text,question,'SUPPORT_SOURCE_MUST_PRESERVE_THE_COMPLETE_CURRENT_USER_MESSAGE');
+  assert(snapshot.support.input.sources[0].text.endsWith(tail),'IMPORTANT_TAIL_MUST_REACH_SUPPORT_PRODUCTION');
+  return proposed(snapshot);
+ }});
+ assert(produced,'SUPPORT_ENABLED_PRODUCER_WAS_NOT_CALLED');assert.equal(stats.completed,1,'LONG_USER_MESSAGE_MUST_NOT_BE_SUPPRESSED');assert.equal(stats.failed,0);
+ const outboxes=(await pool.query('select payload_encrypted from private.message_outbox where conversation_id=$1',[f.conversation])).rows;
+ assert.equal(outboxes.length,1,'LONG_USER_MESSAGE_MUST_CREATE_ONE_COMPLETE_OUTBOX');
+ const payload=JSON.parse(decryptValue(outboxes[0].payload_encrypted,key));assert.equal(payload.messages.length,1);
+ assert.equal(payload.messages[0].text,'ใช้อุปกรณ์อะไรครับ');
+ const aiMessage=(await pool.query("select content from public.messages where conversation_id=$1 and sender_type='AI'",[f.conversation])).rows;
+ assert.equal(aiMessage.length,1);assert.equal(aiMessage[0].content,'ใช้อุปกรณ์อะไรครับ');
+ let sends=0;
+ await runOutboxCycle(pool,key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async(_url,init)=>{
+  sends++;const sent=JSON.parse(String(init?.body));assert.equal(sent.to,f.user);assert.equal(sent.messages[0].text,'ใช้อุปกรณ์อะไรครับ');
+  return new Response(null,{status:200});
+ }});
+ assert.equal(sends,1);
+});
 test('actual support-enabled worker commits the USER/directory snapshot before inference and saves private advice atomically',async()=>{
  const f=await fixture();const stats=await runAICycle(pool,key,{supportEnabled:true,produce:async s=>{
   const open=(await pool.query("select count(*)::int n from pg_stat_activity where application_name='support-worker-owned-qa' and state='idle in transaction'")).rows[0].n;assert.equal(open,0);

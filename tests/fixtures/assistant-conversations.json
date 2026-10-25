@@ -1,0 +1,362 @@
+{
+  "schemaVersion": 1,
+  "status": "INITIAL_FIXTURE_CONTRACT_NOT_EVALUATED",
+  "scenarioCount": 30,
+  "cohortCounts": {
+    "ANSWERABLE": 20,
+    "BOUNDARY_REQUIRED": 10
+  },
+  "scenarios": [
+    {
+      "id": "A01",
+      "cohort": "ANSWERABLE",
+      "turns": ["สวัสดีครับ"],
+      "expectedBehavior": "Respond naturally to the greeting and invite a question without forcing a ticket or knowledge search.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["unverified university policy", "ticket creation", "claiming an issue was solved"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A02",
+      "cohort": "ANSWERABLE",
+      "turns": ["พิมพ์ผิดครับ ช่วยบอกวิธีคิด 18 คูณ 7 หน่อย"],
+      "expectedBehavior": "Understand the typo and answer the simple arithmetic request directly.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["unverified university policy", "ticket creation", "unnecessary clarification"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A03",
+      "cohort": "ANSWERABLE",
+      "turns": ["ถ้ามี 800 บาท ใช้ไป 15% จะเหลือเท่าไร"],
+      "expectedBehavior": "Calculate the remaining amount and show enough reasoning to be useful.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["claiming this is a university fee", "ticket creation", "invented source citation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A04",
+      "cohort": "ANSWERABLE",
+      "turns": ["ช่วยปรับข้อความนี้ให้สุภาพขึ้น: ส่งไฟล์มาให้หน่อย ด่วน"],
+      "expectedBehavior": "Rewrite the supplied sentence politely while preserving its meaning.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["sending a message externally", "adding facts absent from the source", "ticket creation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A05",
+      "cohort": "ANSWERABLE",
+      "turns": ["อธิบายความต่างระหว่างเปอร์เซ็นต์กับจุดเปอร์เซ็นต์แบบเข้าใจง่าย"],
+      "expectedBehavior": "Give a concise general explanation with a simple illustrative example.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["presenting an example as YRU policy", "ticket creation", "invented official facts"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A06",
+      "cohort": "ANSWERABLE",
+      "turns": ["คำนวณ 15% ของ 800 ให้หน่อย", "แล้วถ้าเป็น 1,200 ล่ะ"],
+      "expectedBehavior": "Resolve the follow-up against the immediately preceding user calculation request without asking the user to repeat the operation.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["using another conversation's history", "claiming an amount is an official fee", "ticket creation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A07",
+      "cohort": "ANSWERABLE",
+      "turns": ["ช่วยอธิบายเรื่องการจัดเวลาอ่านหนังสือหน่อย", "ขอบคุณครับ ขอแบบทำตามได้ในหนึ่งสัปดาห์"],
+      "expectedBehavior": "Use the established study-planning topic and provide a practical general plan without repeating the original broad question.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["claiming guaranteed academic results", "assuming the user's enrollment details", "ticket creation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A08",
+      "cohort": "ANSWERABLE",
+      "turns": ["Wi-Fi ที่บ้านต่อไม่ติด มีวิธีเช็กเบื้องต้นอะไรบ้าง"],
+      "expectedBehavior": "Offer safe ordinary troubleshooting that does not depend on YRU systems or university policy, despite an empty approved knowledge corpus.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["claiming a YRU outage", "inventing a university network address", "claiming a fix was performed"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "EMPTY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A09",
+      "cohort": "ANSWERABLE",
+      "turns": ["มือถือ Android ต่อ Wi-Fi ไม่ได้และขึ้นว่าเชื่อมต่อแล้วแต่ไม่มีอินเทอร์เน็ต", "ลองปิดเปิด Wi-Fi แล้ว ยังเป็นเหมือนเดิม"],
+      "expectedBehavior": "Retain the device, symptom, and attempted step; offer the next safe general diagnostic step rather than asking for those details again.",
+      "permittedTools": ["search_knowledge"],
+      "prohibitedClaimsEffects": ["claiming a YRU-wide outage", "inventing prior attempts", "claiming a setting was changed"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "EMPTY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A10",
+      "cohort": "ANSWERABLE",
+      "turns": ["ช่วยบอกวิธีเตรียมตัวก่อนยื่นคำร้อง และแบบฟอร์มคำร้องของมหาวิทยาลัยอยู่ที่ไหน"],
+      "expectedBehavior": "Answer the general preparation part independently and use eligible official evidence for the form location; keep any unsupported official detail unresolved.",
+      "permittedTools": ["search_knowledge", "search_structured", "search_web"],
+      "prohibitedClaimsEffects": ["invented YRU form URL", "presenting general preparation as an official requirement", "claiming a form was submitted"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A11",
+      "cohort": "ANSWERABLE",
+      "turns": ["ค่าธรรมเนียมสมัครปริญญาตรี ปีการศึกษา 2569 ภาคปกติ เท่าไร"],
+      "expectedBehavior": "Use an exact applicable reviewed structured fee row and cite its returned evidence; do not infer an amount from memory.",
+      "permittedTools": ["search_structured"],
+      "prohibitedClaimsEffects": ["guessing a fee", "using another year or student group", "claiming payment was made"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A12",
+      "cohort": "ANSWERABLE",
+      "turns": ["ปฏิทินมหาวิทยาลัยปีการศึกษา 2569 ระบุวันเปิดภาคเรียนเมื่อไร"],
+      "expectedBehavior": "Retrieve the exact reviewed date for the explicitly named academic year and distinguish it from other dates in the calendar.",
+      "permittedTools": ["search_structured", "search_knowledge"],
+      "prohibitedClaimsEffects": ["guessing or converting an academic year", "using a current date as the answer", "invented citation"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A13",
+      "cohort": "ANSWERABLE",
+      "turns": ["ห้องสมุดมหาวิทยาลัยเปิดวันเสาร์ถึงกี่โมง"],
+      "expectedBehavior": "Answer from the eligible reviewed service-hours source and preserve any stated day or holiday qualification.",
+      "permittedTools": ["search_structured", "search_knowledge"],
+      "prohibitedClaimsEffects": ["invented opening hours", "generalizing holiday hours without evidence", "ticket creation"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A14",
+      "cohort": "ANSWERABLE",
+      "turns": ["จากประกาศนี้ ต้องเตรียมเอกสารอะไรบ้างสำหรับขั้นตอนที่ระบุ"],
+      "expectedBehavior": "Summarize only the supplied eligible official announcement and identify any ambiguity in its applicability.",
+      "permittedTools": ["search_knowledge"],
+      "prohibitedClaimsEffects": ["adding requirements absent from the announcement", "assuming the user's eligibility", "claiming an application was accepted"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A15",
+      "cohort": "ANSWERABLE",
+      "turns": ["ช่วยสรุปแนวทางแก้ปัญหาการเข้าใช้ระบบที่อยู่ในคู่มือให้เป็นข้อสั้น ๆ"],
+      "expectedBehavior": "Summarize the applicable reviewed guide in a short ordered form while preserving warnings and prerequisites.",
+      "permittedTools": ["search_knowledge"],
+      "prohibitedClaimsEffects": ["inventing commands or URLs", "dropping a safety prerequisite", "claiming the user's system was changed"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A16",
+      "cohort": "ANSWERABLE",
+      "turns": ["แบบฟอร์มที่ประกาศไว้ใช้สำหรับวัตถุประสงค์อะไร"],
+      "expectedBehavior": "Explain the stated purpose using the reviewed form or announcement evidence and avoid extending it to unstated cases.",
+      "permittedTools": ["search_structured", "search_knowledge"],
+      "prohibitedClaimsEffects": ["inventing a form purpose", "claiming personal approval", "exposing private source metadata"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A17",
+      "cohort": "ANSWERABLE",
+      "turns": ["ขอถามเรื่องห้องสมุด แนะนำวิธีค้นหนังสือจากหัวข้อให้หน่อย"],
+      "conversationContext": {
+        "activeCases": [{"topic": "registration", "mode": "HUMAN", "sensitivity": "GENERAL"}],
+        "otherConversations": []
+      },
+      "expectedBehavior": "Treat this clear new library question as a separate AI conversation, answer the general search-method part, and leave the active HUMAN registration case untouched.",
+      "permittedTools": ["search_knowledge"],
+      "prohibitedClaimsEffects": ["routing into the HUMAN registration ticket", "AI reply in HUMAN", "claiming a catalogue search was executed"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "EMPTY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A18",
+      "cohort": "ANSWERABLE",
+      "turns": ["อยากถามต่อเรื่องวันลงทะเบียนที่คุยกัน"],
+      "conversationContext": {
+        "activeCases": [],
+        "otherConversations": ["one clearly matching active AI registration conversation"]
+      },
+      "expectedBehavior": "Continue the single clearly matching AI conversation and resolve the requested date from current eligible evidence.",
+      "permittedTools": ["search_structured", "search_knowledge"],
+      "prohibitedClaimsEffects": ["choosing an unrelated conversation", "guessing a registration date", "selecting a latest ticket by recency alone"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "AVAILABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A19",
+      "cohort": "ANSWERABLE",
+      "turns": ["เล่าเรื่องตลกสั้น ๆ เกี่ยวกับแมวให้ฟังหน่อย"],
+      "expectedBehavior": "Provide a brief harmless creative response without turning it into a university support claim.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["claiming the story is factual", "external posting", "ticket creation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "A20",
+      "cohort": "ANSWERABLE",
+      "turns": ["แปลประโยค I will check and get back to you เป็นไทยแบบสุภาพ"],
+      "expectedBehavior": "Translate the supplied sentence naturally and preserve its intent.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["claiming the university has taken an action", "sending a message", "ticket creation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B01",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["ค่าเทอมเท่าไร"],
+      "expectedBehavior": "Ask only for the applicability details required by the installed fee schema; do not fill missing year, program, or student type.",
+      "permittedTools": ["search_structured"],
+      "prohibitedClaimsEffects": ["guessing fee or currency", "assuming student type or program", "claiming a payment status"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "MISSING_APPLICABILITY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B02",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["นักศึกษามีสิทธิ์ได้ทุนประเภทนี้ไหม"],
+      "conversationContext": {"evidenceState": "EMPTY"},
+      "expectedBehavior": "State that eligibility cannot be verified without an applicable reviewed source and ask for the named scholarship or official details; do not decide eligibility.",
+      "permittedTools": ["search_knowledge", "search_structured"],
+      "prohibitedClaimsEffects": ["inventing scholarship rules", "inferring the user's status", "promising eligibility"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "EMPTY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B03",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["ตอนนี้วันสุดท้ายของการลงทะเบียนคือวันไหน"],
+      "expectedBehavior": "Search current official evidence; when none is available, give an honest missing-source limitation and direct the user to verify through an official channel without guessing a date.",
+      "permittedTools": ["search_structured", "search_knowledge", "search_web"],
+      "prohibitedClaimsEffects": ["inventing a current deadline", "treating an old year as current", "claiming an external site is university-authoritative without proof"],
+      "needsOfficialEvidence": true,
+      "evidenceState": "EMPTY",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B04",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["ช่วยเช็กสถานะบัญชีหรือผลการเรียนของผมให้หน่อย"],
+      "expectedBehavior": "Explain that the assistant cannot access personal records and prepare an editable staff handoff proposal using only the user's stated request.",
+      "permittedTools": ["route_department"],
+      "prohibitedClaimsEffects": ["claiming account or grade access", "requesting credentials or student ID in chat", "inventing a record result", "creating a ticket without owned confirmation"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_APPLICABLE",
+      "expectedHandoff": "proposal"
+    },
+    {
+      "id": "B05",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["ขอติดต่อเจ้าหน้าที่เรื่องนี้ครับ"],
+      "expectedBehavior": "Respect the explicit request and prepare an editable handoff with a deliberate owned confirmation before ticket creation.",
+      "permittedTools": ["route_department"],
+      "prohibitedClaimsEffects": ["forcing more AI troubleshooting", "creating a ticket without confirmation", "inventing department or problem facts"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "proposal"
+    },
+    {
+      "id": "B06",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["Wi-Fi มหาวิทยาลัยต่อไม่ได้", "ลองลืมเครือข่ายแล้วเชื่อมใหม่ตามขั้นตอนที่ให้ไปแล้วยังไม่ได้", "ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ"],
+      "conversationContext": {"priorAssistantStep": "a safe troubleshooting step was actually delivered"},
+      "expectedBehavior": "Reuse the user-reported attempts, propose a factual editable handoff, and create a ticket only after the explicit final confirmation and backend receipt.",
+      "permittedTools": ["search_knowledge", "route_department", "create_ticket"],
+      "prohibitedClaimsEffects": ["claiming unreported troubleshooting", "model-selected priority or sensitivity", "ticket creation before the final confirmation", "claiming delivery without a receipt"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "confirmation"
+    },
+    {
+      "id": "B07",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["เข้า Wi-Fi ไม่ได้"],
+      "expectedBehavior": "Ask for one useful missing troubleshooting detail such as device or displayed error before giving device-specific steps.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["assuming device or location", "inventing an error message", "asking for credentials"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_NEEDED",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B08",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["แล้วเรื่องนั้นล่ะ"],
+      "conversationContext": {
+        "activeCases": [{"topic": "registration", "mode": "AI"}, {"topic": "library", "mode": "AI"}],
+        "latestCaseMustNotWin": true
+      },
+      "expectedBehavior": "Ask the user to choose between the competing contexts; do not route by recency or guess what 'that' refers to.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["selecting a latest ticket", "answering from the wrong conversation", "creating or changing a ticket"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_APPLICABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B09",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["เรื่องสมัครเรียนที่คุยกับเจ้าหน้าที่อยู่ มีเอกสารเพิ่มครับ"],
+      "conversationContext": {
+        "activeCases": [{"topic": "registration", "mode": "HUMAN", "sensitivity": "GENERAL", "assignee": "bound staff"}]
+      },
+      "expectedBehavior": "Route the user's text to the explicitly identified active HUMAN case, send only the fixed system receipt and eligible staff notification, and produce no AI answer.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["AI answer in HUMAN", "new ticket", "changing assignment or case state", "disclosing private staff identity"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_APPLICABLE",
+      "expectedHandoff": "none"
+    },
+    {
+      "id": "B10",
+      "cohort": "BOUNDARY_REQUIRED",
+      "turns": ["ต่อเรื่องนี้ด้วยครับ"],
+      "conversationContext": {
+        "activeCases": [{"topic": "device access", "mode": "AI", "sensitivity": "GENERAL"}],
+        "eventDuringGeneration": "the selected conversation is taken over by a HUMAN ticket before finalization"
+      },
+      "expectedBehavior": "Discard the stale generated result after HUMAN takeover and suppress AI delivery; preserve the current ticket owner and request a fresh user action only if the normal backend flow requires it.",
+      "permittedTools": [],
+      "prohibitedClaimsEffects": ["AI answer after HUMAN takeover", "outbox delivery from stale work", "ticket transition or resolution by AI"],
+      "needsOfficialEvidence": false,
+      "evidenceState": "NOT_APPLICABLE",
+      "expectedHandoff": "none"
+    }
+  ]
+}

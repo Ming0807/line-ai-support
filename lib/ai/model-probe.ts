@@ -1,5 +1,5 @@
 import {decryptValue} from '../security/identity';
-import {AIProviderError,type AIErrorCode,type AIModelConfig,type AIProviderAdapter,type CostMode,type ProviderRequest,type ProviderResponse} from './types';
+import {AIProviderError,type AIErrorCode,type AIModelConfig,type AIProviderAdapter,type CostMode,type ProviderRequest,type ProviderResponse,type AccountFreeReader} from './types';
 import type {EmbeddingAdapter,EmbeddingRequest,EmbeddingResponse} from './embedding-types';
 import {authorizeModelCost} from './cost-policy';
 import {createPriceReader,type ModelPricing,type PriceReader} from './pricing';
@@ -12,6 +12,8 @@ const OPENROUTER_BASE='https://openrouter.ai/api/v1';
 const ZEN_BASE='https://opencode.ai/zen/v1';
 const OPENAI_BASE='https://api.openai.com/v1';
 const MAX_TIMEOUT_MS=10_000;
+// Reasoning models spend output tokens before emitting the fixed short JSON result.
+const MAX_PROBE_OUTPUT_TOKENS=1024;
 const MAX_METADATA_BYTES=8*1024*1024;
 const MAX_API_KEY_LENGTH=512;
 const MAX_MODEL_ID_LENGTH=200;
@@ -26,6 +28,7 @@ export interface ModelProbeConfig extends AIModelConfig {
 }
 
 export interface ProbeOptions {
+ readAccountFreeUntil?:AccountFreeReader;
  key:string;
  generationAdapters:Record<string,AIProviderAdapter>;
  embeddingAdapters:Record<string,EmbeddingAdapter>;
@@ -277,7 +280,7 @@ async function authorizeFree(model:ModelProbeConfig,options:ProbeOptions,signal:
   return observed;
  };
  const forcedFree={...model,costMode:'FREE_ONLY' as CostMode};
- const permission=await authorizeModelCost(forcedFree,model.purpose,freshReader,signal);
+ const permission=await authorizeModelCost(forcedFree,model.purpose,freshReader,signal,options.readAccountFreeUntil);
  return {permission,pricing:observed};
 }
 
@@ -317,7 +320,8 @@ async function generationProbe(model:ModelProbeConfig,options:ProbeOptions,signa
    {role:'user',content:'Return the required JSON object.'},
   ],
   responseSchema:{name:'provider_probe',schema:{type:'object',properties:{ok:{type:'boolean',const:true}},required:['ok'],additionalProperties:false}},
-  signal,maxOutputTokens:32,
+  signal,maxOutputTokens:MAX_PROBE_OUTPUT_TOKENS,
+  ...(model.adapter==='OPENROUTER'&&model.baseUrl==='https://openrouter.ai/api/v1'&&!model.supportsTools&&permission.pricing?.jsonOutputMode==='JSON_OBJECT'?{jsonOutputMode:'JSON_OBJECT' as const}:{}),
   ...(model.adapter==='ZEN'||model.adapter==='OPENROUTER'?{costMode:'FREE_ONLY' as const,
    ...(permission.apiFormat?{apiFormat:permission.apiFormat}:{})}:{}),
  };
@@ -369,7 +373,11 @@ async function metadataProbe(model:ModelProbeConfig,options:ProbeOptions,signal:
   onHttpStatus(response.status);if(response.status!==200)throw errorForStatus(response.status);
   const payload=response.json;
   if(!isRecord(payload)||!Array.isArray(payload.data)||payload.data.length>100_000)throw new AIProviderError('INVALID_OUTPUT',response.status);
-  const matches=payload.data.filter(item=>isRecord(item)&&item.id===model.modelId);
+  // Google's compatible catalog uses resource names while generation uses bare IDs.
+  // Keep this alias endpoint-scoped; both forms still count toward duplicate rejection.
+  const googleResourceId=parseCompatibleBaseUrl(model.baseUrl).baseUrl==='https://generativelanguage.googleapis.com/v1beta/openai'
+   &&!model.modelId.includes('/')?`models/${model.modelId}`:null;
+  const matches=payload.data.filter(item=>isRecord(item)&&(item.id===model.modelId||googleResourceId!==null&&item.id===googleResourceId));
   if(matches.length>1)throw new AIProviderError('INVALID_OUTPUT',response.status);
   if(matches.length!==1)throw new AIProviderError('MODEL_UNAVAILABLE',response.status);
   return response.status;

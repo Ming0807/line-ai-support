@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { AITool } from './types';
 
-export const controlledToolNames = ['search_knowledge', 'search_structured', 'route_department', 'create_ticket'] as const;
+export const controlledToolNames = ['search_knowledge', 'search_structured', 'discover_public_forms', 'discover_public_structured', 'check_public_authority', 'route_department', 'create_ticket'] as const;
 export type ControlledToolName = typeof controlledToolNames[number];
 
 export interface ToolContext {

@@ -15,6 +15,26 @@ const setup=()=>{
 };
 
 describe('compatible transport boundary',()=>{
+ it.each([0,-1,45001,1.5,NaN,Infinity,'18000',undefined])('rejects invalid explicit chat deadline %s before DNS',async timeoutMs=>{
+  const {resolve,send,transport}=setup();
+  await expect(transport.request(base,{...request('chat/completions'),timeoutMs} as CompatibleHttpRequest)).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(resolve).not.toHaveBeenCalled();expect(send).not.toHaveBeenCalled();
+ });
+ it.each(['models','embeddings'] as const)('does not override the existing %s timeout',async route=>{
+  const {resolve,transport}=setup();
+  await expect(transport.request(base,{...request(route),timeoutMs:18000} as CompatibleHttpRequest)).rejects.toMatchObject({code:'INVALID_REQUEST'});
+  expect(resolve).not.toHaveBeenCalled();
+ });
+ it('uses the validated chat deadline for DNS and retains a finite timeout',async()=>{
+  vi.useFakeTimers();try{
+   const {resolve,send,transport}=setup();resolve.mockImplementationOnce(()=>new Promise(()=>{}));
+   let settled=false;
+   const pending=transport.request(base,{...request('chat/completions'),timeoutMs:18000} as CompatibleHttpRequest).finally(()=>{settled=true;});
+   const check=expect(pending).rejects.toMatchObject({code:'TIMEOUT'});void check.catch(()=>undefined);
+   await vi.advanceTimersByTimeAsync(10001);expect(settled).toBe(false);
+   await vi.advanceTimersByTimeAsync(7999);await check;expect(send).not.toHaveBeenCalled();
+  }finally{vi.useRealTimers();}
+ });
  it.each(['models','chat/completions','embeddings'] as const)('builds only the exact %s route and pins the checked answer',async route=>{
   const {resolve,send,transport}=setup();
   expect(await transport.request(base,request(route))).toEqual(response);

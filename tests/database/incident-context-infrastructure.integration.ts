@@ -17,7 +17,7 @@ async function fixture(){
  await pool.query("update public.tickets set status='CLOSED',revision=revision+1 where category='CTX_INFRA' and status<>'CLOSED'");
  await pool.query("update private.incident_detection_jobs j set status='DONE',lease_token=null,lease_until=null from public.tickets t where j.ticket_id=t.id and t.category='CTX_INFRA'");
  const department=randomUUID(),session=randomUUID(),conversation=randomUUID(),ticket=randomUUID();
- await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[department,'CTX_'+department.replaceAll('-','')]);
+ await pool.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$2,$2)',[department,'CTX_'+department.replaceAll('-','').toUpperCase()]);
  ownedDepartments.push(department);
  await pool.query('insert into public.line_sessions(id,anonymous_code) values($1,$2)',[session,'CTX_INFRA_'+session]);
  await pool.query("insert into public.conversations(id,line_session_id,mode,conversation_type) values($1,$2,'HUMAN','TICKET')",[conversation,session]);

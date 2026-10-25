@@ -2,10 +2,12 @@ import type {Pool,PoolClient} from 'pg';
 import {z} from 'zod';
 import {getDatabasePool,transaction} from '../database/pool';
 import {encryptValue,decryptValue} from '../security/identity';
-import {createProviderSchema,updateProviderSchema,createModelSchema,updateModelSchema,type ProviderView,type ModelView} from '../../types/providers';
+import {createProviderSchema,updateProviderSchema,createModelSchema,updateModelSchema,type ProviderView,type ModelView,type LastGenerationView} from '../../types/providers';
 import type {AIProviderAdapter,ProviderHealth} from './types';
 import {observationView,quotaView} from './model-observations';
 import {parseCompatibleBaseUrl} from './compatible-endpoint';
+import {confirmedFreeAccountUntil} from './account-free';
+import {loadManagedFreeAccounts,managedAccountUntil,freeAccountView} from './account-free-admin';
 import {isPublicAddress,resolvePublicAddresses,type ResolvedAddress} from './public-addresses';
 
 export class ProviderAdminError extends Error {
@@ -66,9 +68,13 @@ export async function listProviders(staffId:string,options:ProviderAdminOptions=
    order by o.provider_id,o.observed_at desc,o.recorded_at desc,o.id`)).rows;
   const observationMap=new Map(observations.map(row=>[row.model_id,observationView(row)]));
   const quotaMap=new Map(quotas.map(row=>[row.provider_id,quotaView(row)]));
+  const managed=await loadManagedFreeAccounts(client,providers.map(p=>p.id));
+  const grants=new Map(managed.rows.map(row=>[row.provider_id,row]));
   return providers.map(p=>({id:p.id,name:p.name,adapter:p.adapter,baseUrl:p.base_url,enabled:p.enabled,priority:p.priority,
    healthStatus:p.health_status,lastHealthCheck:p.last_health_check?.toISOString()??null,keyConfigured:p.key_configured,revision:p.revision,costMode:p.cost_mode,
+   freeAccount:freeAccountView(p,models.filter(m=>m.provider_id===p.id),grants.get(p.id),managed.schemaReady),
    quota:quotaMap.get(p.id)??null,models:models.filter(m=>m.provider_id===p.id).map(m=>({id:m.id,modelId:m.model_id,displayName:m.display_name,
+    accountFreeUntil:m.purpose==='GENERATION'?(grants.has(p.id)?managedAccountUntil(grants.get(p.id)!,{providerId:p.id,providerNetworkRevision:p.network_revision,adapter:p.adapter,baseUrl:p.base_url,modelId:m.model_id}):confirmedFreeAccountUntil({providerId:p.id,providerNetworkRevision:p.network_revision,adapter:p.adapter,baseUrl:p.base_url,modelId:m.model_id})):null,
     purpose:m.purpose,embeddingDimensions:m.embedding_dimensions===null?null:Number(m.embedding_dimensions),
     supportsTools:m.supports_tools,supportsJson:m.supports_json,supportsVision:m.supports_vision,enabled:m.enabled,priority:m.priority,
     timeoutMs:m.timeout_ms,inputPricePerMillion:m.input_price_per_million===null?null:Number(m.input_price_per_million),
@@ -78,6 +84,19 @@ export async function listProviders(staffId:string,options:ProviderAdminOptions=
     apiFormat:m.api_format,
     latestObservation:observationMap.get(m.id)??null,
     cooldownUntil:m.cooldown_provider_network_revision===p.network_revision&&m.cooldown_model_network_revision===m.network_revision?m.cooldown_until?.toISOString()??null:null} satisfies ModelView))}));
+ });
+}
+/** A successful actual call is distinct from probes, a configured primary and confirmed LINE delivery. */
+export async function getLastSuccessfulGeneration(staffId:string,options:ProviderAdminOptions={}):Promise<LastGenerationView|null>{
+ return run(staffId,options,async client=>{
+  await client.query("set local statement_timeout='5s'");
+  const row=(await client.query(`select p.id provider_id,p.name provider_name,m.id model_id,m.display_name model_name,
+   u.request_type,u.created_at,u.fallback_used,(u.provider_revision<>p.revision or u.model_revision<>m.revision) configuration_changed
+   from private.ai_usage_logs u join private.ai_providers p on p.id=u.provider_id join private.ai_models m on m.id=u.model_id and m.provider_id=p.id
+   where u.status='SUCCESS' and u.request_type<>'GENERATION_TEST' and m.purpose='GENERATION' and (u.conversation_id is not null or u.ticket_id is not null)
+   order by u.created_at desc,u.id desc limit 1`)).rows[0];
+  return row?{providerId:row.provider_id,providerName:row.provider_name,modelId:row.model_id,modelName:row.model_name,
+   requestType:row.request_type,observedAt:row.created_at.toISOString(),fallbackUsed:row.fallback_used,configurationChanged:row.configuration_changed}:null;
  });
 }
 export async function createProvider(staffId:string,input:unknown,options:ProviderAdminOptions={}):Promise<{id:string;revision:number}>{

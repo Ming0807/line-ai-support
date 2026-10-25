@@ -48,6 +48,28 @@ it('cannot route pricing metadata to a user-supplied host or infer unknown nativ
  expect((await read({...query,adapter:'OPENAI',baseUrl:'https://api.openai.com/v1'},signal())).status).toBe('UNKNOWN');
  expect(fetchImpl).not.toHaveBeenCalled();
 });
+it.each([
+ ['https://opencode.ai/inference/v1','FREE'],
+ ['https://opencode.ai/inference/v1.evil','UNKNOWN'],
+ ['https://attacker.example/inference/v1','UNKNOWN'],
+])('recognizes only official Zen metadata API aliases: %s',async(api,status)=>{
+ const fetchImpl=vi.fn<typeof fetch>().mockImplementation(async url=>url==='https://models.dev/api.json'
+  ?json({opencode:{api,npm:'@ai-sdk/openai-compatible',models:{'fixture-free':{id:'fixture-free',cost:{input:0,output:0}}}}})
+  :json({data:[{id:'fixture-free'}]}));
+ const result=await createPriceReader({fetchImpl})({...query,adapter:'ZEN',baseUrl:'https://opencode.ai/zen/v1',modelId:'fixture-free'},signal());
+ expect(result.status).toBe(status);
+ expect(fetchImpl.mock.calls.map(([url])=>url)).toEqual(['https://models.dev/api.json','https://opencode.ai/zen/v1/models']);
+ if(status==='FREE')expect(result.apiFormat).toBe('CHAT');
+});
+it.each([
+ [false,{input:0,output:0},'UNKNOWN'],
+ [true,{input:0,output:0,cache_write:1},'PAID'],
+])('keeps availability and ancillary-price gates on the new metadata identity',async(available,cost,status)=>{
+ const fetchImpl=vi.fn<typeof fetch>().mockImplementation(async url=>url==='https://models.dev/api.json'
+  ?json({opencode:{api:'https://opencode.ai/inference/v1',npm:'@ai-sdk/openai-compatible',models:{'fixture-free':{id:'fixture-free',cost}}}})
+  :json({data:available?[{id:'fixture-free'}]:[]}));
+ expect((await createPriceReader({fetchImpl})({...query,adapter:'ZEN',baseUrl:'https://opencode.ai/zen/v1',modelId:'fixture-free'},signal())).status).toBe(status);
+});
 it('cancels a stalled metadata body and normalizes network errors without leaking details',async()=>{
  const controller=new AbortController();
  const fetchImpl=vi.fn<typeof fetch>().mockResolvedValue(new Response(new ReadableStream({start(){}})));
@@ -55,4 +77,39 @@ it('cancels a stalled metadata body and normalizes network errors without leakin
  await expect(pending).rejects.toMatchObject({code:'CANCELLED'});
  fetchImpl.mockRejectedValue(new Error('private network details'));
  await expect(createPriceReader({fetchImpl})(query,signal())).rejects.toMatchObject({code:'PROVIDER_UNAVAILABLE',message:'PROVIDER_UNAVAILABLE'});
+});
+
+const currentZenMetadataApi='https://opencode.ai/inference/openai/v1';
+function zenMetadataFixture(api:string,provider:unknown,cost:unknown={input:0,output:0,cache_read:0,cache_write:0},available=true){
+ const fetchImpl=vi.fn<typeof fetch>().mockImplementation(async url=>url==='https://models.dev/api.json'
+  ?json({opencode:{api,npm:'@ai-sdk/openai-compatible',models:{'space-bunny-free':{id:'space-bunny-free',cost,...(provider===undefined?{}:{provider})}}}})
+  :json({data:available?[{id:'space-bunny-free'}]:[]}));
+ return {fetchImpl,read:()=>createPriceReader({fetchImpl})({...query,adapter:'ZEN',baseUrl:'https://opencode.ai/zen/v1',modelId:'space-bunny-free'},signal())};
+}
+it('reads the current observed Zen metadata without changing the configured transport',async()=>{
+ const f=zenMetadataFixture(currentZenMetadataApi,{api:currentZenMetadataApi});
+ expect(await f.read()).toMatchObject({status:'FREE',inputPricePerMillion:0,outputPricePerMillion:0,apiFormat:'CHAT'});
+ expect(f.fetchImpl.mock.calls.map(([url])=>url)).toEqual(['https://models.dev/api.json','https://opencode.ai/zen/v1/models']);
+ expect(f.fetchImpl.mock.calls.every(([,init])=>init?.method==='GET'&&init.redirect==='error'&&!JSON.stringify(init).toLowerCase().includes('authorization'))).toBe(true);
+});
+it('recognizes the exact new metadata identity even without a model provider override',async()=>{
+ expect(await zenMetadataFixture(currentZenMetadataApi,undefined).read()).toMatchObject({status:'FREE',apiFormat:'CHAT'});
+});
+it('inherits the declared provider npm for an API-only override of that same verified identity',async()=>{
+ const api='https://opencode.ai/inference/v1';
+ expect(await zenMetadataFixture(api,{api}).read()).toMatchObject({status:'FREE',apiFormat:'CHAT'});
+});
+it.each([
+ ['https://opencode.ai/inference/openai/v1.evil',undefined],
+ ['https://opencode.ai.evil/inference/openai/v1',undefined],
+ [currentZenMetadataApi,{api:'https://attacker.example/v1'}],
+ [currentZenMetadataApi,{api:'https://opencode.ai/inference/anthropic/v1'}],
+ [currentZenMetadataApi,{api:currentZenMetadataApi,npm:null}],
+ [currentZenMetadataApi,{api:currentZenMetadataApi,npm:0}],
+])('does not infer a free protocol from a lookalike identity or invalid model override %s %j',async(api,provider)=>{
+ expect((await zenMetadataFixture(api,provider).read()).status).toBe('UNKNOWN');
+});
+it('retains ancillary-price and exact live availability gates for the observed partial override',async()=>{
+ expect((await zenMetadataFixture(currentZenMetadataApi,{api:currentZenMetadataApi},{input:0,output:0,cache_read:0,cache_write:1}).read()).status).toBe('PAID');
+ expect((await zenMetadataFixture(currentZenMetadataApi,{api:currentZenMetadataApi},undefined,false).read()).status).toBe('UNKNOWN');
 });

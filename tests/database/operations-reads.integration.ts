@@ -14,7 +14,7 @@ after(async()=>{try{
 }finally{await pool.end();}});
 async function fixture(){
  const a=randomUUID(),b=randomUUID(),staff=randomUUID(),sensitive=randomUUID(),admin=randomUUID(),superAdmin=randomUUID(),session=randomUUID(),marker='OPS_'+randomUUID();
- await pool.query("insert into public.departments(id,code,name_th,name_en) values($1,$3,$3,$3),($2,$4,$4,$4)",[a,b,'OPS_'+a.replaceAll('-',''),'OPS_'+b.replaceAll('-','')]);
+ await pool.query("insert into public.departments(id,code,name_th,name_en) values($1,$3,$3,$3),($2,$4,$4,$4)",[a,b,'OPS_'+a.replaceAll('-','').toUpperCase(),'OPS_'+b.replaceAll('-','').toUpperCase()]);
  ownedDepartments.push(a,b);
  for(const id of [staff,sensitive,admin,superAdmin])await pool.query('insert into auth.users(id) values($1)',[id]);
  await pool.query(`insert into public.staff_profiles(id,department_id,display_name,role,can_view_sensitive) values

@@ -8,10 +8,11 @@ import {createEscalation} from '../tickets/create-ticket';
 import {resolveDepartment} from '../tickets/route-department';
 import {userEventSchema} from '../line/events';
 import {decryptValue,encryptValue,hashLineUserId} from '../security/identity';
-import {hashOpaqueToken} from '../conversation/quick-reply';
+import {confirmationChoiceHash} from '../conversation/support-confirmation';
 import {searchKnowledge,knowledgeScopeSchema} from '../knowledge/retrieval';
 import {structuredQuerySchema} from '../knowledge/structured-query';
-import {searchStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
+import {searchStructured,discoverPublicForms,discoverPublicStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
+import {structuredDiscoveryRequestSchema} from '../knowledge/structured-discovery';
 import {loadSupportActionState} from './support-state';
 import {supportConfirmationMatches,recordSupportEscalation} from './support-actions';
 
@@ -42,6 +43,19 @@ export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptio
   await client.query("set local statement_timeout='5s'");await authorizeAIContext(client,context);return work(client);
  },pool);
  return new ToolRegistry()
+  .register('check_public_authority',z.strictObject({}),(args,context)=>withContext(context,async client=>{
+   void args;
+   const result=await client.query(`select exists(select 1 from public.documents where approval_status='APPROVED'
+    and visibility='PUBLIC' and official_source and extraction_reviewed and not requires_review and authority_level>0) present`);
+   if(result.rowCount!==1||typeof result.rows[0].present!=='boolean')throw new Error('KNOWLEDGE_CATALOG_INVALID');
+   return {exists:result.rows[0].present};
+  }),'Check whether any reviewed PUBLIC authority exists. Absence cannot be fixed by collecting personal scope and grants no publication or answer authority.')
+  .register('discover_public_structured',structuredDiscoveryRequestSchema,(args,context)=>withContext(context,client=>{
+   if(!options.key)throw new Error('STRUCTURED_SEARCH_UNAVAILABLE');return discoverPublicStructured(client,args,options.key);
+  }),'Read a complete bounded reviewed PUBLIC calendar/service/form catalog in the grounded scope. No arbitrary dataset, fuzzy SQL, inferred applicability or incomplete-catalog answer.')
+  .register('discover_public_forms',z.object({scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,client=>{
+   if(!options.key)throw new Error('STRUCTURED_SEARCH_UNAVAILABLE');return discoverPublicForms(client,args,options.key);
+  }),'List at most twenty reviewed PUBLIC forms in the grounded scope; incomplete or ambiguous catalogs cannot be presented as complete.')
   .register('search_knowledge',z.object({query,scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,async client=>{
    if(!options.vector||!options.fingerprint)throw new Error('KNOWLEDGE_EMBEDDING_REQUIRED');
    try{return await searchKnowledge(client,{scope:args.scope,vector:options.vector,fingerprint:options.fingerprint,limit:12});}
@@ -66,7 +80,7 @@ export function createTicketToolRegistry(client:DbClient,key:string,confirmation
    join private.line_identities i on i.line_session_id=$2 where e.id=$1 and e.channel='STUDENT'`,[confirmationEventId,context.lineSessionId])).rows[0];
   if(!source||source.user_hash!==source.expected_hash)throw new Error('AI_TOOL_CONFIRMATION_INVALID');
   const event=userEventSchema.safeParse(JSON.parse(decryptValue(source.payload_encrypted,key)));
-  if(!event.success||event.data.type!=='postback'||hashLineUserId(event.data.source.userId,key)!==source.expected_hash)throw new Error('AI_TOOL_CONFIRMATION_INVALID');
+  if(!event.success||hashLineUserId(event.data.source.userId,key)!==source.expected_hash)throw new Error('AI_TOOL_CONFIRMATION_INVALID');
   const requestFingerprint=createHash('sha256').update(JSON.stringify({tool:'create_ticket',context,args})).digest('hex');
   const previous=(await client.query('select * from private.ai_tool_receipts where confirmation_event_id=$1',[confirmationEventId])).rows[0];
   if(previous){
@@ -75,11 +89,11 @@ export function createTicketToolRegistry(client:DbClient,key:string,confirmation
    return ticketResult.parse(JSON.parse(decryptValue(previous.result_encrypted,key)));
   }
   await authorizeAIContext(client,context);
-  const token=/^yru:choice:([A-Za-z0-9_-]{43})$/.exec(event.data.postback.data)?.[1];
-  if(!token)throw new Error('AI_TOOL_CONFIRMATION_INVALID');
+  const tokenHash=await confirmationChoiceHash(client,event.data,confirmationEventId,context.lineSessionId,key);
+  if(!tokenHash)throw new Error('AI_TOOL_CONFIRMATION_INVALID');
   const choice=(await client.query(`select choice,candidate_snapshot from private.pending_route_choices
    where token_hash=$1 and line_session_id=$2 and consumed_at is not null and expires_at>clock_timestamp() for update`,
-  [hashOpaqueToken(token,key),context.lineSessionId])).rows[0];
+  [tokenHash,context.lineSessionId])).rows[0];
   if(!choice||choice.choice.action!=='ESCALATE'||choice.choice.conversationId!==context.conversationId||choice.choice.departmentCode!==args.departmentCode||
    !Array.isArray(choice.candidate_snapshot)||!choice.candidate_snapshot.some((candidate:{id?:string;revision?:number})=>candidate.id===context.conversationId&&candidate.revision===context.conversationRevision))
    throw new Error('AI_TOOL_CONFIRMATION_INVALID');

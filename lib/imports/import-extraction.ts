@@ -67,7 +67,11 @@ async function readPreview(actor:string,loaded:Awaited<ReturnType<typeof loadSou
  return {job,extractionRevision:row.revision,kind:row.kind,extraction,analysis,edit};
 }
 export async function getImportPreview(actor:string,id:string,options:ImportExtractionOptions={}):Promise<ImportPreview>{
- return safe(async()=>readPreview(actor,await loadSource(actor,id,undefined,options),options));
+ return (await loadImportPreviewSnapshot(actor,id,options)).preview;
+}
+/** Server-only operation snapshot: loaded/authenticated here, never supplied by an HTTP caller. */
+export async function loadImportPreviewSnapshot(actor:string,id:string,options:ImportExtractionOptions={}){
+ return safe(async()=>{const loaded=await loadSource(actor,id,undefined,options);return {source:loaded.source,preview:await readPreview(actor,loaded,options)};});
 }
 async function appendRevision(actor:string,loaded:Awaited<ReturnType<typeof loadSource>>,extraction:LocatedExtraction,kind:ImportPreview['kind'],baseRevision:number|null,edit:ExtractionEditEvidence|null,options:ImportExtractionOptions):Promise<ImportPreview>{
  const {job,source}=loaded;checkRevision(job.revision);checkSignal(options.signal);

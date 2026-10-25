@@ -6,7 +6,8 @@ import {createPinnedHttpsRequest} from './compatible-pinned-https';
 
 export type CompatibleHttpRequest=
  | {route:'models';apiKey:string;signal:AbortSignal}
- | {route:'chat/completions'|'embeddings';apiKey:string;json:unknown;signal:AbortSignal};
+ | {route:'chat/completions';apiKey:string;json:unknown;signal:AbortSignal;timeoutMs?:number}
+ | {route:'embeddings';apiKey:string;json:unknown;signal:AbortSignal};
 export interface CompatibleHttpResponse {
  readonly status:number;readonly contentType:string|null;readonly retryAfter:string|null;readonly json:unknown|null;
 }
@@ -46,6 +47,7 @@ function serializeJson(value:unknown):Uint8Array{
 }
 
 interface ValidatedCompatibleRequest {
+ readonly timeoutMs:number;
  readonly route:CompatibleHttpRequest['route'];
  readonly apiKey:string;
  readonly signal:AbortSignal;
@@ -67,11 +69,15 @@ function snapshotRequest(value:unknown):ValidatedCompatibleRequest{
   const route=fields.get('route');
   if(route!=='models'&&route!=='chat/completions'&&route!=='embeddings')return invalid();
   const required=route==='models'?['route','apiKey','signal']:['route','apiKey','json','signal'];
-  if(fields.size!==required.length||required.some(name=>!fields.has(name)))return invalid();
+  const hasTimeout=fields.has('timeoutMs');
+  if(hasTimeout&&route!=='chat/completions')return invalid();
+  if(fields.size!==required.length+(hasTimeout?1:0)||required.some(name=>!fields.has(name)))return invalid();
+  const timeoutMs=hasTimeout?fields.get('timeoutMs'):route==='models'?5000:10000;
+  if(typeof timeoutMs!=='number'||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>45000)return invalid();
   const apiKey=fields.get('apiKey'),signal=fields.get('signal');
   if(typeof apiKey!=='string'||apiKey.length<1||apiKey.length>512||!/^[\x21-\x7e]+$/.test(apiKey))return invalid();
   if(!(signal instanceof AbortSignal))return invalid();
-  return {route,apiKey,signal,body:route==='models'?null:serializeJson(fields.get('json'))};
+  return {route,apiKey,signal,timeoutMs,body:route==='models'?null:serializeJson(fields.get('json'))};
  }catch(error){
   if(error instanceof AIProviderError)throw error;
   return invalid();
@@ -102,7 +108,7 @@ export function createCompatibleTransport(options:{
   if(snapshot.signal.aborted)throw compatibleSignalError(snapshot.signal);
   const deadline=new AbortController();
   const signal=AbortSignal.any([snapshot.signal,deadline.signal]);
-  const timer=setTimeout(()=>deadline.abort(new DOMException('TIMEOUT','TimeoutError')),snapshot.route==='models'?5000:10_000);
+  const timer=setTimeout(()=>deadline.abort(new DOMException('TIMEOUT','TimeoutError')),snapshot.timeoutMs);
   try{
    const addresses=await resolveWithAbort(signal,()=>resolve(endpoint.hostname,signal));
    if(signal.aborted)throw compatibleSignalError(signal);

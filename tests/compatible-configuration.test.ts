@@ -43,3 +43,25 @@ it('performs selected compatible metadata through the supplied bounded transport
  });
  expect(observed).toMatchObject({result:'SUCCESS',httpStatus:200});expect(send).toHaveBeenCalledWith(base,expect.objectContaining({route:'models',apiKey:'fixture-key'}));
 });
+
+it.each([
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:['models/gemini-3.8-flash'],result:'SUCCESS',errorCode:null},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai/',ids:['models/gemini-3.8-flash'],result:'SUCCESS',errorCode:null},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:['gemini-3.8-flash'],result:'SUCCESS',errorCode:null},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:['models/gemini-3.8-flash','models/gemini-3.8-flash'],result:'ERROR',errorCode:'INVALID_OUTPUT'},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:['gemini-3.8-flash','models/gemini-3.8-flash'],result:'ERROR',errorCode:'INVALID_OUTPUT'},
+ {endpoint:base,ids:['models/gemini-3.8-flash'],result:'ERROR',errorCode:'MODEL_UNAVAILABLE'},
+ {endpoint:'https://generativelanguage.googleapis.com/v1/openai',ids:['models/gemini-3.8-flash'],result:'ERROR',errorCode:'MODEL_UNAVAILABLE'},
+ {endpoint:'https://generativelanguage.googleapis.com.attacker.net/v1beta/openai',ids:['models/gemini-3.8-flash'],result:'ERROR',errorCode:'MODEL_UNAVAILABLE'},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:['models/models/gemini-3.8-flash','models/gemini-3.8-flash-extra','other/gemini-3.8-flash'],result:'ERROR',errorCode:'MODEL_UNAVAILABLE'},
+ {endpoint:'https://generativelanguage.googleapis.com/v1beta/openai',ids:[],result:'ERROR',errorCode:'MODEL_UNAVAILABLE'},
+])('matches only unambiguous Google model resource identity: $endpoint $ids',async({endpoint,ids,result,errorCode})=>{
+ const request=vi.fn<CompatibleTransport['request']>(async()=>({status:200,contentType:'application/json',retryAfter:null,json:{data:ids.map(id=>({id}))}}));
+ const {encryptValue}=await import('../lib/security/identity');const key=Buffer.alloc(32,1).toString('base64');
+ const priceReader=vi.fn(),generate=vi.fn();
+ const observed=await probeModel({...config,baseUrl:endpoint,modelId:'gemini-3.8-flash',apiKeyEncrypted:encryptValue('fixture-key',key)},'METADATA',{
+  key,generationAdapters:{COMPATIBLE:{generate,healthCheck:vi.fn()}},embeddingAdapters:{},compatibleTransport:{request},priceReader,
+ });
+ expect(observed).toMatchObject({result,errorCode,httpStatus:200});expect(request).toHaveBeenCalledOnce();
+ expect(priceReader).not.toHaveBeenCalled();expect(generate).not.toHaveBeenCalled();expect(JSON.stringify(observed)).not.toContain('fixture-key');
+});

@@ -37,7 +37,7 @@ it('uses safe clarification for unavailable/incomplete exact evidence without ge
 function cascadeFixture(status:unknown={status:'EMPTY'}){
  const calls:string[]=[],proof=buildRuleProof({familyId:id,baseDocumentId:id,versionStream:'main',ruleRevision:'0',evaluationDate:'2026-10-08',members:[{documentId:id,revision:0}],effects:[]});
  const rag={chunkId:id,documentId:id,documentRevision:0,title:'ห้องสมุด',familyCode:'LIBRARY',academicYear:null,authorityLevel:90,pageNumber:1,sectionTitle:'เวลาเปิดบริการ',content:'ห้องสมุดเปิดเวลา 08:30 น.',sourceUrl:null,similarity:0.9,ruleProof:proof};
- const generate=vi.fn(async(input:{taskType:string})=>({output:input.taskType==='KNOWLEDGE_SCOPE'?scope:input.taskType==='KNOWLEDGE_METHOD'?{method:'STRUCTURED',query}:{answer:'ห้องสมุดเปิดเวลา 08:30 น.',citationChunkIds:[id]},toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));
+ const generate=vi.fn(async(input:{taskType:string}):Promise<{output:unknown;toolCalls:unknown[];providerId:string;modelId:string;fallbackUsed:boolean}>=>({output:input.taskType==='KNOWLEDGE_SCOPE'?scope:input.taskType==='KNOWLEDGE_METHOD'?{method:'STRUCTURED',query}:{answer:'ห้องสมุดเปิดเวลา 08:30 น.',citationChunkIds:[id]},toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));
  const structuredSearch=vi.fn(async()=>{calls.push('structured');return status as Awaited<ReturnType<NonNullable<KnowledgeProducerOptions['structuredSearch']>>>;});
  const embed=vi.fn(async()=>{calls.push('embed');return {vectors:[[1,0,0]],fingerprint:hash,dimensions:3,providerId:id,modelId:id,fallbackUsed:false};});
  const search=vi.fn(async()=>{calls.push('rag');return [rag];});
@@ -47,6 +47,42 @@ it('continues a complete Structured miss into reviewed RAG with the same grounde
  const f=cascadeFixture(),result=await f.produce(snapshot,new AbortController().signal);
  expect(result).toMatchObject({kind:'ANSWER',scope,structuredMiss:query,output:{citationChunkIds:[id]}});expect(aiResultSchema.safeParse(result).success).toBe(true);
  expect(f.calls).toEqual(['structured','embed','rag']);expect(f.search).toHaveBeenCalledWith(expect.objectContaining({scope}));expect(f.generate.mock.calls.map(([input])=>input.taskType)).toEqual(['KNOWLEDGE_SCOPE','KNOWLEDGE_METHOD','KNOWLEDGE_ANSWER']);
+});
+
+const referencedNotice='ประกาศเรื่องการยื่นคำร้องสำหรับกลุ่มทดลอง X';
+const noticeQuery={version:1,dataset:'announcements',filters:{title:referencedNotice},limit:20};
+function noticeFixture(){
+ const f=cascadeFixture();
+ f.generate.mockImplementation(async input=>({output:input.taskType==='KNOWLEDGE_SCOPE'?{...scope,familyCodes:[]}:
+  input.taskType==='KNOWLEDGE_METHOD'?{method:'STRUCTURED',query:noticeQuery}:
+  {answer:'ตามประกาศ กลุ่มทดลอง X ต้องยื่นแบบ ก โดยประกาศไม่ระบุเกณฑ์สมาชิกกลุ่ม',citationChunkIds:[id]},
+  toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));
+ f.search.mockImplementation(async()=>{f.calls.push('rag');return [{chunkId:id,documentId:id,documentRevision:0,
+  title:referencedNotice,familyCode:'NOTICE',academicYear:null,authorityLevel:90,pageNumber:1,sectionTitle:'เงื่อนไข',
+  content:'กลุ่มทดลอง X ต้องยื่นแบบ ก โดยประกาศไม่ระบุเกณฑ์สมาชิกกลุ่ม',sourceUrl:null,similarity:0.9,
+  ruleProof:buildRuleProof({familyId:id,baseDocumentId:id,versionStream:'main',ruleRevision:'0',evaluationDate:'2026-10-08',members:[{documentId:id,revision:0}],effects:[]})}];});
+ return f;
+}
+it('uses the immediately preceding owned USER notice title for an exact miss then reviewed RAG',async()=>{
+ const f=noticeFixture();
+ const result=await f.produce({...snapshot,question:'จากประกาศนี้ ต้องเตรียมเอกสารอะไรบ้างสำหรับขั้นตอนที่ระบุ',
+  continuesOwnedConversation:true,history:[{role:'user',content:referencedNotice}]},new AbortController().signal);
+ expect(result).toMatchObject({kind:'ANSWER',structuredMiss:noticeQuery,output:{citationChunkIds:[id]}});
+ expect(f.calls).toEqual(['structured','embed','rag']);
+ expect(f.structuredSearch).toHaveBeenCalledWith({query:noticeQuery,scope:{...scope,familyCodes:[]}});
+});
+it('does not ground a notice title in unowned, assistant-only, older or invented context',async()=>{
+ const contexts=[
+  {continuesOwnedConversation:false,history:[{role:'user' as const,content:referencedNotice}]},
+  {continuesOwnedConversation:true,history:[{role:'assistant' as const,content:referencedNotice}]},
+  {continuesOwnedConversation:true,history:[{role:'user' as const,content:referencedNotice},{role:'user' as const,content:'เปลี่ยนเป็นประกาศเรื่องทุนแทน'}]},
+  {continuesOwnedConversation:true,history:[{role:'user' as const,content:'ประกาศคนละเรื่อง'}]},
+ ];
+ for(const context of contexts){
+  const f=noticeFixture();
+  expect((await f.produce({...snapshot,question:'จากประกาศนี้ ต้องเตรียมอะไร',...context},new AbortController().signal)).kind).toBe('CLARIFY');
+  expect(f.structuredSearch).not.toHaveBeenCalled();expect(f.embed).not.toHaveBeenCalled();
+ }
 });
 it('clarifies after both authorized internal searches miss without inventing an answer',async()=>{
  const f=cascadeFixture();f.search.mockImplementation(async()=>{f.calls.push('rag');return [];});

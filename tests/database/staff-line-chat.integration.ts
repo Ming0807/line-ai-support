@@ -11,6 +11,7 @@ import { notifyTicketStaff,notifyTicketUserReply } from '../../lib/tickets/notif
 import { runOutboxCycle } from '../../lib/queue/run-outbox';
 import { hashOpaqueToken } from '../../lib/conversation/quick-reply';
 import { applyTicketAction } from '../../lib/tickets/ticket-service';
+import { flushStaffAlerts } from '../../lib/incidents/staff-alerts';
 
 const database = process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database && /^yru_structured_schema_[a-f0-9]{12}$/.test(database), 'STAFF-LINE-CHAT tests require the owned structured-schema database');
@@ -22,10 +23,36 @@ const ticketIds: string[] = [];
 const inboxIds: string[] = [];
 let staffChatDepartmentId:string;
 
+async function staffAlertEventsInstalled(): Promise<boolean> {
+  return (await pool.query("select to_regclass('private.staff_alert_events') is not null ready")).rows[0]?.ready === true;
+}
+
+async function flushCapturedStaffAlerts(): Promise<void> {
+  if (!await staffAlertEventsInstalled()) return;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const result = await flushStaffAlerts(pool, key, { appBaseUrl: 'https://alerts.fixture' });
+    if (result.released === 0 && result.suppressed === 0) return;
+  }
+  throw new Error('STAFF_ALERT_FIXTURE_FLUSH_BOUND');
+}
+
+async function suppressOwnedPendingStaffAlerts(): Promise<void> {
+  if (staffIds.length === 0 || !await staffAlertEventsInstalled()) return;
+  await pool.query(
+    `update private.staff_alert_events
+        set status='SUPPRESSED',suppression_code='ALERT_CONTEXT_CHANGED',completed_at=clock_timestamp()
+      where staff_id=any($1::uuid[]) and status='PENDING'`,
+    [staffIds],
+  );
+}
+
 before(async()=>{
   await pool.query("update public.departments set active=false where code like 'CHAT_QA_%'");
   staffChatDepartmentId=(await pool.query('insert into public.departments(code,name_th,name_en) values($1,$2,$3) returning id',
     [`CHAT_QA_${randomUUID().slice(0,8).toUpperCase().replace(/[0-9]/g,d=>String.fromCharCode(75+Number(d)))}`,'แผนก fixture ของชุด Staff chat','Owned Staff chat fixture'])).rows[0].id;
+  if (await staffAlertEventsInstalled()) {
+    await pool.query('update private.incident_rules set alert_debounce_seconds=0 where id=1');
+  }
   // This suite exclusively owns a disposable database. Retained prior RED runs must not enter a later transport probe.
   await pool.query("update private.message_outbox set status='SUPPRESSED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where status in('PENDING','PROCESSING')");
   await pool.query("update public.tickets set status='CANCELLED' where problem_summary like 'STAFF_CHAT_PRIVATE_%' and status not in('CANCELLED','CLOSED','RESOLVED')");
@@ -57,6 +84,7 @@ after(async () => {
           and (ticket_id=any($1::uuid[]) or recipient_staff_id=any($2::uuid[]) or line_session_id in(select line_session_id from public.tickets where id=any($1::uuid[])))`,
       [ticketIds, staffIds],
     );
+    await suppressOwnedPendingStaffAlerts();
     await pool.query('update private.staff_line_identities set active=false where staff_id=any($1::uuid[])', [staffIds]);
     await pool.query('update public.staff_profiles set active=false where id=any($1::uuid[])', [staffIds]);
     await pool.query('update public.departments set active=false where id=$1',[staffChatDepartmentId]);
@@ -73,6 +101,7 @@ afterEach(async () => {
         and (ticket_id=any($1::uuid[]) or recipient_staff_id=any($2::uuid[]) or line_session_id in(select line_session_id from public.tickets where id=any($1::uuid[])))`,
     [ticketIds, staffIds],
   );
+  await suppressOwnedPendingStaffAlerts();
   await pool.query('update private.staff_line_identities set active=false where staff_id=any($1::uuid[])', [staffIds]);
   await pool.query('update public.staff_profiles set active=false where id=any($1::uuid[])', [staffIds]);
   await pool.query("update public.tickets set status='CANCELLED' where id=any($1::uuid[]) and status not in('CANCELLED','CLOSED','RESOLVED')",[ticketIds]);
@@ -190,6 +219,7 @@ async function notifyCase(fixture: ChatFixture): Promise<void> {
     )).rows[0];
     await notifyTicketStaff(client, ticket, key);
   }, pool);
+  await flushCapturedStaffAlerts();
 }
 
 async function latestStaffPayload(staffId: string): Promise<StaffPayload> {
@@ -213,11 +243,11 @@ function quickReplyData(payload: StaffPayload, label: string): string {
 async function notificationAcceptToken(fixture: ChatFixture, staffId: string): Promise<string> {
   const row = (await pool.query(
     `select payload_encrypted from private.message_outbox
-      where ticket_id=$1 and recipient_staff_id=$2 and channel='STAFF' and kind='NOTIFICATION'
-      order by outbox_seq desc limit 1`,
+      where ticket_id=$1 and recipient_staff_id=$2 and channel='STAFF' and kind in('ALERT','NOTIFICATION')
+      order by case when kind='ALERT' then 0 else 1 end,outbox_seq desc limit 1`,
     [fixture.ticket.id, staffId],
   )).rows[0];
-  assert.ok(row, 'the bound department Staff member has a scoped accept notification');
+  assert.ok(row, 'the bound department Staff member has a scoped accept alert');
   const payload = decodePayload(row.payload_encrypted as string);
   const data = payload.messages[0]?.quickReply?.items[0]?.action.data;
   const match = /^yru:staff:accept:([A-Za-z0-9_-]{43})$/.exec(data ?? '');
@@ -381,14 +411,20 @@ test('simultaneous Staff accept postbacks assign once and send safe per-staff re
     )).rows[0];
     await notifyTicketStaff(client, row, key);
   }, pool);
+  await flushCapturedStaffAlerts();
 
   const notifications = (await pool.query(
     `select id,recipient_staff_id,payload_encrypted
        from private.message_outbox
-      where ticket_id=$1 and channel='STAFF' and kind='NOTIFICATION'
+      where ticket_id=$1 and channel='STAFF' and kind in('ALERT','NOTIFICATION')
       order by recipient_staff_id`,
     [ticket.id],
   )).rows as Array<{ id: string; recipient_staff_id: string; payload_encrypted: string }>;
+  const expectedAlertKind = await staffAlertEventsInstalled() ? 'ALERT' : 'NOTIFICATION';
+  assert.deepEqual((await pool.query(
+    `select distinct kind from private.message_outbox where id=any($1::uuid[])`,
+    [notifications.map(row => row.id)],
+  )).rows.map(row => row.kind as string), [expectedAlertKind], 'NEW case alert uses ALERT after migration 41 and legacy NOTIFICATION before it');
   assert.deepEqual(notifications.map(row => row.recipient_staff_id).sort(), [first.id, second.id].sort());
   const tokenByStaff = new Map<string, string>();
   for (const row of notifications) {
@@ -761,7 +797,7 @@ test('restricted cases cannot be opened for LINE relay or disclose case details 
   await notifyCase(fixture);
   const notification = (await pool.query(
     `select payload_encrypted from private.message_outbox
-      where ticket_id=$1 and recipient_staff_id=$2 and channel='STAFF' and kind='NOTIFICATION'`,
+      where ticket_id=$1 and recipient_staff_id=$2 and channel='STAFF' and kind in('ALERT','NOTIFICATION')`,
     [fixture.ticket.id, staff.id],
   )).rows[0];
   assert.ok(notification);
@@ -952,6 +988,78 @@ test('Staff unfollow revokes the binding and selection without sending a follow-
  assert.equal((await pool.query('select count(*)::int n from private.staff_line_case_context where staff_id=$1 and expires_at>clock_timestamp()',[staff.id])).rows[0].n,0);
  await processEvent('STAFF',{type:'follow',source:{type:'user',userId:staff.lineUserId}});
  assert.equal((await pool.query('select active from private.staff_line_identities where staff_id=$1',[staff.id])).rows[0].active,false,'follow alone cannot restore authorization or an old selected chat');
+});
+
+test('Dashboard queued replies are suppressed after the sender is revoked',async()=>{
+ const f=await chatFixture({status:'STAFF_HANDLING',assignedStaffIndex:0});
+ const revision=(await pool.query('select revision from public.tickets where id=$1',[f.ticket.id])).rows[0].revision;
+ await transaction(c=>applyTicketAction(c,f.staff[0]!.id,f.ticket.id,'STAFF_REPLY',{revision,requestId:randomUUID(),text:'Dashboard owned pending reply'},key),pool);
+ const queued=(await pool.query("select id from private.message_outbox where ticket_id=$1 and kind='STAFF'",[f.ticket.id])).rows[0].id;
+ await pool.query('update public.staff_profiles set active=false where id=$1',[f.staff[0]!.id]);
+ const capture=await dispatchWithCapture();assert.equal(capture.requests.length,0,'revoked sender must not dispatch a previously queued Dashboard reply');
+ assert.equal((await pool.query('select status from private.message_outbox where id=$1',[queued])).rows[0].status,'SUPPRESSED');
+});
+
+test('Dashboard queued replies are suppressed after assignment epoch changes',async()=>{
+ const f=await chatFixture({staffCount:2,status:'STAFF_HANDLING',assignedStaffIndex:0});
+ const revision=(await pool.query('select revision from public.tickets where id=$1',[f.ticket.id])).rows[0].revision;
+ await transaction(c=>applyTicketAction(c,f.staff[0]!.id,f.ticket.id,'STAFF_REPLY',{revision,requestId:randomUUID(),text:'Dashboard original assignee reply'},key),pool);
+ await pool.query('update public.tickets set assigned_staff_id=$2 where id=$1',[f.ticket.id,f.staff[1]!.id]);
+ const capture=await dispatchWithCapture();assert.equal(capture.requests.length,0,'a new assignment must invalidate the original sender authority');
+});
+
+test('queued LINE manual reply cannot outlive its original selection deadline',async()=>{
+ const f=await chatFixture();
+ const receipt=await acceptCase(f);
+ await processEvent('STAFF',staffPostbackEvent(f.staff[0]!,quickReplyData(receipt,'เปิดคุยเคสนี้')));
+ await pool.query("update private.staff_line_case_context set expires_at=clock_timestamp()+interval '2 seconds' where staff_id=$1",[f.staff[0]!.id]);
+ const deadline=(await pool.query('select expires_at from private.staff_line_case_context where staff_id=$1',[f.staff[0]!.id])).rows[0].expires_at;
+ await processEvent('STAFF',staffTextEvent(f.staff[0]!,'LINE original selection bounded reply'));
+ await suppressStaffOutbox(f.staff);
+ await pool.query('select pg_sleep(greatest(0,extract(epoch from $1::timestamptz-clock_timestamp()))+0.01)',[deadline]);
+ const capture=await dispatchWithCapture();assert.equal(capture.requests.length,0,'expired original selection must suppress queued Student delivery');
+});
+
+test('Dashboard replies retain sensitive scope without requiring a personal LINE binding',async()=>{
+ const f=await chatFixture({status:'STAFF_HANDLING',assignedStaffIndex:0,sensitivity:'RESTRICTED',restrictedStaff:true});
+ await pool.query('update private.staff_line_identities set active=false where staff_id=$1',[f.staff[0]!.id]);
+ const revision=(await pool.query('select revision from public.tickets where id=$1',[f.ticket.id])).rows[0].revision;
+ await transaction(c=>applyTicketAction(c,f.staff[0]!.id,f.ticket.id,'STAFF_REPLY',{revision,requestId:randomUUID(),text:'Scoped Dashboard response'},key),pool);
+ const capture=await dispatchWithCapture();assert.equal(capture.requests.length,1);
+ assert.equal(capture.requests[0]!.body.to,f.studentLineUserId);
+ assert.equal(JSON.stringify(capture.requests[0]!.body).includes('selectionExpiresAt'),false,'server selection metadata must not appear on the LINE wire');
+});
+
+test('revoke then restore cannot revive a queued Dashboard reply',async()=>{
+ const f=await chatFixture({status:'STAFF_HANDLING',assignedStaffIndex:0});
+ const revision=(await pool.query('select revision from public.tickets where id=$1',[f.ticket.id])).rows[0].revision;
+ await transaction(c=>applyTicketAction(c,f.staff[0]!.id,f.ticket.id,'STAFF_REPLY',{revision,requestId:randomUUID(),text:'Sticky Dashboard invalidation'},key),pool);
+ await pool.query('update public.staff_profiles set active=false where id=$1',[f.staff[0]!.id]);
+ await pool.query('update public.staff_profiles set active=true where id=$1',[f.staff[0]!.id]);
+ assert.equal((await dispatchWithCapture()).requests.length,0);
+});
+
+test('switching LINE to T2 preserves queued T1 recipient and original authority',async()=>{
+ const first=await chatFixture(),second=await chatFixture({existingStaff:first.staff});
+ const staff=first.staff[0]!,openFirst=quickReplyData(await acceptCase(first),'เปิดคุยเคสนี้');
+ const openSecond=quickReplyData(await acceptCase(second),'เปิดคุยเคสนี้');
+ await processEvent('STAFF',staffPostbackEvent(staff,openFirst));
+ await processEvent('STAFF',staffTextEvent(staff,'Reply intended only for T1'));
+ await processEvent('STAFF',staffPostbackEvent(staff,openSecond));
+ await suppressStaffOutbox(first.staff);
+ const capture=await dispatchWithCapture();assert.equal(capture.requests.length,1);
+ assert.equal(capture.requests[0]!.body.to,first.studentLineUserId);
+ assert.notEqual(capture.requests[0]!.body.to,second.studentLineUserId);
+ assert.equal((await pool.query('select ticket_id from private.staff_line_case_context where staff_id=$1',[staff.id])).rows[0].ticket_id,second.ticket.id);
+});
+
+test('manual reply enqueue rejects a conversation whose active ticket changed',async()=>{
+ const f=await chatFixture({status:'STAFF_HANDLING',assignedStaffIndex:0});
+ await pool.query('update public.conversations set active_ticket_id=null where id=$1',[f.conversationId]);
+ const revision=(await pool.query('select revision from public.tickets where id=$1',[f.ticket.id])).rows[0].revision;
+ await assert.rejects(transaction(c=>applyTicketAction(c,f.staff[0]!.id,f.ticket.id,'STAFF_REPLY',{revision,requestId:randomUUID(),text:'Must not enqueue'},key),pool),
+  {message:'CONFLICT'});
+ assert.equal((await pool.query("select count(*)::int n from private.message_outbox where ticket_id=$1 and kind='STAFF'",[f.ticket.id])).rows[0].n,0);
 });
 
 test('Staff chat storage is browser denied and service runtime cannot delete retained rows',async()=>{

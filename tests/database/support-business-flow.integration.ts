@@ -24,7 +24,9 @@ import type {EmbedInput,EmbedResult} from '../../lib/ai/embedding-gateway';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
+import {prepareOwnedStaffAlerts,releaseOwnedStaffAlerts} from './staff-alert-fixture';
 import {decryptValue,encryptValue,hashLineUserId,hashStaffLineUserId} from '../../lib/security/identity';
+import {createChoices,hashOpaqueToken} from '../../lib/conversation/quick-reply';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_ISOLATED_DATABASE_REQUIRED');
@@ -63,6 +65,7 @@ async function createFlow(){
   }finally{await pool.end();}
  }
  try{
+  await prepareOwnedStaffAlerts(pool);
   for(const [id,role] of [[actor,'SUPER_ADMIN'],[staff,'STAFF']] as const){
    await pool.query('insert into auth.users(id) values($1)',[id]);
    await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1,$2,'Support flow fixture',true,case when $2='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role]);
@@ -194,15 +197,22 @@ async function runAndDeliver(f:Flow,phase:'GUIDANCE'|'ESCALATE',capture:{bodies:
  return {model,ai,choices};
 }
 
-async function confirm(f:Flow,choice:{label:string;data:string}){
- const eventId=randomUUID(),event={type:'postback' as const,source:{type:'user' as const,userId:f.studentLineId},
-  postback:{data:choice.data},replyToken:`reply-${eventId}`};
+async function confirm(f:Flow,choice:{label:string;data:string}|string,beforeProcess?:()=>Promise<unknown>){
+ const eventId=randomUUID(),event=typeof choice==='string'
+  ?{type:'message' as const,source:{type:'user' as const,userId:f.studentLineId},message:{type:'text' as const,id:randomUUID(),text:choice},replyToken:`reply-${eventId}`}
+  :{type:'postback' as const,source:{type:'user' as const,userId:f.studentLineId},postback:{data:choice.data},replyToken:`reply-${eventId}`};
  const inboxJob=(await f.pool.query("insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,status,lease_token,lease_until,attempts) values('STUDENT',$1,$2,$3,'OTHER','PROCESSING',$4,clock_timestamp()+interval '60 seconds',1) returning *",
   [eventId,hashLineUserId(f.studentLineId,key),encryptValue(JSON.stringify(event),key),randomUUID()])).rows[0] as InboxJob;f.inboxIds.push(inboxJob.id);
+ if(beforeProcess)await beforeProcess();
  await transaction(client=>processInboxEvent(client,inboxJob,key,{aiEnabled:true}),f.pool);
+ // A foreign confirmation creates its own anonymous session and safe receipt.
+ // Track that exact fixture identity so its encrypted receipt cannot leak into a later suite.
+ const ownedRecipient=(await f.pool.query('select line_session_id from private.line_identities where user_hash=$1',[hashLineUserId(f.studentLineId,key)])).rows[0];
+ if(ownedRecipient&&!f.sessionIds.includes(ownedRecipient.line_session_id))f.sessionIds.push(ownedRecipient.line_session_id);
+ return inboxJob;
 }
 
-for(const branch of ['SOLVED','ESCALATE'] as const)test(`controlled Wi-Fi troubleshooting flow consumes owned ${branch} action against a reviewed public guide`,async()=>{
+for(const branch of ['SOLVED','ESCALATE','TYPED_ESCALATE'] as const)test(`controlled Wi-Fi troubleshooting flow consumes owned ${branch} action against a reviewed public guide`,async()=>{
  const f=await createFlow();try{
   const capture:{bodies:unknown[]}={bodies:[]};
   const first=await inbound(f,'Wi-Fi ต่อไม่ได้');
@@ -226,13 +236,21 @@ for(const branch of ['SOLVED','ESCALATE'] as const)test(`controlled Wi-Fi troubl
   assert.equal(answer.metadata.citations[0].documentId,f.documentId,'CITATION_MUST_REFERENCE_APPROVED_CANONICAL_DOCUMENT');
 
   let escalation=delivered;
-  if(branch==='ESCALATE'){
+  if(branch!=='SOLVED'){
    const unresolved=await inbound(f,'ยังแก้ไม่ได้ครับ');assert.equal(unresolved.conversationId,followup.conversationId);
    escalation=await runAndDeliver(f,'ESCALATE',capture);
    assert.deepEqual(escalation.model.taskCalls,['SUPPORT_INTENT'],'UNRESOLVED_FOLLOWUP_MUST_NOT_GENERATE_ANOTHER_GUIDE');
   }
   const target=branch==='SOLVED'?delivered.choices.find(c=>/แก้ได้แล้ว/u.test(c.label)):escalation.choices.find(c=>/ส่งต่อ IT/u.test(c.label));
-  assert(target,`OWNED_${branch}_CHOICE_MUST_BE_DELIVERED`);await confirm(f,target);
+  assert(target,`OWNED_${branch}_CHOICE_MUST_BE_DELIVERED`);
+  const confirmation=await confirm(f,branch==='TYPED_ESCALATE'?'ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ':target);
+  if(branch==='TYPED_ESCALATE'){
+   assert.equal((await f.pool.query('select count(*)::int n from private.ai_tool_receipts where confirmation_event_id=$1',[confirmation.id])).rows[0].n,1,'TYPED_CONFIRMATION_REQUIRES_BACKEND_RECEIPT');
+   assert.equal((await f.pool.query('select count(*)::int n from private.ai_jobs j join public.messages m on m.id=j.message_id where m.source_event_id=$1',[confirmation.id])).rows[0].n,0,'CONFIRMATION_MUST_NOT_START_AI');
+   await assert.rejects(transaction(client=>processInboxEvent(client,confirmation,key,{aiEnabled:true}),f.pool),/STALE_LEASE/u);
+   await confirm(f,'ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ');
+   assert.equal((await f.pool.query('select count(*)::int n from public.tickets where conversation_id=$1',[followup.conversationId])).rows[0].n,1,'REPLAY_MUST_NOT_DUPLICATE_TICKET');
+  }
   const outcomes=(await f.pool.query('select * from private.ai_support_outcomes where conversation_id=$1',[followup.conversationId])).rows;
   assert.equal(outcomes.length,1);assert.equal(outcomes[0].kind,branch==='SOLVED'?'USER_CONFIRMED_SOLVED':'USER_CONFIRMED_ESCALATED');
   if(branch==='SOLVED'){
@@ -249,15 +267,49 @@ for(const branch of ['SOLVED','ESCALATE'] as const)test(`controlled Wi-Fi troubl
    assert.equal(decoded.support.interpreted.problemText,'Wi-Fi ต่อไม่ได้');
    assert(decoded.support.interpreted.collectedContext.some((item:{field:string;quote:string})=>item.field==='DEVICE'&&item.quote==='Android'));
    assert(decoded.support.interpreted.collectedContext.some((item:{field:string;quote:string})=>item.field==='ERROR'&&item.quote==='ไม่สามารถเชื่อมต่อ Wi-Fi ได้'));
-   const scoped=(await f.pool.query("select recipient_staff_id from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind='NOTIFICATION'",[ticket.id])).rows;
+   await releaseOwnedStaffAlerts(f.pool,key,f.staff);
+   const scoped=(await f.pool.query("select recipient_staff_id from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind in('ALERT','NOTIFICATION')",[ticket.id])).rows;
    assert.deepEqual(scoped.map(row=>row.recipient_staff_id),[f.staff],'ONLY_BOUND_CURRENT_IT_STAFF_RECEIVES_TICKET_NOTIFICATION');
    const response=await runOutboxCycle(f.pool,key,{accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async(_url,init)=>{
     await f.assertOutsideSql();capture.bodies.push(JSON.parse(String(init?.body)));return new Response(null,{status:200});
    }});assert.equal(response.failed,0);
-   const notification=(await f.pool.query("select o.id,o.payload_encrypted,o.status from private.message_outbox o where o.ticket_id=$1 and o.channel='STAFF' and o.kind='NOTIFICATION' and o.recipient_staff_id=$2",[ticket.id,f.staff])).rows[0];
+   const notification=(await f.pool.query("select o.id,o.payload_encrypted,o.status from private.message_outbox o where o.ticket_id=$1 and o.channel='STAFF' and o.kind in('ALERT','NOTIFICATION') and o.recipient_staff_id=$2",[ticket.id,f.staff])).rows[0];
    assert(notification);assert.equal(notification.status,'SENT');
    const notificationPayload=JSON.parse(decryptValue(notification.payload_encrypted,key));
    assert(!JSON.stringify(notificationPayload).includes('Android'));assert(!JSON.stringify(notificationPayload).includes('ไม่สามารถเชื่อมต่อ Wi-Fi ได้'));
   }
+ }finally{await f.cleanup();}
+});
+
+for(const rejection of ['EXPIRED','UNSENT','LATE_SENT','AMBIGUOUS','STALE','FOREIGN_USER'] as const)test(`typed support confirmation fails closed for ${rejection} proposal`,async()=>{
+ const f=await createFlow();try{
+  const capture:{bodies:unknown[]}={bodies:[]};
+  await inbound(f,'Wi-Fi ต่อไม่ได้');
+  await runAICycle(f.pool,key,{supportEnabled:true,produce:producer(f,'CLARIFY').produce});
+  const transport={accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async()=>new Response(null,{status:200})};
+  await runOutboxCycle(f.pool,key,transport);
+  await inbound(f,'ใช้ Android แล้วขึ้นข้อความ ไม่สามารถเชื่อมต่อ Wi-Fi ได้');
+  await runAndDeliver(f,'GUIDANCE',capture);
+  const unresolved=await inbound(f,'ยังแก้ไม่ได้ครับ');
+  await runAICycle(f.pool,key,{supportEnabled:true,produce:producer(f,'ESCALATE').produce});
+  if(rejection==='AMBIGUOUS'){
+   const outbox=(await f.pool.query('select id,payload_encrypted from private.message_outbox where idempotency_key=$1',[`ai-job:${unresolved.jobId}`])).rows[0];
+   const payload=JSON.parse(decryptValue(outbox.payload_encrypted,key));
+   const original=payload.messages[0].quickReply.items.find((item:{action:{label:string}})=>/ส่งต่อ IT/.test(item.action.label));assert(original);
+   const token=/^yru:choice:([A-Za-z0-9_-]{43})$/.exec(original.action.data)?.[1];assert(token);
+   const choice=(await f.pool.query('select choice,candidate_snapshot,pending_message_id from private.pending_route_choices where token_hash=$1',[hashOpaqueToken(token,key)])).rows[0];assert(choice);
+   const second=await createChoices(f.pool,{sessionId:f.session,snapshot:choice.candidate_snapshot,pendingMessageId:choice.pending_message_id??undefined,
+    choices:[{label:'อีกข้อเสนอส่งต่อ',value:choice.choice}]},key);
+   payload.messages[0].quickReply.items.push(...second.items);
+   await f.pool.query('update private.message_outbox set payload_encrypted=$2 where id=$1 and status=\'PENDING\'',[outbox.id,encryptValue(JSON.stringify(payload),key)]);
+  }
+  if(rejection!=='UNSENT'&&rejection!=='LATE_SENT')await runOutboxCycle(f.pool,key,transport);
+  if(rejection==='EXPIRED')await f.pool.query("update private.pending_route_choices set expires_at=clock_timestamp()-interval '1 second' where line_session_id=$1",[f.session]);
+  if(rejection==='STALE')await f.pool.query('update public.conversations set revision=revision+1 where id=$1',[unresolved.conversationId]);
+  const confirmation=await confirm(rejection==='FOREIGN_USER'?{...f,studentLineId:`U${randomUUID().replaceAll('-','')}`}:f,'ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ',
+   rejection==='LATE_SENT'?async()=>{assert.equal((await runOutboxCycle(f.pool,key,transport)).sent,1,'PROPOSAL_MUST_BE_ACCEPTED_ONLY_AFTER_CONFIRMATION_INGRESS');}:undefined);
+  assert.equal((await f.pool.query('select count(*)::int n from public.tickets where line_session_id=$1',[f.session])).rows[0].n,0,'INVALID_CONFIRMATION_MUST_NOT_CREATE_TICKET');
+  assert.equal((await f.pool.query('select count(*)::int n from private.ai_tool_receipts where confirmation_event_id=$1',[confirmation.id])).rows[0].n,0,'INVALID_CONFIRMATION_MUST_NOT_CREATE_RECEIPT');
+  assert.equal((await f.pool.query('select count(*)::int n from private.ai_jobs j join public.messages m on m.id=j.message_id where m.source_event_id=$1',[confirmation.id])).rows[0].n,0,'INVALID_COMMAND_MUST_NOT_START_AI');
  }finally{await f.cleanup();}
 });

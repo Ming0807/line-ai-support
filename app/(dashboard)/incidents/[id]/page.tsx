@@ -20,5 +20,5 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
   if (canViewRules) {
     try { rules = await getIncidentRules(staff.id); } catch { rules = null; }
   }
-  return <IncidentDetailView detail={detail} rules={rules} canViewRules={canViewRules} />;
+  return <IncidentDetailView detail={detail} rules={rules} canViewRules={canViewRules} actorId={staff.id} />;
 }

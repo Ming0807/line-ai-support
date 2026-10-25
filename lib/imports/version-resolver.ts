@@ -1,5 +1,6 @@
 import {z} from 'zod';
-import {getImportReview} from './import-review';
+import {createHash} from 'node:crypto';
+import {getImportReview,type ImportReviewState} from './import-review';
 import type {ImportExtractionOptions} from './import-extraction';
 import {authorizeImportAdmin,withImportAdminTransaction,ImportStagingError} from './import-staging';
 import {buildVersionCandidates,type VersionChoices,type VersionDocument,type VersionFamily} from './version-candidates';
@@ -17,6 +18,14 @@ export async function getImportVersionResolution(actor:string,id:string,input:un
   await authorizeImportAdmin(actor,options);
   const parsed=versionRequestSchema.safeParse(input);if(!parsed.success)throw new ImportStagingError('INVALID_REQUEST');const request=parsed.data;
   const review=await getImportReview(actor,id,options);checkSignal(options);
+  return await resolveImportReviewVersions(actor,id,review,request,options);
+ }catch(error){if(error instanceof ImportStagingError)throw error;throw new ImportStagingError('INTERNAL_ERROR');}
+}
+/** Internal snapshot reuse; fresh locked counters AND stored payload hash authenticate metadata. */
+export async function resolveImportReviewVersions(actor:string,id:string,review:ImportReviewState,request:VersionRequest,options:ImportVersionOptions={}):Promise<ImportVersionResolution>{
+ try{
+  checkSignal(options);
+  if(review.jobId!==id)throw new ImportStagingError('CONFLICT');
   if(!review.saved||review.stale||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
   const metadata=review.saved.draft.metadata;
   await options.beforeRead?.();checkSignal(options);
@@ -25,12 +34,16 @@ export async function getImportVersionResolution(actor:string,id:string,input:un
    // scalar subqueries in that waiting statement could retain a pre-commit snapshot.
    const locked=(await client.query('select id from private.knowledge_import_jobs where id=$1 for share',[id])).rows[0];
    if(!locked)throw new ImportStagingError('NOT_FOUND');
-   const snapshot=(await client.query<{revision:number;extraction_revision:number;review_revision:number}>(`select revision,
+   const snapshot=(await client.query<{revision:number;extraction_revision:number;review_revision:number;review_hash:string;review_job_revision:number;review_extraction_revision:number}>(`select j.revision,
     (select max(revision)::int from private.knowledge_import_revisions where job_id=j.id) extraction_revision,
-    (select max(review_revision)::int from private.knowledge_import_reviews where job_id=j.id) review_revision
-    from private.knowledge_import_jobs j where id=$1`,[id])).rows[0];
+    r.review_revision,r.payload_hash review_hash,r.job_revision review_job_revision,r.extraction_revision review_extraction_revision
+    from private.knowledge_import_jobs j left join lateral (
+     select review_revision,payload_hash,job_revision,extraction_revision from private.knowledge_import_reviews where job_id=j.id order by review_revision desc limit 1
+    ) r on true where j.id=$1`,[id])).rows[0];
    if(!snapshot)throw new ImportStagingError('NOT_FOUND');
-   if(snapshot.revision!==review.jobRevision||snapshot.extraction_revision!==review.extractionRevision||snapshot.review_revision!==review.reviewRevision)throw new ImportStagingError('CONFLICT');
+   if(snapshot.revision!==review.jobRevision||snapshot.extraction_revision!==review.extractionRevision||snapshot.review_revision!==review.reviewRevision||
+    snapshot.review_job_revision!==snapshot.revision||snapshot.review_extraction_revision!==snapshot.extraction_revision||
+    snapshot.review_hash!==createHash('sha256').update(JSON.stringify(review.saved!.draft),'utf8').digest('hex'))throw new ImportStagingError('CONFLICT');
    // One MVCC statement reads family metadata, bounded versions and relationship flags.
    // Read the entire family so a current stream in another scope still blocks ordinary addition.
    const familyRow=metadata.familyCode===null?undefined:(await client.query<VersionFamily&{documents:VersionDocument[];current_stream_occupied:boolean}>(`select f.id,f.code,f.name,f.category,

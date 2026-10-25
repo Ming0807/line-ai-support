@@ -2,6 +2,13 @@ import {expect,it} from 'vitest';
 import {buildFallbackPreview} from '../lib/ai/provider-preview';
 import type {ProviderView,ModelView,PreviewProfile} from '../types/providers';
 const profile:PreviewProfile={purpose:'GENERATION',requiresJson:true,requiresTools:true},now=Date.now();
+it('shows a current account confirmation separately from unknown catalog prices',()=>{
+ const p=provider('confirmed',[model('chat',{pricingStatus:'UNKNOWN',accountFreeUntil:new Date(now+10000).toISOString()})]);
+ expect(buildFallbackPreview([p],profile,now).rows[0].position).toBe(1);
+ expect(buildFallbackPreview([p],profile,now).pricingEvidence).toBe('ACCOUNT_CONFIRMATION_OR_CATALOG');
+ expect(buildFallbackPreview([p],profile,now+11000).rows[0].reason).toBe('PRICE_UNKNOWN');
+ expect(buildFallbackPreview([p],profile,now+11000).pricingEvidence).toBe('LAST_CATALOG_OBSERVATION');
+});
 function model(id:string,overrides:Partial<ModelView>={}):ModelView {
  return {id,modelId:`fixture/${id}`,displayName:id,purpose:'GENERATION',embeddingDimensions:null,supportsTools:true,supportsJson:true,supportsVision:false,
   enabled:true,priority:1,timeoutMs:1000,inputPricePerMillion:0,outputPricePerMillion:0,revision:0,pricingStatus:'FREE',pricingCheckedAt:new Date(now).toISOString(),apiFormat:'CHAT',...overrides};

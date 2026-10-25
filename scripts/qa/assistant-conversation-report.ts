@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFile,writeFile} from 'node:fs/promises';
+import {z} from 'zod';
+import {collectOwnedConversationReviews} from '../../lib/ai/conversation-eval-evidence';
+
+const ownedPath=z.string().regex(/^\.superpowers\/staging\/[a-z0-9-]+\.json$/u);
+const args=process.argv.slice(2);
+assert(args.length===2,'EXACT_MANIFEST_AND_OUTPUT_REQUIRED');
+const manifestPath=ownedPath.parse(args[0]),outputPath=ownedPath.parse(args[1]);
+assert(manifestPath!==outputPath,'OUTPUT_MUST_NOT_REPLACE_MANIFEST');
+const manifest=z.strictObject({runs:ownedPath.array().min(1).max(30),reviews:z.unknown().array().max(30)}).parse(JSON.parse(await readFile(manifestPath,'utf8')));
+assert(!manifest.runs.includes(outputPath),'OUTPUT_MUST_NOT_REPLACE_RUN');
+const fixtureBytes=await readFile('tests/fixtures/assistant-conversations.json');
+assert(createHash('sha256').update(fixtureBytes).digest('hex')==='e79ade32e0960df2e0399531d703e55955456caf7af432288ea919ae45e801f3','FROZEN_FIXTURE_CHANGED');
+const fixture=z.object({scenarios:z.array(z.object({id:z.string(),cohort:z.enum(['ANSWERABLE','BOUNDARY_REQUIRED']),turns:z.string().array()}))}).parse(JSON.parse(fixtureBytes.toString('utf8')));
+const runs=await Promise.all(manifest.runs.map(async path=>JSON.parse(await readFile(path,'utf8')) as unknown));
+const scope=z.object({sourceHashes:z.record(z.string(),z.string())});
+const sourcePaths=[...new Set(runs.flatMap(run=>Object.keys(scope.parse(run).sourceHashes)))];
+assert(sourcePaths.every(path=>!path.includes('..')&&!path.includes('\\')&&(/^(?:lib|app|scripts|tests)\//u.test(path)||/^supabase\/migrations\/[0-9]{14}_[a-z0-9_]+\.sql$/u.test(path))),'SOURCE_PATH_INVALID');
+const currentHashes=Object.fromEntries(await Promise.all(sourcePaths.map(async path=>[path,createHash('sha256').update(await readFile(path)).digest('hex')])));
+const result=collectOwnedConversationReviews(fixture.scenarios,runs,manifest.reviews,currentHashes);
+await writeFile(outputPath,JSON.stringify({scope:'CURRENT_SOURCE_EXPLICIT_REVIEW',recordedAt:new Date().toISOString(),runPaths:manifest.runs,...result},null,2)+'\n');
+console.log(JSON.stringify({status:result.report.status,scored:result.report.scored,safety:result.report.safety,coverage:result.report.coverage,outputPath}));
+if(result.report.status!=='PASS')process.exitCode=1;

@@ -35,7 +35,7 @@ export async function listTickets(staffId:string,filters:TicketFilters={},option
  },options.pool);
 }
 
-export async function getTicketDetail(staffId:string,id:string):Promise<TicketDetail|null> {
+export async function getTicketDetail(staffId:string,id:string,options:{pool?:Pool}={}):Promise<TicketDetail|null> {
  if(!z.uuid().safeParse(id).success)return null;
  return transaction(async client=>{
   const actor=await loadActor(client,staffId);
@@ -44,7 +44,13 @@ export async function getTicketDetail(staffId:string,id:string):Promise<TicketDe
   const messages=(await client.query(`select m.id,m.sender_type,m.content,m.created_at,s.display_name as staff_name from public.messages m left join public.staff_profiles s on s.id=m.sender_staff_id where m.ticket_id=$1 order by m.created_at,m.id`,[id])).rows.map(m=>({...m,created_at:m.created_at.toISOString()}));
   const history=(await client.query(`select h.id,h.action,h.from_status,h.to_status,h.created_at,s.display_name as actor_name,h.metadata from public.ticket_history h left join public.staff_profiles s on s.id=h.actor_id where h.ticket_id=$1 order by h.history_seq`,[id])).rows.map(h=>({id:h.id,action:h.action,from_status:h.from_status,to_status:h.to_status,created_at:h.created_at.toISOString(),actor_name:h.actor_name,...(typeof h.metadata?.reason==='string'?{reason:h.metadata.reason}:{})}));
   const assignees=(await client.query(`select s.id,s.display_name from public.staff_profiles s where ${eligibleScopeSql} order by s.display_name`,[row.department_id,row.sensitive_level])).rows;
-  const deliveries=(await client.query('select status,last_error_code,created_at from private.message_outbox where ticket_id=$1 and channel=\'STUDENT\' order by created_at desc limit 20',[id])).rows.map(d=>({...d,created_at:d.created_at.toISOString()}));
+  // A grouped delivery has one anchor; every selected case retains its own mapping.
+  // Keep ordinary reads available while the additive batch migration is staged.
+  const batchInstalled=(await client.query("select to_regclass('private.incident_reply_cases') is not null installed")).rows[0].installed;
+  const batchMatch=batchInstalled?` or o.id in (select r.outbox_id from private.incident_reply_cases b
+   join private.incident_reply_recipients r on r.batch_id=b.batch_id and r.id=b.recipient_id where b.ticket_id=$1)`:'';
+  const deliveries=(await client.query(`select o.status,o.last_error_code,o.created_at from private.message_outbox o
+   where o.channel='STUDENT' and (o.ticket_id=$1${batchMatch}) order by o.created_at desc,o.id limit 20`,[id])).rows.map(d=>({...d,created_at:d.created_at.toISOString()}));
   const manages=row.assigned_staff_id===staffId||isSupervisor(actor),human=row.mode==='HUMAN';
   const allowed=(action:Parameters<typeof nextTicketStatus>[1])=>nextTicketStatus(row.status,action)!==null;
   return {ticket:dto(row),messages,history,assignees,deliveries,permissions:{
@@ -52,5 +58,5 @@ export async function getTicketDetail(staffId:string,id:string):Promise<TicketDe
    reply:human&&manages&&allowed('STAFF_REPLY'),resolve:human&&manages&&allowed('RESOLVE'),close:human&&manages&&allowed('CLOSE'),
    reassign:human&&isSupervisor(actor)&&allowed('REASSIGN'),reopen:human&&isSupervisor(actor)&&allowed('REOPEN'),
   }};
- });
+ },options.pool);
 }

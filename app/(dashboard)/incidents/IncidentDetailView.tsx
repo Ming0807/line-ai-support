@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import type { IncidentDetail, IncidentRulesView } from '@/lib/incidents/reads';
 import { IncidentRulesEditor, IncidentStatusActions } from './IncidentActions';
+import IncidentBatchReply from './IncidentBatchReply';
 import { incidentSeverityLabel, incidentStatusLabel } from './presentation';
 
-export default function IncidentDetailView({ detail, rules = null, canViewRules = false }: {
-  detail: IncidentDetail; rules?: IncidentRulesView | null; canViewRules?: boolean;
+export default function IncidentDetailView({ detail, rules = null, canViewRules = false, actorId }: {
+  detail: IncidentDetail; rules?: IncidentRulesView | null; canViewRules?: boolean; actorId?: string;
 }) {
   const { incident, tickets, canManage } = detail;
   return (
@@ -25,7 +26,7 @@ export default function IncidentDetailView({ detail, rules = null, canViewRules 
         </div>
         <dl className="incident-facts">
           <div><dt>จำนวนรายงาน</dt><dd>{incident.reportCount} รายงาน</dd></div>
-          <div><dt>ผู้รายงานไม่ซ้ำ</dt><dd>{incident.distinctSessionCount} คน</dd></div>
+          <div><dt>ช่องทางผู้รับนิรนาม</dt><dd>{incident.distinctSessionCount}</dd></div>
           <div><dt>ระดับความอ่อนไหว</dt><dd>{incident.sensitivity === 'GENERAL' ? 'ทั่วไป' : 'จำกัดตามสิทธิ์'}</dd></div>
           <div><dt>ปรับปรุงล่าสุด</dt><dd><time dateTime={incident.updatedAt}>{new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(incident.updatedAt))}</time></dd></div>
         </dl>
@@ -47,6 +48,8 @@ export default function IncidentDetailView({ detail, rules = null, canViewRules 
           </ul>
         )}
       </section>
+
+      <IncidentBatchReply key={`${actorId ?? 'unavailable'}:${incident.id}`} incidentId={incident.id} actorId={actorId} />
 
       {canViewRules && <section className="incident-panel" aria-labelledby="incident-rules-title">
         <div className="incident-section-heading"><h2 id="incident-rules-title">กติกาการตรวจจับเหตุการณ์</h2></div>

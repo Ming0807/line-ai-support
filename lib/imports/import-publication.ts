@@ -2,14 +2,12 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import type {PoolClient} from 'pg';
 import {authorizeImportAdmin,withImportAdminTransaction,ImportStagingError,type ImportStagingOptions} from './import-staging';
-import {getImportPreview} from './import-extraction';
-import {getImportReview} from './import-review';
-import {prepareImportChunkPlan,ImportChunkPlanError} from './chunk-preparation';
+import {loadImportReviewSnapshot} from './import-review';
+import {buildImportChunkPlan,ImportChunkPlanError} from './chunk-preparation';
 import {validatePublicationReview,validateStructuredPublicationReview,PublicationPolicyError} from './publication-contract';
-import {readImportStructuredSource} from './structured-preparation';
 import {prepareStructuredPublication} from './structured-publication-preparation';
 import {persistStructuredRows,structuredEffectProof} from './structured-publication-persistence';
-import {getImportVersionResolution} from './version-resolver';
+import {resolveImportReviewVersions} from './version-resolver';
 import {buildVersionCandidates,type VersionChoices,type VersionDocument,type VersionFamily} from './version-candidates';
 import type {ImportReviewDraft} from './review-schema';
 import {createLocalE5EmbeddingProvider,type LocalE5EmbeddingProvider} from '../knowledge/embedding-client';
@@ -93,21 +91,21 @@ async function prepare(actor:string,request:Request,checksum:string,documentId:s
  try{
   const result=await Promise.race([cancellation,(async()=>{
    const currentOptions={...options,signal:controller.signal};
-   const preview=await getImportPreview(actor,request.id,currentOptions),review=await getImportReview(actor,request.id,currentOptions);checkSignal(currentOptions);
+   const {preview,source,review}=await loadImportReviewSnapshot(actor,request.id,currentOptions);checkSignal(currentOptions);
    if(!review.saved||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
    const mode=review.saved.draft.metadata.storageMode,isStructured=review.saved.draft.schemaVersion===3&&['STRUCTURED','BOTH'].includes(mode??'');
    if(mode!==null&&mode!=='RAG'&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    if(isStructured&&!await withImportAdminTransaction(actor,currentOptions,c=>assertStructuredVerification(c,options)))throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    const provider=mode==='STRUCTURED'?null:options.provider??createLocalE5EmbeddingProvider();
-   const plan=provider?await prepareImportChunkPlan(actor,preview,{...currentOptions,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))}):null;
+   const plan=provider?await buildImportChunkPlan(source,preview,{...currentOptions,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))}):null;
    const checked=isStructured?validateStructuredPublicationReview(preview,review,plan,checksum):validatePublicationReview(preview,review,plan,checksum);
    let structured=null;
    if(isStructured&&checked.draft.schemaVersion===3){
-    const source=await readImportStructuredSource(actor,preview,currentOptions),mapping=checked.draft.structuredMapping!;
+    const mapping=checked.draft.structuredMapping!;
     try{structured=prepareStructuredPublication(source,preview.extraction,{jobId:request.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision},mapping.mapping,{documentId,documentRevision:0,acknowledgment:mapping.acknowledgment},options.key??process.env.ENCRYPTION_KEY??'');}
     catch{throw new PublicationPolicyError('PUBLICATION_PLAN_MISMATCH');}
    }
-   const versions=await getImportVersionResolution(actor,request.id,{expectedJobRevision:request.expectedJobRevision,expectedExtractionRevision:request.expectedExtractionRevision,expectedReviewRevision:request.expectedReviewRevision},currentOptions);assertAction(checked.draft,versions);
+   const versions=await resolveImportReviewVersions(actor,request.id,review,{expectedJobRevision:request.expectedJobRevision,expectedExtractionRevision:request.expectedExtractionRevision,expectedReviewRevision:request.expectedReviewRevision},currentOptions);assertAction(checked.draft,versions);
    if(controller.signal.aborted)throw new ImportStagingError('CONFLICT');
    const left=Math.floor(deadline-performance.now());if(left<1)throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);
    const embedded=checked.plan&&provider?await embedLocatedChunkPlan(checked.plan,provider,{signal:controller.signal,timeoutMs:left}):null;

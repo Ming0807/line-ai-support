@@ -3,6 +3,7 @@ import type {Pool} from 'pg';
 import {transaction} from '../database/pool';
 import {loadActor,isSupervisor} from '../tickets/authorization';
 import {IncidentError,incidentConfigSchema,incidentStatusSchema,incidentQuerySchema} from './contracts';
+import {staffAlertSettingsSchema} from './staff-alert-contracts';
 export {incidentQuerySchema,parseIncidentQuery} from './contracts';
 import {LOCAL_EMBEDDING_FINGERPRINT} from '../knowledge/embedding-space';
 import {lockIncidentContextCatalog,loadIncidentContextRows,authenticateIncidentContext,queueStaleIncidentContexts,incidentEvaluationDayIsCurrent} from './context-state';
@@ -15,7 +16,7 @@ export const incidentPageSchema=z.strictObject({items:z.array(incidentItemSchema
 export type IncidentPage=z.infer<typeof incidentPageSchema>;
 export const incidentDetailSchema=z.strictObject({incident:incidentItemSchema,tickets:z.array(z.strictObject({id:z.uuid(),ticketCode:z.string(),status:z.string(),category:z.string()})),canManage:z.boolean()});
 export type IncidentDetail=z.infer<typeof incidentDetailSchema>;
-export const incidentRulesViewSchema=z.strictObject({rules:incidentConfigSchema,revision:z.number().int().nonnegative()});
+export const incidentRulesViewSchema=z.strictObject({rules:incidentConfigSchema,revision:z.number().int().nonnegative(),notifications:staffAlertSettingsSchema.nullable()});
 export type IncidentRulesView=z.infer<typeof incidentRulesViewSchema>;
 export interface SimilarIssuesView {status:'READY'|'PENDING';items:{id:string;ticketCode:string;status:string;category:string;similarity:number}[]}
 export async function listIncidentDepartments(actorId:string,options:{pool?:Pool}={}):Promise<{id:string;name:string}[]>{
@@ -58,7 +59,8 @@ export async function getIncidentRules(actorId:string,options:{pool?:Pool}={}):P
  return transaction(async c=>{
   await c.query("set local statement_timeout='5s'");const actor=await loadActor(c,actorId);if(actor.role!=='SUPER_ADMIN')throw new IncidentError('FORBIDDEN');
   const row=(await c.query('select * from private.incident_rules where id=1')).rows[0];if(!row)throw new IncidentError('UNAVAILABLE');
-  return incidentRulesViewSchema.parse({rules:{minReports:row.min_reports,minDistinctSessions:row.min_distinct_sessions,windowMinutes:row.window_minutes,minSimilarity:row.min_similarity},revision:row.revision});
+  return incidentRulesViewSchema.parse({rules:{minReports:row.min_reports,minDistinctSessions:row.min_distinct_sessions,windowMinutes:row.window_minutes,minSimilarity:row.min_similarity},revision:row.revision,
+   notifications:row.alert_debounce_seconds===undefined?null:{debounceSeconds:row.alert_debounce_seconds}});
  },options.pool);
 }
 /** Read staff-visible similarity suggestions; raw messages, identities and vectors never leave the backend. */

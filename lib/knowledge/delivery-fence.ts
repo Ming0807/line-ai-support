@@ -4,11 +4,12 @@ import {decodeAIResult,requiresStructuredCatalog,type AIJob} from '../ai/jobs';
 import {searchKnowledge} from './retrieval';
 import {evidenceStillMatches} from './citations';
 import {ruleContextsStillMatch} from './rule-proof';
-import {searchStructured} from './structured-search';
+import {searchStructured,discoverPublicForms,discoverPublicStructured} from './structured-search';
 import {structuredEvidenceStillMatches} from './structured-citations';
 import {loadSupportSnapshot} from '../ai/support-state';
 import {readAIKnowledgeSnapshot} from '../ai/knowledge-snapshot';
 import {verifyWebLeads} from './web-leads';
+import {verifyConversationReply} from '../ai/conversation-reply';
 
 /** M7 writers acquire sorted family locks, then sorted document locks, before publishing or changing eligibility. */
 export const knowledgeDocumentLock=(documentId:string)=>`knowledge-document:${documentId}`;
@@ -31,10 +32,15 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
  const job=(await client.query(`select * from private.ai_jobs where id=$1 and conversation_id=$2 and line_session_id=$3 and status='DONE'`,
   [jobId,input.conversationId,input.sessionId])).rows[0] as AIJob|undefined;
  if(!job)return false;
- const result=decodeAIResult(job,key);if(!result)return false;
+ const envelope=decodeAIResult(job,key);if(!envelope)return false;
+ if(envelope.kind==='MIXED'){
+  const fresh=await readAIKnowledgeSnapshot(client,job,key);
+  if(!fresh||!verifyConversationReply(envelope.general,fresh))return false;
+ }
+ const result=envelope.kind==='MIXED'?envelope.official:envelope;
  // Never acquire the catalog after conversation locks if the pre-read became stale.
  if(requiresStructuredCatalog(result)&&!heldLocks.includes(knowledgeStructuredCatalogLock))return false;
- if(result.support){
+ if('support' in result&&result.support){
   await client.query('begin');
   try{
    const fresh=await loadSupportSnapshot(client,{sessionId:job.line_session_id,conversationId:job.conversation_id,messageId:job.message_id,revision:job.expected_conversation_revision},key);
@@ -45,6 +51,10 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
   }catch(error){await client.query('rollback');throw error;}
  }
  if(result.kind==='CLARIFY')return true;
+ if(result.kind==='CONVERSATION'){
+  const fresh=await readAIKnowledgeSnapshot(client,job,key);
+  return !!fresh&&verifyConversationReply(result,fresh);
+ }
  // A source-changing clarification carries no citations and must not reuse the obsolete result.
  const metadata=(await client.query(`select metadata from public.messages where conversation_id=$1 and metadata->>'ai_job_id'=$2
   and sender_type='AI' order by created_at desc,id limit 1`,[input.conversationId,jobId])).rows[0]?.metadata;
@@ -56,7 +66,7 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
    const allowed=!!fresh&&await verifyWebLeads(client,result,fresh,key);await client.query('commit');return allowed;
   }catch(error){await client.query('rollback');throw error;}
  }
- if(result.kind==='STRUCTURED_ANSWER'){
+ if(result.kind==='STRUCTURED_ANSWER'||result.kind==='FORM_DIRECTORY'||result.kind==='STRUCTURED_DISCOVERY'){
   const documentIds=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
   const documents=(await client.query('select id,document_family_id from public.documents where id=any($1::uuid[])',[documentIds])).rows;
   if(documents.length!==documentIds.length||documents.some(d=>!result.evidence.some(e=>e.reference.documentId===d.id&&e.reference.ruleProof.familyId===d.document_family_id)))return false;
@@ -65,7 +75,8 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
   }
   for(const documentId of documentIds){const lock=knowledgeDocumentLock(documentId);await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);heldLocks.push(lock);}
   await client.query('begin');
-  try{const fresh=await searchStructured(client,{query:result.query,scope:result.scope},key);const allowed=fresh.status==='READY'&&structuredEvidenceStillMatches(result.evidence,fresh.evidence);await client.query('commit');return allowed;}
+  try{const fresh=result.kind==='FORM_DIRECTORY'?await discoverPublicForms(client,{scope:result.scope},key):result.kind==='STRUCTURED_DISCOVERY'
+   ?await discoverPublicStructured(client,{dataset:result.dataset,scope:result.scope},key):await searchStructured(client,{query:result.query,scope:result.scope},key);const allowed=fresh.status==='READY'&&structuredEvidenceStillMatches(result.evidence,fresh.evidence);await client.query('commit');return allowed;}
   catch(error){await client.query('rollback');throw error;}
  }
  const cited=result.evidence.filter(e=>result.output.citationChunkIds.includes(e.chunkId));

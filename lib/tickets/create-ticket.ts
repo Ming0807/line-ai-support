@@ -18,7 +18,7 @@ export async function createEscalation(client:DbClient,input:z.infer<typeof inpu
  if((await client.query("select id from public.tickets where conversation_id=$1 and status not in ('CLOSED','CANCELLED')",[conversation.id])).rowCount)throw new TicketError('CONFLICT');
  let sensitivity='GENERAL';
  if((await client.query('select conversation_id from private.ai_support_state where conversation_id=$1',[conversation.id])).rowCount){
-  const last=(await client.query("select id from public.messages where conversation_id=$1 and sender_type='USER' and message_type='TEXT' and metadata->>'routing_status' is distinct from 'PENDING' order by created_at desc,id desc limit 1",[conversation.id])).rows[0];
+  const last=(await client.query("select id from public.messages where conversation_id=$1 and sender_type='USER' and message_type='TEXT' and metadata->>'routing_status' is distinct from 'PENDING' and metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by created_at desc,id desc limit 1",[conversation.id])).rows[0];
   const support=last?await loadSupportSnapshot(client,{sessionId:input.sessionId,conversationId:conversation.id,messageId:last.id,revision:conversation.revision},key):null;
   if(!support)throw new TicketError('CONFLICT');sensitivity=support.minimumSensitivity;
  }

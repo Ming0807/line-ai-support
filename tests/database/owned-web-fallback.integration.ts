@@ -214,8 +214,9 @@ for(const change of ['publication','question','expiry','key'] as const)test(`act
   if(change==='question')await pool.query("update public.messages set content='คำถามเปลี่ยนแล้ว' where id=$1",[f.message]);
   if(change==='expiry'||change==='key'){
    const result=decodeAIResult(saved,key);assert(result&&result.kind==='WEB_LEADS');
+   const observedAt=new Date(Date.now()-301000).toISOString();
    const changed=change==='key'?{...result,internalMiss:{...result.internalMiss,signature:'0'.repeat(64)}}:
-    {...result,observedAt:new Date(Date.now()-301000).toISOString(),expiresAt:new Date(Date.now()-1000).toISOString()};
+    {...result,observedAt,expiresAt:new Date(Date.parse(observedAt)+300000).toISOString()};
    await pool.query('update private.ai_jobs set result_encrypted=$2 where id=$1',[f.jobId,encryptValue(JSON.stringify(changed),key)]);
   }
   const sent=await drain(f,l);assert.equal(sent.row.status,'SUPPRESSED');assert.equal(sent.row.last_error_code,'EVIDENCE_CHANGED');assert.equal(l.calls.length,0);

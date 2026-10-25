@@ -5,6 +5,7 @@ import {STRUCTURED_DATASETS,validateStructuredPayload} from './structured-payloa
 import {getStructuredRegistryEntry} from './structured-registry';
 import {validateStructuredRowReference} from './structured-row-reference';
 import {lineMessages,locationLabel} from './citations';
+import {knowledgeScopeSchema} from './retrieval';
 
 export const STRUCTURED_EVIDENCE_MAX_BYTES=64*1024;
 const invalid=():never=>{throw new Error('STRUCTURED_CITATION_INVALID');};
@@ -12,7 +13,7 @@ const citationLabel=(value:string)=>value.replace(/[\u0000-\u001f\u007f\u2028\u2
 const schema=z.object({rowId:z.uuid(),dataset:z.enum(STRUCTURED_DATASETS),payload:z.unknown(),reference:z.unknown(),
  title:z.string().min(1).max(500),familyCode:z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/u),academicYear:z.number().int().min(2400).max(3000).nullable(),
  authorityLevel:z.number().int().min(0).max(100),sourceUrl:z.string().max(2048).nullable()}).strict();
-export const structuredAnswerSchema=z.object({answer:z.string().trim().min(1).max(3000).refine(s=>!/(?:https?:\/\/|www\.)/iu.test(s)),
+export const structuredAnswerSchema=z.object({answer:z.string().min(1).max(12000).refine(value=>value.trim().length>0).refine(s=>!/(?:https?:\/\/|www\.)/iu.test(s)),
  citationRowIds:z.array(z.uuid()).min(1).max(5).refine(ids=>new Set(ids).size===ids.length)}).strict();
 
 /** Only persisted-source callers may construct this internal evidence. Shape alone is not authorization. */
@@ -43,6 +44,15 @@ export function validateStructuredEvidenceList(input:unknown):StructuredEvidence
   return freezeStructuredData(result);
  }catch{return invalid();}
 }
+const formDirectoryShapeSchema=z.object({kind:z.literal('FORM_DIRECTORY'),scope:knowledgeScopeSchema,evidence:structuredEvidenceListSchema,
+ support:z.never().optional()}).strict();
+/** The full private result is bounded independently from the smaller evidence-list limit. */
+export const formDirectoryResultSchema=formDirectoryShapeSchema.superRefine((value,context)=>{
+ try{
+  copyStructuredJson(value,128*1024,20_000);
+  if(value.evidence.length>20||value.evidence.some(row=>row.dataset!=='service_forms'))throw new Error('FORM_DIRECTORY_INVALID');
+ }catch{context.addIssue({code:'custom',message:'FORM_DIRECTORY_INVALID'});}
+});
 export function structuredEvidenceStillMatches(previous:unknown,current:unknown):boolean {
  try{
   const before=validateStructuredEvidenceList(previous),after=validateStructuredEvidenceList(current);
@@ -50,16 +60,63 @@ export function structuredEvidenceStillMatches(previous:unknown,current:unknown)
   return before.length===after.length&&before.every(row=>canonicalDigest('structured-evidence-v1',row)===canonicalDigest('structured-evidence-v1',byId.get(row.rowId)));
  }catch{return false;}
 }
-export function buildStructuredAnswer(input:unknown,available:StructuredEvidence[]){
- try{
-  const answer=structuredAnswerSchema.parse(input),evidence=validateStructuredEvidenceList(available),byId=new Map(evidence.map(row=>[row.rowId,row]));
-  const citations=answer.citationRowIds.map(rowId=>{
+function renderStructuredAnswer(answer:string,citationRowIds:readonly string[],evidence:StructuredEvidence[],includeFormDescriptions=false){
+ const byId=new Map(evidence.map(row=>[row.rowId,row]));
+ const citations=citationRowIds.map(rowId=>{
    const row=byId.get(rowId);if(!row)return invalid();
    return {rowId,dataset:row.dataset,documentId:row.reference.documentId,documentRevision:row.reference.documentRevision,title:row.title,
     familyCode:row.familyCode,academicYear:row.academicYear,sourceUrl:row.sourceUrl,sourceLocation:structuredClone(row.reference.sourceLocation),
     sourceRow:row.reference.sourceRow,coordinateKind:row.reference.coordinateKind};
   });
-  const references=citations.map((c,i)=>`${i+1}. ${citationLabel(c.title)}${c.academicYear===null?'':` (ปี ${c.academicYear})`} · ${citationLabel(locationLabel(c.sourceLocation))} · แถว ${c.sourceRow}${c.coordinateKind==='EXTRACTED_LOGICAL'?' ของตารางที่สกัด':''}${c.sourceUrl===null?'':`\n${c.sourceUrl}`}`).join('\n');
-  return {messages:lineMessages(`${answer.answer}\n\nแหล่งอ้างอิง:\n${references}`),citations};
- }catch{return invalid();}
+ const references=citations.map((c,i)=>`${i+1}. ${citationLabel(c.title)}${c.academicYear===null?'':` (ปี ${c.academicYear})`} · ${citationLabel(locationLabel(c.sourceLocation))} · แถว ${c.sourceRow}${c.coordinateKind==='EXTRACTED_LOGICAL'?' ของตารางที่สกัด':''}${c.sourceUrl===null?'':`\n${c.sourceUrl}`}`).join('\n');
+ // Destination links come only from validated cited rows, never model prose.
+ // Keep them distinct from the document/page proving where the data came from.
+ const formLinks=citationRowIds.flatMap((rowId,index)=>{
+   const row=byId.get(rowId)!;
+   if(row.dataset!=='service_forms'||!('form_url' in row.payload)||!('name' in row.payload))return [];
+   const description=includeFormDescriptions&&'description' in row.payload&&row.payload.description
+    ?`\nคำอธิบายจากเอกสาร: ${row.payload.description}`:'';
+   return [`${index+1}. ${citationLabel(row.payload.name)}${description}\n${row.payload.form_url}`];
+  });
+ const destinations=formLinks.length?`\n\nลิงก์แบบฟอร์ม:\n${formLinks.join('\n')}`:'';
+ const serviceLinks=citationRowIds.flatMap((rowId,index)=>{
+  const row=byId.get(rowId)!;
+  if(row.dataset!=='university_services')return [];
+  const service=validateStructuredPayload('university_services',row.payload);
+  return service.url===null?[]:[`${index+1}. ${citationLabel(service.name)}\n${service.url}`];
+ });
+ const serviceDestinations=serviceLinks.length?`\n\nเว็บไซต์บริการตามเอกสาร:\n${serviceLinks.join('\n')}`:'';
+ return {messages:lineMessages(`${answer}${destinations}${serviceDestinations}\n\nแหล่งอ้างอิง:\n${references}`),citations};
+}
+export function buildStructuredAnswer(input:unknown,available:StructuredEvidence[]){
+ try{
+  const answer=structuredAnswerSchema.parse(input),evidence=validateStructuredEvidenceList(available);
+  if(evidence.some(row=>answer.answer.toLowerCase().includes(row.rowId.toLowerCase())))return invalid();
+  const byId=new Map(evidence.map(row=>[row.rowId,row]));
+  const selected=answer.citationRowIds.map(rowId=>{const row=byId.get(rowId);return row??invalid();});
+  let text=answer.answer;
+  if(selected.some(row=>row.dataset==='academic_calendar_events')){
+   // Citations prove a row exists, not that model-written date conversions are correct.
+   // Keep date facts at the same server boundary used again for final delivery.
+   if(selected.some(row=>row.dataset!=='academic_calendar_events'))return invalid();
+   text=selected.map(row=>{
+    const value=validateStructuredPayload('academic_calendar_events',row.payload);
+    return `${value.title}\nปีการศึกษา ${value.academic_year} · ${value.semester} · ${value.student_type}`+
+     `\nวันที่เริ่ม: ${value.start_date}${value.end_date===null?'':`\nวันที่สิ้นสุด: ${value.end_date}`}`+
+     (value.description===null?'':`\nรายละเอียดจากเอกสาร: ${value.description}`);
+   }).join('\n\n');
+   // Preserve existing output bounds and URL restrictions; never clip source qualifications.
+   if(!structuredAnswerSchema.shape.answer.safeParse(text).success)return invalid();
+  }
+  return renderStructuredAnswer(text,answer.citationRowIds,evidence);
+ }catch(error){if(error instanceof Error&&error.message==='LINE_TEXT_PACKET_TOO_LARGE')throw error;return invalid();}
+}
+/** Server-owned copy for a reviewed form directory; no model prose or destinations enter this path. */
+export function buildStructuredFormDirectory(available:unknown){
+ try{
+  const evidence=validateStructuredEvidenceList(available);
+  if(evidence.some(row=>row.dataset!=='service_forms'))return invalid();
+  return renderStructuredAnswer('รายการนี้แสดงแบบฟอร์มที่ผ่านการตรวจทานแล้ว กรุณาเลือกแบบฟอร์มที่ตรงกับเรื่องของคุณและอ่านรายละเอียดก่อนยื่น รายการนี้ไม่ได้ยืนยันว่าคุณมีสิทธิ์หรือเข้าเกณฑ์',
+   evidence.map(row=>row.rowId),evidence,true);
+ }catch(error){if(error instanceof Error&&error.message==='LINE_TEXT_PACKET_TOO_LARGE')throw error;return invalid();}
 }

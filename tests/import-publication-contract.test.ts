@@ -2,11 +2,15 @@ import {describe,it,expect} from 'vitest';
 import {validatePublicationReview} from '../lib/imports/publication-contract';
 import type {ImportPreview} from '../lib/imports/import-extraction';
 import type {ImportReviewState} from '../lib/imports/import-review';
+import type {ImportReviewDraft} from '../lib/imports/review-schema';
 import {analyzeExtraction} from '../lib/imports/analyzer';
 import {buildReviewWarnings} from '../lib/imports/review-warnings';
 import {computeLocatedChunkPlanDigest,locatedReviewApplies} from '../lib/knowledge/located-chunk-plan';
 import {locatedPlanFixture} from './fixtures/located-plan';
 import {unfinishedReviewDraft} from './fixtures/import-review';
+import {createImportSource} from '../lib/imports/source';
+import {parseHtmlSource} from '../lib/imports/html-parser';
+import {buildLocatedChunkPlan} from '../lib/knowledge/located-chunk-plan';
 it('publishes reviewed RAG at schema3 without downgrading its saved schema floor',async()=>{
  const f=await fixture();f.review.saved!.draft={...f.draft,schemaVersion:3,structuredMapping:null};
  const result=validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum);
@@ -20,15 +24,65 @@ it('rejects schema3 RAG when its reviewed chunk digest has changed',async()=>{
  const f=await fixture();f.review.saved!.draft={...f.draft,schemaVersion:3,structuredMapping:null,chunkPlan:{...f.draft.chunkPlan,digest:'a'.repeat(64)}};
  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PLAN_MISMATCH');
 });
-async function fixture(){
- const f=await locatedPlanFixture();
+async function fixture(html?:string){
+ let f=await locatedPlanFixture();
+ if(html!==undefined){
+  const source=createImportSource({filename:f.source.filename,mimeType:f.source.mimeType,sourceUrl:f.source.sourceUrl,
+   acquiredFrom:f.source.acquiredFrom,fetchedAt:f.source.fetchedAt,bytes:new TextEncoder().encode(html)}),extraction=parseHtmlSource(source);
+  const plan=await buildLocatedChunkPlan(source,extraction,f.plan.binding,f.counter);f={...f,source,extraction,plan};
+ }
  const preview:ImportPreview={job:{id:f.plan.binding.jobId,status:'READY',revision:3,filename:f.source.filename,format:'HTML',mimeType:'text/html',sourceUrl:f.source.sourceUrl,acquiredFrom:'UPLOAD',fetchedAt:null,acquisition:null,byteLength:f.source.bytes.length,createdAt:'2026-10-06T00:00:00.000Z',errorCode:null},extractionRevision:2,kind:'PARSED',extraction:f.extraction,analysis:analyzeExtraction(f.source,f.extraction),edit:null};
  const prior=unfinishedReviewDraft();
- const draft={...prior,schemaVersion:2 as const,metadata:{...prior.metadata,title:'คู่มือบริการ',familyCode:'REVIEW_SERVICES',newFamily:{name:'บริการ',category:'บริการนักศึกษา'},departmentCode:'IT',documentType:'GUIDE',versionName:'ฉบับปัจจุบัน',versionStream:'ALL',scope:{...prior.metadata.scope,audience:'ALL',studentType:'ALL'},publishedAt:'2026-10-01',effectiveFrom:'2026-10-01',authorityLevel:70,sourceUrl:f.source.sourceUrl,visibility:'PUBLIC' as const,storageMode:'RAG' as const},action:'NEW_FAMILY' as const,attestations:{sourceAuthorityReviewed:true,extractionReviewed:true,applicabilityReviewed:true,sensitivityReviewed:true,versionReviewed:true},chunkPlan:{digest:f.plan.digest,chunkerVersion:f.plan.chunkerVersion},warningDispositions:buildReviewWarnings(preview).map(w=>({warningKey:w.key,status:'CORRECTED' as const,reason:'ตรวจข้อมูลและต้นฉบับแล้ว'}))};
+ const draft:Extract<ImportReviewDraft,{schemaVersion:2}>&{chunkPlan:{digest:string;chunkerVersion:'located-e5-v1'}}={...prior,schemaVersion:2,metadata:{...prior.metadata,title:'คู่มือบริการ',familyCode:'REVIEW_SERVICES',newFamily:{name:'บริการ',category:'บริการนักศึกษา'},departmentCode:'IT',documentType:'GUIDE',versionName:'ฉบับปัจจุบัน',versionStream:'ALL',scope:{...prior.metadata.scope,audience:'ALL',studentType:'ALL'},publishedAt:'2026-10-01',effectiveFrom:'2026-10-01',authorityLevel:70,sourceUrl:f.source.sourceUrl,visibility:'PUBLIC',storageMode:'RAG'},action:'NEW_FAMILY',attestations:{sourceAuthorityReviewed:true,extractionReviewed:true,applicabilityReviewed:true,sensitivityReviewed:true,versionReviewed:true},chunkPlan:{digest:f.plan.digest,chunkerVersion:f.plan.chunkerVersion},warningDispositions:buildReviewWarnings(preview).map(w=>({warningKey:w.key,status:'CORRECTED',reason:'ตรวจข้อมูลและต้นฉบับแล้ว'}))};
  const review:ImportReviewState={jobId:preview.job.id,jobRevision:3,extractionRevision:2,reviewRevision:1,stale:false,warnings:buildReviewWarnings(preview),saved:{reviewRevision:1,jobRevision:3,extractionRevision:2,actorId:'123e4567-e89b-42d3-a456-426614174001',createdAt:'2026-10-06T00:00:00.000Z',draft}};
  const sync=()=>{f.plan.warnings=structuredClone(preview.extraction.report.warnings);for(const c of f.plan.chunks){const range=c.coverage;const loc=range.kind==='PAGE'?preview.extraction.locations.pages[range.index]:preview.extraction.locations.tables[range.index];c.requiresReview=(range.kind==='PAGE'?preview.extraction.pages[range.index].requiresReview:preview.extraction.pages.some(p=>p.requiresReview))||locatedReviewApplies(loc,f.plan.warnings);}f.plan.digest=computeLocatedChunkPlanDigest(f.plan.binding,f.plan.sourceChecksum,f.plan.chunks,f.plan.warnings);draft.chunkPlan.digest=f.plan.digest;draft.warningDispositions=buildReviewWarnings(preview).map(w=>({warningKey:w.key,status:'CORRECTED' as const,reason:'ตรวจข้อมูลและต้นฉบับแล้ว'}));};
  return {...f,preview,review,draft,sync};
 }
+describe('reviewed pattern-only grade wording in a public regulation',()=>{
+ async function regulation(extra=''){
+  const f=await fixture(`<html><h1>ระเบียบการเทียบโอน</h1><p>หลักเกณฑ์ผลการเรียนนี้เป็นข้อความกฎทั่วไป ไม่มีผลของนักศึกษารายบุคคล</p>${extra}</html>`);
+  expect(f.preview.analysis.sensitiveCategories).toContain('GRADES');
+  f.draft.metadata.documentType='REGULATION';
+  f.draft.warningDispositions=buildReviewWarnings(f.preview).map(w=>({warningKey:w.key,
+   status:w.code==='SENSITIVE_DATA_REVIEW_REQUIRED'?'FALSE_POSITIVE' as const:'CORRECTED' as const,
+   reason:'ตรวจต้นฉบับทุกหน้าแล้ว เป็นข้อความเกณฑ์ทั่วไป ไม่มีผลการเรียนหรือข้อมูลนักศึกษารายบุคคล'}));
+  return f;
+ }
+ it('accepts only an explicitly adjudicated pattern match while retaining the risk and exact review receipt',async()=>{
+  const f=await regulation();expect(f.preview.extraction.tables).toHaveLength(0);
+  const r=validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum);
+  expect(r.draft.metadata.visibility).toBe('PUBLIC');expect(r.draft.metadata.storageMode).toBe('RAG');
+  expect(r.draft.warningDispositions).toEqual(f.draft.warningDispositions);
+  expect(f.preview.analysis.sensitiveRisk).toBe(true);expect(f.preview.analysis.sensitiveCategories).toEqual(['GRADES']);
+ });
+ it.each(['CORRECTED','UNRESOLVED'] as const)('refuses %s in place of the explicit sensitivity false-positive judgment',async status=>{
+  const f=await regulation(),warning=buildReviewWarnings(f.preview).find(w=>w.code==='SENSITIVE_DATA_REVIEW_REQUIRED')!;
+  f.draft.warningDispositions.find(d=>d.warningKey===warning.key)!.status=status;
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow(status==='UNRESOLVED'?'PUBLICATION_WARNINGS_UNRESOLVED':'PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+ it.each(['PHONE','STUDENT_RECORDS','PERSONAL_EMAIL','MEDICAL','PERSONAL_FINANCE'] as const)('never waives %s alongside grade wording',async category=>{
+  const f=await regulation();f.preview.analysis.sensitiveCategories.push(category);
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+ it('refuses table-bearing documents even when their reviewed type says regulation',async()=>{
+  const f=await regulation('<table><tr><td>รายการ</td><td>ผลการเรียน</td></tr></table>');
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+ it.each(['GUIDE','FORM'])('refuses a %s despite the same reviewer statement',async type=>{
+  const f=await regulation();f.draft.metadata.documentType=type;
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+ it.each(['STRUCTURED','BOTH'] as const)('never admits %s through the RAG-only adjudication',async mode=>{
+  const f=await regulation();f.draft.metadata.storageMode=mode;
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+ it('requires the original reviewed official provenance to match instead of relying on a new metadata URL',async()=>{
+  const f=await regulation();f.preview.job.sourceUrl=null;
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+  f.preview.job.sourceUrl='https://www.yru.ac.th/another-source';
+  expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ });
+});
 describe('complete reviewed publication policy',()=>{
  it('accepts reviewed RAG table candidate and explicitly nullable non-applicable year/scope without DDL',async()=>{const f=await fixture();const r=validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum);expect(r.plan).toEqual(f.plan);expect(r.draft.metadata.academicYear).toBeNull();expect(r.officialSource).toBe(true);expect(r.reviewHash).toMatch(/^[a-f0-9]{64}$/);f.draft.metadata.title='mutated';expect(r.draft.metadata.title).toBe('คู่มือบริการ');});
  it.each(['title','familyCode','departmentCode','documentType','versionName','versionStream','publishedAt','effectiveFrom','authorityLevel','visibility','storageMode'] as const)('refuses missing required %s',async key=>{const f=await fixture();const changed={...f.draft,metadata:{...f.draft.metadata,[key]:null}};f.review.saved!.draft=changed;expect(()=>validatePublicationReview(f.preview,f.review,f.plan,f.source.checksum)).toThrow('PUBLICATION_REVIEW_INCOMPLETE');});

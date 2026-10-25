@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
-import {readFile,readdir,unlink,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,readdir,unlink,writeFile} from 'node:fs/promises';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {z} from 'zod';
@@ -49,6 +49,20 @@ try {
  }
  stage='foundation_RLS';sql(database,'supabase_admin',await readFile(resolve(root,'tests/database/foundation.sql'),'utf8'));
  sql(database,'postgres',await readFile(resolve(root,'supabase/seed.sql'),'utf8'));
+  // Run bounded-catalog concurrency cases before unrelated suites retain hundreds of references.
+stage='import_model_assistance_actual_PG';
+ assert.equal(sql(database,'postgres',"select count(*) from public.departments where code !~ '^[A-Z][A-Z0-9_]{1,79}$';").trim(),'0','SHARED_IMPORT_FIXTURE_DEPARTMENT_CODES_INVALID');
+ const importModelOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-model-assistance.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(importModelOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='ai_turn_budget_actual_PG';
+ const turnBudgetOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ai-turn-budget.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(turnBudgetOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='database_pool_resilience_actual_PG';
+ const poolResilienceOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/database-pool-resilience.integration.ts','tests/database/outbox-connection-loss.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(poolResilienceOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='owned_web_leads_actual_PG';
  const ownedWebOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/owned-web-fallback.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
@@ -93,14 +107,38 @@ try {
  const liveContinuationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/live-human-continuation.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(liveContinuationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='ticket_security_actual_PG';
+ const ticketSecurityOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ticket-security.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(ticketSecurityOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='staff_alert_coalescing_actual_PG';
+ const alertOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-alert-coalescing.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(alertOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='staff_line_chat_actual_PG';
  const staffChatOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-line-chat.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(staffChatOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='incident_batch_preview_actual_PG';
+ const batchPreviewOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incident-batch-preview.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(batchPreviewOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='incident_batch_confirm_retry_actual_PG';
+ const batchConfirmOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/incident-batch-confirm.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(batchConfirmOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='assistant_conversation_actual_PG';
+ const assistantConversationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/assistant-conversation.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(assistantConversationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='semantic_routing_actual_PG';
  const semanticOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/semantic-context-routing.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(semanticOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='typed_context_choice_actual_PG';
+ const typedChoiceOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/typed-context-choice.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(typedChoiceOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='staff_knowledge_actual_PG';
  const knowledgeAssistOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-knowledge-assistance.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
@@ -115,28 +153,36 @@ try {
  // Only synthetic test output; never dump SQL fixtures, auth data or environment.
  console.log(output.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  assert.equal(sql(database,'supabase_admin',installedCount).trim(),'7','SEVEN_STRUCTURED_TABLES_REQUIRED');
- // Complementary partitions retain all72 cases and the same120s process bound.
+ // Current source registers77 cases; retain every unique case with the same120s bound.
  const runtimePattern='^(?:incident runtime|source invalidation|unreadable owned|a lower current|valid ambiguous|publication and revision changes|corrupted proof|HUMAN staff|RAG fallback|actual structured AI|LINE dispatch|service department|typed structured tool|only canonical)';
  const datasetPattern='^(?:academic_calendar_events|tuition_fees|transfer_courses|university_services|university_systems|service_forms|announcements)';
  const incidentPattern='^(?:incident runtime|source invalidation|unreadable owned|a lower current|valid ambiguous|publication and revision changes|corrupted proof|HUMAN staff)';
+ const guardrailPattern='^(?:actual COMMIT|owned solved|actual support-enabled|non-Structured|HUMAN Staff fallback)';
  const partitions=[
   ['publication_datasets',[`--test-name-pattern=${datasetPattern}`]],
-  ['publication_other',[`--test-skip-pattern=(?:${runtimePattern}|${datasetPattern})`]],
+  ['publication_other',[`--test-skip-pattern=(?:${runtimePattern}|${datasetPattern}|${guardrailPattern})`]],
+  ['publication_guardrails',[`--test-name-pattern=${guardrailPattern}`,`--test-skip-pattern=(?:${runtimePattern}|${datasetPattern})`]],
   ['delivery_incidents',[`--test-name-pattern=${incidentPattern}`]],
   ['delivery_other',[`--test-name-pattern=${runtimePattern}`,`--test-skip-pattern=${incidentPattern}`]],
  ] as const;
  let publicationCases=0;
+ const publicationCaseNames:string[]=[];
  for(const [name,filters] of partitions){
   stage=`structured_${name}_actual_PG`;
   const publicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1',...filters,'tests/database/import-structured-publication.integration.ts'],
    {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
   const executed=Number(publicationOutput.match(/^ℹ tests (\d+)$/mu)?.[1]);
   assert(Number.isSafeInteger(executed)&&executed>0,'PUBLICATION_PARTITION_MUST_EXECUTE_CASES');
+  const names=[...publicationOutput.matchAll(/^✔ (.+) \([\d.]+ms\)$/gmu)].map(match=>match[1]);
+  assert.equal(names.length,executed,'EVERY_EXECUTED_PUBLICATION_CASE_MUST_BE_NAMED');
+  publicationCaseNames.push(...names);
   publicationCases+=executed;
   console.log(JSON.stringify({stage,partition:name,executed}));
   console.log(publicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  }
- assert.equal(publicationCases,72,'ALL_PUBLICATION_AND_DELIVERY_CASES_REQUIRED');
+ assert.equal(publicationCases,77,'ALL_PUBLICATION_AND_DELIVERY_CASES_REQUIRED');
+ assert.equal(new Set(publicationCaseNames).size,77,'PUBLICATION_PARTITIONS_MUST_NOT_OVERLAP');
+ console.log(JSON.stringify({stage:'publication_unique_coverage',cases:publicationCaseNames.length,unique:new Set(publicationCaseNames).size,names:publicationCaseNames}));
  stage='RAG_compatibility_actual_PG';
  const original=await readFile(resolve(root,'tests/database/import-publication.integration.ts'),'utf8');
  const normalConnection='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
@@ -173,6 +219,19 @@ try {
  const combinedOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/v1-business-flows.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(combinedOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='assistant_grounding_actual_PG';
+ const assistantGroundingOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/assistant-grounding.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(assistantGroundingOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='assistant_eval_publication_actual_PG';
+ assert.equal(sql(database,'postgres',"select count(*) from public.departments where code !~ '^[A-Z][A-Z0-9_]{1,79}$';").trim(),'0','SHARED_IMPORT_FIXTURE_DEPARTMENT_CODES_INVALID');
+ const assistantPublicationOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/assistant-eval-publication.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(assistantPublicationOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='reviewed_grade_policy_actual_PG';
+ const gradePolicyOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-policy-grades.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(gradePolicyOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  if(cli){
   stage='isolated_advisors';
   const version=execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true,timeout:10_000,stdio:['pipe','pipe','pipe']}).trim();
@@ -187,7 +246,13 @@ try {
  console.log(JSON.stringify({stage:'isolated_structured_schema',migrations:migrations.length,tables:7,foundationRLS:'PASS',status:'PASS',normalTables:Number(normalTables),normalSchemaApplied:false,authDataCopied:false,existingDatabaseReset:false}));
 } catch(error) {
  // node:test labels are synthetic and useful; migration stderr can contain SQL values and is suppressed.
- if(stage.endsWith('actual_PG')&&error&&typeof error==='object'&&'stdout' in error&&typeof error.stdout==='string')console.error(error.stdout.split(/\r?\n/u).filter(line=>/^(✔|✖|ℹ|  error:|  AssertionError|    code:)/u.test(line)).slice(-90).join('\n'));
+ if(stage.endsWith('actual_PG')&&error&&typeof error==='object'&&'stdout' in error&&typeof error.stdout==='string'){
+  let diagnostic=error.stdout;
+  for(const [name,value] of Object.entries(process.env))if(value&&value.length>=8&&/KEY|TOKEN|SECRET|PASSWORD|DATABASE_URL|DIRECT_URL/u.test(name))diagnostic=diagnostic.split(value).join('[REDACTED]');
+  await mkdir(resolve(root,'.superpowers/staging'),{recursive:true});
+  await writeFile(resolve(root,'.superpowers/staging/structured-acceptance-failure.log'),diagnostic);
+  console.error(error.stdout.split(/\r?\n/u).filter(line=>/^(✔|✖|ℹ|  error:|  AssertionError|    code:)/u.test(line)).slice(-90).join('\n'));
+ }
  const processFailure=error&&typeof error==='object'?error as {code?:unknown;signal?:unknown;status?:unknown;killed?:unknown}:{};
  console.error(JSON.stringify({stage,status:'FAIL',
   processCode:typeof processFailure.code==='string'&&/^[A-Z0-9_]{1,32}$/u.test(processFailure.code)?processFailure.code:undefined,

@@ -2,9 +2,10 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 
 const dns=vi.hoisted(()=>({
  Resolver:vi.fn(),
+ lookup:vi.fn(),
  resolver:{resolve4:vi.fn(),resolve6:vi.fn(),cancel:vi.fn()},
 }));
-vi.mock('node:dns/promises',()=>({Resolver:dns.Resolver}));
+vi.mock('node:dns/promises',()=>({Resolver:dns.Resolver,lookup:dns.lookup}));
 
 import {AIProviderError} from '../lib/ai/types';
 import {isPublicAddress,resolvePublicAddresses} from '../lib/ai/public-addresses';
@@ -15,6 +16,7 @@ const dnsError=(code:string)=>Object.assign(new Error('private resolver detail')
 
 beforeEach(()=>{
  vi.clearAllMocks();
+ dns.lookup.mockResolvedValue([]);
  dns.resolver.resolve4.mockResolvedValue([]);
  dns.resolver.resolve6.mockRejectedValue(dnsError('ENODATA'));
  dns.Resolver.mockImplementation(function ResolverMock(){return dns.resolver as never;});
@@ -65,6 +67,96 @@ describe('resolvePublicAddresses',()=>{
   expect(options.timeout).toBeLessThanOrEqual(5000);
   expect(dns.resolver.resolve4).toHaveBeenCalledWith('api.compatible-provider.com');
   expect(dns.resolver.resolve6).toHaveBeenCalledWith('api.compatible-provider.com');
+ });
+
+ it('uses one all-address OS lookup on the exact host after native resolver refusal',async()=>{
+  dns.resolver.resolve4.mockRejectedValue(dnsError('ECONNREFUSED'));
+  dns.resolver.resolve6.mockRejectedValue(dnsError('ECONNREFUSED'));
+  dns.lookup.mockResolvedValue([answer4('8.8.8.8'),answer6('2606:4700:4700::1111')]);
+  await expect(resolvePublicAddresses('API.KILO.AI',new AbortController().signal)).resolves.toEqual([
+   answer4('8.8.8.8'),answer6('2606:4700:4700::1111'),
+  ]);
+  expect(dns.lookup).toHaveBeenCalledTimes(1);
+  expect(dns.lookup).toHaveBeenCalledWith('api.kilo.ai',{all:true,order:'verbatim'});
+ });
+
+ it('never lets a refusal in one family hide an unsafe answer from the other',async()=>{
+  dns.resolver.resolve4.mockResolvedValue(['8.8.8.8','10.0.0.1']);
+  dns.resolver.resolve6.mockRejectedValue(dnsError('ECONNREFUSED'));
+  await expect(resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal)).rejects.toMatchObject({
+   code:'PROVIDER_UNAVAILABLE',message:'PROVIDER_UNAVAILABLE',
+  });
+  expect(dns.lookup).not.toHaveBeenCalled();
+ });
+
+ it.each([
+  ['ETIMEOUT','TIMEOUT'],
+  ['ENOTFOUND','PROVIDER_UNAVAILABLE'],
+ ])('does not use OS lookup for resolver %s errors',async(code,expected)=>{
+  dns.resolver.resolve4.mockRejectedValue(dnsError(code));
+  await expect(resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal)).rejects.toMatchObject({code:expected});
+  expect(dns.lookup).not.toHaveBeenCalled();
+ });
+
+ it('rejects a mixed or oversized OS answer set as a whole',async()=>{
+  dns.resolver.resolve4.mockRejectedValue(dnsError('ECONNREFUSED'));
+  dns.resolver.resolve6.mockRejectedValue(dnsError('ENODATA'));
+  dns.lookup.mockResolvedValue([answer4('8.8.8.8'),answer4('127.0.0.1')]);
+  await expect(resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal)).rejects.toMatchObject({code:'PROVIDER_UNAVAILABLE'});
+  expect(dns.lookup).toHaveBeenCalledTimes(1);
+
+  dns.lookup.mockResolvedValue(Array.from({length:65},()=>answer4('8.8.8.8')));
+  await expect(resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal)).rejects.toMatchObject({code:'PROVIDER_UNAVAILABLE'});
+  expect(dns.lookup).toHaveBeenCalledTimes(2);
+ });
+
+ it('sanitizes errors from the OS fallback',async()=>{
+  dns.resolver.resolve4.mockRejectedValue(dnsError('ECONNREFUSED'));
+  dns.resolver.resolve6.mockRejectedValue(dnsError('ENODATA'));
+  dns.lookup.mockRejectedValue(new Error('secret OS resolver detail for api.compatible-provider.com'));
+  let error:unknown;
+  try{await resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal);}catch(caught){error=caught;}
+  expect(dns.lookup).toHaveBeenCalledTimes(1);
+  expect(error).toBeInstanceOf(AIProviderError);
+  expect(error).toMatchObject({code:'PROVIDER_UNAVAILABLE',message:'PROVIDER_UNAVAILABLE'});
+  expect((error as Error).message).not.toContain('api.compatible-provider.com');
+  expect((error as Error).message).not.toContain('secret OS resolver detail');
+ });
+
+ it('times out a pending OS lookup at the shared deadline and ignores a late answer',async()=>{
+  vi.useFakeTimers();
+  let resolveLookup:(addresses:ReturnType<typeof answer4>[])=>void=()=>{};
+  try{
+   dns.resolver.resolve4.mockRejectedValue(dnsError('ECONNREFUSED'));
+   dns.resolver.resolve6.mockRejectedValue(dnsError('ENODATA'));
+   dns.lookup.mockReturnValue(new Promise(resolve=>{resolveLookup=resolve;}));
+   const pending=resolvePublicAddresses('api.compatible-provider.com',new AbortController().signal);
+   const observed=pending.then(value=>({value}),error=>({error}));
+   for(let index=0;index<8;index++)await Promise.resolve();
+   expect(dns.lookup).toHaveBeenCalledTimes(1);
+   await vi.advanceTimersByTimeAsync(4500);
+   expect(await observed).toMatchObject({error:{code:'TIMEOUT',message:'TIMEOUT'}});
+   resolveLookup([answer4('8.8.8.8')]);
+   await Promise.resolve();
+   expect(await observed).toMatchObject({error:{code:'TIMEOUT',message:'TIMEOUT'}});
+  }finally{vi.useRealTimers();}
+ });
+
+ it('aborts an uncancellable OS lookup and ignores its late answer',async()=>{
+  let resolveLookup:(addresses:ReturnType<typeof answer4>[])=>void=()=>{};
+  dns.resolver.resolve4.mockRejectedValue(dnsError('ECONNREFUSED'));
+  dns.resolver.resolve6.mockRejectedValue(dnsError('ENODATA'));
+  dns.lookup.mockReturnValue(new Promise(resolve=>{resolveLookup=resolve;}));
+  const controller=new AbortController();
+  const pending=resolvePublicAddresses('api.compatible-provider.com',controller.signal);
+  const observed=pending.then(value=>({value}),error=>({error}));
+  for(let index=0;index<8;index++)await Promise.resolve();
+  expect(dns.lookup).toHaveBeenCalledTimes(1);
+  controller.abort();
+  expect(await observed).toMatchObject({error:{code:'CANCELLED',message:'CANCELLED'}});
+  resolveLookup([answer4('8.8.8.8')]);
+  await Promise.resolve();
+  expect(await observed).toMatchObject({error:{code:'CANCELLED',message:'CANCELLED'}});
  });
 
  it('allows one empty address family when the other has public answers',async()=>{

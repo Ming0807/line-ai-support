@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
 import {ImportStagingError,authorizeImportAdmin,withImportAdminTransaction} from './import-staging';
-import {getImportPreview,type ImportPreview,type ImportExtractionOptions} from './import-extraction';
+import {getImportPreview,loadImportPreviewSnapshot,type ImportPreview,type ImportExtractionOptions} from './import-extraction';
 import {reviewDraftSchema,reviewSaveSchema,hasStructuredMappingLimit,type ImportReviewDraft} from './review-schema';
 import {buildReviewWarnings,assertReviewWarningBindings,type ReviewWarning} from './review-warnings';
 import {encryptStagingValue,decryptStagingValue} from './staging-envelope';
@@ -47,8 +47,12 @@ function state(preview:ImportPreview,saved:ImportReviewState['saved']):ImportRev
   stale:saved!==null&&(saved.jobRevision!==preview.job.revision||saved.extractionRevision!==preview.extractionRevision),warnings:buildReviewWarnings(preview),saved};
 }
 export async function getImportReview(actor:string,id:string,options:ImportReviewOptions={}):Promise<ImportReviewState>{
+ return (await loadImportReviewSnapshot(actor,id,options)).review;
+}
+/** Reuses one authenticated original/extraction only within this operation. No authority cache. */
+export async function loadImportReviewSnapshot(actor:string,id:string,options:ImportReviewOptions={}){
  return safe(async()=>{
-  const preview=await getImportPreview(actor,id,options);checkSignal(options);
+  const {preview,source}=await loadImportPreviewSnapshot(actor,id,options);checkSignal(options);
   const snapshot=await withImportAdminTransaction(actor,options,client=>lockedSnapshot(client,preview,'share'));
   let saved:ImportReviewState['saved']=null;
   if(snapshot.row){
@@ -60,7 +64,7 @@ export async function getImportReview(actor:string,id:string,options:ImportRevie
    const current=await lockedSnapshot(client,preview,'share');checkSignal(options);
    if(current.checksum!==snapshot.checksum||(current.row?.review_revision??0)!==result.reviewRevision)throw new ImportStagingError('CONFLICT');
   });
-  return result;
+  return {preview,source,review:result};
  });
 }
 export async function saveImportReview(actor:string,id:string,input:unknown,options:ImportReviewOptions={}):Promise<ImportReviewState>{

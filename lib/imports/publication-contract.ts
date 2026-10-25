@@ -12,6 +12,20 @@ export class PublicationPolicyError extends Error{constructor(readonly code:Publ
 export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 function fail(code:PublicationPolicyCode):never{throw new PublicationPolicyError(code);}
+/** A current authorized review may adjudicate a pattern-only policy mention.
+ * This retains the detector finding; it never classifies personal grades safe.
+ * All actual personal data must still be removed/reanalyzed or kept restricted. */
+function reviewedGradePolicy(preview:ImportPreview,draft:ImportReviewDraft,warnings:ReturnType<typeof buildReviewWarnings>):boolean{
+ const m=draft.metadata;
+ if(m.documentType!=='REGULATION'||m.storageMode!=='RAG'||preview.extraction.tables.length!==0||
+  preview.analysis.sensitiveCategories.length!==1||preview.analysis.sensitiveCategories[0]!=='GRADES'||
+  preview.job.sourceUrl===null||!isOfficialYruUrl(preview.job.sourceUrl)||m.sourceUrl!==preview.job.sourceUrl)return false;
+ const findings=warnings.filter(w=>w.code==='SENSITIVE_DATA_REVIEW_REQUIRED');
+ return findings.length>0&&findings.every(w=>{
+  const d=draft.warningDispositions.find(d=>d.warningKey===w.key);
+  return d?.status==='FALSE_POSITIVE'&&typeof d.reason==='string'&&d.reason.trim().length>0;
+ });
+}
 function exactCoverage(preview:ImportPreview,plan:LocatedChunkPlan){
  const mismatch=()=>fail('PUBLICATION_PLAN_MISMATCH');
  const extraction=preview.extraction;
@@ -74,7 +88,8 @@ function sharedPolicy(preview:ImportPreview,review:ImportReviewState){
  try{assertReviewWarningBindings(warnings,draft.warningDispositions);}catch{return fail('PUBLICATION_WARNINGS_UNRESOLVED');}
  if(warnings.some(w=>{const d=draft.warningDispositions.find(d=>d.warningKey===w.key);return !d||d.status==='UNRESOLVED'||d.reason===null;}))fail('PUBLICATION_WARNINGS_UNRESOLVED');
  checkQuality(preview,draft);
- if(metadata.visibility==='PUBLIC'&&(preview.analysis.sensitiveRisk||preview.analysis.sensitiveCategories.length>0||preview.analysis.flags.includes('SENSITIVE_DATA_REVIEW_REQUIRED')))fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ if(metadata.visibility==='PUBLIC'&&(preview.analysis.sensitiveRisk||preview.analysis.sensitiveCategories.length>0||preview.analysis.flags.includes('SENSITIVE_DATA_REVIEW_REQUIRED'))&&
+  !reviewedGradePolicy(preview,draft,warnings))fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
  return {draft,reviewHash:createHash('sha256').update(JSON.stringify(draft),'utf8').digest('hex'),officialSource};
 }
 function checkedChunks(preview:ImportPreview,draft:Exclude<ImportReviewDraft,{schemaVersion:1}>,input:unknown,checksum:string):LocatedChunkPlan{

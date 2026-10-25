@@ -10,11 +10,16 @@ import {structuredQuerySchema} from '../knowledge/structured-query';
 import {structuredAnswerSchema,structuredEvidenceListSchema} from '../knowledge/structured-citations';
 import {supportMetadataSchema} from './support-contracts';
 import {webLeadsResultSchema} from '../knowledge/web-leads';
+import {conversationReplySchema} from './conversation-reply';
+import {formDirectoryResultSchema} from '../knowledge/form-directory';
+import {structuredDiscoveryResultSchema} from '../knowledge/structured-discovery';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
  quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action}).strict()).min(1).max(13)}).strict().optional()}).strict();
-export const aiResultSchema=z.discriminatedUnion('kind',[
+const knowledgeResultSchema=z.discriminatedUnion('kind',[
+ formDirectoryResultSchema,
+ structuredDiscoveryResultSchema,
  webLeadsResultSchema.safeExtend({support:supportMetadataSchema.optional()}),
  z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
@@ -22,9 +27,15 @@ export const aiResultSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema,support:supportMetadataSchema.optional()}).strict()
   .refine(value=>Buffer.byteLength(JSON.stringify(value),'utf8')<=128*1024),
 ]);
+export const aiResultSchema=z.discriminatedUnion('kind',[
+ ...knowledgeResultSchema.options,conversationReplySchema,
+ z.strictObject({kind:z.literal('MIXED'),general:conversationReplySchema,official:knowledgeResultSchema,support:z.never().optional()})
+  .refine(value=>value.official.support===undefined),
+]);
 export type AIResult=z.infer<typeof aiResultSchema>;
 export function requiresStructuredCatalog(result:AIResult):boolean{
- return result.kind==='WEB_LEADS'||result.kind==='STRUCTURED_ANSWER'||result.kind==='ANSWER'&&result.structuredMiss!==undefined;
+ if(result.kind==='MIXED')return requiresStructuredCatalog(result.official);
+ return result.kind==='WEB_LEADS'||result.kind==='FORM_DIRECTORY'||result.kind==='STRUCTURED_DISCOVERY'||result.kind==='STRUCTURED_ANSWER'||result.kind==='ANSWER'&&result.structuredMiss!==undefined;
 }
 export interface AIJob {
  id:string;line_session_id:string;conversation_id:string;message_id:string;expected_conversation_revision:number;

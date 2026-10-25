@@ -9,6 +9,7 @@ import {encryptValue} from '../security/identity';
 import {incidentCatalogLock} from './worker';
 import {incidentVisibleSql} from './reads';
 import {canTransitionIncident,deriveIncidentSeverity} from './severity';
+import {staffAlertSettingsSchema} from './staff-alert-contracts';
 export const incidentActionSchema=z.strictObject({revision:z.number().int().nonnegative(),requestId:z.uuid(),status:incidentStatusSchema,impact:impactVerificationSchema.optional()});
 export async function changeIncidentStatus(actorId:string,id:string,input:unknown,options:{pool?:Pool;encryptionKey?:string}={}){
  if(!z.uuid().safeParse(id).success)throw new IncidentError('INVALID_REQUEST');const parsed=incidentActionSchema.safeParse(input);
@@ -32,15 +33,21 @@ export async function changeIncidentStatus(actorId:string,id:string,input:unknow
   return {revision:updated.revision,replayed:false};
  },options.pool);
 }
-export const incidentRulesEditSchema=z.strictObject({revision:z.number().int().nonnegative(),rules:incidentConfigSchema});
+export const incidentRulesEditSchema=z.strictObject({revision:z.number().int().nonnegative(),rules:incidentConfigSchema,notifications:staffAlertSettingsSchema.optional()});
 export async function updateIncidentRules(actorId:string,input:unknown,options:{pool?:Pool}={}){
- const parsed=incidentRulesEditSchema.safeParse(input);if(!parsed.success)throw new IncidentError('INVALID_REQUEST');const {revision,rules}=parsed.data;
+ const parsed=incidentRulesEditSchema.safeParse(input);if(!parsed.success)throw new IncidentError('INVALID_REQUEST');const {revision,rules,notifications}=parsed.data;
  return transaction(async c=>{
   await c.query("set local statement_timeout='5s'");await c.query("set local lock_timeout='2s'");await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[incidentCatalogLock]);
   const actor=await loadActor(c,actorId);if(actor.role!=='SUPER_ADMIN')throw new IncidentError('FORBIDDEN');
+  const previous=(await c.query('select * from private.incident_rules where id=1 for update')).rows[0];
+  if(!previous||previous.revision!==revision)throw new IncidentError('CONFLICT');
+  if(notifications&&previous.alert_debounce_seconds===undefined)throw new IncidentError('UNAVAILABLE');
+  const detectionChanged=previous.min_reports!==rules.minReports||previous.min_distinct_sessions!==rules.minDistinctSessions
+   ||previous.window_minutes!==rules.windowMinutes||previous.min_similarity!==rules.minSimilarity;
   const updated=(await c.query(`update private.incident_rules set min_reports=$2,min_distinct_sessions=$3,window_minutes=$4,min_similarity=$5,revision=revision+1,updated_by=$6,updated_at=clock_timestamp() where id=1 and revision=$1 returning revision`,[revision,rules.minReports,rules.minDistinctSessions,rules.windowMinutes,rules.minSimilarity,actorId])).rows[0];
   if(!updated)throw new IncidentError('CONFLICT');
-  await c.query(`update private.incident_detection_jobs j set status='PENDING',attempts=0,available_at=clock_timestamp(),lease_token=null,lease_until=null
+  if(notifications)await c.query('update private.incident_rules set alert_debounce_seconds=$1 where id=1',[notifications.debounceSeconds]);
+  if(detectionChanged)await c.query(`update private.incident_detection_jobs j set status='PENDING',attempts=0,available_at=clock_timestamp(),lease_token=null,lease_until=null
    from public.tickets t where t.id=j.ticket_id and t.status not in ('RESOLVED','CLOSED','CANCELLED') and j.status in ('DONE','SUPPRESSED','DEAD')`);
   await c.query("insert into private.activities(actor_id,action,metadata) values($1,'INCIDENT_RULES_CHANGED','{}'::jsonb)",[actorId]);return {revision:updated.revision};
  },options.pool);

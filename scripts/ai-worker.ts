@@ -8,7 +8,7 @@ import {createWorkerObserver} from '../lib/operations/worker-observations';
 if(process.env.YRU_AI_ENABLED==='true'){
  const key=process.env.ENCRYPTION_KEY;
  if(!key||!process.env.DATABASE_URL)throw new Error('AI_WORKER_NOT_CONFIGURED');
- const pool=getDatabasePool(),produce=createConfiguredKnowledgeProducer(pool,key),observe=createWorkerObserver(pool,'AI');
+ const pool=getDatabasePool(),produce=createConfiguredKnowledgeProducer(pool,key,{assistantEnabled:process.env.YRU_ASSISTANT_ENABLED==='true'}),observe=createWorkerObserver(pool,'AI');
  let running=true;
  process.once('SIGINT',()=>{running=false;});process.once('SIGTERM',()=>{running=false;});
  try{do{

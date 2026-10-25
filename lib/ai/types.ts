@@ -5,7 +5,11 @@ export type ProviderApiFormat='CHAT'|'RESPONSES';
 export interface ProviderRequest {
  modelId:string;baseUrl:string;apiKey:string;messages:AIMessage[];
  responseSchema:{name:string;schema:Record<string,unknown>};tools?:AITool[];
- signal:AbortSignal;maxOutputTokens?:number;costMode?:CostMode;apiFormat?:ProviderApiFormat;
+ signal:AbortSignal;maxOutputTokens?:number;costMode?:CostMode;apiFormat?:ProviderApiFormat;disableReasoning?:boolean;
+ /** Backend transport deadline; never serialized into provider request JSON. */
+ timeoutMs?:number;
+ /** Backend-only OpenRouter JSON transport; output still requires caller schema validation. */
+ jsonOutputMode?:'JSON_OBJECT';
 }
 export interface ProviderResponse {
  output:unknown|null;toolCalls:{id:string;name:string;arguments:unknown}[];
@@ -14,9 +18,10 @@ export interface ProviderResponse {
 export type ProviderHealth='HEALTHY'|'DEGRADED'|'RATE_LIMITED'|'OFFLINE'|'UNKNOWN';
 export type AIErrorCode='TIMEOUT'|'CANCELLED'|'RATE_LIMITED'|'SERVER_ERROR'|'MODEL_UNAVAILABLE'|
  'AUTH_ERROR'|'INVALID_OUTPUT'|'INVALID_REQUEST'|'PROVIDER_UNAVAILABLE';
+export type AIOutputSubreason='JSON_PARSE'|'ADAPTER_SHAPE'|'SCHEMA'|'REFUSAL'|'TRUNCATION';
 export class AIProviderError extends Error {
  readonly retryable:boolean;
- constructor(readonly code:AIErrorCode,readonly httpStatus?:number,readonly retryEvidence?:RetryEvidence){
+ constructor(readonly code:AIErrorCode,readonly httpStatus?:number,readonly retryEvidence?:RetryEvidence,readonly outputSubreason?:AIOutputSubreason){
   super(code);this.name='AIProviderError';
   this.retryable=['TIMEOUT','RATE_LIMITED','SERVER_ERROR','MODEL_UNAVAILABLE','INVALID_OUTPUT','PROVIDER_UNAVAILABLE'].includes(code);
  }
@@ -40,6 +45,10 @@ export interface AIAttempt {
 }
 export interface AIStore {
  loadModels():Promise<AIModelConfig[]>;
+ /** Fresh server-owned account attestation; null also shadows legacy environment grants. */
+ readAccountFreeUntil?:AccountFreeReader;
  recordAttempt(attempt:AIAttempt):Promise<void>;
 }
+export type AccountFreeModel=Pick<AIModelConfig,'providerId'|'providerNetworkRevision'|'adapter'|'baseUrl'|'modelId'>;
+export type AccountFreeReader=(model:AccountFreeModel)=>Promise<string|null>;
 import type {RetryEvidence} from './retry-evidence';

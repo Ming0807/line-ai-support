@@ -4,6 +4,7 @@ import type {AIStore,AIModelConfig} from './types';
 import type {EmbeddingStore,EmbeddingModelConfig} from './embedding-types';
 import {insertModelObservation} from './model-observations';
 import {persistModelCooldown,retryEvidenceSchema,validRetryOutcome} from './model-cooldown';
+import {readAccountFreeUntil} from './account-free-admin';
 
 const observationSchema=z.object({providerId:z.uuid(),modelId:z.uuid(),requestType:z.string().regex(/^[A-Z_]{1,32}$/),
  purpose:z.enum(['GENERATION','EMBEDDING']).optional(),
@@ -19,6 +20,7 @@ const observationSchema=z.object({providerId:z.uuid(),modelId:z.uuid(),requestTy
 
 export function createAIStore(pool:Pool):AIStore&EmbeddingStore {
  return {
+  readAccountFreeUntil:model=>readAccountFreeUntil(pool,model),
   async loadModels(){
    const query={text:`select m.id,m.provider_id as "providerId",p.adapter,m.model_id as "modelId",p.base_url as "baseUrl",
     p.api_key_encrypted as "apiKeyEncrypted",p.revision as "providerRevision",m.revision as "modelRevision",p.priority as "providerPriority",m.priority,m.timeout_ms as "timeoutMs",

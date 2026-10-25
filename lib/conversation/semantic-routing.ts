@@ -7,8 +7,10 @@ import {userEventSchema,type DirectUserEvent} from '../line/events';
 import {decryptValue,hashLineUserId} from '../security/identity';
 import type {InboxJob} from '../queue/process-inbox';
 import {loadCandidates} from './context-resolver';
-import {projectRoutingContext,resolveRoutingProposal,type SemanticCandidate,type SemanticClassifier} from './semantic-routing-contracts';
+import {projectRoutingContext,resolveRoutingProposal,routingInferenceBudgetMs,SemanticRoutingUnavailableError,type SemanticCandidate,type SemanticClassifier} from './semantic-routing-contracts';
 import {readExplicitNewTopic} from './explicit-focus';
+import {isTypedRouteNavigation} from './quick-reply';
+import {isTypedSupportConfirmation} from './support-confirmation';
 type Selection=NonNullable<ReturnType<typeof resolveRoutingProposal>>;
 export interface SemanticRoutingAdvice {eventId:string;sessionId:string;questionDigest:string;contextDigest:string;selection:Selection}
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -17,9 +19,13 @@ async function loadContext(client:DbClient,sessionId:string):Promise<SemanticCan
  const candidates=await loadCandidates(client,sessionId);
  if(candidates.length>12)return [];
  const rows=(await client.query(`select c.id,c.topic,t.problem_summary,
-  coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'content',m.content,'createdAt',m.created_at) order by m.created_at,m.id)
-   from(select id,content,created_at from public.messages where conversation_id=c.id and sender_type='USER' and message_type='TEXT'
-    and metadata->>'routing_status' is distinct from 'PENDING' order by created_at desc,id desc limit 2) m),'[]'::jsonb) history
+  coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'content',m.content,'createdAt',m.created_at,'senderType',m.sender_type) order by m.created_at,m.id)
+   from(select id,content,created_at,sender_type from public.messages history where conversation_id=c.id and sender_type in('USER','AI') and message_type='TEXT'
+    and metadata->>'routing_status' is distinct from 'PENDING'
+    and (sender_type='USER' or exists(select 1 from private.message_outbox o
+     where o.conversation_id=c.id and o.line_session_id=c.line_session_id and o.kind='AI' and o.status='SENT'
+      and o.idempotency_key='ai-job:'||(history.metadata->>'ai_job_id')))
+    order by created_at desc,id desc limit 8) m),'[]'::jsonb) history
   from public.conversations c left join public.tickets t on t.id=c.active_ticket_id where c.id=any($1::uuid[])`,[candidates.map(c=>c.conversationId)])).rows;
  if(rows.length!==candidates.length)return [];
  return candidates.map(candidate=>{const row=rows.find(r=>r.id===candidate.conversationId)!;return {...candidate,topic:row.topic,summary:row.problem_summary??null,history:row.history};});
@@ -35,7 +41,7 @@ export async function validateRoutingAdvice(client:DbClient,input:{sessionId:str
  return advice.selection;
 }
 /** Lease preflight commits before provider HTTP. No ticket/message/outbox effects occur here. */
-export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:string,classify:SemanticClassifier):Promise<SemanticRoutingAdvice|null>{
+export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:string,classify:SemanticClassifier,onUnavailable?:(reason:SemanticRoutingUnavailableError['reason'])=>void):Promise<SemanticRoutingAdvice|null>{
  if(job.channel!=='STUDENT')return null;
  const before=await transaction(async c=>{
   await c.query("set local statement_timeout='5s';set local lock_timeout='2s'");
@@ -45,8 +51,9 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
   let parsed;try{parsed=userEventSchema.safeParse(JSON.parse(decryptValue(row.payload_encrypted,key)));}catch{return null;}
   if(!parsed.success)return null;
   const event=parsed.data;if(event.type!=='message'||event.message.type!=='text')return null;
-  const question=event.message.text;if(question.length>2000||!question.trim())return null;
+  const question=event.message.text;if(question.length>20000||Buffer.byteLength(question,'utf8')>60000||!question.trim())return null;
   const hash=hashLineUserId(event.source.userId,key);if(row.user_hash!==hash||job.user_hash!==hash)return null;
+  if(isTypedSupportConfirmation(question))return null;
   await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
   const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
   if(!session)return null;
@@ -56,9 +63,10 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
   if(recent>=20||(await c.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return null;
   const candidates=await loadCandidates(c,session.line_session_id);if(!candidates.length||candidates.length>12)return null;
   for(const candidate of [...candidates].sort((a,b)=>a.conversationId.localeCompare(b.conversationId)))await lockConversation(c,candidate.conversationId);
+  if(isTypedRouteNavigation(question,await loadCandidates(c,session.line_session_id)))return null;
   const context=await loadContext(c,session.line_session_id);if(!context.length)return null;
   const remaining=(await c.query('select extract(epoch from(lease_until-clock_timestamp()))*1000 ms from private.webhook_inbox where id=$1 and lease_token=$2 and status=\'PROCESSING\'',[job.id,job.lease_token])).rows[0];
-  const duration=Math.min(8000,Number(remaining?.ms)-7000);if(!Number.isFinite(duration)||duration<1)return null;
+  const duration=routingInferenceBudgetMs(remaining?.ms);if(duration===null)return null;
   return {sessionId:session.line_session_id as string,question,context,duration};
  },pool);
  if(!before)return null;
@@ -66,8 +74,12 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
  const boundary=new Promise<null>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(null);},before.duration);});
  try{
   const proposal=await Promise.race([boundary,Promise.resolve().then(()=>classify({question:before.question,contexts:projectRoutingContext(before.context)},controller.signal))]);
-  const selection=resolveRoutingProposal(proposal,before.context);if(controller.signal.aborted||!selection)return null;
+  if(controller.signal.aborted){onUnavailable?.('TIMEOUT');return null;}
+  const selection=resolveRoutingProposal(proposal,before.context);if(!selection)return null;
   return {eventId:job.id,sessionId:before.sessionId,questionDigest:digest(before.question),contextDigest:digest(before.context),selection};
- }catch{return null;}
+ }catch(error){
+  if(error instanceof SemanticRoutingUnavailableError)onUnavailable?.(controller.signal.aborted?'TIMEOUT':error.reason);
+  return null;
+ }
  finally{if(timer)clearTimeout(timer);controller.abort();}
 }

@@ -8,6 +8,8 @@ import {insertModelObservation,probeResultSchema} from './model-observations';
 import {createProviderRegistry,createEmbeddingProviderRegistry} from './provider-registry';
 import type {ModelObservationView} from '../../types/provider-observations';
 import {persistModelCooldown} from './model-cooldown';
+import {readAccountFreeUntil} from './account-free-admin';
+import {getDatabasePool} from '../database/pool';
 
 type AdminProbeOptions={pool?:Pool}&Partial<ProbeOptions>;
 export async function testProviderModel(staffId:string,providerId:string,modelId:string,input:unknown,options:AdminProbeOptions={},outer?:AbortSignal):Promise<{observation:ModelObservationView}> {
@@ -37,6 +39,7 @@ export async function testProviderModel(staffId:string,providerId:string,modelId
   const result=probeResultSchema.parse(await probeModel(snapshot.config,parsed.data.action,{key,
    generationAdapters:options.generationAdapters??createProviderRegistry({fetchImpl:options.fetchImpl,compatibleTransport:options.compatibleTransport}),
    embeddingAdapters:options.embeddingAdapters??createEmbeddingProviderRegistry({fetchImpl:options.fetchImpl,compatibleTransport:options.compatibleTransport}),
+   readAccountFreeUntil:model=>readAccountFreeUntil(options.pool??getDatabasePool(),model,{requireEnabled:false}),
    priceReader:options.priceReader,fetchImpl:options.fetchImpl,compatibleTransport:options.compatibleTransport},outer));
   const age=Date.now()-Date.parse(result.observedAt);if(age < -1000||age>60_000)throw new ProviderAdminError('INTERNAL_ERROR');
   return await withProviderAdminTransaction(staffId,options,async client=>{

@@ -4,7 +4,7 @@ import type {DirectUserEvent} from '../line/events';
 import {enqueueOutbound,type OutboundText} from '../queue/outbox';
 import {routeConversation} from './router';
 import {loadCandidates,candidateSnapshot} from './context-resolver';
-import {createChoices,consumeChoice} from './quick-reply';
+import {createChoices,consumeChoice,consumeTypedRouteChoice,isTypedRouteNavigation,latestPendingRouteSource,contextChoiceOptions,contextChoiceText} from './quick-reply';
 import {createEscalation} from '../tickets/create-ticket';
 import {applyUserReply} from '../tickets/human-takeover';
 import {prepareAIJob} from '../ai/jobs';
@@ -12,18 +12,51 @@ import {createTicketToolRegistry} from '../ai/backend-tools';
 import {validateRoutingAdvice,type SemanticRoutingAdvice} from './semantic-routing';
 import {loadSupportActionState} from '../ai/support-state';
 import {confirmSupportSolved} from '../ai/support-actions';
+import {consumeTypedSupportConfirmation,isTypedSupportConfirmation} from './support-confirmation';
 import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
 
-export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice}
+export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean}
 
 export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string,options:StudentProcessingOptions={}):Promise<string|null> {
  const {sessionId,eventId,event,receivedAt}=input;
  if(event.type!=='message'&&event.type!=='postback')return 'UNSUPPORTED_EVENT';
+ if(event.type==='message'&&(await client.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return null;
  const initial=await loadCandidates(client,sessionId);
  for(const candidate of [...initial].sort((a,b)=>a.conversationId.localeCompare(b.conversationId)))await lockConversation(client,candidate.conversationId);
  const candidates=await loadCandidates(client,sessionId),snapshot=candidateSnapshot(candidates);
  const replyToken=event.replyToken;
  let selected:string|undefined,newTopic=false,choice:Record<string,string>|undefined,pendingMessageId:string|null=null;
+ let typedChoice=false;
+ if(event.type==='message'&&event.message.type==='text'){
+  if(isTypedSupportConfirmation(event.message.text)){
+   const confirmation=await consumeTypedSupportConfirmation(client,sessionId,event.message.text,candidates,key,receivedAt);
+   if(!confirmation){await respond('ยังไม่มีข้อเสนอส่งต่อที่ยืนยันได้ครับ กรุณากดตัวเลือกจากข้อความล่าสุดหรือส่งรายละเอียดใหม่');return 'INVALID_CHOICE';}
+   choice=confirmation.choice;selected=choice.conversationId;typedChoice=true;
+   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata)
+    values($1,'USER','TEXT',$2,$3,$4,$5)`,[selected,event.message.text,event.message.id,eventId,{routing_status:'ROUTE_CONTROL',support_choice_hash:confirmation.tokenHash}]);
+  }
+  if(!typedChoice){
+  const consumed=await consumeTypedRouteChoice(client,sessionId,event.message.text,candidates);
+  if(consumed){
+   choice=consumed.choice;pendingMessageId=consumed.pendingMessageId;selected=choice.conversationId;newTopic=choice.action==='NEW';typedChoice=true;
+   const control=await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata)
+    select m.conversation_id,'USER','TEXT',$2,$3,$4,'{"routing_status":"ROUTE_CONTROL"}'::jsonb from public.messages m
+    join public.conversations c on c.id=m.conversation_id where m.id=$1 and c.line_session_id=$5 and m.metadata->>'routing_status'='PENDING'
+    and m.ticket_id is null on conflict do nothing returning id`,[pendingMessageId,event.message.text,event.message.id,eventId,sessionId]);
+   if(control.rowCount!==1)throw new Error('TYPED_ROUTE_SOURCE_CHANGED');
+   if(newTopic)await clearExplicitHumanFocus(client,sessionId);
+  }else if(isTypedRouteNavigation(event.message.text,candidates)){
+   const source=await latestPendingRouteSource(client,sessionId);
+   const controlConversation=source?.conversation_id??(await client.query("insert into public.conversations(line_session_id,conversation_type) values($1,'SUPPORT') returning id",[sessionId])).rows[0].id;
+   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata)
+    values($1,'USER','TEXT',$2,$3,$4,'{"routing_status":"ROUTE_CONTROL"}'::jsonb)`,[controlConversation,event.message.text,event.message.id,eventId]);
+   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:source?.id,choices:contextChoiceOptions(candidates)},key);
+   await respond(contextChoiceText(source?'ตัวเลือกเดิมใช้ไม่ได้แล้วครับ กรุณากดเลือกด้านล่างเพื่อส่งคำถามเดิมเข้าหัวข้อที่ต้องการ':
+    'ยังไม่มีคำถามที่รอเลือกเรื่องครับ ส่งคำถามมาได้เลย หรือกด “เริ่มเรื่องใหม่” ก่อนส่งคำถาม',candidates),quickReply);
+   return 'INVALID_CHOICE';
+  }
+  }
+ }
  if(event.type==='postback'){
   const consumed=await consumeChoice(client,sessionId,event.postback.data,snapshot,key);
   if(!consumed){await respond('ตัวเลือกนี้หมดอายุหรือถูกใช้แล้วครับ กรุณาส่งข้อความใหม่');return 'INVALID_CHOICE';}
@@ -35,9 +68,9 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    await respond('ส่งคำถามเรื่องใหม่มาได้เลยครับ');return null;
   }
  }
- const requestedNew=event.type==='message'&&await readExplicitNewTopic(client,sessionId);
+ const requestedNew=event.type==='message'&&!typedChoice&&await readExplicitNewTopic(client,sessionId);
  if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
- const semantic=event.type==='message'?await validateRoutingAdvice(client,input,options.routingAdvice):null;
+ const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice):null;
  const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
  const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
  let conversationId=selected;
@@ -63,7 +96,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   if((await client.query('select id from public.departments where code=$1 and active for share',[choice.departmentCode])).rowCount!==1){
    await respond('หน่วยงานนี้ยังไม่พร้อมรับเรื่องครับ กรุณากดติดต่อเจ้าหน้าที่เพื่อเลือกใหม่');return 'INVALID_CHOICE';
   }
-  const last=(await client.query("select content from public.messages where conversation_id=$1 and sender_type='USER' order by created_at desc,id desc limit 1",[conversationId])).rows[0];
+  const last=(await client.query("select content from public.messages where conversation_id=$1 and sender_type='USER' and metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by created_at desc,id desc limit 1",[conversationId])).rows[0];
   const summary=Array.from(last?.content??'ติดต่อเจ้าหน้าที่').slice(0,1000).join('');
   if(options.aiEnabled||choice.supportDigest){
    const selectedContext=candidates.find(c=>c.conversationId===conversationId)!;
@@ -72,22 +105,23 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   }else await createEscalation(client,{sessionId,conversationId,departmentCode:choice.departmentCode,summary},key);
   return null;
  }
- if(event.type==='message'){
+ if(event.type==='message'&&!typedChoice){
   if(decision.route==='AI_NEW'||decision.route==='ASK_CONTEXT'){
    conversationId=(await client.query("insert into public.conversations(line_session_id,conversation_type) values($1,$2) returning id",[sessionId,decision.route==='ASK_CONTEXT'?'SUPPORT':'GENERAL'])).rows[0].id;
   }else conversationId=decision.conversationId;
   if(!conversationId)throw new Error('ROUTE_CONTEXT_MISSING');
   const content=event.message.type==='text'?event.message.text:'[ไฟล์แนบ]';
-  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'TEXT',content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED'}])).rows[0];
+  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'TEXT',content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
  }
  if(decision.route==='ASK_CONTEXT'){
-  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:[
-   {label:'เริ่มเรื่องใหม่',value:{action:'NEW'}},...candidates.slice(0,12).map(c=>({label:`ต่อ ${c.topicLabel}`,value:{action:'CONTINUE',conversationId:c.conversationId}})),
-  ]},key);
-  await respond('ข้อความนี้เป็นเรื่องใดครับ เลือกเรื่องเดิมหรือเริ่มเรื่องใหม่',quickReply);return null;
+  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:contextChoiceOptions(candidates)},key);
+  const text=options.routingUnavailable
+   ?'ระบบ AI ไม่พร้อมเชื่อมต่อเรื่องที่คุยชั่วคราวครับ ข้อความของคุณยังอยู่ เลือกเรื่องเดิมหรือเริ่มเรื่องใหม่จากปุ่มด้านล่างได้ โดยไม่ต้องพิมพ์ข้อความเดิมซ้ำ'
+   :'ข้อความนี้เป็นเรื่องใดครับ เลือกเรื่องเดิมหรือเริ่มเรื่องใหม่';
+  await respond(contextChoiceText(text,candidates),quickReply);return options.routingUnavailable?'ROUTING_UNAVAILABLE':null;
  }
- if(decision.route==='AI_NEW'&&event.type==='postback'){
+ if(decision.route==='AI_NEW'&&(event.type==='postback'||typedChoice)){
   conversationId=(await client.query('insert into public.conversations(line_session_id) values($1) returning id',[sessionId])).rows[0].id;
  }
  if(!conversationId)conversationId=decision.conversationId;
@@ -102,13 +136,13 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
     const current=await loadCandidates(client,sessionId),label=current.find(c=>c.ticketId===decision.ticketId)?.topicLabel??'ที่เลือก';
     const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),choices:[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
     await respond(`ส่งข้อความเข้าเรื่อง ${label} แล้วครับ เจ้าหน้าที่จะเห็นข้อความในระบบ\nข้อความถัดไปจะต่อเรื่องนี้ชั่วคราว หากต้องการถามเรื่องอื่น กด “เริ่มเรื่องใหม่”`,quickReply);
-   }
+   }else await respond('บันทึกข้อความเข้าเคสที่กำลังคุยกับเจ้าหน้าที่แล้วครับ เจ้าหน้าที่จะเห็นข้อความนี้ในระบบ');
   }
   // Fixed receipts and scoped Staff alerts are separate from forbidden AI answers in HUMAN.
   return null;
  }
- if(pendingMessageId&&event.type==='postback'){
-  await client.query("update public.messages set conversation_id=$2,metadata='{\"routing_status\":\"ROUTED\"}' where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId]);
+ if(pendingMessageId&&(event.type==='postback'||typedChoice)){
+  await client.query("update public.messages set conversation_id=$2,metadata=$4::jsonb where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId,{routing_status:'ROUTED',routing_route:decision.route}]);
  }
  const current=await loadCandidates(client,sessionId);
  const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:options.aiEnabled?undefined:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);

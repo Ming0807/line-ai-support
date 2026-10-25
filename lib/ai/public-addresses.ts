@@ -1,5 +1,5 @@
 import {isIP} from 'node:net';
-import {Resolver} from 'node:dns/promises';
+import {lookup as lookupHost,Resolver} from 'node:dns/promises';
 import {AIProviderError} from './types';
 import {parseCompatibleBaseUrl} from './compatible-endpoint';
 
@@ -96,6 +96,10 @@ function dnsFailure(error:unknown):AIProviderError{
  return new AIProviderError(code==='ETIMEOUT'?'TIMEOUT':'PROVIDER_UNAVAILABLE');
 }
 
+function isSafeAnswerSet(addresses:readonly ResolvedAddress[]):boolean{
+ return addresses.length>0&&addresses.length<=64&&addresses.every(isPublicAddress);
+}
+
 /** Resolve A and AAAA once, reject unsafe mixtures, and return only a bounded public answer set. */
 export async function resolvePublicAddresses(hostname:string,signal:AbortSignal):Promise<readonly ResolvedAddress[]>{
  const normalized=normalizeHostname(hostname);
@@ -143,20 +147,67 @@ export async function resolvePublicAddresses(hostname:string,signal:AbortSignal)
   },deadlineMs);
   if(signal.aborted){onAbort();return;}
 
-  Promise.all([query(4),query(6)]).then(([ipv4,ipv6])=>{
-   if(!Array.isArray(ipv4)||!Array.isArray(ipv6)||ipv4.length+ipv6.length===0||ipv4.length+ipv6.length>64){
+  Promise.allSettled([query(4),query(6)]).then(results=>{
+   if(settled)return;
+   const rawAnswers:ResolvedAddress[]=[];
+   for(const [index,result] of results.entries()){
+    if(result.status==='rejected')continue;
+    if(!Array.isArray(result.value)){
+     finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+     return;
+    }
+    for(const address of result.value){
+     const family=index===0?4 as const:6 as const;
+     rawAnswers.push({address,family});
+    }
+   }
+   if(rawAnswers.length>64||rawAnswers.some(address=>!isPublicAddress(address))){
     finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
     return;
    }
-   const addresses:ResolvedAddress[]=[
-    ...ipv4.map(address=>({address,family:4 as const})),
-    ...ipv6.map(address=>({address,family:6 as const})),
-   ];
-   if(addresses.some(address=>!isPublicAddress(address))){
-    finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+
+   const failures=results.filter((result):result is PromiseRejectedResult=>result.status==='rejected').map(result=>result.reason);
+   if(failures.length===0){
+    if(!isSafeAnswerSet(rawAnswers))finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+    else finish(()=>resolve(rawAnswers));
     return;
    }
-   finish(()=>resolve(addresses));
+
+   const allRefused=failures.every(error=>(error as {code?:unknown}|null)?.code==='ECONNREFUSED');
+   if(!allRefused){
+    cancel();
+    const timeout=failures.find(error=>(error as {code?:unknown}|null)?.code==='ETIMEOUT');
+    finish(()=>reject(dnsFailure(timeout??failures[0])));
+    return;
+   }
+
+   if(signal.aborted){onAbort();return;}
+   cancel();
+   void Promise.resolve().then(()=>{
+    if(settled)return undefined;
+    if(signal.aborted){onAbort();return undefined;}
+    return lookupHost(normalized,{all:true,order:'verbatim'});
+   }).then(answers=>{
+    if(settled)return;
+    if(answers===undefined)return;
+    if(!Array.isArray(answers)||answers.length>64){
+     finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+     return;
+    }
+    const addresses:ResolvedAddress[]=[];
+    for(const answer of answers){
+     if(!answer||typeof answer.address!=='string'||(answer.family!==4&&answer.family!==6)){
+      finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+      return;
+     }
+     addresses.push({address:answer.address,family:answer.family});
+    }
+    if(!isSafeAnswerSet(addresses))finish(()=>reject(new AIProviderError('PROVIDER_UNAVAILABLE')));
+    else finish(()=>resolve(addresses));
+   }).catch(error=>{
+    if(settled)return;
+    finish(()=>reject(dnsFailure(error)));
+   });
   }).catch(error=>{
    cancel();
    finish(()=>reject(dnsFailure(error)));

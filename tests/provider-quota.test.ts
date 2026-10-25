@@ -73,6 +73,35 @@ it('maps unreset key credit caps to TOTAL and leaves resetAt unknown',async()=>{
  expect(quotaState(result.counters[0]!,Date.parse(result.observedAt))).toBe('EXHAUSTED');
 });
 
+it.each([
+ {used:54,limit:50,remaining:0},
+ {used:50,limit:50,remaining:0},
+ {used:1,limit:0,remaining:0},
+])('retains explicit exhausted account quota when usage reaches or exceeds the cap: %j',async(free)=>{
+ const result=await createQuotaReader({fetchImpl:fetchFor(keyPayload({free_model_daily_requests:free}))})(config(),new AbortController().signal);
+ expect(result).toMatchObject({supported:true,httpStatus:200,errorCode:null});
+ expect(result.counters).toHaveLength(1);
+ expect(result.counters[0]).toMatchObject({scope:'ACCOUNT',unit:'REQUESTS',window:'DAY',source:'OPENROUTER_KEY',
+  limit:free.limit,remaining:0,resetAt:null,retryAfterSeconds:null,currency:null});
+ expect(quotaState(result.counters[0]!,Date.parse(result.observedAt))).toBe('EXHAUSTED');
+ expect(result.counters[0]).not.toHaveProperty('modelId');
+});
+
+it.each([
+ {used:54,limit:50,remaining:1},
+ {used:40,limit:50,remaining:0},
+ {used:49,limit:50,remaining:2},
+ {used:-1,limit:50,remaining:0},
+ {used:54.5,limit:50,remaining:0},
+ {used:54,limit:50.5,remaining:0},
+ {used:54,limit:50,remaining:0.5},
+ {used:Number.MAX_SAFE_INTEGER+1,limit:50,remaining:0},
+ {used:54,limit:50},
+])('rejects inconsistent or malformed shared daily request evidence: %j',async(free)=>{
+ const result=await createQuotaReader({fetchImpl:fetchFor(keyPayload({free_model_daily_requests:free}))})(config(),new AbortController().signal);
+ expect(result).toMatchObject({supported:true,httpStatus:200,errorCode:'INVALID_OUTPUT',counters:[]});
+});
+
 it('maps documented daily key credit reset periods but does not invent a reset timestamp',async()=>{
  const fetchImpl=fetchFor(keyPayload({limit:10,limit_remaining:9,limit_reset:'daily'}));
  const result=await createQuotaReader({fetchImpl})(config(),new AbortController().signal);

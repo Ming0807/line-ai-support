@@ -3,10 +3,30 @@ import {supportProposalSchema,projectSupportInput,interpretSupportProposal} from
 const departments=[{code:'IT',name:'เทคโนโลยีสารสนเทศ'},{code:'REGISTRAR',name:'งานทะเบียน'}];
 const input=()=>projectSupportInput({question:'มือถือ Android ขึ้นว่า authentication failed',history:[{role:'user',content:'Wi-Fi ต่อไม่ได้ครับ'},{role:'assistant',content:'PRIVATE_ASSISTANT_RULE'}],deliveredGuidance:false},departments);
 const proposal=(changes:Record<string,unknown>={})=>({intent:'TROUBLESHOOT',category:'IT_SUPPORT',subcategory:'NETWORK_ACCESS',needsTicket:false,department:'IT',urgency:'medium',needsKnowledgeSearch:true,needsStructuredSearch:false,needsWebSearch:false,confidence:.95,missingContext:null,impact:'SINGLE_USER',sensitivity:'GENERAL',facts:[{field:'PROBLEM',source:'U1',quote:'Wi-Fi ต่อไม่ได้ครับ'},{field:'DEVICE',source:'U0',quote:'มือถือ Android'},{field:'ERROR',source:'U0',quote:'authentication failed'}],...changes});
+
+it('retains the complete long latest USER text including Thai and its final detail',()=>{
+ const question='ก'.repeat(4990)+' ท้ายสำคัญ';
+ const projected=projectSupportInput({question,history:[]},departments);
+ expect(projected.sources[0].text).toBe(question);
+ expect(projected.sources[0].text.endsWith('ท้ายสำคัญ')).toBe(true);
+});
+it('omits whole history messages with explicit evidence instead of cutting their text',()=>{
+ const large='ก'.repeat(19000)+' END';
+ const projected=projectSupportInput({question:'Wi-Fi ต่อไม่ได้',history:[{role:'user',content:large},{role:'user',content:'รายละเอียดล่าสุดครบ'}]},departments);
+ expect(projected.sources.map(source=>source.text)).toEqual(['Wi-Fi ต่อไม่ได้','รายละเอียดล่าสุดครบ']);
+ expect(projected.historyOmittedCount).toBe(1);
+});
+it('uses the whole first USER problem when a valid troubleshooting proposal omits its redundant quote',()=>{
+ const question='เชื่อมต่อ Wi-Fi ไม่ได้ ใช้มือถือ Android ขึ้นว่า Authentication failed';
+ const result=interpretSupportProposal(proposal({facts:[]}),projectSupportInput({question,history:[]},departments));
+ expect(result?.problemText).toBe(question);
+ expect(result?.clarification).toBeNull();
+ expect(result?.searchText).toBe(question);
+});
 it('projects bounded actual USER sources and the public active directory without backend or assistant identities',()=>{
  const snapshot={question:'ปัญหา',history:[{role:'user',content:'ก'.repeat(4000)},{role:'assistant',content:'PRIVATE_ASSISTANT_RULE'}],deliveredGuidance:true,sessionId:'PRIVATE_SESSION',lineId:'PRIVATE_LINE'};
  const directory=[{code:'IT',name:'ไอที',id:'PRIVATE_DEPARTMENT'}];const projected=projectSupportInput(snapshot,directory);
- expect(projected.sources.map(s=>s.code)).toEqual(['U0','U1']);expect(projected.sources[1].text.length).toBeLessThanOrEqual(1000);
+ expect(projected.sources.map(s=>s.code)).toEqual(['U0','U1']);expect(projected.sources[1].text).toBe(snapshot.history[0].content);
  expect(JSON.stringify(projected)).not.toContain('PRIVATE_');expect(projected.deliveredGuidance).toBe(true);
 });
 it('rejects unknown proposal fields, uncontrolled facts and inconsistent support flags',()=>{
@@ -45,13 +65,23 @@ it('raises grounded privacy risk without lowering a current minimum or guessing 
  const source=projectSupportInput({question:'ปัญหาคุกคาม ต้องการแจ้งเจ้าหน้าที่',history:[]},departments);
  expect(interpretSupportProposal(proposal({intent:'PERSONAL_CASE',needsTicket:true,needsKnowledgeSearch:false,sensitivity:'RESTRICTED',facts:[{field:'PROBLEM',source:'U0',quote:'ปัญหาคุกคาม'},{field:'SENSITIVE_DETAIL',source:'U0',quote:'คุกคาม'}]}),source)).toMatchObject({sensitiveLevel:'RESTRICTED',searchText:null});
 });
+it('never interprets a validated sensitive detail as GENERAL even when the model proposes that level',()=>{
+ const source=projectSupportInput({question:'ถูกคุกคาม ขอให้เจ้าหน้าที่ช่วย',history:[]},departments);
+ const handoff=proposal({intent:'ESCALATE',needsTicket:true,needsKnowledgeSearch:false,subcategory:null,sensitivity:'GENERAL',
+  facts:[{field:'PROBLEM',source:'U0',quote:'ถูกคุกคาม'},{field:'SENSITIVE_DETAIL',source:'U0',quote:'ถูกคุกคาม'}]});
+ expect(interpretSupportProposal(handoff,source)).toMatchObject({sensitiveLevel:'SENSITIVE',needsTicket:true,searchText:null});
+ expect(interpretSupportProposal(handoff,source,'RESTRICTED')?.sensitiveLevel).toBe('RESTRICTED');
+ const invented={...handoff,facts:[...handoff.facts.slice(0,1),{field:'SENSITIVE_DETAIL',source:'U0',quote:'invented account data'}]};
+ expect(interpretSupportProposal(invented,source)).toBeNull();
+});
+
 it('solved intent suggests a confirmation only after delivered guidance and never grants a ticket mutation',()=>{
  const solved=proposal({intent:'SOLVED',needsKnowledgeSearch:false,facts:[]});expect(interpretSupportProposal(solved,input())?.suggestSolved).toBe(false);
  expect(interpretSupportProposal(solved,{...input(),deliveredGuidance:true})).toMatchObject({suggestSolved:true,needsTicket:false,searchText:null});
 });
 it('low confidence, an absent directory or excessive source content yields no interpreted route',()=>{
  expect(interpretSupportProposal(proposal({confidence:.79}),input())).toBeNull();expect(interpretSupportProposal(proposal(),{...input(),departments:[]})).toBeNull();
- expect(()=>projectSupportInput({question:'ก'.repeat(2001),history:[]},departments)).toThrow('SUPPORT_INPUT_INVALID');
+ expect(()=>projectSupportInput({question:'ก'.repeat(20001),history:[]},departments)).toThrow('SUPPORT_INPUT_INVALID');
 });
 it('retains only actual USER system names alongside location without inventing a canonical system',()=>{
  const source=projectSupportInput({question:'ระบบ YRU Passport เข้าไม่ได้ ที่อาคาร 1',history:[]},departments);

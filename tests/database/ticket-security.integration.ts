@@ -16,9 +16,12 @@ import {
 } from '../../lib/security/identity';
 import { hashOpaqueToken } from '../../lib/conversation/quick-reply';
 import { notifyTicketStaff } from '../../lib/tickets/notifications';
+import { staffAlertsInstalled } from '../../lib/incidents/staff-alerts';
 
 const localUrl = 'postgresql://postgres:postgres@127.0.0.1:54422/postgres';
-const pool = new Pool({ connectionString: localUrl, max: 5 });
+const ownedDatabase = process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+if (ownedDatabase) assert(/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase), 'OWNED_ISOLATED_DATABASE_REQUIRED');
+const pool = new Pool({ connectionString: ownedDatabase ? localUrl.replace(/postgres$/u, ownedDatabase) : localUrl, max: 5 });
 const makeKey = () => randomBytes(32).toString('base64');
 
 interface FixtureIds {
@@ -175,6 +178,23 @@ async function withRollback<T>(run: (client: PoolClient) => Promise<T>): Promise
     await client.query('rollback').catch(() => undefined);
     client.release();
   }
+}
+
+async function assertDurableAlertCapture(client: PoolClient, ticketId: string, expectedStaff: string[], privateValues: string[]): Promise<void> {
+  const rows = (await client.query(`select e.staff_id,e.source_kind,e.status,e.outbox_id,e.source_revision::text,
+    e.assignment_epoch::text,e.binding_hash,(e.due_at-e.captured_at)<=interval '300 seconds' bounded,
+    t.revision::text revision,t.staff_line_epoch::text epoch,i.user_hash
+    from private.staff_alert_events e join public.tickets t on t.id=e.ticket_id
+    join private.staff_line_identities i on i.staff_id=e.staff_id where e.ticket_id=$1 order by e.staff_id`, [ticketId])).rows;
+  assert.deepEqual(rows.map(row => row.staff_id), [...expectedStaff].sort());
+  for (const row of rows) {
+    assert.equal(row.source_kind, 'NEW_CASE'); assert.equal(row.status, 'PENDING'); assert.equal(row.outbox_id, null);
+    assert.equal(row.source_revision, row.revision); assert.equal(row.assignment_epoch, row.epoch);
+    assert.equal(row.binding_hash, row.user_hash); assert.equal(row.bounded, true);
+    for (const value of privateValues) assert.equal(JSON.stringify(row).includes(value), false);
+  }
+  assert.equal((await client.query("select count(*)::int n from private.message_outbox where ticket_id=$1 and channel='STAFF'", [ticketId])).rows[0].n, 0);
+  assert.equal((await client.query('select count(*)::int n from private.staff_action_tokens where ticket_id=$1', [ticketId])).rows[0].n, 0);
 }
 
 async function expectTicketError(
@@ -849,6 +869,10 @@ test('createEscalation notifies only active bound in-scope Staff one recipient a
       departmentCode: department.code,
       summary,
     }, key);
+    if (await staffAlertsInstalled(client)) {
+      await assertDurableAlertCapture(client, ticket.id, [activeStaff, grantedAdmin, superAdmin], [summary, anonymousCode, ...rawLineIds]);
+      return;
+    }
     const storedTicket = (await client.query('select ticket_no from public.tickets where id=$1', [ticket.id])).rows[0];
     const notifications = (await client.query(
       `select recipient_staff_id,channel,kind,line_session_id,conversation_id,ticket_id,delivery_mode,payload_encrypted
@@ -948,6 +972,10 @@ test('restricted Staff notification stays generic, encrypted, and scoped to boun
       [ticket.id],
     )).rows[0];
     await notifyTicketStaff(client, ticketData, key);
+    if (await staffAlertsInstalled(client)) {
+      await assertDurableAlertCapture(client, ticket.id, [restrictedStaff, grantedAdmin, superAdmin], [summary, anonymousCode, ...rawLineIds]);
+      return;
+    }
 
     const notifications = (await client.query(
       `select recipient_staff_id,channel,kind,line_session_id,conversation_id,ticket_id,delivery_mode,payload_encrypted

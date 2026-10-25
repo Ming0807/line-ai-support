@@ -215,8 +215,10 @@ function parseCounters(data:JsonRecord,observedAt:string):QuotaCounter[] {
   if(typeof used!=='number'||!Number.isSafeInteger(used)||used<0||
    typeof limit!=='number'||!Number.isSafeInteger(limit)||limit<0||
    typeof remaining!=='number'||!Number.isSafeInteger(remaining)||remaining<0||
-   used>limit||remaining>limit||used+remaining!==limit)
+   remaining>limit||remaining!==Math.max(0,limit-used))
    throw new AIProviderError('INVALID_OUTPUT');
+  // The actual current-key API can report usage above the cap with explicit zero remaining.
+  // Preserve that exhausted account evidence; do not rewrite usage or infer a reset/model quota.
   counters.push({scope:'ACCOUNT',unit:'REQUESTS',window:'DAY',source:'OPENROUTER_KEY',
    limit,remaining,resetAt:null,retryAfterSeconds:null,observedAt,currency:null});
  }

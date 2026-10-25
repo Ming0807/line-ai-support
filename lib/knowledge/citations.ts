@@ -5,9 +5,15 @@ import {sourceLocationSchema} from '../imports/extraction';
 import type {SourceLocation} from '../imports/types';
 import {ruleProofSchema,ruleProofsEqual} from './rule-proof';
 
-export const ragAnswerSchema=z.object({answer:z.string().trim().min(1).max(3000)
+export const LINE_TEXT_PACKET_LIMIT_MESSAGE='คำตอบพร้อมแหล่งอ้างอิงยาวเกินขนาดที่ส่งครบใน LINE ได้ในครั้งเดียวครับ กรุณาแยกคำถามเป็นประเด็น หรือเลือกติดต่อเจ้าหน้าที่เพื่อให้ช่วยตรวจสอบครับ';
+
+export const ragAnswerSchema=z.object({answer:z.string().min(1).max(12000).refine(value=>value.trim().length>0)
  .refine(s=>!/(?:https?:\/\/|www\.)/i.test(s)),citationChunkIds:z.array(z.uuid()).min(1).max(5)
  .refine(ids=>new Set(ids).size===ids.length)}).strict();
+/** Completion-only abstention. Every actual ANSWER still uses the unchanged schema above. */
+export const ragCompletionSchema=z.strictObject({answer:ragAnswerSchema.shape.answer.nullable(),
+ citationChunkIds:z.array(z.uuid()).max(5),
+}).refine(value=>value.answer===null?value.citationChunkIds.length===0:ragAnswerSchema.safeParse(value).success);
 export const citationEvidenceSchema=z.object({chunkId:z.uuid(),documentId:z.uuid(),documentRevision:z.number().int().min(0),title:z.string().min(1).max(500),
  familyCode:z.string(),academicYear:z.number().int().nullable(),authorityLevel:z.number().int().min(0).max(100),pageNumber:z.number().int().positive().nullable(),
  sectionTitle:z.string().max(180).nullable(),content:z.string().min(1).max(6000),sourceUrl:z.string().max(2000).nullable(),similarity:z.number().finite(),
@@ -28,12 +34,19 @@ export function lineMessages(text:string):OutboundText[] {
  const messages:OutboundText[]=[];
  let current='';
  for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(text)){
-  if(segment.length>5000)return invalid();
-  if(current.length+segment.length>5000){messages.push({type:'text',text:current});current='';}
+  if(segment.length>5000)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
+  if(current.length+segment.length>5000){
+   if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
+   messages.push({type:'text',text:current});current='';
+  }
   current+=segment;
+  if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
  }
- if(current)messages.push({type:'text',text:current});
- if(messages.length<1||messages.length>5)return invalid();
+ if(current){
+  if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
+  messages.push({type:'text',text:current});
+ }
+ if(messages.length<1)return invalid();
  return messages;
 }
 export function locationLabel(location:SourceLocation):string {

@@ -33,6 +33,15 @@ function validGenerationResponse(overrides:Partial<ProviderResponse>={}):Provide
  return {output:{ok:true},toolCalls:[],inputTokens:3,outputTokens:2,httpStatus:200,...overrides};
 }
 
+it('selects JSON object transport for an exact fresh OpenRouter JSON-only selected-model probe',async()=>{
+ const f=setup({priceReader:async()=>({...freePrice(),jsonOutputMode:'JSON_OBJECT'})});
+ expect(await probeModel(model(),'GENERATION_TEST',f.options)).toMatchObject({result:'SUCCESS',httpStatus:200});
+ expect(f.generate.mock.calls[0][0]).toMatchObject({jsonOutputMode:'JSON_OBJECT',costMode:'FREE_ONLY'});
+ const tools=setup({priceReader:async()=>({...freePrice(),jsonOutputMode:'JSON_OBJECT'})});
+ await probeModel(model({supportsTools:true}),'GENERATION_TEST',tools.options);
+ expect(tools.generate.mock.calls[0][0]).not.toHaveProperty('jsonOutputMode');
+});
+
 function adapter(generate:AIProviderAdapter['generate']):AIProviderAdapter {
  return {generate,healthCheck:vi.fn<AIProviderAdapter['healthCheck']>(async()=> 'HEALTHY')};
 }
@@ -120,6 +129,19 @@ it('requires one exact validated probe tool call when the selected model adverti
   type:'object',properties:{marker:{type:'string',const:'PROBE'}},required:['marker'],additionalProperties:false,
  }}]);
  expect(generate).toHaveBeenCalledOnce();
+});
+
+it('budgets reasoning tokens for the fixed JSON probe while retaining its strict output and deadline',async()=>{
+ const generate=vi.fn<AIProviderAdapter['generate']>().mockImplementation(async request=>{
+  // Upstream reasoning consumes the same output budget before emitting the tiny JSON result.
+  if((request.maxOutputTokens??0)<1024)throw new AIProviderError('INVALID_OUTPUT',200);
+  return validGenerationResponse();
+ });
+ const f=setup({generationAdapters:{OPENROUTER:adapter(generate)}});
+ expect(await probeModel(model(),'GENERATION_TEST',f.options)).toMatchObject({result:'SUCCESS',httpStatus:200});
+ expect(generate).toHaveBeenCalledOnce();
+ expect(generate.mock.calls[0]![0].maxOutputTokens).toBe(1024);
+ expect(generate.mock.calls[0]![0].responseSchema.schema).toEqual({type:'object',properties:{ok:{type:'boolean',const:true}},required:['ok'],additionalProperties:false});
 });
 
 it('fails a tool-capable model that answers JSON instead of returning the required probe tool call',async()=>{

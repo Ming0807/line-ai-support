@@ -28,6 +28,7 @@ import {applyTicketAction} from '../../lib/tickets/ticket-service';
 import type {StaffTicketAction,TicketActionInput} from '../../types/tickets';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
+import {prepareOwnedStaffAlerts,releaseOwnedStaffAlerts} from './staff-alert-fixture';
 import {decryptValue,encryptValue,hashLineUserId,hashStaffLineUserId} from '../../lib/security/identity';
 
 const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
@@ -81,6 +82,7 @@ async function createFlow(){
   }finally{await pool.end();}
  }
  try{
+  await prepareOwnedStaffAlerts(pool);
   for(const [id,role] of [[actor,'SUPER_ADMIN'],[staff,'STAFF'],[foreignStaff,'STAFF'],[unboundStaff,'STAFF']] as const){
    await pool.query('insert into auth.users(id) values($1)',[id]);
    await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1::uuid,$2::text,'Final flow fixture',true,case when $1::uuid=$3::uuid then (select id from public.departments where code='FINANCE') when $2::text='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role,foreignStaff]);
@@ -365,7 +367,8 @@ async function staffInbox(f:Flow,event:unknown){
 }
 
 async function acceptEscalatedTicket(f:Flow,ticketId:string){
- const notice=(await f.pool.query("select id,payload_encrypted,status from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind='NOTIFICATION' and recipient_staff_id=$2",[ticketId,f.staff])).rows[0];
+ await releaseOwnedStaffAlerts(f.pool,key,f.staff);
+ const notice=(await f.pool.query("select id,payload_encrypted,status from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind in('ALERT','NOTIFICATION') and recipient_staff_id=$2",[ticketId,f.staff])).rows[0];
  assert(notice,'BOUND_IT_STAFF_NOTIFICATION_MUST_BE_QUEUED');
  const payload=JSON.parse(decryptValue(notice.payload_encrypted,key));const accept=payload.messages[0].quickReply.items[0].action.data as string;
  assert.match(accept,/^yru:staff:accept:/u);
@@ -427,12 +430,13 @@ for(const branch of ['SOLVED','ESCALATE'] as const)test(`controlled Wi-Fi troubl
    assert.equal(decoded.support.interpreted.problemText,'Wi-Fi ต่อไม่ได้');
    assert(decoded.support.interpreted.collectedContext.some((item:{field:string;quote:string})=>item.field==='DEVICE'&&item.quote==='Android'));
    assert(decoded.support.interpreted.collectedContext.some((item:{field:string;quote:string})=>item.field==='ERROR'&&item.quote==='ไม่สามารถเชื่อมต่อ Wi-Fi ได้'));
-   const scoped=(await f.pool.query("select recipient_staff_id from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind='NOTIFICATION'",[ticket.id])).rows;
+   await releaseOwnedStaffAlerts(f.pool,key,f.staff);
+   const scoped=(await f.pool.query("select recipient_staff_id from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind in('ALERT','NOTIFICATION')",[ticket.id])).rows;
    assert.deepEqual(scoped.map(row=>row.recipient_staff_id),[f.staff],'ONLY_BOUND_CURRENT_IT_STAFF_RECEIVES_TICKET_NOTIFICATION');
    const response=await runOutboxCycle(f.pool,key,{accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async(_url,init)=>{
     await f.assertOutsideSql();capture.bodies.push(JSON.parse(String(init?.body)));return new Response(null,{status:200});
    }});assert.equal(response.failed,0);
-   const notification=(await f.pool.query("select o.id,o.payload_encrypted,o.status from private.message_outbox o where o.ticket_id=$1 and o.channel='STAFF' and o.kind='NOTIFICATION' and o.recipient_staff_id=$2",[ticket.id,f.staff])).rows[0];
+   const notification=(await f.pool.query("select o.id,o.payload_encrypted,o.status from private.message_outbox o where o.ticket_id=$1 and o.channel='STAFF' and o.kind in('ALERT','NOTIFICATION') and o.recipient_staff_id=$2",[ticket.id,f.staff])).rows[0];
    assert(notification);assert.equal(notification.status,'SENT');
    const notificationPayload=JSON.parse(decryptValue(notification.payload_encrypted,key));
    assert(!JSON.stringify(notificationPayload).includes('Android'));assert(!JSON.stringify(notificationPayload).includes('ไม่สามารถเชื่อมต่อ Wi-Fi ได้'));
@@ -528,7 +532,8 @@ test('FLOW-C requires an explicit unresolved escalation and retains encrypted co
   assert(decoded.support.interpreted.collectedContext.some((item:{field:string;quote:string})=>item.field==='ERROR'&&item.quote==='ไม่สามารถเชื่อมต่อ Wi-Fi ได้'));
   const outcome=(await f.pool.query('select kind,ticket_id,department_id from private.ai_support_outcomes where conversation_id=$1',[result.followup.conversationId])).rows[0];
   assert.equal(outcome.kind,'USER_CONFIRMED_ESCALATED');assert.equal(outcome.ticket_id,ticket.id);assert.equal(outcome.department_id,ticket.department_id);
-  const alerts=(await f.pool.query("select id,recipient_staff_id,payload_encrypted,status from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind='NOTIFICATION' order by recipient_staff_id",[ticket.id])).rows;
+  await releaseOwnedStaffAlerts(f.pool,key,f.staff);
+  const alerts=(await f.pool.query("select id,recipient_staff_id,payload_encrypted,status from private.message_outbox where ticket_id=$1 and channel='STAFF' and kind in('ALERT','NOTIFICATION') order by recipient_staff_id",[ticket.id])).rows;
   assert.deepEqual(alerts.map(row=>row.recipient_staff_id),[f.staff],'NO_UNBOUND_OR_FOREIGN_DEPARTMENT_STAFF_IS_ALERTED');
   assert((await deliverAll(f))>=2,'STUDENT_RECEIPT_AND_BOUND_STAFF_ALERT_USE_THE_CONTROLLED_LINE_TRANSPORT');
   assert.equal((await f.pool.query('select status from private.message_outbox where id=$1',[alerts[0].id])).rows[0].status,'SENT');
@@ -570,6 +575,10 @@ test('FLOW-D uses Staff ACCEPT, manual reply, exact HUMAN continuation, RESOLVE 
   assert.deepEqual(routed,{conversation_id:ticket.conversation_id,ticket_id:ticket.id,sender_type:'USER',content:'ได้ส่งภาพข้อความผิดพลาดตามที่ขอแล้ว'});
   assert.equal((await f.pool.query('select status from public.tickets where id=$1',[ticket.id])).rows[0].status,'STAFF_HANDLING');
   assert.equal((await f.pool.query('select count(*)::int n from private.ai_jobs where message_id=$1',[continuation.messageId])).rows[0].n,0);
+  const humanReceipt=(await f.pool.query("select payload_encrypted,kind,line_session_id from private.message_outbox where idempotency_key='student-response:'||$1",[continuation.sourceEventId])).rows;
+  assert.equal(humanReceipt.length,1,'SEMANTIC_HUMAN_ROUTE_MUST_HAVE_ONE_FIXED_STUDENT_RECEIPT');
+  assert.equal(humanReceipt[0].kind,'SYSTEM');assert.equal(humanReceipt[0].line_session_id,f.session);
+  assert.match(JSON.parse(decryptValue(humanReceipt[0].payload_encrypted,key)).messages[0].text,/เจ้าหน้าที่/);
   assert.equal((await f.pool.query("select count(*)::int n from private.message_outbox where conversation_id=$1 and kind='AI'",[ticket.conversation_id])).rows[0].n,beforeAIOutbox,
    'HUMAN_CONTINUATION_DOES_NOT_QUEUE_AN_AI_REPLY');
   assert.equal((await f.pool.query("select count(*)::int n from public.messages where conversation_id=$1 and sender_type='AI'",[ticket.conversation_id])).rows[0].n,beforeAI,

@@ -6,7 +6,8 @@ import {ProviderAdminError,withProviderAdminTransaction,lockAIProvider} from './
 
 interface PricingOptions {pool?:Pool;priceReader?:PriceReader}
 const pricingSchema=z.object({status:z.enum(['FREE','PAID','UNKNOWN']),inputPricePerMillion:z.number().finite().min(0).max(99_999_999).nullable(),
- outputPricePerMillion:z.number().finite().min(0).max(99_999_999).nullable(),checkedAt:z.iso.datetime(),apiFormat:z.enum(['CHAT','RESPONSES']).nullable()}).strict()
+ outputPricePerMillion:z.number().finite().min(0).max(99_999_999).nullable(),checkedAt:z.iso.datetime(),apiFormat:z.enum(['CHAT','RESPONSES']).nullable(),
+ canDisableReasoning:z.boolean().optional(),jsonOutputMode:z.enum(['JSON_SCHEMA','JSON_OBJECT']).optional()}).strict()
  .refine(value=>value.status!=='FREE'||value.inputPricePerMillion===0&&value.outputPricePerMillion===0);
 export async function refreshModelPricing(staffId:string,providerId:string,modelId:string,input:unknown,options:PricingOptions={},outer?:AbortSignal):Promise<{pricing:ModelPricing}> {
  const parsed=modelRevisionSchema.safeParse(input);if(!parsed.success)throw new ProviderAdminError('INVALID_REQUEST');

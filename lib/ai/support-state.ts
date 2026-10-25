@@ -65,7 +65,7 @@ async function guidanceMatches(client:DbClient,id:string,context:SupportContext,
   const payload=JSON.parse(decryptValue(row.outbox_payload,key));
   if(!Array.isArray(payload.messages)||JSON.stringify(payload.messages.map((m:{text?:unknown})=>m.text))!==JSON.stringify(expected.messages.map(m=>m.text)))return false;
   return (await client.query(`select id from public.messages where conversation_id=$1 and sender_type='AI' and message_type='TEXT'
-   and metadata->>'ai_job_id'=$2 and metadata->'citations'=$3::jsonb and content=$4`,[context.conversationId,row.id,JSON.stringify(expected.citations),expected.messages.map(m=>m.text).join('\n')])).rowCount===1;
+   and metadata->>'ai_job_id'=$2 and metadata->'citations'=$3::jsonb and content=any($4::text[])`,[context.conversationId,row.id,JSON.stringify(expected.citations),[expected.messages.map(m=>m.text).join(''),expected.messages.map(m=>m.text).join('\n')]])).rowCount===1;
  }catch{return false;}
 }
 /** Caller owns a short transaction. Private identifiers stay out of input, the provider projection. */
@@ -78,7 +78,7 @@ export async function loadSupportSnapshot(client:DbClient,value:SupportContext,k
   and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in('CLOSED','CANCELLED'))`,[context.conversationId,context.sessionId,context.messageId,context.revision])).rowCount===1;
  if(!allowed)return null;
  const messages=(await client.query(`select id,content,created_at from public.messages where conversation_id=$1 and sender_type='USER' and message_type='TEXT'
-  and metadata->>'routing_status' is distinct from 'PENDING' order by created_at desc,id desc limit 9`,[context.conversationId])).rows;
+  and metadata->>'routing_status' is distinct from 'PENDING' and metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by created_at desc,id desc limit 9`,[context.conversationId])).rows;
  if(messages[0]?.id!==context.messageId)return null;
  const departments=(await client.query('select id,code,name_th from public.departments where active order by code,id for share')).rows;
  const state=(await client.query('select * from private.ai_support_state where conversation_id=$1',[context.conversationId])).rows[0];

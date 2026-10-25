@@ -3,7 +3,7 @@ import {analyzeExtraction} from '../lib/imports/analyzer';
 import {createImportSource} from '../lib/imports/source';
 import type {Extraction} from '../lib/imports/types';
 const source=createImportSource({bytes:new TextEncoder().encode('title,date\nfixture,2569'),filename:'calendar.csv',mimeType:'text/csv',sourceUrl:'https://acdservice.yru.ac.th/a',acquiredFrom:'UPLOAD',fetchedAt:null});
-const extraction=(text:string,table=false):Extraction=>({title:'ปฏิทินวิชาการ ปีการศึกษา 2569',pages:[{pageNumber:null,text,requiresReview:false,sectionTitle:null}],
+const extraction=(text:string,table=false,title='ปฏิทินวิชาการ ปีการศึกษา 2569'):Extraction=>({title,pages:[{pageNumber:null,text,requiresReview:false,sectionTitle:null}],
  tables:table?[{pageNumber:null,sectionTitle:null,sheetName:null,firstRow:1,rows:[['กิจกรรม','วันที่'],['ลงทะเบียน','1 สิงหาคม 2569']]}]:[],flags:[]});
 it('proposes candidates from explicit text without approving or inventing dates/authority',()=>{
  expect(analyzeExtraction(source,extraction('ปฏิทินวิชาการ ปีการศึกษา 2569'))).toMatchObject({familyCode:'ACADEMIC_CALENDAR',academicYear:2569,
@@ -20,6 +20,24 @@ it('unknown table dataset remains RAG without arbitrary SQL/table mappings',()=>
  const value={...extraction('Shuttle bus schedule',true),title:'Shuttle bus schedule'};
  expect(analyzeExtraction(source,value,{installedDatasets:['academic_calendar_events']})).toMatchObject({datasetCandidate:null,recommendedStorageMode:'RAG'});
  expect(analyzeExtraction(source,value).flags).toContain('STRUCTURED_SCHEMA_UNAVAILABLE');
+});
+it('classifies an official academic-calendar announcement specifically and recognizes the Thai equivalent',()=>{
+ const value=extraction('ประกาศกำหนดวันเปิดภาคเรียน ปีการศึกษา 2569',true,'ประกาศปฏิทินการศึกษา ปีการศึกษา 2569');
+ const result=analyzeExtraction(source,value,{installedDatasets:['academic_calendar_events']});
+ expect(result).toMatchObject({familyCode:'ACADEMIC_CALENDAR',departmentCode:'ACADEMIC_AFFAIRS',documentType:'CALENDAR',
+  datasetCandidate:'academic_calendar_events',recommendedStorageMode:'BOTH',academicYear:2569,effectiveFrom:null,publishedDate:null,authorityLevel:null});
+ expect(result.flags).not.toContain('FAMILY_AMBIGUOUS');
+});
+it('uses announcement classification only when no specialized category matches',()=>{
+ const result=analyzeExtraction(source,extraction('ประกาศกิจกรรมวันหยุด',false,'ประกาศกิจกรรมวันหยุด'));
+ expect(result).toMatchObject({familyCode:'ANNOUNCEMENT',departmentCode:'ADMIN',documentType:'ANNOUNCEMENT',datasetCandidate:'announcements'});
+ expect(result.flags).not.toContain('FAMILY_AMBIGUOUS');
+});
+it('keeps mixed fee and calendar evidence ambiguous despite a generic announcement match',()=>{
+ const result=analyzeExtraction(source,extraction('ประกาศเกี่ยวกับค่าเล่าเรียนและปฏิทินการศึกษา',false,'ประกาศค่าธรรมเนียมและปฏิทินการศึกษา'));
+ expect(result).toMatchObject({familyCode:null,departmentCode:null,documentType:null,datasetCandidate:null,
+  effectiveFrom:null,publishedDate:null,authorityLevel:null});
+ expect(result.flags).toContain('FAMILY_AMBIGUOUS');
 });
 it.each([
  ['รายชื่อนักศึกษา รหัสนักศึกษา 12345678901','STUDENT_RECORDS'],['โทรศัพท์ 0812345678','PHONE'],

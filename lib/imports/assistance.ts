@@ -4,6 +4,7 @@ import {getImportPreview,type ImportPreview,type ImportExtractionOptions} from '
 import {authorizeImportAdmin,withImportAdminTransaction,ImportStagingError} from './import-staging';
 import {assistanceEnvelopeSchema,type ImportAssistance} from './assistance-contract';
 import {isValidKnowledgeDate} from '../knowledge/metadata-filter';
+import {datasetTypes} from './types';
 type References=Pick<ImportAssistance,'families'|'departments'>;
 export interface ImportAssistanceOptions extends ImportExtractionOptions {
  /** Controlled internal concurrency seam outside SQL; never request-configurable. */
@@ -36,11 +37,16 @@ export function buildImportAssistance(preview:ImportPreview,references:Reference
  const metadata:ImportAssistance['metadata']={title:null,familyCode:null,newFamily:null,departmentCode:null,documentType:null,versionName:null,versionStream:'main',academicYear:null,
   scope:{semester:null,audience:null,studentType:null,programCode:null,curriculumCode:null,cohort:null},publishedAt:null,effectiveFrom:null,effectiveTo:null,authorityLevel:null,
   sourceUrl:null,sourcePageUrl:null,visibility:'INTERNAL',storageMode:'RAG',datasetType:null};
- const origins:ImportAssistance['origins']={versionStream:{kind:'DEFAULT',label:'สายฉบับหลัก · เปลี่ยนได้'},visibility:{kind:'DEFAULT',label:'เริ่มเป็นข้อมูลภายใน · ยังไม่ใช้ตอบนักศึกษา'},storageMode:{kind:'DEFAULT',label:'ใช้ข้อความอ้างอิง · ชุดข้อมูลตารางรอตัวเชื่อม'}};
+ const origins:ImportAssistance['origins']={versionStream:{kind:'DEFAULT',label:'สายฉบับหลัก · เปลี่ยนได้'},visibility:{kind:'DEFAULT',label:'เริ่มเป็นข้อมูลภายใน · ยังไม่ใช้ตอบนักศึกษา'},storageMode:{kind:'DEFAULT',label:'เริ่มจากค้นข้อความ · เปลี่ยนวิธีใช้ได้หลังตรวจต้นฉบับ'}};
  const propose=<K extends keyof ImportAssistance['origins']>(field:K,value:ImportAssistance['metadata'][K],kind:'EXTRACTED'|'CLASSIFIED',label:string)=>{
   if(value!==null){Object.assign(metadata,{[field]:value});origins[field]={kind,label};}
  };
  const title=a.title?.trim();if(title)propose('title',title,'EXTRACTED','ชื่อเรื่องที่ตัวอ่านพบ');
+ if(a.containsTables&&a.datasetCandidate&&datasetTypes.includes(a.datasetCandidate)&&
+  (a.recommendedStorageMode==='STRUCTURED'||a.recommendedStorageMode==='BOTH')&&!a.flags?.includes('STRUCTURED_SCHEMA_UNAVAILABLE')){
+  propose('datasetType',a.datasetCandidate,'CLASSIFIED','พบตารางชนิดที่ระบบรองรับ · ตรวจคอลัมน์ก่อนใช้');
+  propose('storageMode',a.recommendedStorageMode,'CLASSIFIED','เสนอจากข้อความและตารางที่อ่านได้ · ยังต้องตรวจรูปแบบข้อมูล');
+ }
  if(a.familyCode&&references.families.some(v=>v.code===a.familyCode))propose('familyCode',a.familyCode,'CLASSIFIED','เสนอจากประเภทเนื้อหา · ตรวจกลุ่มอีกครั้ง');
  if(a.departmentCode&&references.departments.some(v=>v.code===a.departmentCode))propose('departmentCode',a.departmentCode,'CLASSIFIED','เสนอจากประเภทเนื้อหา · ตรวจเจ้าของเอกสาร');
  if(a.documentType)propose('documentType',a.documentType,'CLASSIFIED','เสนอจากประเภทเนื้อหา');

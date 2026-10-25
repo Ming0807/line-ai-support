@@ -143,7 +143,8 @@ function makeBody(request:CompatibleProviderRequest):JsonRecord {
 
 function validateRequest(value:ProviderRequest):asserts value is CompatibleProviderRequest {
  if(!isRecord(value)||!hasExactKeys(value,['modelId','baseUrl','apiKey','messages','responseSchema','signal'],
-  ['tools','maxOutputTokens','costMode','apiFormat']))throw invalidRequest();
+  ['tools','maxOutputTokens','costMode','apiFormat','timeoutMs']))throw invalidRequest();
+ if(value.timeoutMs!==undefined&&(!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<1||value.timeoutMs>45000))throw invalidRequest();
  validateCommon(value.modelId,value.baseUrl,value.apiKey,value.signal);
  if(value.costMode!==undefined&&value.costMode!=='FREE_ONLY'&&value.costMode!=='ALLOW_PAID')throw invalidRequest();
  if(value.apiFormat!==undefined&&value.apiFormat!=='CHAT')throw invalidRequest();
@@ -307,7 +308,8 @@ export function createCompatibleChatAdapter(options:{transport:CompatibleTranspo
    const baseUrl=parseCompatibleBaseUrl(input.baseUrl).baseUrl;
    const body=makeBody(input);
    try{
-    const response=await transport.request(baseUrl,{route:'chat/completions',apiKey:input.apiKey,json:body,signal:input.signal});
+    const response=await transport.request(baseUrl,{route:'chat/completions',apiKey:input.apiKey,json:body,signal:input.signal,
+     ...(input.timeoutMs===undefined?{}:{timeoutMs:input.timeoutMs})});
     const status=parseStatus(response.status);
     if(status!==200)throw responseError(status,response.retryAfter);
     if(!jsonContentType(response.contentType))throw invalidOutput(status);

@@ -3,7 +3,7 @@ import {createChatCompletionsAdapter} from '../lib/ai/providers/chat-completions
 import type {AITool,ProviderRequest} from '../lib/ai/types';
 
 type CostMode='FREE_ONLY'|'ALLOW_PAID';
-type ChatRequest=ProviderRequest&{costMode?:CostMode;apiFormat?:'CHAT'|'RESPONSES'};
+type ChatRequest=ProviderRequest&{costMode?:CostMode;apiFormat?:'CHAT'|'RESPONSES';timeoutMs?:number};
 
 const responseSchema={type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false};
 
@@ -29,6 +29,16 @@ function completion(content:string|null,options:{status?:string;finishReason?:st
 function response(payload:unknown,status=200,headers:HeadersInit={}):Response {
  return new Response(JSON.stringify(payload),{status,headers:{'content-type':'application/json',...Object.fromEntries(new Headers(headers))}});
 }
+
+it.each([
+ {jsonOutputMode:'TEXT'},
+ {baseUrl:'https://opencode.ai/zen/v1',modelId:'fixture-zen',jsonOutputMode:'JSON_OBJECT'},
+ {jsonOutputMode:'JSON_OBJECT',tools:[{name:'probe',description:'Controlled probe',parameters:responseSchema}]},
+])('rejects unsupported JSON transport modes/scopes before HTTP: %j',async overrides=>{
+ const fetchImpl=vi.fn<typeof fetch>();
+ await expect(createChatCompletionsAdapter({fetchImpl}).generate(request(overrides as never))).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(fetchImpl).not.toHaveBeenCalled();
+});
 
 it('sends OpenRouter strict JSON with backend-owned free price limits by default and captures upstream HTTP',async()=>{
  const fetchImpl=vi.fn<typeof fetch>().mockResolvedValue(response(completion('{"answer":"hello"}')));
@@ -249,6 +259,67 @@ it('aborts a request that exceeds the adapter timeout',async()=>{
   await assertion;
   expect(fetchImpl.mock.calls[0]![1]?.signal?.aborted).toBe(true);
  }finally{vi.useRealTimers();}
+});
+
+it('allows a valid response after 12 seconds when the server supplies a 20-second timeout and never sends that timeout upstream',async()=>{
+ vi.useFakeTimers();
+ try{
+  const fetchImpl=vi.fn<typeof fetch>(async()=>{
+   await new Promise(resolve=>setTimeout(resolve,12_000));
+   return response(completion('{"answer":"valid after twelve seconds"}'));
+  });
+  const pending=createChatCompletionsAdapter({fetchImpl}).generate(request({timeoutMs:20_000}));
+  const outcome=pending.then(value=>({kind:'resolved' as const,value}),error=>({kind:'rejected' as const,error}));
+  await vi.advanceTimersByTimeAsync(12_000);
+  const settled=await outcome;
+  expect(settled.kind).toBe('resolved');
+  if(settled.kind==='resolved')expect(settled.value).toMatchObject({output:{answer:'valid after twelve seconds'},httpStatus:200});
+
+  const body=JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body));
+  expect(body.timeoutMs).toBeUndefined();
+  expect(body.timeout_ms).toBeUndefined();
+ }finally{vi.useRealTimers();}
+});
+
+it('aborts a provider fetch that ignores cancellation at the supplied 20-second timeout',async()=>{
+ vi.useFakeTimers();
+ try{
+  const fetchImpl=vi.fn<typeof fetch>((_input,init)=>new Promise((_resolve,reject)=>{
+   init?.signal?.addEventListener('abort',()=>reject(new DOMException('timed out','AbortError')),{once:true});
+  }));
+  const pending=createChatCompletionsAdapter({fetchImpl}).generate(request({timeoutMs:20_000}));
+  const outcome=pending.then(value=>({kind:'resolved' as const,value}),error=>({kind:'rejected' as const,error}));
+  await vi.advanceTimersByTimeAsync(20_001);
+  const settled=await outcome;
+  expect(settled.kind).toBe('rejected');
+  if(settled.kind==='rejected')expect(settled.error).toMatchObject({code:'TIMEOUT',httpStatus:undefined});
+  expect(fetchImpl.mock.calls[0]![1]?.signal?.aborted).toBe(true);
+ }finally{vi.useRealTimers();}
+});
+
+it('lets an earlier parent abort win over the supplied per-request timeout',async()=>{
+ vi.useFakeTimers();
+ try{
+  const controller=new AbortController();
+  const fetchImpl=vi.fn<typeof fetch>((_input,init)=>new Promise((_resolve,reject)=>{
+   init?.signal?.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true});
+  }));
+  const pending=createChatCompletionsAdapter({fetchImpl}).generate(request({signal:controller.signal,timeoutMs:20_000}));
+  const outcome=pending.then(value=>({kind:'resolved' as const,value}),error=>({kind:'rejected' as const,error}));
+  await vi.advanceTimersByTimeAsync(5_000);
+  controller.abort();
+  const settled=await outcome;
+  expect(settled.kind).toBe('rejected');
+  if(settled.kind==='rejected')expect(settled.error).toMatchObject({code:'CANCELLED',httpStatus:undefined});
+  expect(fetchImpl.mock.calls[0]![1]?.signal?.aborted).toBe(true);
+ }finally{vi.useRealTimers();}
+});
+
+it.each([0,-1,1.5,45_001,Number.NaN])('rejects invalid request timeout %s before calling fetch',async timeoutMs=>{
+ const fetchImpl=vi.fn<typeof fetch>();
+ await expect(createChatCompletionsAdapter({fetchImpl}).generate(request({timeoutMs})))
+  .rejects.toMatchObject({code:'INVALID_REQUEST'});
+ expect(fetchImpl).not.toHaveBeenCalled();
 });
 
 it('rejects an oversized success body without retaining or parsing it',async()=>{

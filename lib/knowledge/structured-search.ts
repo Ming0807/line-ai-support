@@ -10,6 +10,7 @@ import {validateStructuredEvidence,validateStructuredEvidenceList,type Structure
 import {canonicalDigest} from '../imports/structured-mapping-contract';
 import {isValidKnowledgeDate} from './metadata-filter';
 import {decodeStoredImportSourceMetadata} from '../imports/import-staging';
+import {structuredDiscoveryRequestSchema,type StructuredDiscoveryRequest} from './structured-discovery';
 
 const selectors={
  academic_calendar_events:{table:'public.academic_calendar_events',equal:{academic_year:'integer',semester:'text',student_type:'text',event_type:'text',title:'text'},extra:"(not($18::jsonb?'occurs_on') or r.start_date<=($18->>'occurs_on')::date and coalesce(r.end_date,r.start_date)>=($18->>'occurs_on')::date) and (not($18::jsonb?'start_date_from') or r.start_date>=($18->>'start_date_from')::date) and (not($18::jsonb?'start_date_to') or r.start_date<=($18->>'start_date_to')::date)"},
@@ -43,6 +44,19 @@ interface StoredRow extends Record<string,unknown>{
 export async function searchStructured(client:PoolClient,input:StructuredSearchRequest,key:string,today?:string):Promise<StructuredSearchResult>{
  const query=validateStructuredQuery(input.query),scope=knowledgeScopeSchema.parse(input.scope),assessment=assessStructuredQuery(query);
  if(assessment.status!=='READY')return assessment;
+ return searchReviewedRows(client,query,scope,key,today,false);
+}
+/** Explicit bounded PUBLIC directory, never an incomplete exact Query1. */
+export async function discoverPublicForms(client:PoolClient,input:{scope:KnowledgeScope},key:string,today?:string):Promise<StructuredSearchResult>{
+ return searchReviewedRows(client,{version:1,dataset:'service_forms',filters:{},limit:20},knowledgeScopeSchema.parse(input.scope),key,today,true);
+}
+/** Only these fixed PUBLIC catalogs; source eligibility, complete-context and receipt checks are shared. */
+export async function discoverPublicStructured(client:PoolClient,input:StructuredDiscoveryRequest,key:string,today?:string):Promise<StructuredSearchResult>{
+ const request=structuredDiscoveryRequestSchema.parse(input);
+ const filters=request.dataset==='academic_calendar_events'&&request.scope.academicYear!==null?{academic_year:request.scope.academicYear}:{};
+ return searchReviewedRows(client,validateStructuredQuery({version:1,dataset:request.dataset,filters,limit:20}),request.scope,key,today,true);
+}
+async function searchReviewedRows(client:PoolClient,query:StructuredQuery,scope:KnowledgeScope,key:string,today:string|undefined,directory:boolean):Promise<StructuredSearchResult>{
  if(today!==undefined&&!isValidKnowledgeDate(today))throw new Error('STRUCTURED_QUERY_INVALID');
  const installed=(await client.query("select to_regclass('private.structured_publication_effects') is not null and to_regclass('private.structured_row_provenance') is not null and to_regprocedure('private.lock_structured_selection_catalog()') is not null and (select count(*)=7 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('academic_calendar_events','tuition_fees','transfer_courses','university_services','university_systems','service_forms','announcements') and c.relkind='r') ready")).rows[0]?.ready;
  if(!installed)return {status:'UNAVAILABLE'};
@@ -90,7 +104,7 @@ export async function searchStructured(client:PoolClient,input:StructuredSearchR
    const context={schemaVersion:1,dataset:query.dataset,registryVersion:row.registry_version,mapperVersion:row.mapper_version,rowId:row.row_id,documentId:row.document_id,documentRevision:row.published_document_revision,jobId:row.job_id,jobRevision:row.job_revision,extractionRevision:row.extraction_revision,reviewRevision:row.review_revision,sourceFormat:row.source_format,sourceChecksum:row.source_checksum,extractionDigest:row.extraction_digest,mappingDigest:row.mapping_digest,payloadDigest:row.payload_digest,planDigest:row.plan_digest,tableIndex:row.table_index,rowIndex:row.row_index,tableFirstRow:row.table_first_row,sourceRow:row.source_row,coordinateKind:row.coordinate_kind};
    const decoded=decryptStructuredRowEvidence(row.evidence_encrypted,context,key);
    const original=decodeStoredImportSourceMetadata({jobId:row.job_id,checksum:row.source_checksum,encrypted:row.original_metadata_encrypted},key);
-   if(decoded.sourceUrl!==original.sourceUrl||canonicalDigest('structured-payload-v1',{dataset:query.dataset,payload:decoded.payload})!==canonicalDigest('structured-payload-v1',{dataset:query.dataset,payload:row.proof_payload})||!matchesStructuredPayload(query,decoded.payload))throw new Error('STRUCTURED_ROW_EVIDENCE_INVALID');
+   if(decoded.sourceUrl!==original.sourceUrl||canonicalDigest('structured-payload-v1',{dataset:query.dataset,payload:decoded.payload})!==canonicalDigest('structured-payload-v1',{dataset:query.dataset,payload:row.proof_payload})||(!directory&&!matchesStructuredPayload(query,decoded.payload)))throw new Error('STRUCTURED_ROW_EVIDENCE_INVALID');
    // Complete effects include canceled amendments; active extra members require text clarification above.
    const ruleProof=buildRuleProof({familyId:row.document_family_id,baseDocumentId:row.base_id,versionStream:row.version_stream,ruleRevision:row.rule_revision,evaluationDate:row.evaluation_date,members:row.group_members,effects:row.group_effects});
    const {sourceFormat:_format,...reference}=context;void _format;

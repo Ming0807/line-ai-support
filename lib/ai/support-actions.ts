@@ -3,7 +3,8 @@ import type {DbClient} from '../tickets/authorization';
 import {lockConversation} from '../tickets/authorization';
 import {decryptValue,hashLineUserId} from '../security/identity';
 import {userEventSchema} from '../line/events';
-import {createChoices,hashOpaqueToken} from '../conversation/quick-reply';
+import {createChoices} from '../conversation/quick-reply';
+import {confirmationChoiceHash} from '../conversation/support-confirmation';
 import {candidateSnapshot,loadCandidates} from '../conversation/context-resolver';
 import {loadSupportActionState,type SupportActionState} from './support-state';
 
@@ -17,10 +18,10 @@ export async function supportConfirmationMatches(client:DbClient,value:SupportCo
  if(!source||source.user_hash!==source.expected_hash)return false;
  try{
   const event=userEventSchema.safeParse(JSON.parse(decryptValue(source.payload_encrypted,key)));
-  if(!event.success||event.data.type!=='postback'||hashLineUserId(event.data.source.userId,key)!==source.expected_hash)return false;
-  const token=/^yru:choice:([A-Za-z0-9_-]{43})$/.exec(event.data.postback.data)?.[1];if(!token)return false;
+  if(!event.success||hashLineUserId(event.data.source.userId,key)!==source.expected_hash)return false;
+  const tokenHash=await confirmationChoiceHash(client,event.data,input.eventId,input.sessionId,key);if(!tokenHash)return false;
   const row=(await client.query(`select choice,candidate_snapshot,expires_at>clock_timestamp() live from private.pending_route_choices
-   where token_hash=$1 and line_session_id=$2 and consumed_at is not null for update`,[hashOpaqueToken(token,key),input.sessionId])).rows[0];
+   where token_hash=$1 and line_session_id=$2 and consumed_at is not null for update`,[tokenHash,input.sessionId])).rows[0];
   if(!row||(!options.replay||options.requireLive)&&!row.live||row.choice.action!==action||row.choice.conversationId!==input.conversationId||row.choice.supportDigest!==input.stateDigest||
    options.departmentCode!==undefined&&row.choice.departmentCode!==options.departmentCode)return false;
   if(options.replay)return true;

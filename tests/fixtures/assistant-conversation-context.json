@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+  "frozenFixtureSha256": "E79ADE32E0960DF2E0399531D703E55955456CAF7AF432288EA919AE45E801F3",
+  "cases": [
+    {
+      "scenarioId": "A10",
+      "priorUserMessages": [],
+      "sourceIds": ["a10-form"],
+      "purpose": "Synthetic form location only; independent preparation advice remains general."
+    },
+    {
+      "scenarioId": "A11",
+      "priorUserMessages": ["กำลังสมัครหลักสูตรทดสอบสังเคราะห์ A11 นี้"],
+      "sourceIds": ["a11-fee-2569-normal", "a11-fee-2568-other-group"],
+      "purpose": "The companion USER turn names the synthetic program; query scope remains the exact year, undergraduate group and regular study type from the frozen prompt."
+    },
+    {
+      "scenarioId": "A12",
+      "priorUserMessages": [],
+      "sourceIds": ["a12-term-open", "a12-registration-window"],
+      "purpose": "Opening date is distinct from the registration-window date."
+    },
+    {
+      "scenarioId": "A13",
+      "priorUserMessages": [],
+      "sourceIds": ["a13-regular-hours", "a13-holiday-hours"],
+      "purpose": "Regular Saturday hours are scoped separately from holiday service hours."
+    },
+    {
+      "scenarioId": "A14",
+      "priorUserMessages": [
+        "ประกาศทดสอบสังเคราะห์ NOT_REAL_YRU_POLICY: ผู้สมัครในกลุ่มทดลอง X ให้ยื่นแบบ ก-ทดสอบ และสำเนาหลักฐานการศึกษา ขอบเขตกลุ่มทดลอง X ไม่ได้อธิบายเกณฑ์สมาชิกไว้ในประกาศนี้"
+      ],
+      "sourceIds": ["a14-announcement"],
+      "purpose": "The supplied announcement text is the only policy evidence; eligibility scope is intentionally ambiguous."
+    },
+    {
+      "scenarioId": "A15",
+      "priorUserMessages": ["ผมแนบคู่มือระบบทดสอบสังเคราะห์ A15 ไว้ ช่วยอ้างอิงคู่มือนี้"],
+      "sourceIds": ["a15-system-guide"],
+      "purpose": "The USER identifies the attached guide; preserve its synthetic prerequisite and warning when summarizing steps."
+    },
+    {
+      "scenarioId": "A16",
+      "priorUserMessages": ["ผมแนบแบบแจ้งข้อมูลทดสอบ A16 มาด้วย ช่วยดูแบบฟอร์มนี้"],
+      "sourceIds": ["a16-form-purpose"],
+      "purpose": "The USER identifies the attached form; explain only its stated synthetic purpose."
+    },
+    {
+      "scenarioId": "A18",
+      "priorUserMessages": [
+        "ขอติดตามการลงทะเบียนของหลักสูตรทดสอบ รหัสผู้เรียนไม่เกี่ยวข้องและห้ามเก็บในชุดทดสอบ"
+      ],
+      "sourceIds": ["a18-registration-date"],
+      "purpose": "One matching AI registration conversation continues using a current synthetic calendar event."
+    },
+    {
+      "scenarioId": "B01",
+      "priorUserMessages": [],
+      "sourceIds": ["b01-fee-undergraduate", "b01-fee-graduate"],
+      "purpose": "Demonstrate that year, program, student group and study type are required filters before quoting a fee."
+    }
+  ],
+  "sources": [
+    {
+      "id": "a10-form",
+      "scenarioId": "A10",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a10-form",
+      "dataset": "service_forms",
+      "payload": {
+        "name": "แบบคำร้องทดสอบ A10",
+        "description": "แบบฟอร์มสังเคราะห์เพื่อทดสอบตำแหน่งแบบคำร้องเท่านั้น",
+        "form_url": "https://fixture.yru.ac.th/synthetic/forms/a10",
+        "requirements": "ข้อมูลตัวอย่าง ไม่ใช่ข้อกำหนดจริง"
+      }
+    },
+    {
+      "id": "a11-fee-2569-normal",
+      "scenarioId": "A11",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a11-fee-2569",
+      "dataset": "tuition_fees",
+      "payload": {
+        "academic_year": 2569,
+        "program_name": "หลักสูตรทดสอบสังเคราะห์ A11",
+        "major_name": null,
+        "student_group": "ปริญญาตรี",
+        "study_type": "ภาคปกติ",
+        "fee_amount": "12345.00",
+        "currency": "THB",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31"
+      }
+    },
+    {
+      "id": "a11-fee-2568-other-group",
+      "scenarioId": "A11",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a11-fee-2568",
+      "dataset": "tuition_fees",
+      "payload": {
+        "academic_year": 2568,
+        "program_name": "หลักสูตรบัณฑิตศึกษาทดสอบ A11",
+        "major_name": null,
+        "student_group": "บัณฑิตศึกษา",
+        "study_type": "ภาคพิเศษ",
+        "fee_amount": "98765.00",
+        "currency": "THB",
+        "effective_from": "2025-01-01",
+        "effective_to": "2025-12-31"
+      }
+    },
+    {
+      "id": "a12-term-open",
+      "scenarioId": "A12",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a12-term-open",
+      "dataset": "academic_calendar_events",
+      "payload": {
+        "academic_year": 2569,
+        "semester": "ภาคเรียนที่ 1 ทดสอบ",
+        "student_type": "ทุกกลุ่มทดสอบ",
+        "event_type": "OPENING",
+        "title": "วันเปิดภาคเรียน",
+        "start_date": "2026-06-15",
+        "end_date": null,
+        "description": "วันที่สังเคราะห์สำหรับแยกจากวันลงทะเบียน"
+      }
+    },
+    {
+      "id": "a12-registration-window",
+      "scenarioId": "A12",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a12-registration-window",
+      "dataset": "academic_calendar_events",
+      "payload": {
+        "academic_year": 2569,
+        "semester": "ภาคเรียนที่ 1 ทดสอบ",
+        "student_type": "ทุกกลุ่มทดสอบ",
+        "event_type": "REGISTRATION",
+        "title": "ช่วงลงทะเบียน",
+        "start_date": "2026-05-20",
+        "end_date": "2026-05-30",
+        "description": "ไม่ใช่วันเปิดภาคเรียน"
+      }
+    },
+    {
+      "id": "a13-regular-hours",
+      "scenarioId": "A13",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a13-regular-hours",
+      "dataset": "university_services",
+      "payload": {
+        "service_code": "LIBRARY_TEST_ONLY",
+        "name": "ห้องสมุด",
+        "description": "เวลาปกติเท่านั้น วันหยุดอาจต่างออกไป",
+        "location": "สถานที่ทดสอบ",
+        "opening_hours": "วันเสาร์ปกติ 09:00-16:00; ไม่รวมวันหยุด",
+        "phone": null,
+        "email": null,
+        "url": "https://fixture.yru.ac.th/synthetic/library"
+      }
+    },
+    {
+      "id": "a13-holiday-hours",
+      "scenarioId": "A13",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a13-holiday-hours",
+      "dataset": "university_services",
+      "payload": {
+        "service_code": "LIBRARY_HOLIDAY_TEST_ONLY",
+        "name": "ห้องสมุด",
+        "description": "ข้อยกเว้นวันหยุด ไม่ใช่เวลาวันเสาร์ปกติ",
+        "location": "สถานที่ทดสอบ",
+        "opening_hours": "วันหยุด 10:00-12:00",
+        "phone": null,
+        "email": null,
+        "url": "https://fixture.yru.ac.th/synthetic/library-holiday"
+      }
+    },
+    {
+      "id": "a14-announcement",
+      "scenarioId": "A14",
+      "kind": "RAG_HTML",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a14-announcement.html",
+      "html": "<article><h1>ประกาศทดสอบสังเคราะห์ A14</h1><p>ผู้สมัครในกลุ่มทดลอง X ให้ยื่นแบบ ก-ทดสอบ และสำเนาหลักฐานการศึกษา</p><p>ประกาศนี้ไม่ได้ให้นิยามว่าสมาชิกกลุ่มทดลอง X หมายถึงใครบ้าง</p><p>NOT_REAL_YRU_POLICY — เนื้อหาสมมติสำหรับทดสอบเท่านั้น</p></article>"
+    },
+    {
+      "id": "a15-system-guide",
+      "scenarioId": "A15",
+      "kind": "RAG_HTML",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a15-system-guide.html",
+      "html": "<article><h1>คู่มือระบบทดสอบสังเคราะห์ A15</h1><ol><li>ตรวจสอบว่ามีสิทธิ์ทดลองใช้ระบบก่อนเริ่ม</li><li>เปิดหน้าทดสอบและเลือกเมนูตัวอย่าง</li><li>ตรวจผลโดยไม่บันทึกข้อมูลจริง</li></ol><p>คำเตือน: ห้ามใส่รหัสผ่านหรือข้อมูลส่วนบุคคลในระบบทดสอบ</p><p>NOT_REAL_YRU_POLICY — เนื้อหาสมมติสำหรับทดสอบเท่านั้น</p></article>"
+    },
+    {
+      "id": "a16-form-purpose",
+      "scenarioId": "A16",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a16-form",
+      "dataset": "service_forms",
+      "payload": {
+        "name": "แบบแจ้งข้อมูลทดสอบ A16",
+        "description": "ใช้แจ้งแก้ไขข้อมูลติดต่อในบัญชีทดสอบเท่านั้น ไม่ได้ยืนยันการอนุมัติคำร้อง",
+        "form_url": "https://fixture.yru.ac.th/synthetic/forms/a16",
+        "requirements": "ไม่มีข้อมูลจริง ใช้ข้อมูลสมมติเท่านั้น"
+      }
+    },
+    {
+      "id": "a18-registration-date",
+      "scenarioId": "A18",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/a18-registration",
+      "dataset": "academic_calendar_events",
+      "payload": {
+        "academic_year": 2569,
+        "semester": "ภาคเรียนที่ 1 ทดสอบ",
+        "student_type": "หลักสูตรทดสอบ",
+        "event_type": "REGISTRATION",
+        "title": "วันเริ่มลงทะเบียน",
+        "start_date": "2026-05-20",
+        "end_date": null,
+        "description": "วันสำหรับ continuation scenario สังเคราะห์เท่านั้น"
+      }
+    },
+    {
+      "id": "b01-fee-undergraduate",
+      "scenarioId": "B01",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/b01-fee-undergraduate",
+      "dataset": "tuition_fees",
+      "payload": {
+        "academic_year": 2569,
+        "program_name": "หลักสูตรปริญญาตรีสังเคราะห์",
+        "major_name": null,
+        "student_group": "ปริญญาตรีทดสอบ",
+        "study_type": "ภาคปกติทดสอบ",
+        "fee_amount": "11111.00",
+        "currency": "THB",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31"
+      }
+    },
+    {
+      "id": "b01-fee-graduate",
+      "scenarioId": "B01",
+      "kind": "STRUCTURED",
+      "syntheticAuthority": "NOT_REAL_YRU_POLICY",
+      "url": "https://fixture.yru.ac.th/synthetic/b01-fee-graduate",
+      "dataset": "tuition_fees",
+      "payload": {
+        "academic_year": 2569,
+        "program_name": "หลักสูตรบัณฑิตศึกษาสังเคราะห์",
+        "major_name": null,
+        "student_group": "บัณฑิตศึกษาทดสอบ",
+        "study_type": "ภาคพิเศษทดสอบ",
+        "fee_amount": "99999.00",
+        "currency": "THB",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31"
+      }
+    }
+  ]
+}

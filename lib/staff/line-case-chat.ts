@@ -9,7 +9,7 @@ import {persistStaffInboxEvent} from '../queue/staff-inbox';
 import type {InboxJob} from '../queue/process-inbox';
 import {formatStaffCase,formatStaffReceipt,parseStaffChatControl} from './line-chat-presentation';
 import {loadStaffChatActor,loadStaffChatTicket,issueStaffChatCommand,staffChatMenu,queueStaffChat,selectStaffChatCase,
- acknowledgeStaffChat,guardStaffChatDelivery,staffCaseLabel,type StaffChatActor,type StaffChatTicket} from './line-case-context';
+ acknowledgeStaffChat,staffCaseLabel,type StaffChatActor,type StaffChatTicket} from './line-case-context';
 import {showStaffCaseQueue} from './line-case-queue';
 import {selectStaffCaseSnapshot} from './line-case-snapshot';
 import {hashStaffLineUserId} from '../security/identity';
@@ -98,11 +98,8 @@ export async function processStaffCaseEvent(c:DbClient,job:InboxJob,event:Direct
  }
  await c.query('savepoint staff_chat_reply');
  try{
-  await applyTicketAction(c as PoolClient,staff.id,ticket.id,'STAFF_REPLY',{revision:ticket.revision,requestId:job.id,text:event.message.text},key);
-  const outbox=(await c.query(`select o.id from private.message_outbox o join public.messages m on o.idempotency_key='staff-reply:'||m.ticket_id::text||':'||m.id::text
-   where m.ticket_id=$1 and m.sender_staff_id=$2 order by o.outbox_seq desc limit 1`,[ticket.id,staff.id])).rows[0];
-  if(!outbox)throw new Error('STAFF_CHAT_REPLY_OUTBOX_MISSING');
-  await guardStaffChatDelivery(c,outbox.id,staff,[ticket]);
+  await applyTicketAction(c as PoolClient,staff.id,ticket.id,'STAFF_REPLY',{revision:ticket.revision,requestId:job.id,text:event.message.text},key,
+   {bindingHash:staff.bindingHash,selectionId:selected.selection_id});
   await queueStaffChat(c,staff,job.id,formatStaffReceipt({text:`บันทึกข้อความเพื่อส่งถึง ${staffCaseLabel(ticket)} แล้วครับ\nตรวจสถานะการส่งและประวัติทั้งหมดได้ใน Dashboard`,buttons:await staffChatMenu(c,staff,key)}),key,ticket);
   await c.query('release savepoint staff_chat_reply');return null;
  }catch(e){

@@ -5,11 +5,15 @@ export interface PriceQuery {
 }
 export interface ModelPricing {
  status:'FREE'|'PAID'|'UNKNOWN';inputPricePerMillion:number|null;outputPricePerMillion:number|null;
- checkedAt:string;apiFormat:ProviderApiFormat|null;
+ checkedAt:string;apiFormat:ProviderApiFormat|null;canDisableReasoning?:boolean;jsonOutputMode?:'JSON_SCHEMA'|'JSON_OBJECT';
 }
 export type PriceReader=(query:PriceQuery,signal:AbortSignal)=>Promise<ModelPricing>;
 const OPENROUTER='https://openrouter.ai/api/v1';
 const ZEN='https://opencode.ai/zen/v1';
+// Official metadata migrated independently of the still-supported legacy transport.
+// These identify the catalog only; credentials and model availability stay on ZEN.
+const ZEN_METADATA_APIS=new Set([ZEN,'https://opencode.ai/inference/v1','https://opencode.ai/inference/openai/v1']);
+const KILO='https://api.kilo.ai/api/gateway';
 const MAX_BYTES=8*1024*1024;
 const MAX_METADATA_MS=10_000;
 type ObjectValue=Record<string,unknown>;
@@ -48,7 +52,8 @@ export function createPriceReader(options:{fetchImpl?:typeof fetch}={}):PriceRea
   const base=query.baseUrl.replace(/\/+$/,'');
   if(!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/.test(query.modelId)||
    (query.purpose!=='GENERATION'&&query.purpose!=='EMBEDDING')||
-   !((query.adapter==='OPENROUTER'&&base===OPENROUTER)||(query.adapter==='ZEN'&&base===ZEN)))return unknown();
+   !((query.adapter==='OPENROUTER'&&base===OPENROUTER)||(query.adapter==='ZEN'&&base===ZEN)||
+    (query.adapter==='COMPATIBLE'&&base===KILO&&query.purpose==='GENERATION')))return unknown();
   if(query.adapter==='ZEN'&&query.purpose==='EMBEDDING')return unknown();
 
   const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
@@ -85,17 +90,37 @@ export function createPriceReader(options:{fetchImpl?:typeof fetch}={}):PriceRea
    }finally{void reader.cancel().catch(()=>undefined);reader.releaseLock();reader=undefined;}
   }
   async function work():Promise<ModelPricing> {
+   if(query.adapter==='COMPATIBLE'){
+    const model=catalogModel(await readCatalog(`${KILO}/models`),query.modelId);
+    return model?fromPrices(model.pricing,'prompt','completion',1_000_000,'CHAT'):unknown();
+   }
    if(query.adapter==='OPENROUTER'){
     const model=catalogModel(await readCatalog(`${OPENROUTER}/${query.purpose==='EMBEDDING'?'embeddings/':''}models`),query.modelId);
-    return model?fromPrices(model.pricing,'prompt','completion',1_000_000,'CHAT'):unknown();
+    if(!model)return unknown();
+    const result=fromPrices(model.pricing,'prompt','completion',1_000_000,'CHAT');
+    // Capability is exact, explicit and fresh; absent evidence never disables mandatory reasoning.
+    if(query.purpose==='GENERATION'&&object(model.reasoning)&&model.reasoning.mandatory===false&&
+     Array.isArray(model.supported_parameters)&&model.supported_parameters.includes('reasoning'))result.canDisableReasoning=true;
+    const parameters=model.supported_parameters;
+    if(query.purpose==='GENERATION'&&Array.isArray(parameters)&&parameters.length<=128&&
+     parameters.every(value=>typeof value==='string'&&value.length>0&&value.length<=128)&&new Set(parameters).size===parameters.length){
+     if(parameters.includes('structured_outputs'))result.jsonOutputMode='JSON_SCHEMA';
+     else if(parameters.includes('response_format'))result.jsonOutputMode='JSON_OBJECT';
+    }
+    return result;
    }
    const metadata=await readCatalog('https://models.dev/api.json');
    const available=await readCatalog(`${ZEN}/models`);
-   if(!object(metadata)||!object(metadata.opencode)||metadata.opencode.api!==ZEN||
+   if(!object(metadata)||!object(metadata.opencode)||typeof metadata.opencode.api!=='string'||!ZEN_METADATA_APIS.has(metadata.opencode.api)||
     !object(metadata.opencode.models)||!catalogModel(available,query.modelId))return unknown();
    const model=metadata.opencode.models[query.modelId];
    if(!object(model)||model.id!==query.modelId)return unknown();
-   const npm=object(model.provider)?model.provider.npm:metadata.opencode.npm;
+   // Current models.dev entries can override only api and inherit the declared
+   // provider SDK. Inherit only for the identical verified metadata identity;
+   // explicit invalid npm or a different API cannot select a protocol this way.
+   const override=object(model.provider)?model.provider:null;
+   const inheritsNpm=override&&!Object.hasOwn(override,'npm')&&override.api===metadata.opencode.api;
+   const npm=override?(inheritsNpm?metadata.opencode.npm:override.npm):metadata.opencode.npm;
    const apiFormat=npm==='@ai-sdk/openai'?'RESPONSES':npm==='@ai-sdk/openai-compatible'?'CHAT':null;
    if(apiFormat===null)return unknown();
    return fromPrices(model.cost,'input','output',1,apiFormat);

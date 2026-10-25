@@ -4,9 +4,11 @@ import {enqueueOutbound} from '../queue/outbox';
 import {eligibleScopeSql,loadActor,type DbClient} from './authorization';
 import {guardStaffChatDelivery,issueStaffChatCommand,staffChatAccessLock,staffChatMenu,staffCaseLabel,type StaffChatActor} from '../staff/line-case-context';
 import {staffChatMessage} from '../staff/line-chat-presentation';
+import {captureStaffAlert} from '../incidents/staff-alerts';
 
 export async function notifyTicketStaff(client:DbClient,ticket:{id:string;ticket_no:string;department_id:string;sensitive_level:string;priority:string;revision:number},key:string):Promise<void> {
- const recipients=await client.query(`select s.id from public.staff_profiles s join private.staff_line_identities i on i.staff_id=s.id and i.active where ${eligibleScopeSql}`,[ticket.department_id,ticket.sensitive_level]);
+ if(await captureStaffAlert(client,ticket))return;
+ const recipients=await client.query(`select s.id from public.staff_profiles s join private.staff_line_identities i on i.staff_id=s.id and i.active where ${eligibleScopeSql} order by s.id`,[ticket.department_id,ticket.sensitive_level]);
  for(const recipient of recipients.rows){
   const token=randomBytes(32).toString('base64url');
   await client.query("insert into private.staff_action_tokens(token_hash,staff_id,ticket_id,action,expected_revision,expires_at) values($1,$2,$3,'ACCEPT',$4,clock_timestamp()+interval '30 minutes')",[hashOpaqueToken(token,key,'staff-command'),recipient.id,ticket.id,ticket.revision]);

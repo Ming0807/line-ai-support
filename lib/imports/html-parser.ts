@@ -184,6 +184,9 @@ export function parseHtmlSource(source:ImportSource):LocatedExtraction{
    }else if(!suppressText&&!insideTable&&node.tagName==='a'){
     addPage(collectText(node,depth,false,IMPORT_LIMITS.characters),currentHeadingPath);
    }else if(!suppressText&&!insideTable&&leafBlockTags.has(node.tagName)){
+    if(node.childNodes.some(child=>isElement(child)&&structuralTags.has(child.tagName))){
+     walkContainer(node,depth,headingStack);return;
+    }
     const text=collectText(node,depth,false,IMPORT_LIMITS.characters);
     addPage(text,currentHeadingPath);
    }else if(!suppressText&&!insideTable&&containerBlockTags.has(node.tagName)){

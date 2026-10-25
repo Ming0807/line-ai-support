@@ -21,7 +21,8 @@ export function buildFallbackPreview(providers:ProviderView[],profile:PreviewPro
   else if(profile.purpose==='EMBEDDING'&&profile.fingerprint&&embeddingFingerprint({adapter:provider.adapter,baseUrl:provider.baseUrl,
    modelId:model.modelId,dimensions:model.embeddingDimensions!})!==profile.fingerprint)reason='VECTOR_COHORT_MISMATCH';
   else if(provider.costMode==='FREE_ONLY'){
-   if(!Number.isFinite(age)||age < -1000||age>60_000||model.pricingStatus==='UNKNOWN')reason='PRICE_UNKNOWN';
+   if(profile.purpose==='GENERATION'&&model.accountFreeUntil&&Date.parse(model.accountFreeUntil)>now){/* Operator-confirmed account, not catalog zero price. */}
+   else if(!Number.isFinite(age)||age < -1000||age>60_000||model.pricingStatus==='UNKNOWN')reason='PRICE_UNKNOWN';
    else if(model.pricingStatus==='PAID')reason='PAID_BLOCKED';
    else if(model.inputPricePerMillion!==0||model.outputPricePerMillion!==0)reason='PRICE_UNKNOWN';
    else if(provider.adapter==='ZEN'&&model.apiFormat===null)reason='PRICE_UNKNOWN';
@@ -30,7 +31,7 @@ export function buildFallbackPreview(providers:ProviderView[],profile:PreviewPro
   if(reason===null&&position>=3)reason='ATTEMPT_LIMIT';
   return {providerId:provider.id,modelId:model.id,reason,position:reason===null?++position:null,...(reason==='COOLDOWN'?{cooldownUntil:model.cooldownUntil}:{})};
  });
- return {profile,generatedAt:new Date(now).toISOString(),maxInferenceAttempts:3,pricingEvidence:'LAST_CATALOG_OBSERVATION',rows};
+ return {profile,generatedAt:new Date(now).toISOString(),maxInferenceAttempts:3,pricingEvidence:profile.purpose==='GENERATION'&&candidates.some(({model})=>model.accountFreeUntil&&Date.parse(model.accountFreeUntil)>now)?'ACCOUNT_CONFIRMATION_OR_CATALOG':'LAST_CATALOG_OBSERVATION',rows};
 }
 export async function previewProviderOrder(staffId:string,input:unknown,options:ProviderAdminOptions={}):Promise<FallbackPreviewView> {
  const parsed=previewProfileSchema.safeParse(input);if(!parsed.success)throw new ProviderAdminError('INVALID_REQUEST');

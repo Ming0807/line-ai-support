@@ -1,6 +1,7 @@
 import {authorizeImportAdmin,ImportStagingError,readImportOriginal} from './import-staging';
 import {createImportSource} from './source';
 import type {ImportPreview,ImportExtractionOptions} from './import-extraction';
+import type {ImportSource} from './types';
 import {buildLocatedChunkPlan} from '../knowledge/located-chunk-plan';
 import {LocatedPlanError,type LocatedChunkPlan} from '../knowledge/located-plan-types';
 import {createLocalE5EmbeddingProvider,type PassageTokenCounter} from '../knowledge/embedding-client';
@@ -18,8 +19,13 @@ export async function prepareImportChunkPlan(actor:string,preview:ImportPreview,
  if(read.job.revision!==preview.job.revision||read.job.id!==preview.job.id||options.signal?.aborted)throw new ImportStagingError('CONFLICT');
  const source=createImportSource({bytes:read.bytes,filename:read.job.filename,mimeType:read.job.mimeType,sourceUrl:read.job.sourceUrl,acquiredFrom:read.job.acquiredFrom,fetchedAt:read.job.fetchedAt});
  const remaining=Math.floor(deadline-performance.now());if(remaining<1)throw new ImportChunkPlanError('CHUNK_PLAN_TIMEOUT',408);
+ return buildImportChunkPlan(source,preview,{...options,timeoutMs:remaining});
+}
+/** Pure planning of an already loaded source; does not grant publication authority. */
+export async function buildImportChunkPlan(source:ImportSource,preview:ImportPreview,options:ImportChunkPreparationOptions={}){
+ if(options.signal?.aborted||preview.job.status!=='READY')throw new ImportStagingError('CONFLICT');
  try{
-  return await buildLocatedChunkPlan(source,preview.extraction,{jobId:preview.job.id,extractionRevision:preview.extractionRevision},options.counter??createLocalE5EmbeddingProvider(),{signal:options.signal,timeoutMs:remaining});
+  return await buildLocatedChunkPlan(source,preview.extraction,{jobId:preview.job.id,extractionRevision:preview.extractionRevision},options.counter??createLocalE5EmbeddingProvider(),{signal:options.signal,timeoutMs:options.timeoutMs??45_000});
  }catch(error){
   if(error instanceof LocatedPlanError){
    if(error.code==='KNOWLEDGE_PLAN_ABORTED')throw new ImportStagingError('CONFLICT');

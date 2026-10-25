@@ -1,4 +1,4 @@
-import {AIProviderError,type AIProviderAdapter,type AITool,type CostMode,type ProviderApiFormat,type ProviderHealth,type ProviderRequest,type ProviderResponse} from '../types';
+import {AIProviderError,type AIOutputSubreason,type AIProviderAdapter,type AITool,type CostMode,type ProviderApiFormat,type ProviderHealth,type ProviderRequest,type ProviderResponse} from '../types';
 import {readRetryEvidence} from '../retry-evidence';
 
 const OPENROUTER_BASE='https://openrouter.ai/api/v1';
@@ -29,7 +29,7 @@ function hasExactKeys(value:JsonRecord,required:string[],optional:string[]=[]):b
 }
 
 function invalidRequest():AIProviderError{return new AIProviderError('INVALID_REQUEST');}
-function invalidOutput(httpStatus?:number):AIProviderError{return new AIProviderError('INVALID_OUTPUT',httpStatus);}
+function invalidOutput(httpStatus?:number,subreason:AIOutputSubreason='ADAPTER_SHAPE'):AIProviderError{return new AIProviderError('INVALID_OUTPUT',httpStatus,undefined,subreason);}
 function unavailable(httpStatus?:number):AIProviderError{return new AIProviderError('PROVIDER_UNAVAILABLE',httpStatus);}
 
 function assertJsonValue(value:unknown,stack=new Set<object>(),depth=0,budget={nodes:0,bytes:0}):void {
@@ -142,13 +142,16 @@ function validateTools(value:AITool[]|undefined):void {
 
 function validateRequest(value:ProviderRequest):asserts value is ExtendedProviderRequest {
  if(!isRecord(value)||!hasExactKeys(value,['modelId','baseUrl','apiKey','messages','responseSchema','signal'],
-  ['tools','maxOutputTokens','costMode','apiFormat']))throw invalidRequest();
+  ['tools','maxOutputTokens','costMode','apiFormat','disableReasoning','timeoutMs','jsonOutputMode']))throw invalidRequest();
  const kind=providerFor(value.baseUrl);
  validateModelId(kind,value.modelId);
  validateCredentials(value.apiKey);
  validateSignal(value.signal);
+ if(value.timeoutMs!==undefined&&(!Number.isSafeInteger(value.timeoutMs)||value.timeoutMs<1||value.timeoutMs>45000))throw invalidRequest();
  if(value.costMode!==undefined&&value.costMode!=='FREE_ONLY'&&value.costMode!=='ALLOW_PAID')throw invalidRequest();
  if(value.apiFormat!==undefined&&value.apiFormat!=='CHAT')throw invalidRequest();
+ if(value.disableReasoning!==undefined&&typeof value.disableReasoning!=='boolean'||value.disableReasoning===true&&kind!=='OPENROUTER')throw invalidRequest();
+ if(value.jsonOutputMode!==undefined&&(value.jsonOutputMode!=='JSON_OBJECT'||kind!=='OPENROUTER'||(value.tools?.length??0)>0))throw invalidRequest();
  if(!Array.isArray(value.messages)||value.messages.length<1||value.messages.length>100)throw invalidRequest();
  for(const message of value.messages){
   if(!isRecord(message)||!hasExactKeys(message,['role','content'])||!['system','user','assistant'].includes(String(message.role))||
@@ -166,8 +169,10 @@ function validateRequest(value:ProviderRequest):asserts value is ExtendedProvide
 
 function makeBody(request:ExtendedProviderRequest,kind:ProviderKind):JsonRecord {
  const tools=request.tools??[];
- const body:JsonRecord={model:request.modelId,messages:request.messages,stream:false,
-  response_format:{type:'json_schema',json_schema:{name:request.responseSchema.name,strict:true,schema:request.responseSchema.schema}}};
+ const jsonObject=request.jsonOutputMode==='JSON_OBJECT';
+ const messages=jsonObject?[{role:'system',content:`Return exactly one JSON object conforming to this required JSON Schema. Do not add keys or wrap the JSON in markdown. JSON Schema: ${safeJson(request.responseSchema.schema)}`},...request.messages]:request.messages;
+ const body:JsonRecord={model:request.modelId,messages,stream:false,
+  response_format:jsonObject?{type:'json_object'}:{type:'json_schema',json_schema:{name:request.responseSchema.name,strict:true,schema:request.responseSchema.schema}}};
  if(request.maxOutputTokens!==undefined)body.max_tokens=request.maxOutputTokens;
  if(tools.length){
   body.tools=tools.map(tool=>({type:'function',function:{name:tool.name,description:tool.description,parameters:tool.parameters,strict:true}}));
@@ -175,6 +180,7 @@ function makeBody(request:ExtendedProviderRequest,kind:ProviderKind):JsonRecord 
  }
  if(kind==='OPENROUTER'){
   body.provider={...(request.costMode??'FREE_ONLY')==='FREE_ONLY'?{max_price:{prompt:0,completion:0}}:{},require_parameters:true};
+  if(request.disableReasoning===true)body.reasoning={enabled:false};
  }
  return body;
 }
@@ -237,7 +243,7 @@ async function readBoundedBody(response:Response,signal:AbortSignal):Promise<str
   const contentLength=response.headers.get('content-length');
   if(contentLength&&/^\d+$/.test(contentLength)&&Number(contentLength)>MAX_RESPONSE_BYTES){
    cancel();
-   throw invalidOutput(response.status);
+   throw invalidOutput(response.status,'TRUNCATION');
   }
   while(true){
    if(signal.aborted)throw errorForSignal(signal,{httpStatus:response.status});
@@ -250,7 +256,7 @@ async function readBoundedBody(response:Response,signal:AbortSignal):Promise<str
    }
    if(item.done)break;
    total+=item.value.byteLength;
-   if(total>MAX_RESPONSE_BYTES){cancel();throw invalidOutput(response.status);}
+   if(total>MAX_RESPONSE_BYTES){cancel();throw invalidOutput(response.status,'TRUNCATION');}
    chunks.push(item.value);
   }
  }catch(error){
@@ -266,7 +272,7 @@ async function readBoundedBody(response:Response,signal:AbortSignal):Promise<str
  let offset=0;
  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
  try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
- catch{throw invalidOutput(response.status);}
+ catch{throw invalidOutput(response.status,'JSON_PARSE');}
 }
 
 async function fetchResponse(fetchImpl:typeof fetch,url:string,init:RequestInit,signal:AbortSignal):Promise<Response> {
@@ -318,7 +324,7 @@ function parseToolCalls(value:unknown,request:ExtendedProviderRequest,httpStatus
    !hasExactKeys(call.function,['name','arguments'])||typeof call.function.name!=='string'||!allowed.has(call.function.name)||
    typeof call.function.arguments!=='string'||call.function.arguments.length>MAX_RESPONSE_BYTES)throw invalidOutput(httpStatus);
   let args:unknown;
-  try{args=JSON.parse(call.function.arguments);}catch{throw invalidOutput(httpStatus);}
+  try{args=JSON.parse(call.function.arguments);}catch{throw invalidOutput(httpStatus,'JSON_PARSE');}
   if(!isRecord(args))throw invalidOutput(httpStatus);
   assertBoundedOutput(args);
   ids.add(call.id);
@@ -330,21 +336,23 @@ function parseResponse(value:unknown,request:ExtendedProviderRequest,httpStatus:
  if(!isRecord(value)||!Array.isArray(value.choices)||value.choices.length!==1)throw invalidOutput(httpStatus);
  const choice=value.choices[0];
  if(!isRecord(choice)||choice.index!==0||!isRecord(choice.message)||choice.message.role!=='assistant')throw invalidOutput(httpStatus);
- if(choice.message.refusal!==undefined&&choice.message.refusal!==null&&choice.message.refusal!=='')throw invalidOutput(httpStatus);
+ if(choice.message.refusal!==undefined&&choice.message.refusal!==null&&choice.message.refusal!=='')throw invalidOutput(httpStatus,'REFUSAL');
  const calls=parseToolCalls(choice.message.tool_calls,request,httpStatus);
  const finishReason=choice.finish_reason;
  if(finishReason==='tool_calls'){
   if(!calls.length||choice.message.content!==null)throw invalidOutput(httpStatus);
  }else if(finishReason==='stop'){
   if(calls.length)throw invalidOutput(httpStatus);
- }else throw invalidOutput(httpStatus);
+ }else if(finishReason==='length')throw invalidOutput(httpStatus,'TRUNCATION');
+ else throw invalidOutput(httpStatus);
  const content=choice.message.content;
  let output:unknown|null=null;
  if(content===null){
   if(!calls.length)throw invalidOutput(httpStatus);
  }else{
-  if(typeof content!=='string'||content.length<1||content.length>MAX_RESPONSE_BYTES)throw invalidOutput(httpStatus);
-  try{output=JSON.parse(content);}catch{throw invalidOutput(httpStatus);}
+  if(typeof content!=='string'||content.length<1)throw invalidOutput(httpStatus);
+  if(content.length>MAX_RESPONSE_BYTES)throw invalidOutput(httpStatus,'TRUNCATION');
+  try{output=JSON.parse(content);}catch{throw invalidOutput(httpStatus,'JSON_PARSE');}
   if(!isRecord(output))throw invalidOutput(httpStatus);
   assertBoundedOutput(output);
  }
@@ -383,20 +391,20 @@ export function createChatCompletionsAdapter(options:{fetchImpl?:typeof fetch}={
     try{payload=JSON.parse(await readBoundedBody(response,signal));}
     catch(error){
      if(error instanceof AIProviderError){
-      if(error.httpStatus===undefined)throw new AIProviderError(error.code,response.status);
+     if(error.httpStatus===undefined)throw new AIProviderError(error.code,response.status,error.retryEvidence,error.outputSubreason);
       throw error;
      }
-     throw invalidOutput(response.status);
+      throw invalidOutput(response.status,'JSON_PARSE');
     }
     try{return parseResponse(payload,input,response.status);}
     catch(error){
      if(error instanceof AIProviderError){
-      if(error.httpStatus===undefined)throw new AIProviderError(error.code,response.status);
+      if(error.httpStatus===undefined)throw new AIProviderError(error.code,response.status,error.retryEvidence,error.outputSubreason);
       throw error;
      }
-     throw invalidOutput(response.status);
+     throw invalidOutput(response.status,'JSON_PARSE');
     }
-   },input.signal,REQUEST_TIMEOUT_MS,state);
+   },input.signal,input.timeoutMs??REQUEST_TIMEOUT_MS,state);
   },
   async healthCheck(config):Promise<Exclude<ProviderHealth,'UNKNOWN'>>{
    if(!isRecord(config)||!hasExactKeys(config,['modelId','baseUrl','apiKey','signal']))throw invalidRequest();

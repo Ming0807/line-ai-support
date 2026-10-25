@@ -20,7 +20,7 @@ async function fixture(dataset:DatasetType,format:ImportFormat='CSV'):Promise<Fi
   const actor=randomUUID(),department=randomUUID(),family=randomUUID(),document=randomUUID(),job=randomUUID(),row=randomUUID();
   const checksum=structuredMappingFixture(dataset,format).source.checksum;
   await client.query('insert into auth.users(id,email) values($1,$2)',[actor,`${actor}@example.invalid`]);
-  await client.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$3,$3)',[department,`STR_${actor.slice(0,8)}`,'Synthetic schema test']);
+  await client.query('insert into public.departments(id,code,name_th,name_en) values($1,$2,$3,$3)',[department,`STR_${actor.slice(0,8).toUpperCase()}`,'Synthetic schema test']);
   await client.query("insert into public.staff_profiles(id,department_id,display_name,role) values($1,$2,'Synthetic actor','SUPER_ADMIN')",[actor,department]);
   await client.query("insert into public.document_families(id,code,name,category) values($1,$2,'Synthetic schema family','TEST')",[family,`STR_${actor.slice(0,8).toUpperCase()}`]);
   await client.query(`insert into public.documents(id,document_family_id,department_id,title,version_name,version_stream,status,is_current,approval_status,approved_by,approved_at,extraction_reviewed,requires_review,effective_from,checksum,revision)
