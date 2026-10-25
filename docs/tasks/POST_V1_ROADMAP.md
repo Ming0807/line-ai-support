@@ -39,8 +39,8 @@
 | Task | สิ่งที่ทำ / ผลลัพธ์ | ข้อกำหนดที่โยง |
 | --- | --- | --- |
 | QUA-01 quality bracket บน corpus จริง | สร้าง frozen fixture ใหม่จากเอกสาร PUBLIC จริง (คำถามจริง+คำตอบที่เอกสารรองรับ) แล้ววัดด้วยเกณฑ์เดิม 27/30+18/20 — ปิดช่องว่าง "synthetic-only acceptance"; รวมถึงเช็ค A12-discovery กับปฏิทินจริง | CH063/069, DEC-149 |
-| QUA-02 qualified fallback model | **BLOCKED_BY_AUTHORIZATION (DEC-164):** หลักฐาน registry — สองโมเดลที่เหลือในบัญชี Gemini (3.8/flash-latest) supports_json=false ใช้กับ pipeline strict-JSON ไม่ได้; fallback ที่ qualified ต้องมาจาก provider อื่น = รอผู้ใช้ถอยคำสั่งหยุดทดสอบเจ้าอื่น | CH029 §22, USR-FREE |
-| QUA-03 ทนทาน latency spike | **คำตอบชั่วคราว = availability path ตามดีไซน์ (DEC-164):** ไม่มี failover target ในบัญชี (ดู QUA-02) spike >25s จึงตกเป็น fallback ตรงไปตรงมา; ทางเลือกอนุมัติ ceiling 45s/retry ยังคงรอผู้ใช้ | DEC-161/162 |
+| QUA-02 qualified fallback model | **BLOCKED_BY_AUTHORIZATION (DEC-164):** หลักฐาน registry — สองโมเดลที่เหลือในบัญชี Gemini (3.8/flash-latest) supports_json=false ใช้กับ pipeline strict-JSON ไม่ได้; fallback ที่ qualified ต้องมาจาก provider อื่น = **ผู้ใช้ยืนยัน (DEC-165): เลื่อนไปภายหลัง** — จะเพิ่ม provider แน่นอนเมื่อถึงเวลา ตอนนี้ห้าม agent เปิด/ถามซ้ำจนกว่าผู้ใช้เปิดหัวข้อ | CH029 §22, USR-FREE |
+| QUA-03 ทนทาน latency spike | **คำตอบชั่วคราว = availability path ตามดีไซน์ (DEC-164):** ไม่มี failover target ในบัญชี (ดู QUA-02) spike >25s จึงตกเป็น fallback ตรงไปตรงมา; ทางเลือกอนุมัติ ceiling 45s/retry ยังคงรอผู้ใช้ (provider เพิ่ม = ตาม DEC-165 เลื่อนภายหลัง) | DEC-161/162 |
 | QUA-04 A12-discovery หยุดกะพริบ | **เสร็จ (DEC-164):** กลไก = planner แปลงชื่อเหตุการณ์เป็น title selector + เลือก STRUCTURED ทั้งขาด required — แก้ด้วย backend reroute ไป deterministic discovery (calendar/services) RED2→GREEN11/11 + gates exit0 + live target12b 3/3 (A12=STRUCTURED_DISCOVERY พร้อม citations) | CH018/031, DEC-157 |
 | PRF-01 ANN + ประสิทธิภาพ corpus จริง | CH019 เลื่อน ANN ไว้: เมื่อ chunks จริงเป็นหมื่น+ ให้ benchmark pgvector IVFFlat/HNSW เทียบ exact cosine ก่อนเปลี่ยน cohort; รวม E5 warm-cache strategy ตอน deploy | CH019, EMBEDDING_DESIGN |
 | PRF-02 โหลดจริงซ้ำ | ทำ controlled load A–J บน corpus จริง + worker concurrency จริงของ host ที่เลือก | SOL-06 |
@@ -55,10 +55,11 @@
 | EXT-01 Paid generation opt-in | UI ให้มหาวิทยาลัยเปิด paid แบบ explicit (cost_mode ALLOW_PAID path มีรากไว้แล้ว) + budget caps + แจ้งต่อ usage | มหาวิทยาลัยอนุมัติงบ + ตั้ง billing; USR-FREE |
 | EXT-02 Corpus program | ขยายจาก 187 รายการที่รวบรวม: ใช้ import-assistance ช่วย triage → review → publish เป็นรอบๆ ตาม family (มี 19 families แรก) | V1L-02 ปิดก่อน; CH063/064 |
 | EXT-03 Bounded web search | ข้อเสนอพร้อมแล้ว (BOUNDED_WEB_SEARCH_PROPOSAL) — ค้นเว็บมหาวิทยาลัยเพื่อ "พบเอกสาร" ไม่ใช่ "ตอบจากเว็บ" | อนุมัติขอบเขต evidence + SSRF rules |
-| EXT-04 Hermes orchestration | ยกระดับจาก isolated 2-turn pilot เป็น orchestration layer (ถ้าคุ้ม) โดยยังอยู่หลัง backend tools + FREE_ONLY | หลัง QUA-02 มี fallback; CH073 |
+| EXT-04 Hermes orchestration | **เลือกแนวทางแล้ว (25 ต.ค.): คง status quo ตอนนี้** → จังหวะ 1: Staff Copilot บน Dashboard (หลายก้าว: ค้น→รวบรวม→ร่าง ผ่าน allowlist backend-tools หลังสิทธิ์ฝ่าย) *เปิดเมื่อมี provider สำรอง* → จังหวะ 2: ใช้ bridge pattern ซ้ำกับ EXT-03/ระบบอื่น *เปิดหลัง V1 live* — ทางเพิ่มเติมที่บันทึกไว้: Knowledge Gap Miner (ขุดคำถามที่ไม่มีเอกสาร→จัดลำดับขอเอกสารจริง, เปิดเมื่อมีบทสนทนาจริง), Incident Copilot (ร่างสรุป+batch reply จาก linked tickets), QA Pre-screener (คัดกรองให้ human review ไม่ใช่ผู้ตัดสิน), Nightly Ops Digest, Multilingual Draft Layer (ตามข้อจำกัด DEC-148), Local LLM client (CH073) — หลักการร่วม: agent ทำงานเบื้องหลังให้คน ไม่พูดแทนกับนักศึกษาโดยตรง | DEC-104, CH073, หลัง QUA-02 มี fallback |
 | EXT-05 Student SSO/SIS/grades/payments | ออกแบบใหม่ทั้ง privacy model (V1 เป็น anonymous โดยตั้งใจ) — ต้องมี infrastructure มหาวิทยาลัย + DPA | นอก V1 ชัดเจน (CH073) |
 | EXT-06 มุมมองหลายภาษา | DEC-148 จำกัด: เงื่อนไข guided เขียนด้วยภาษาไทย — ถ้ามีผู้ใช้ต่างชาติ ต้องทำ multilingual contract + ทดสอบใหม่ | ความต้องการจริง |
 | EXT-07 Custom document families | เพิ่ม family นอก 19 แรกผ่าน UI (CH064 เปิดไว้) พร้อม proof/versioning เดิม | มีเอกสารจริงจำนวนมากพอ |
+| EXT-08 Local AI (ผู้ใช้ยืนยันจะเพิ่มภายหลัง) | โมเดลท้องถิ่นบน **host ปรับใช้จริง** ไม่ใช่เครื่องพัฒนา (สเปคไม่พอ) — ผูกกับ EXT-01 paid/provider phase เดียวกัน | DEC-165; เมื่อมี host จริง + ผู้ใช้เปิดหัวข้อ |
 
 ## เพิ่มเติมจากรอบ 25 ต.ค. (หลังปิดเฟส 0)
 
