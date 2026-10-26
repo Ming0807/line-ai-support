@@ -51,3 +51,18 @@ test('actual approved/current PUBLIC evidence is reselected before returning can
 test('a source becoming internal during production invalidates the whole cited advice',async()=>{
  const f=await fixture(),e=await evidence();await assert.rejects(createStaffKnowledgeAssistance(f.staff,f.ticket,{revision:0},{pool,produce:async()=>{await pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[e.doc]);return e.answer;}}),{code:'CONFLICT'});
 });
+test('a captured knowledge receipt revalidates authority after later draft work without regenerating',async()=>{
+ const f=await fixture(),e=await evidence();let calls=0,receipt:{revalidate(signal?:AbortSignal):Promise<unknown>}|undefined;
+ const view=await createStaffKnowledgeAssistance(f.staff,f.ticket,{revision:0},{pool,produce:async()=>{calls++;return e.answer;},onReceipt:value=>{receipt=value;}});
+ assert.equal(view.status,'VERIFIED');assert(receipt,'SERVER_REVALIDATION_RECEIPT_REQUIRED');
+ await pool.query("update public.documents set visibility='INTERNAL',revision=revision+1 where id=$1",[e.doc]);
+ await assert.rejects(receipt.revalidate(),{code:'CONFLICT'});assert.equal(calls,1);
+});
+test('a captured receipt rejects revoked staff scope and parent cancellation',async()=>{
+ const f=await fixture(),e=await evidence();let receipt:{revalidate(signal?:AbortSignal):Promise<unknown>}|undefined;
+ await createStaffKnowledgeAssistance(f.staff,f.ticket,{revision:0},{pool,produce:async()=>e.answer,onReceipt:value=>{receipt=value;}});
+ assert(receipt,'SERVER_REVALIDATION_RECEIPT_REQUIRED');
+ const cancelled=new AbortController();cancelled.abort();await assert.rejects(receipt.revalidate(cancelled.signal),{code:'UNAVAILABLE'});
+ await pool.query('update public.staff_profiles set active=false where id=$1',[f.staff]);
+ await assert.rejects(receipt.revalidate(),{code:'NOT_FOUND'});
+});

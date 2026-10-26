@@ -8,10 +8,10 @@ import {createProviderRegistry} from '../ai/provider-registry';
 import {createPriceReader} from '../ai/pricing';
 import {aiResultSchema,type AIResult} from '../ai/jobs';
 import type {AIWorkerOptions,AISnapshot} from '../ai/run-worker';
-import {createKnowledgeProducer} from '../knowledge/answer-producer';
+import {createKnowledgeProducer,type KnowledgeProducerOptions} from '../knowledge/answer-producer';
 import {embedLocalConfigured} from '../knowledge/embedding-client';
 import {searchKnowledge} from '../knowledge/retrieval';
-import {searchStructured} from '../knowledge/structured-search';
+import {searchStructured,discoverPublicForms,discoverPublicStructured} from '../knowledge/structured-search';
 import {evidenceStillMatches} from '../knowledge/citations';
 import {ruleContextsStillMatch} from '../knowledge/rule-proof';
 import {structuredEvidenceStillMatches} from '../knowledge/structured-citations';
@@ -21,6 +21,9 @@ import {projectStaffKnowledgeAdvice} from './knowledge-assistance-projection';
 import type {StaffKnowledgeAdvice} from './knowledge-assistance-contracts';
 import {createStaffWebFallback} from '../knowledge/owned-web-fallback';
 import {verifyWebLeads} from '../knowledge/web-leads';
+
+/** Server-only capability; never serialize this closure or its underlying evidence. */
+export interface StaffKnowledgeReceipt {revalidate(signal?:AbortSignal):Promise<StaffKnowledgeAdvice>}
 
 async function produceBounded(produce:AIWorkerOptions['produce'],snapshot:AISnapshot,outer?:AbortSignal):Promise<AIResult>{
  if(outer?.aborted)throw new AssistError('UNAVAILABLE');
@@ -35,7 +38,7 @@ async function produceBounded(produce:AIWorkerOptions['produce'],snapshot:AISnap
 }
 /** Ephemeral staff advice: never runs a Student tool, writes a ticket, or enqueues delivery. */
 export async function createStaffKnowledgeAssistance(actorId:string,id:string,input:unknown,
- options:{pool?:Pool;produce?:AIWorkerOptions['produce'];signal?:AbortSignal;key?:string}={}):Promise<StaffKnowledgeAdvice>{
+ options:{pool?:Pool;produce?:AIWorkerOptions['produce'];generate?:KnowledgeProducerOptions['generate'];onReceipt?:(receipt:StaffKnowledgeReceipt)=>void;signal?:AbortSignal;key?:string}={}):Promise<StaffKnowledgeAdvice>{
  if(!z.uuid().safeParse(id).success)throw new AssistError('NOT_FOUND');
  const parsed=assistInputSchema.safeParse(input);if(!parsed.success)throw new AssistError('INVALID_REQUEST');
  const pool=options.pool??getDatabasePool();
@@ -52,7 +55,9 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
   const configuredKey=key,store=createAIStore(pool),adapters=createProviderRegistry(),priceReader=createPriceReader();
   produce=createKnowledgeProducer({
    webFallback:createStaffWebFallback(pool,configuredKey,actorId,id,parsed.data.revision,before),
-   generate:call=>gateway({...call,ticketId:id},{store,key:configuredKey,adapters,priceReader}),
+   // Server-only injection lets a bounded staff copilot pin the approved model.
+   // HTTP input cannot replace the ticket, source selection or authorization.
+   generate:call=>options.generate?options.generate({...call,ticketId:id}):gateway({...call,ticketId:id},{store,key:configuredKey,adapters,priceReader}),
    embed:call=>embedLocalConfigured(call),
    search:call=>snapshot(async(c,current)=>{unchanged(current);return searchKnowledge(c,call);}),
    structuredSearch:call=>snapshot(async(c,current)=>{unchanged(current);return searchStructured(c,call,configuredKey);}),
@@ -63,8 +68,10 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
  const validated=aiResultSchema.safeParse(raw);
  if(!validated.success||Buffer.byteLength(JSON.stringify(validated.data),'utf8')>150000||options.signal?.aborted)throw new AssistError('UNAVAILABLE');
  const result=validated.data;
+ const revalidate=(signal=options.signal)=>{
+ if(signal?.aborted)return Promise.reject(new AssistError('UNAVAILABLE'));
  return snapshot(async(c,current)=>{
-  unchanged(current);if(options.signal?.aborted)throw new AssistError('UNAVAILABLE');
+  unchanged(current);if(signal?.aborted)throw new AssistError('UNAVAILABLE');
   const advice=projectStaffKnowledgeAdvice(result,current.revision);
   if(result.kind==='WEB_LEADS'){
    if(!key||!current.knowledge||!await verifyWebLeads(c,result,current.knowledge,key))throw new AssistError('CONFLICT');
@@ -80,7 +87,17 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
    if(!key)throw new AssistError('UNAVAILABLE');
    const fresh=await searchStructured(c,{query:result.query,scope:result.scope},key);
    if(fresh.status!=='READY'||!structuredEvidenceStillMatches(result.evidence,fresh.evidence))throw new AssistError('CONFLICT');
+  }else if(result.kind==='FORM_DIRECTORY'||result.kind==='STRUCTURED_DISCOVERY'){
+   if(!key)throw new AssistError('UNAVAILABLE');
+   const fresh=result.kind==='FORM_DIRECTORY'?await discoverPublicForms(c,{scope:result.scope},key):
+    await discoverPublicStructured(c,{dataset:result.dataset,scope:result.scope},key);
+   if(fresh.status!=='READY'||!structuredEvidenceStillMatches(result.evidence,fresh.evidence))throw new AssistError('CONFLICT');
   }
+  if(signal?.aborted)throw new AssistError('UNAVAILABLE');
   return advice;
  });
+ };
+ const advice=await revalidate();
+ options.onReceipt?.({revalidate});
+ return advice;
 }

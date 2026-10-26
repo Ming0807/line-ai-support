@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { TicketDetail, StaffTicketAction } from '@/types/tickets';
 import StaffAiPanel from './staff-ai-panel';
 import StaffKnowledgePanel from './staff-knowledge-panel';
+import StaffCopilotPanel from './staff-copilot-panel';
 
 type Props = Pick<TicketDetail, 'permissions' | 'assignees'> & { id: string; ticketNo:string; reporter:string; revision: number; assistAvailable?:boolean };
 type ActionDraft = { action: StaffTicketAction; fields: Record<string, string> };
@@ -99,6 +100,7 @@ export default function TicketActions({ id,ticketNo,reporter,revision,permission
   }
   function applyDraft(text:string){
     if(!permissions.reply||pending)return;
+    if(!text.trim()||text.length>5000){setNotice('ร่างยาวเกินช่องตอบกลับหรือยังไม่มีข้อความ กรุณาแก้ไขร่างก่อนนำไปใช้');setNoticeKind('error');return;}
     if(replyText.trim()&&!window.confirm('แทนที่ข้อความที่คุณพิมพ์ไว้ด้วยร่างจาก AI?'))return;
     setReplyText(text);setRetryPayload(null);
   }
@@ -208,7 +210,8 @@ export default function TicketActions({ id,ticketNo,reporter,revision,permission
         </div>
       )}
       {assistAvailable&&<><StaffAiPanel key={`summary:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/>
-        <StaffKnowledgePanel key={`knowledge:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/></>}
+        <StaffKnowledgePanel key={`knowledge:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/>
+        <StaffCopilotPanel key={`copilot:${id}:${revision}`} id={id} revision={revision} canReply={permissions.reply&&!pending} onDraft={applyDraft}/></>}
       {pending && <p className="ticket-pending" role="status">กำลังบันทึก…</p>}
     </section>
   );

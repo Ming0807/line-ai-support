@@ -147,6 +147,10 @@ stage='import_model_assistance_actual_PG';
  const assistOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-ai-assistance.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(assistOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='staff_copilot_and_gap_actual_PG';
+ const copilotOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/staff-copilot.integration.ts','tests/database/knowledge-gap-miner.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(copilotOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='structured_actual_PG';
  const output=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/structured-schema.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

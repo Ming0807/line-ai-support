@@ -188,13 +188,23 @@ test('a reclaimed lease after outsideSQL classification rejects all final busine
  });assert(advice);await assert.rejects(applyInbox(f.job,advice),{message:'STALE_LEASE'});
  assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
 });
-test('an ignoring classifier cannot keep an owned worker waiting beyond the bounded deadline',async()=>{
- const f=await fixture();const started=performance.now(),unavailable:string[]=[];
- assert.equal(await classifyStudentInboxContext(pool,f.job,key,async()=>new Promise(()=>{}),reason=>unavailable.push(reason)),null);
- assert.deepEqual(unavailable,['TIMEOUT']);
- const elapsed=performance.now()-started;
- assert(elapsed>=11000&&elapsed<15000,'CLASSIFICATION_DEADLINE_MUST_BE_TWELVE_SECONDS_WITH_BOUNDED_SCHEDULING_MARGIN');
- await applyInbox(f.job,null);assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
+test('an ignoring classifier respects the approved 25-second ceiling and leaves the seven-second lease reserve',async()=>{
+ // Independent DEC162/169 oracles: do not derive expected deadlines from the helper under test.
+ for(const {leaseSeconds,minimumMs,maximumMs} of [
+  {leaseSeconds:90,minimumMs:24000,maximumMs:28000},
+  {leaseSeconds:9,minimumMs:500,maximumMs:4000},
+ ]){
+  const f=await fixture();
+  await pool.query("update private.webhook_inbox set lease_until=clock_timestamp()+make_interval(secs=>$2) where id=$1",[f.job.id,leaseSeconds]);
+  let calls=0,callbackSignal:AbortSignal|undefined;const started=performance.now(),unavailable:string[]=[];
+  assert.equal(await classifyStudentInboxContext(pool,f.job,key,async(_input,signal)=>{calls++;callbackSignal=signal;return new Promise(()=>{});},reason=>unavailable.push(reason)),null);
+  assert.equal(calls,1);assert.equal(callbackSignal?.aborted,true);assert.deepEqual(unavailable,['TIMEOUT']);
+  const elapsed=performance.now()-started;
+  assert(elapsed>=minimumMs&&elapsed<maximumMs,`CLASSIFICATION_APPROVED_CEILING_AND_LEASE_RESERVE:${leaseSeconds}:${Math.round(elapsed)}`);
+  const remainingMs=Number((await pool.query('select extract(epoch from(lease_until-clock_timestamp()))*1000 ms from private.webhook_inbox where id=$1',[f.job.id])).rows[0].ms);
+  assert(remainingMs>=6500,`CLASSIFICATION_MUST_RETAIN_SEVEN_SECOND_RESERVE_WITH_500MS_SCHEDULING_MARGIN:${Math.round(remainingMs)}`);
+  await applyInbox(f.job,null);assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
+ }
 });
 test('the real inbox cycle claims, classifies and commits a new topic without modifying the HUMAN ticket',async()=>{
  await pool.query("update private.webhook_inbox set status='DONE',lease_token=null,lease_until=null,completed_at=clock_timestamp() where channel='STUDENT' and user_hash=any($1::text[]) and status in('PENDING','PROCESSING')",[ownedHashes]);

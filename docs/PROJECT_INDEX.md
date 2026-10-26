@@ -1,30 +1,30 @@
 # YRU AI Helpdesk — จุดเริ่มอ่าน
 
-อัปเดต 24 ตุลาคม 2026 โดย root สถานะ V1: **ยังไม่ผ่านการตรวจรับทั้งหมด** งานระบบมีหลักฐานทดสอบแล้ว แต่คุณภาพคำตอบจากโมเดลจริงและ Flow A–F บน LINE ยังไม่ผ่านครบ ผู้ใช้เลื่อนการทดสอบของตนไปท้ายงาน ห้ามขอให้ทดสอบทีละ implementation slice
-
-24–25 ต.ค. 2026: root ปิด remaining inventory ครบ (DEC-160) และหลังผู้ใช้อนุมัติ 25s timeout + RED-first outer-deadline retune (DEC-161/162) **original30 ผ่านเกณฑ์ครั้งแรก: main6 ครบ 30/30 = 29/30 + 19/20 + gates ครบ** และ **fixed representative repeat rounds ครบตามแผนเดิม: repeat2 = 3×7 ครบ 21/21** (DEC-163) โดย fixture/rubric ไม่ถูกแตะ คงค้างเฉพาะ user-gated: Flow A–F จริง, corpus 9 รายการ, guarded activation; runtime ยัง STOPPED การรัน `pnpm test` ต้องผ่าน PowerShell หรือ System32-first PATH (Git Bash ทำ `whoami.exe` ของ Git บังของ Windows) ห้าม reset/clean/stash working tree ทั้งสอง branch
+อัปเดต 26 ตุลาคม 2026 โดย root หลังตรวจงาน GLMและเก็บงานส่งมอบHermes/QA. **V1 ยังรอการตรวจรับจากผู้ใช้บน LINE จริง** ผู้ใช้สั่งหยุดทดสอบคำตอบ Gemini เพิ่มและจะทดสอบเองภายหลัง; ไม่เริ่ม profile ใหม่หรือเปลี่ยน provider/key/timeout จากการตรวจครั้งนี้
 
 ## อ่านตามลำดับนี้
 
-1. [กติกา AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
-2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับจากผู้ใช้](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
-3. [System design](architecture/YRU_V1_DESIGN.md), subsystem ที่เกี่ยวข้อง และ execution plan ของ task
-4. [Decision log](decisions/DECISION_LOG.md) ตาม decision/task ที่เกี่ยวข้อง ล่าสุด DEC-157; ข้อความ checkpoint เก่าที่แทรกใน design/report ไม่ใช่สถานะปัจจุบัน
-5. เมื่อแก้ Next.js อ่านคู่มือที่ติดตั้งใน node_modules/next/dist/docs/ ตาม AGENTS ก่อนเขียนโค้ด
+1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
+2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
+3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-171; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
 
-- รันจริงล่าสุดของ root: คำสั่ง local:ai เปิด natural assistant แบบ preview, เว็บ/E5/workers ทั้งสี่ และ signed local/public webhook checks8 ผ่าน จากนั้นหยุด owned session แล้ว **ตอนนี้ server/tunnel หยุดอยู่** URL เก่าทั้งหมดใช้เป็น current URL ไม่ได้
-- local:ai เป็นคำสั่งทดสอบที่ผู้ใช้ต้องเลือกเอง เปิด AI แบบใหม่เฉพาะ child session; local:staff ปิด natural assistant แต่ยังใช้ legacy support AI; local:test ใช้ค่า assistant เดิม ไม่แก้ .env ไม่มีคำสั่งใดรับรองคุณภาพโมเดล
-- Gemini Lite เป็น generation candidate ที่เปิดอยู่เพียงตัวเดียวภายใต้ FREE_ONLY; 17 ตัวอื่นปิดไว้และหยุดทดสอบตามคำสั่งล่าสุด ไม่มี qualified fallback ไม่เรียกใช้ paid model หรือหมุน key แก้ limit
-- [Current repair plan](superpowers/plans/2026-10-21-gemini-workflow-contract-repair.md): opt-in single-pass ลดคำขอตัดสินใจจาก2เป็น1; main30ล่าสุดเห็น19เคส มี4semanticFAIL และ A20ติด registry reset ก่อน inference. Diagnostic แยกอีก11เคสมี10PASS/B06ผิดเงื่อนไขแล้ว timeout; ห้ามรวมเป็นคะแนนตรวจรับ. โค้ดแจ้งข้อจำกัดคำตอบและบริการส่งต่อแก้แล้ว full3169/type/lint/buildPASS แต่ยังไม่ผ่านคุณภาพโมเดลหรือเปิดcandidateเป็นค่าเริ่มต้น. DEC149คงเกณฑ์เดิม.
-- ROOT-QUALITY-02 evidence-first MIXED เป็น opt-in สำหรับประเมินเท่านั้น normal workers และ local:ai ไม่เปิด candidate นี้
-- Policy parity รอบล่าสุดคืนข้อกำหนดที่หายไประหว่างแยกcomposer: A09/A08ทดสอบจริงผ่านในรอบdiagnostic; A10รอบถัดมายังแต่งรายการข้อมูลส่วนตัวจึงถูกบล็อกและตอบได้เพียงบางส่วน. Current3173unit/type/scopedlint/build407inputsผ่าน; ยังไม่รวมคะแนนข้ามsourceหรือเปิดใช้เป็นproduction.
-- ล่าสุด ROOT-SERVICE-DISCOVERY-01: main30หยุดA13หลังค้นพบข้อมูลแต่AIตอบหมดเวลา; แก้บริการที่จับคู่ชื่อแน่นอนให้แสดงข้อมูลอนุมัติครบโดยตรง ไม่ต้องเรียกcompletion. ActualA13ใหม่9.688sครบเวลาปกติ/ข้อยกเว้นวันหยุดพร้อมอ้างอิงPASS;3182unit/type/scopedlint/build408/ownedPG5PASS. Mainเดิม10PASS/2FAIL/1BLOCKED/17NOT_RUNคงไว้ ไม่แทนคะแนนด้วยdiagnosticใหม่; V1ยังไม่ครบ.
-- local E5 CPU multilingual-e5-small/384 เป็น embedding ปกติ การรอ HTTP ของ generation ไม่ใช่หลักฐานว่า E5 ช้า
-- แหล่ง PUBLIC ที่อนุมัติจริง5ฉบับ (4starter+ระเบียบเทียบโอนYRU107ที่rootตรวจครบ5หน้า); starter pack อีก9รายการยัง held ด้วยช่องว่างที่ระบุ [ใน technical review](../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md) ไม่ตีตราว่า public จึง current/approved ทั้งหมด
-- [Approval latency repair](superpowers/plans/2026-10-20-import-publication-latency.md): เดิม45s timeout แก้การอ่านซ้ำ4→1/ธุรกรรม26→10; actual normal approval15.4s/22chunks/receipt+replay+retrieval2queriesPASS; current3044unit/645ownedPG/type/lint/build402inputsPASS ไม่ใช่model/OAqualification
-- workspace มีงานหลายรอบที่ยังไม่ commit ห้าม reset/clean/stash/คืนจาก HEAD หรือ stage ทั้ง workspace
+- งาน GLM ที่ commit แล้วถึง4449381: UI consistency, deadline retune, original30, deterministic discovery correction และชุดเตรียมทดสอบ/เอกสาร. Root ตรวจผ่านการอ่านโค้ดและหลักฐานเดิม; งาน Hermes/QA ที่ค้างได้รับการปรับปรุงใน working tree รอบนี้
+- Gemini main6 บน source3 มีหลักฐานเดิมครบ30กรณี:29/30 trajectories,19/20 usefulและmandatorygates. ไม่ได้ยิงทดสอบโมเดลเพิ่มรอบตรวจนี้
+- Repeat2 ครบ21executionsและsafetygates แต่ทั้ง3A10ให้เพียงข้อมูลทางการพร้อมแจ้งว่าส่วนคำแนะนำทั่วไปยังตอบไม่ครบ. คำกล่าว21/21ผ่านความครบถ้วนถูกแก้ด้วยaudit DEC-167 โดยเก็บต้นฉบับไว้; ผู้ใช้รับการทดสอบสนทนาต่อเองภายหลัง
+- Hermes: ต่อStaff Copilotเข้าหน้าเคสDashboardแล้วตาม[แผน](superpowers/plans/2026-10-25-hermes-staff-dashboard.md). ใช้native cacheเฉพาะเมื่อเจ้าหน้าที่กด ผูกผู้รับผิดชอบ/หัวหน้า+ticket+revision และตรวจหลักฐานซ้ำหลังร่างเสร็จ. แสดงร่างครบ/แก้ไข/นำเข้าช่องตอบกลับเอง; ไม่ส่งอัตโนมัติ. Controlled child/loopback/PG/browserผ่าน; actualHermes+modeldraftยังรอผู้ใช้ ไม่มีStudent responderใหม่
+- QA pre-screenerเป็นคิวให้คนตรวจ ผูกartifactSHAกับreview; gap reportเป็นSUPER_ADMIN aggregateที่ไม่คืนข้อความผู้ใช้. ไม่ใช่ผู้ตัดสินว่าความรู้หรือโมเดลผ่าน
+- Runtimeเปิดด้วยlocal:aiแล้ว25ตุลาคม21:24Bangkok: E5/เว็บ/4workers/tunnelREADY, local+publicHMAC8checksPASS. URLรอบนี้อยู่[checklist](operations/FINAL_SETUP_CHECKLIST.md); ตรวจregistry/workerแบบอ่านอย่างเดียวพบgenerationattempts0หลังstartupถึง21:27. ไม่รันHermes/modeltestและไม่เปลี่ยนprovider/key/timeout
+- Providerเพิ่มเติม/local generationเลื่อนตามผู้ใช้(DEC-165); ใช้Gemini FREE_ONLYตัวเดิม การต่ออายุattestationถึง24พ.ย.เป็นผลที่GLMบันทึกไว้ ไม่ใช่การตรวจbillingจากvendor
+- ตรวจฐานจริงแบบอ่านอย่างเดียว26ตุลาคมพบ5approvedPUBLICและทั้ง7structuredtablesมี0rows;9starteritemsยังheldตามtechnicalreview. ไม่ยกการทดสอบsyntheticเป็นคุณภาพบนcorpusจริง
+- งานค้าง: actualFlowA–F, การตัดสินเอกสาร9รายการ, actualHermesdraftreview และactivation/deployment. ไม่reset/clean/stashหรือstageทั้งworkingtree
+
+ผลตรวจROOT-GLM-HERMES-01ก่อนต่อUI:3235tests/236files,type/full lint/build408inputs,ownedPG9/43migrations/credentialscan1592files. ผลรอบต่อUIล่าสุดอยู่[บอร์ดงาน](tasks/V1_TASK_BOARD.md)และ[execution plan](superpowers/plans/2026-10-25-hermes-staff-dashboard.md); มีrootintegrationและLunascopedreviewจริง แต่ไม่มีliveHermes/Gemini/OAqualificationเพิ่มเติม
+
+26ตุลาคมROOT-CLOSEOUT-01:657registeredPG/41groups/43migrations/exactcleanup,advisors0ERROR/0WARN/111INFO,3272unit/type/lint/full849inputbuild/899codefreezeผ่านครบ. แก้เฉพาะtestoracles/fixturecleanupตามDEC169–171และจัดlocalcommit52ไฟล์ชัดเจน;generatednext-env.d.tsไม่รวม. งานข้อมูลจริง/ตรวจรับจริง/deployยังค้างตามบอร์ด ไม่ยิงโมเดลเพิ่ม
 
 ## เอกสารตามงาน
 

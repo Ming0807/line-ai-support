@@ -1,10 +1,15 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-อัปเดต21ตุลาคม2026 ผู้ใช้เลื่อนการทดสอบ LINE ไปท้ายงาน **ยังไม่ต้องทำรายการด้านล่างตอนนี้** งานคุณภาพ AI ยังเป็นงานของ root; checklistนี้ไม่ใช่การประกาศV1พร้อมใช้งาน
+อัปเดต25ตุลาคม2026 หลังผู้ใช้สั่งลุยต่อ: rootเปิดlocal:aiไว้ให้พร้อมแล้ว ผู้ใช้ยังเป็นผู้ทดสอบคำตอบ/LINEจริงภายหลังตามDEC166. ไม่ยิงmodeltestsเพิ่ม และchecklistนี้ไม่ใช่การประกาศV1ผ่านการตรวจรับจริง
 
 ## Runtime ตอนนี้และคำสั่งที่ใช้
 
-Rootทดลองlocal:aiถึงREADYแล้วหยุดownedsessionเรียบร้อย **serverและtunnelหยุดอยู่** URLในรายงานเก่าทั้งหมดเป็นประวัติ ต้องคัดลอกStudent/Staff webhook URLจากREADYของรอบที่กำลังรันเท่านั้น
+ROOT-LOCAL-READY-01เริ่ม25October2026ประมาณ21:24Bangkokและคงsessionไว้: **server, E5,4workers,tunnelกำลังรัน**. Local/publicsignedempty-event200และinvalid401ทั้ง2OAผ่านครบ8checks. Workerobservationsสด4ตัว; metadataread-onlyถึง21:27พบgenerationattempts0หลังเปิด ไม่รันHermescheck. URLด้านล่างใช้เฉพาะรอบนี้; เปิดtunnelใหม่ต้องคัดลอกจากREADYใหม่
+
+- Dashboard: http://127.0.0.1:3000/login
+- Student webhook: https://bookmarks-quick-efficiently-submissions.trycloudflare.com/api/line/student/webhook
+- Staff webhook: https://bookmarks-quick-efficiently-submissions.trycloudflare.com/api/line/staff/webhook
+- Local log: `.superpowers/staging/local-test/run-2026-10-25T14-24-50-032Z.log` ผ่านการปกปิดcredentials. หยุดด้วย`pnpm local:stop`;ไม่รันอีกsessionซ้อน
 
 เมื่อถึงรอบทดสอบธรรมชาติของAI ให้ใช้คำสั่ง **pnpm local:ai** จากโฟลเดอร์โปรเจกต์ คำสั่งนี้เปิดเว็บ, offlineE5,Inbox/AI/Outbox/Incidentsและtunnel พร้อมเปิดnaturalassistantเฉพาะsession เป็นpreviewของโมเดลที่ยังNOT_QUALIFIED ไม่ใช่ release promotion และจะตอบ LINE จริง/ประมวลผลฐานDEVELOPMENTจริง ไม่ใช่ sandboxสังเคราะห์
 
@@ -20,7 +25,7 @@ Rootทดลองlocal:aiถึงREADYแล้วหยุดownedsessionเ
 ## ขั้นตอนรวมสำหรับทดสอบระบบจริง
 
 1. รอการส่งมอบจากroot แล้วเปิดlocal:ai รอREADY เก็บterminalไว้เพื่อดูlog ปัจจุบันมีapprovedPUBLIC5ฉบับ (เพิ่มระเบียบเทียบโอนที่ตรวจครบ5หน้า/22chunks) ไม่ใช่ทุกไฟล์ในdocuments/yruพร้อมตอบ
-2. LoginDashboard→Providers ตรวจmodel/order/statusและFree-account permissionตามบัญชีจริง Rootต่อmanagedGeminipermissionผ่านCASตามคำสั่งล่าสุดและคำยืนยันFree/no-billingเดิมแล้วถึง28ตุลาคม2026 13:15Bangkok; นี่คือoperatorattestationไม่ใช่การตรวจvendorbillingจริง. ต่อผ่านSuperAdminUIเมื่อจำเป็น ไม่หมุนบัญชี/keyเพื่อหลบquota ไม่เปิดpaidหรือ17ตัวที่ยังไม่qualified
+2. LoginDashboard→Providers ตรวจmodel/order/statusและFree-account permissionตามบัญชีจริง Freshread-onlyregistry25October21:27ยืนยันGemini3.5FlashLite/FREE_ONLY/25s/modelrev3 และmanagedaccountattestationACTIVEถึง24November2026 12:08Bangkok; ไม่มีการต่ออายุหรือแก้configurationในรอบstartupนี้. นี่คือoperatorattestationไม่ใช่การตรวจvendorbillingจริง. ต่อผ่านSuperAdminUIเมื่อจำเป็น ไม่หมุนบัญชี/keyเพื่อหลบquota ไม่เปิดpaidหรือ17ตัวที่ยังไม่qualified
 3. ตั้งWebhookURLจากREADYทั้งStudent/StaffในLINE Developers กดVerify/UseWebhook ปิดOAauto-replyที่ตอบซ้ำ Quicktunnelเปลี่ยนURLเมื่อเปิดใหม่
 4. StaffLoginของแต่ละคน→Settings→สร้างbindingcode→ส่งให้StaffOAภายใน10นาที ตรวจdepartment/roleและสถานะbindingก่อนทดสอบแจ้งเตือน
 5. ทดสอบStudentกับStaffของตน ไม่ใช้ข้อมูลส่วนตัวจริง สองStaffลองclaimเคสเดียวกันต้องมีผู้ชนะคนเดียว Dashboardแยกประวัติ/ร่างตามเคส StaffLINEต้องกดเปิดเคสก่อนพิมพ์ ข้อความแจ้งเตือนไม่เปลี่ยนเคสที่เลือกเอง
@@ -67,3 +72,16 @@ Deployment/actualOA/sourceowner evidenceยังไม่ถูกนับว�
 22ตุลาคม: ทดลอง typed guided advice เฉพาะฐานทดสอบแล้ว ไม่มีการเปิดใช้ใน local:ai/normal workers. Actual A09/A04 ตอบสำเร็จแต่ยังไม่ผ่านคุณภาพ (คำอธิบาย cache และรักษาความหมายเรื่องด่วน). Current3,125unit/type/changed-file lint/buildผ่าน ไม่ใช่การส่งมอบให้ผู้ใช้เทส; runtimeยังหยุดและไม่มี current webhook URL.
 
 23October update: routing outages now preserve the pending original message and explain temporary AI unavailability with owned context-choice buttons. This does not qualify the model. Actual network-phase diagnostic completed TLS/request finish at~192ms but received no HTTP headers before15s; no key/timeout/provider setting change or inference retry. User manual checks remain deferred; no new webhook URL while app/tunnel stopped.
+
+## 25October Hermes/QA continuation — controlled core only
+
+Latest human will test Gemini conversations later; no new generation tests were run during ROOT-GLM-HERMES-01 or ROOT-HERMES-STAFF-UI-01. Staff Copilot is now wired into the HUMAN-case Dashboard. It requires reply permission (assigned staff or scoped supervisor), current revision, active staff scope, YRU_AI_ENABLED=true and the existing approved FREE_ONLY model. The cached native runtime starts only on an explicit draft request. It cannot publish, change tickets or send to Student. Complete evidence and a draft are shown for human editing; apply only copies into the existing composer. A controlled child/bridge PASS does not qualify an actual Hermes/model draft.
+
+Commands added for later explicit operator use (none are auto-run by local:ai):
+- `pnpm hermes:copilot --staff-id=<UUID> --ticket-id=<HUMAN_TICKET_UUID> --revision=<CURRENT_REVISION>` — explicit model-backed prototype; user-deferred live run.
+- `pnpm qa:prescreen <ARTIFACT_DIRECTORY>` — offline only, queues artifact-bound flags for human review.
+- `pnpm qa:knowledge-gaps --staff-id=<SUPER_ADMIN_UUID>` — bounded read-only aggregate; no inference, raw student questions or LINE identities in output. Category hints are private analytics heuristics, not proof that knowledge is absent.
+
+Normal FlowA–F/corpus approvals/deployment remain deferred. Use webhook URLs printed by a freshly started local:ai session when testing; no server/tunnel was started during this audit.
+
+For later Staff Copilot manual acceptance: run existing `pnpm local:ai` (no separate Hermes daemon command), open an accepted HUMAN case as its assigned staff or scoped supervisor, choose “Hermes · ช่วยร่างคำตอบ” → “สร้างร่าง”. Compare the complete draft with displayed evidence/references, edit it and apply to the reply composer; confirm nothing sends until the normal Send button is pressed. Also test cancellation, switching cases during generation, retaining a previously typed reply, and a source/case being changed by another authorized operator. A draft over5,000 stays visible in full but must be edited before applying. No verified source means no draft. Missing native cache/unavailable primary/busy capacity fails safely. Actual native/model execution and real LINE delivery remain unverified here; the native Windows cache is not a serverless deployment claim.

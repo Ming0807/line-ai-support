@@ -1,22 +1,24 @@
 # Post-V1 continuation roadmap — ตรวจโปรเจ็ค + แนวทางต่อยอด + task
 
-จัดทำ 25 ตุลาคม 2026 โดย root หลังปิดงาน agent ทั้งหมดของ V1 (original30 **ACCEPTED** 29/30+19/20+gates ตาม DEC-162 และ representative repeats 3×7 ครบตาม DEC-163) ใช้คู่กับ [บอร์ดงาน V1](V1_TASK_BOARD.md) และ [final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md) — ไฟล์นี้เป็นแผนงานต่อจากนี้ ไม่ใช่การประกาศ V1 ผ่านรับมอบ
+จัดทำ25ตุลาคม ปรับสถานะ26ตุลาคม2026โดยroot. Original30มีหลักฐาน29/30+19/20+gatesตามDEC162; representative21executionsครบแต่A10ทั้ง3รอบเป็นsafe partialตามDEC167. ใช้คู่กับ[บอร์ดงานV1](V1_TASK_BOARD.md)และ[final setup checklist](../operations/FINAL_SETUP_CHECKLIST.md). งานHermes/QAส่งมอบเพิ่มเติมตามROOT-CLOSEOUT-01 ไม่ถือว่าปิดV1รับมอบจริง
 
 ## สถานะโปรเจ็ค ณ ตอนนี้ (สรุปตรวจ)
 
-**ปิดแล้ว:** 13 modules ครบตาม master§3 · 43 migrations/74 RLS tables · unit 3,184 · owned PG 645+ · import 5 ฟอร์มแมต + atomic publication · incidents/batch reply · Provider UI ครบ order/test/quota/observations · UI consistency (DEC-159) · **คุณภาพโมเดลผ่าน original30 + repeats บน synthetic frozen fixture** (DEC-162/163) · branch `feat/yru-v1-final-polish` commits 734e795→d87d2ae
+**ผลตรวจล่าสุด26ต.ค.: original30historicalคงเดิม; repeatedA10เป็นsafepartial3รอบไม่ใช่usefulnessPASSตามDEC167. StaffDashboardCopilotต่อแล้วตามDEC168;ROOT-CLOSEOUT-01ผ่าน657registeredPG/3272unit/type/lint/buildและกำลังเก็บlocalcommit. Actualnative/modeldraft/LINEยังรอผู้ใช้ ไม่ใช้คำกล่าวgitcleanของcheckpointเดิมเป็นสถานะปัจจุบัน.**
 
-**ยังไม่ปิด (ทั้งหมด user-gated หรือต้องมีของจริง):**
+**งานฐานตามรายงานGLMและrootaudit:**13modulesตามmaster§3,43migrations/74RLStables,import5formats/atomicpublication,incidents/batchreply,Providerorder/test/quota/observationsและUIconsistency. ตัวเลขเดิม3184unit/645ownedPGเป็นหลักฐานตามsourceขณะนั้น; ผลล่าสุดอยู่บอร์ดงาน. Original30historicalPASS ส่วนrepeatA10ห้ามนับsafe partialเป็นคำตอบครบ. Branch`feat/yru-v1-final-polish`;ไม่ใช้คำว่าagentงานจบทั้งหมดหรือgitcleanจากcheckpointเก่าแทนสถานะปัจจุบัน
+
+**งานข้อมูลและตรวจรับที่ยังไม่ปิด:** งานส่งมอบโค้ด/รวมหลักฐานที่rootทำต่อได้อยู่ROOT-CLOSEOUT-01ในบอร์ด ส่วนรายการต่อไปนี้ยังต้องมีข้อมูลจริงหรือการตรวจรับที่ผู้ใช้เลื่อนไว้
 1. Flow A–F จริงบน LINE (ผู้ใช้ทดสอบเอง ตามตารางใน FINAL_SETUP_CHECKLIST)
 2. Corpus จริง: อนุมัติแล้วเพียง 5 ฉบับ PUBLIC; 9 รายการ held รอเจ้าของข้อมูลตัดสิน; รวบรวมไว้ 187 รายการ
 3. Guarded production activation + deployment จริง (host/domain/backup ยังไม่เลือก)
 4. **คุณภาพบน corpus จริงยังไม่เคยวัด** — acceptance ที่ผ่านมาใช้ synthetic fixture ของ harness เท่านั้น
-5. Gemini free-account attestation หมดอายุ **28 ต.ค. 2026 13:15 กรุงเทพฯ** — ไม่ต่ออายุ = inference หยุด (ไม่มี fallback ที่ qualified)
+5. Gemini free-account attestation ปัจจุบันถึง **24 พ.ย. 2026 12:08 กรุงเทพฯ** (ตรวจregistryแบบอ่านอย่างเดียว25ต.ค.; ไม่ใช่การยืนยันvendorbilling) — ไม่ต่ออายุ = inference หยุด (ไม่มี fallback ที่ qualified)
 6. เอกสาร matrix/report บางส่วนยังเขียนสถานะก่อน DEC-162/163
 
 ## แนวทางต่อยอดแบบละเอียด (4 เฟส)
 
-### เฟส 0 — เก็บระเบียบทันที — **ปิดครบแล้ว 25 ต.ค. 2026**
+### เฟส 0 — งานเก็บระเบียบเดิมปิด25ตุลาคม; รอบHermes/QAใหม่แยกROOT-CLOSEOUT-01
 
 | Task | สิ่งที่ทำ / ผลลัพธ์ | ข้อกำหนดที่โยง |
 | --- | --- | --- |
@@ -55,7 +57,7 @@
 | EXT-01 Paid generation opt-in | UI ให้มหาวิทยาลัยเปิด paid แบบ explicit (cost_mode ALLOW_PAID path มีรากไว้แล้ว) + budget caps + แจ้งต่อ usage | มหาวิทยาลัยอนุมัติงบ + ตั้ง billing; USR-FREE |
 | EXT-02 Corpus program | ขยายจาก 187 รายการที่รวบรวม: ใช้ import-assistance ช่วย triage → review → publish เป็นรอบๆ ตาม family (มี 19 families แรก) | V1L-02 ปิดก่อน; CH063/064 |
 | EXT-03 Bounded web search | ข้อเสนอพร้อมแล้ว (BOUNDED_WEB_SEARCH_PROPOSAL) — ค้นเว็บมหาวิทยาลัยเพื่อ "พบเอกสาร" ไม่ใช่ "ตอบจากเว็บ" | อนุมัติขอบเขต evidence + SSRF rules |
-| EXT-04 Hermes orchestration | **เลือกแนวทางแล้ว (25 ต.ค.): คง status quo ตอนนี้** → จังหวะ 1: Staff Copilot บน Dashboard (หลายก้าว: ค้น→รวบรวม→ร่าง ผ่าน allowlist backend-tools หลังสิทธิ์ฝ่าย) *เปิดเมื่อมี provider สำรอง* → จังหวะ 2: ใช้ bridge pattern ซ้ำกับ EXT-03/ระบบอื่น *เปิดหลัง V1 live* — ทางเพิ่มเติมที่บันทึกไว้: Knowledge Gap Miner (ขุดคำถามที่ไม่มีเอกสาร→จัดลำดับขอเอกสารจริง, เปิดเมื่อมีบทสนทนาจริง), Incident Copilot (ร่างสรุป+batch reply จาก linked tickets), QA Pre-screener (คัดกรองให้ human review ไม่ใช่ผู้ตัดสิน), Nightly Ops Digest, Multilingual Draft Layer (ตามข้อจำกัด DEC-148), Local LLM client (CH073) — หลักการร่วม: agent ทำงานเบื้องหลังให้คน ไม่พูดแทนกับนักศึกษาโดยตรง | DEC-104, CH073, หลัง QUA-02 มี fallback |
+| EXT-04 Hermes orchestration | **อัปเดตDEC166 (25ต.ค.): เดินหน้าboundedStaffCopilotโดยใช้primaryเดิม ไม่ต้องรอproviderใหม่** → จังหวะ 1: Staff Copilot บน Dashboard (หลายก้าว: ค้น→รวบรวม→ร่าง ผ่าน allowlist backend-tools หลังสิทธิ์ฝ่าย) *StaffUI/API/native runner controlledPASSแล้วตามDEC168; actualnative/modeldraftreviewยังค้าง* → จังหวะ 2: ใช้ bridge pattern ซ้ำกับ EXT-03/ระบบอื่น *เปิดหลัง V1 live* — ทางเพิ่มเติมที่บันทึกไว้: Knowledge Gap Miner (ขุดคำถามที่ไม่มีเอกสาร→จัดลำดับขอเอกสารจริง, เปิดเมื่อมีบทสนทนาจริง), Incident Copilot (ร่างสรุป+batch reply จาก linked tickets), QA Pre-screener (คัดกรองให้ human review ไม่ใช่ผู้ตัดสิน), Nightly Ops Digest, Multilingual Draft Layer (ตามข้อจำกัด DEC-148), Local LLM client (CH073) — หลักการร่วม: agent ทำงานเบื้องหลังให้คน ไม่พูดแทนกับนักศึกษาโดยตรง | DEC-104/166, CH073; ขาดfallbackต้องรายงานunavailableอย่างซื่อสัตย์ |
 | EXT-05 Student SSO/SIS/grades/payments | ออกแบบใหม่ทั้ง privacy model (V1 เป็น anonymous โดยตั้งใจ) — ต้องมี infrastructure มหาวิทยาลัย + DPA | นอก V1 ชัดเจน (CH073) |
 | EXT-06 มุมมองหลายภาษา | DEC-148 จำกัด: เงื่อนไข guided เขียนด้วยภาษาไทย — ถ้ามีผู้ใช้ต่างชาติ ต้องทำ multilingual contract + ทดสอบใหม่ | ความต้องการจริง |
 | EXT-07 Custom document families | เพิ่ม family นอก 19 แรกผ่าน UI (CH064 เปิดไว้) พร้อม proof/versioning เดิม | มีเอกสารจริงจำนวนมากพอ |
@@ -71,7 +73,7 @@
 ## เพิ่มเติมจากรอบ 25 ต.ค. (หลังปิดเฟส 0)
 
 - สร้าง **[เอกสารเตรียมทดสอบจริง](../operations/LIVE_TEST_QA_PREP.md)** แล้ว — ตรวจฐานจริงพบ: PUBLIC 5 เอกสาร/52 chunks พร้อมตอบ, **structured 7 ตาราง = 0 แถวจริง** (คำถามค่าเทอม/ปฏิทินต้องได้คำตอบ "ยังไม่พบเอกสาร")
-- ต้นไม้สะอาด + tag `checkpoint/v1-agent-complete` — ย้อนกลับด้วย `git reset --hard checkpoint/v1-agent-complete`
+- Historicalcheckpoint `checkpoint/v1-agent-complete` เคยสะอาดก่อนรอบHermes/QA; ปัจจุบันมีงานใหม่ยังไม่commit ใช้tagเทียบประวัติเท่านั้น ห้ามresetทับงานค้าง
 
 ## ลำดับแนะนำ (critical path)
 
@@ -79,7 +81,7 @@
 เฟส 0 ปิดครบแล้ว (attestation ถึง 24 พ.ย. / เอกสาร / commits / tag)
 → ถัดไป: V1L-01 Flow A–F จริง (ใช้ LIVE_TEST_QA_PREP) ──┬→ V1L-02 corpus 9 รายการ → QUA-01 bracket ของจริง
                                                         └→ V1L-03 activation → V1L-04 deploy → PRF-02/OPS-01
-QUA-02/03/04 เริ่มได้เลยตอนนี้ (agent) · PRF-01, UX-02, OPS-02 = หลังเฟส 1
+QUA-02/03เลื่อนตามผู้ใช้(DEC165); QUA-04มีscopedfixแล้ว; HermesStaffUIต่อแล้วตามDEC168; actualnative/modeldraft/liveยังค้าง · PRF-01, UX-02, OPS-02 = หลังเฟส 1
 EXT-* = เมื่อมหาวิทยาลัยเลือก (เฟส 3 ไม่มี deadline)
 ```
 
@@ -89,3 +91,5 @@ EXT-* = เมื่อมหาวิทยาลัยเลือก (เฟ�
 - การเปลี่ยน timeout/model/key ทุกครั้งต้องได้รับอนุมัติก่อน (แบบ DEC-161)
 - synthetic acceptance ≠ ของจริง: อย่าอ้าง QUA-01 ว่าผ่านจนกว่าจะรันจริง
 - `.env`/keys/private originals ไม่เข้า repo เด็จขาด; backup เก็บนอก git
+
+25October22:03Bangkok — remaining-work audit (root, read-only): actualapprovedPUBLIC5documents; all7structuredtables0rows. Useragaindefersmanualtests. Prioritybeforemanualacceptance: review9heldsources/prepareeligibledata, closecurrentHermes/QAcommitandcurrentintegrationcoverage. WholecurrentregisteredPGwasnotrerunbythe20casescopilotslice; do not callhistorical645casesfresh. No new model/provider test, publication, migration or activation.

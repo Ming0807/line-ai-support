@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../database/pool';
-import {loadActor,lockConversation} from '../tickets/authorization';
+import {loadActor,lockConversation,isSupervisor} from '../tickets/authorization';
+import {nextTicketStatus} from '../conversation/state-machine';
 import type {AISnapshot} from '../ai/run-worker';
 import {knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 import {projectAssistSource,AssistError} from './ai-assistance-contracts';
@@ -12,7 +13,7 @@ export interface StaffAssistanceSnapshot {
 }
 /** Authorized reads only. HTTP must run after this transaction has committed. */
 export async function withStaffAssistanceSnapshot<T>(actorId:string,id:string,revision:number,pool:Pool,
- work:(client:PoolClient,snapshot:StaffAssistanceSnapshot)=>Promise<T>,options:{knowledgeCatalog?:boolean}={}):Promise<T>{
+ work:(client:PoolClient,snapshot:StaffAssistanceSnapshot)=>Promise<T>,options:{knowledgeCatalog?:boolean;replyRequired?:boolean}={}):Promise<T>{
  return transaction(async c=>{
   await c.query("set local statement_timeout='5s';set local lock_timeout='2s'");
   if(options.knowledgeCatalog)await c.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
@@ -23,6 +24,7 @@ export async function withStaffAssistanceSnapshot<T>(actorId:string,id:string,re
    from public.tickets t join public.conversations c on c.id=t.conversation_id
    where t.id=$1 and private.can_access_scope(t.department_id,t.sensitive_level) for share of t,c`,[id])).rows[0];
   if(!ticket)throw new AssistError('NOT_FOUND');
+  if(options.replyRequired&&((ticket.assigned_staff_id!==actorId&&!isSupervisor(actor))||nextTicketStatus(ticket.status,'STAFF_REPLY')===null))throw new AssistError('NOT_FOUND');
   if(ticket.revision!==revision||ticket.mode!=='HUMAN'||ticket.conversation_mode!=='HUMAN'||
    !['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)||!['ACTIVE','WAITING'].includes(ticket.conversation_status))throw new AssistError('CONFLICT');
   const messages=(await c.query(`select id,sender_type,message_type,content,created_at from public.messages

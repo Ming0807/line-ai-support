@@ -373,3 +373,32 @@
 .ticket-knowledge-sources { padding-left: 1.4rem; overflow-wrap: anywhere; }
 .ticket-knowledge-sources li + li { margin-top: .6rem; }
 .ticket-knowledge-sources a { color: inherit; text-decoration: underline; text-underline-offset: .2em; }
+
+.ticket-copilot-panel { display: grid; gap: .85rem; }
+.ticket-copilot-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.ticket-copilot-heading h3 { margin: 0; color: var(--ticket-ink); font-size: 1.05rem; line-height: 1.4; }
+.ticket-copilot-heading p { margin: .25rem 0 0; max-width: 68ch; color: var(--ticket-muted); font-size: .88rem; }
+.ticket-copilot-heading .ticket-button { flex: 0 0 auto; min-height: 2.65rem; }
+.ticket-copilot-progress, .ticket-copilot-note, .ticket-copilot-error, .ticket-copilot-unreviewed, .ticket-copilot-over-limit-note {
+  margin: 0; padding: .75rem .9rem; border: 1px solid var(--ticket-line); border-radius: .7rem; line-height: 1.55;
+}
+.ticket-copilot-progress, .ticket-copilot-note { color: var(--ticket-ink); background: var(--ticket-soft); }
+.ticket-copilot-error { color: #991b1b; border-color: #fca5a5; background: #fef2f2; }
+.ticket-copilot-unreviewed { color: #78350f; border-color: #fde68a; background: #fffbeb; }
+.ticket-copilot-result { display: grid; gap: .65rem; min-width: 0; }
+.ticket-copilot-result > label { color: var(--ticket-ink); font-size: .94rem; font-weight: 700; }
+.ticket-copilot-draft { min-height: 10rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ticket-copilot-apply-row { display: grid; gap: .4rem; }
+.ticket-copilot-counter, .ticket-copilot-over-limit { color: var(--ticket-muted); font-size: .84rem; font-variant-numeric: tabular-nums; }
+.ticket-copilot-over-limit { color: #991b1b; font-weight: 700; }
+.ticket-copilot-over-limit-note { color: #991b1b; border-color: #fca5a5; background: #fef2f2; font-size: .88rem; }
+.ticket-copilot-evidence { min-width: 0; margin-top: .65rem; padding-top: .9rem; border-top: 1px solid var(--ticket-line); }
+.ticket-copilot-evidence h4 { margin: 0 0 .35rem; color: var(--ticket-ink); font-size: .98rem; }
+.ticket-copilot-evidence h5 { margin: .85rem 0 .3rem; color: var(--ticket-ink); font-size: .88rem; }
+.ticket-copilot-evidence-text { margin: 0; color: var(--ticket-ink); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ticket-copilot-sources { display: grid; gap: .5rem; margin: 0; padding-left: 1.35rem; color: var(--ticket-ink); font-size: .88rem; overflow-wrap: anywhere; }
+.ticket-copilot-sources a { color: var(--ticket-blue-dark); text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 36rem) {
+  .ticket-copilot-heading { flex-direction: column; align-items: stretch; }
+  .ticket-copilot-heading .ticket-button, .ticket-copilot-result > .ticket-button { width: 100%; }
+}

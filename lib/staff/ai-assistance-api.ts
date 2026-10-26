@@ -8,7 +8,7 @@ import {AssistError,assistInputSchema} from './ai-assistance-contracts';
 import {createStaffAssistance} from './ai-assistance';
 function response(body:unknown,status=200){return Response.json(body,{status,headers:{'Cache-Control':'private, no-store, max-age=0',Vary:'Cookie','X-Content-Type-Options':'nosniff'}});}
 type StaffAdviceService=(actorId:string,id:string,input:{revision:number},options:{signal:AbortSignal})=>Promise<unknown>;
-export async function staffAdviceHandler(request:Request,id:string,service:StaffAdviceService,logCode:'STAFF_ASSIST_FAILED'|'STAFF_KNOWLEDGE_FAILED'){
+export async function staffAdviceHandler(request:Request,id:string,service:StaffAdviceService,logCode:'STAFF_ASSIST_FAILED'|'STAFF_KNOWLEDGE_FAILED'|'STAFF_COPILOT_FAILED'){
  if(!isSameOrigin(request))return response({error:'INVALID_ORIGIN'},403);
  const actor=await apiStaffId();if(!actor)return response({error:'UNAUTHENTICATED'},401);
  try{
