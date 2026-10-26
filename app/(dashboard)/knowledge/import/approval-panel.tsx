@@ -6,7 +6,9 @@ import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {ImportPublicationReceipt} from '@/lib/imports/import-publication';
 import {isPublicationResult,isReceiptEnvelope} from '@/lib/imports/publication-response';
 import {structuredAvailabilitySchema} from '@/lib/knowledge/structured-availability';
+import {requiredReviewFields} from '@/lib/imports/assistance-contract';
 import {reviewPublicationEvidence} from './review-state';
+import {publicSourceBasisName,publicSourceCategoryName,publicSourceReviewIssues} from './public-source-review-panel';
 
 type ApprovalPanelProps={
  review:ImportReviewState;
@@ -53,7 +55,7 @@ function statusMessage(status:number){
 export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onReceiptChange}:ApprovalPanelProps){
  const binding=`${review.jobId}:${review.jobRevision}:${review.extractionRevision}:${review.reviewRevision}`;
  const saved=review.saved?.draft??null;
- const savedV2=saved&&(saved.schemaVersion===2||saved.schemaVersion===3)?saved:null;
+ const savedV2=saved&&(saved.schemaVersion===2||saved.schemaVersion===3||saved.schemaVersion===4)?saved:null;
  const savedBinding=review.saved?`${review.saved.jobRevision}:${review.saved.extractionRevision}:${review.saved.reviewRevision}`:'';
  const expectedBinding=`${review.jobRevision}:${review.extractionRevision}:${review.reviewRevision}`;
  const matchingSaved=Boolean(review.saved&&savedBinding===expectedBinding&&!review.stale&&savedV2);
@@ -86,7 +88,16 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
  const childPending=readState==='loading'||publishing;
  const requestBinding=useMemo(()=>({id:review.jobId,expectedJobRevision:review.jobRevision,expectedExtractionRevision:review.extractionRevision,expectedReviewRevision:review.reviewRevision}),[review.jobId,review.jobRevision,review.extractionRevision,review.reviewRevision]);
  const warningsReviewed=Boolean(saved&&saved.warningDispositions.every(item=>item.status!=='UNRESOLVED'&&Boolean(item.reason?.trim())));
- const canStart=Boolean(matchingSaved&&attestationsComplete&&warningsReviewed&&evidence.ready&&!dirty&&!disabled&&!childPending&&readState==='ready'&&!completed);
+ const reviewFields=saved?requiredReviewFields(saved.metadata,saved.schemaVersion===4?saved.publicSourceReview:undefined):[];
+ const publicReviewIssues=saved&&review&&saved.schemaVersion===4?publicSourceReviewIssues({
+  value:saved.publicSourceReview,documentType:saved.metadata.documentType,visibility:saved.metadata.visibility,storageMode:saved.metadata.storageMode,
+  publishedAt:saved.metadata.publishedAt,effectiveFrom:saved.metadata.effectiveFrom,effectiveTo:saved.metadata.effectiveTo,
+  action:saved.action,relationship:saved.relationship,target:saved.target,sourceUrl:saved.metadata.sourceUrl,
+  sensitiveCategories:review.sensitiveCategories??[],disabled,onChange:()=>undefined,
+ }):[];
+ const reviewFieldsComplete=reviewFields.length===0;
+ const publicReviewComplete=publicReviewIssues.length===0;
+ const canStart=Boolean(matchingSaved&&attestationsComplete&&warningsReviewed&&reviewFieldsComplete&&publicReviewComplete&&evidence.ready&&!dirty&&!disabled&&!childPending&&readState==='ready'&&!completed);
  const setApprovalMessage=(value:Omit<Message,'binding'>|null)=>setMessage(value?{...value,binding}:null);
 
  useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;activePost.current?.abort();pendingCallback.current(false);};},[]);
@@ -166,6 +177,8 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
   {readState==='ready'&&matchingSaved&&savedV2&&<>
    {!attestationsComplete&&<p className="knowledge-review-stale" role="status">กรุณาตรวจและยืนยันหัวข้อทบทวนทั้งห้าข้อในร่างที่บันทึกแล้วก่อน</p>}
    {!warningsReviewed&&<p className="knowledge-review-stale" role="status">กรุณาตรวจคำเตือนทุกข้อพร้อมเหตุผล และบันทึกร่างก่อนเผยแพร่</p>}
+   {!reviewFieldsComplete&&<div className="knowledge-review-stale" role="status"><strong>ข้อมูลตรวจทานยังไม่ครบ</strong><ul>{reviewFields.map(field=><li key={field.key}>{field.label}</li>)}</ul></div>}
+   {publicReviewIssues.length>0&&<div className="knowledge-review-stale" role="status"><strong>การทบทวนแหล่งข้อมูลสาธารณะยังไม่ครบ</strong><ul>{publicReviewIssues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
    {dirty&&<p className="knowledge-review-stale" role="status">มีการแก้ไขที่ยังไม่บันทึก กรุณาบันทึกฉบับตรวจทานก่อนอนุมัติ</p>}
    {disabled&&<p className="knowledge-review-pending" role="status">กำลังบันทึกหรือโหลดข้อมูลตรวจทาน</p>}
    {evidence.ready&&attestationsComplete&&matchingSaved&&<p className="knowledge-review-state">แผนตรงกับฉบับตรวจทานที่บันทึกไว้แล้ว · รูปแบบ {storageMode==='RAG'?'ถามตอบจากข้อความ':storageMode==='STRUCTURED'?'ตารางข้อมูล':'ข้อความและตาราง'}</p>}
@@ -180,6 +193,10 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
      <div className="knowledge-approval-wide"><dt>แหล่งที่มา</dt><dd>{display(savedV2.metadata.sourceUrl)}</dd></div>
      {scopeSummary(savedV2).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}
      <div className="knowledge-approval-wide"><dt>แผนที่ตรวจแล้ว</dt><dd>{evidence.chunkReady?'ข้อความตรวจครบ':''}{evidence.chunkReady&&evidence.mappingReady?' · ':''}{evidence.mappingReady?'ตารางตรวจครบ':''}</dd></div>
+     {savedV2.schemaVersion===4&&<div className="knowledge-approval-wide"><dt>การทบทวนแหล่งข้อมูลสาธารณะ</dt><dd>
+      {savedV2.publicSourceReview.temporalBasis==='DATED'?'ใช้วันที่ตามต้นฉบับ':`ตรวจข้อมูลปัจจุบัน · ${display(savedV2.publicSourceReview.temporalReason)}`}
+      {savedV2.publicSourceReview.sensitivityAdjudications.map(item=>` · ${publicSourceCategoryName(item.category)}: ${publicSourceBasisName(item.basis)} — ${display(item.reason)}`).join('')}
+     </dd></div>}
     </dl>
     <label className="knowledge-approval-check"><input type="checkbox" checked={Boolean(checked)} onChange={event=>setConfirmation({key:confirmationKey,open:true,checked:event.currentTarget.checked})} disabled={disabled||childPending}/><span>ฉันตรวจข้อมูลและยืนยันให้นำฉบับที่บันทึกไว้นี้เข้าสู่การอนุมัติ</span></label>
     <div className="knowledge-review-actions">

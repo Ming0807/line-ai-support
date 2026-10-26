@@ -215,20 +215,21 @@ export function CatalogPanel(){
  </section>;
 }
 
-function DocumentSummary({document,onSelect,selected}:{document:CatalogSummary;onSelect:()=>void;selected:boolean}){
+export function DocumentSummary({document,onSelect,selected}:{document:CatalogSummary;onSelect:()=>void;selected:boolean}){
  return <div className="knowledge-catalog-document-summary">
   <button className="knowledge-catalog-document-open" type="button" aria-expanded={selected} onClick={onSelect}><strong>{document.title}</strong><span>ฉบับ {document.versionName} · สาย {document.versionStream}</span></button>
-  <dl className="knowledge-catalog-facts"><div><dt>สถานะเอกสาร</dt><dd>{statusLabels[document.status]}</dd></div><div><dt>สถานะฉบับปัจจุบันในสาย</dt><dd>{document.isCurrent?'ปัจจุบัน':'ไม่ใช่ฉบับปัจจุบัน'}</dd></div><div><dt>หน่วยงาน</dt><dd>{document.department?`${document.department.name} (${document.department.code})`:'ไม่ทราบหน่วยงาน'}</dd></div><div><dt>รูปแบบฉบับ</dt><dd>{document.storageMode?modeLabels[document.storageMode]:'ไม่ทราบรูปแบบ'}</dd></div><div><dt>ปีการศึกษา</dt><dd>{document.academicYear??'ไม่ระบุ'}</dd></div><div><dt>การมองเห็น</dt><dd>{document.visibility}</dd></div><div><dt>วันที่มีผล</dt><dd>{document.effectiveFrom?showDate(document.effectiveFrom):'ไม่ระบุ'} – {document.effectiveTo?showDate(document.effectiveTo):'ไม่ระบุ'}</dd></div><div><dt>นำเข้าล่าสุด</dt><dd>{document.lastImportAt?showDate(document.lastImportAt):'ไม่ทราบข้อมูล'}</dd></div></dl>
+  <dl className="knowledge-catalog-facts"><div><dt>สถานะเอกสาร</dt><dd>{statusLabels[document.status]}</dd></div><div><dt>สถานะฉบับปัจจุบันในสาย</dt><dd>{document.isCurrent?'ปัจจุบัน':'ไม่ใช่ฉบับปัจจุบัน'}</dd></div><div><dt>หน่วยงาน</dt><dd>{document.department?`${document.department.name} (${document.department.code})`:'ไม่ทราบหน่วยงาน'}</dd></div><div><dt>รูปแบบฉบับ</dt><dd>{document.storageMode?modeLabels[document.storageMode]:'ไม่ทราบรูปแบบ'}</dd></div><div><dt>ปีการศึกษา</dt><dd>{document.academicYear??'ไม่ระบุ'}</dd></div><div><dt>การมองเห็น</dt><dd>{document.visibility}</dd></div><div><dt>วันที่มีผล</dt><dd>{document.effectiveFrom?showDate(document.effectiveFrom):'ไม่ระบุ'} – {document.effectiveTo?showDate(document.effectiveTo):'ไม่ระบุ'}</dd></div>{document.temporalBasis==='CURRENT_REVIEWED'&&<><div><dt>ฐานเวลา</dt><dd>ข้อมูลปัจจุบันจากการตรวจทาน</dd></div><div><dt>ตรวจทานเมื่อ</dt><dd>{showDate(document.currentReviewedAt??null)}</dd></div></>}<div><dt>นำเข้าล่าสุด</dt><dd>{document.lastImportAt?showDate(document.lastImportAt):'ไม่ทราบข้อมูล'}</dd></div></dl>
   <p className="knowledge-catalog-source"><span>แหล่งที่มา: </span>{sourceValue(document.sourceUrl)}</p>
  </div>;
 }
 
-function DocumentDetails({document,pageCount,onPageChange,onSelectRelated}:{document:CatalogDetail;pageCount:number;onPageChange:(page:number)=>void;onSelectRelated:(id:string)=>void}){
+export function DocumentDetails({document,pageCount,onPageChange,onSelectRelated}:{document:CatalogDetail;pageCount:number;onPageChange:(page:number)=>void;onSelectRelated:(id:string)=>void}){
  const {summary,scope,review}=document;
  return <div className="knowledge-catalog-detail-body">
   <dl className="knowledge-catalog-facts knowledge-catalog-detail-facts">
    <Fact label="รหัสสายเอกสาร">{summary.familyId}</Fact><Fact label="ประเภทเอกสาร">{summary.documentType}</Fact><Fact label="ปีการศึกษา">{summary.academicYear??'ไม่ระบุ'}</Fact><Fact label="วันที่เผยแพร่">{showDate(summary.publishedAt)}</Fact>
    <Fact label="ระดับอำนาจ">{summary.authorityLevel}</Fact><Fact label="วันที่อนุมัติ">{showDate(summary.approvedAt)}</Fact><Fact label="วันที่มีผลเริ่มต้น">{showDate(summary.effectiveFrom)}</Fact><Fact label="วันที่มีผลสิ้นสุด">{showDate(summary.effectiveTo)}</Fact>
+   {summary.temporalBasis==='CURRENT_REVIEWED'&&<><Fact label="ฐานเวลา">ข้อมูลปัจจุบันจากการตรวจทาน</Fact><Fact label="ตรวจทานเมื่อ">{showDate(summary.currentReviewedAt??null)}</Fact></>}
    <Fact label="วันที่สร้างรายการ">{showDate(document.createdAt)}</Fact><Fact label="วันที่ปรับปรุงรายการ">{showDate(document.updatedAt)}</Fact><Fact label="รหัสฉบับที่ถูกแทนที่">{document.supersedesDocumentId??'ไม่มีข้อมูล'}</Fact>
    <Fact label="ภาคการศึกษา">{scope.semester??'ไม่ระบุ'}</Fact><Fact label="กลุ่มผู้ใช้">{scope.audience}</Fact><Fact label="ประเภทนักศึกษา">{scope.studentType}</Fact><Fact label="หลักสูตร">{scope.programCode??'ไม่ระบุ'}</Fact><Fact label="รหัสหลักสูตร">{scope.curriculumCode??'ไม่ระบุ'}</Fact><Fact label="รุ่นเข้าศึกษา">{scope.cohort??'ไม่ระบุ'}</Fact>
    <Fact label="แหล่งทางการ">{review.officialSource?'ใช่':'ไม่ใช่'}</Fact><Fact label="ตรวจผลการสกัดแล้ว">{review.extractionReviewed?'ใช่':'ไม่ใช่'}</Fact><Fact label="ต้องตรวจเพิ่มเติม">{review.requiresReview?'ใช่':'ไม่ใช่'}</Fact><Fact label="เก็บเป็นเอกสารย้อนหลังเท่านั้น">{review.archiveOnly?'ใช่':'ไม่ใช่'}</Fact>

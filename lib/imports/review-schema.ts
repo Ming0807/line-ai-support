@@ -3,6 +3,7 @@ import {isValidKnowledgeDate} from '../knowledge/metadata-filter';
 import {isOfficialYruUrl} from './source';
 import {datasetTypes} from './types';
 import {validateStructuredMapping,StructuredMappingError,type StructuredMapping} from './structured-mapping-contract';
+import {publicSourceReviewSchema} from './public-source-review';
 
 export const REVIEW_LIMITS={requestBytes:2*1024*1024,payloadBytes:1024*1024} as const;
 const revision=z.number().int().min(0).max(999_999_999);
@@ -36,13 +37,14 @@ export function hasStructuredMappingLimit(error:z.ZodError):boolean{return error
 const structuredDraft=currentDraft.extend({schemaVersion:z.literal(3),structuredMapping:z.object({mapping:structuredMappingSchema,
  acknowledgment:z.object({contentDigest:z.string().regex(/^[a-f0-9]{64}$/),mapperVersion:z.literal('structured-mapper-v1')}).strict().nullable(),
 }).strict().nullable()});
-export const reviewDraftSchema=z.discriminatedUnion('schemaVersion',[legacyDraft,currentDraft,structuredDraft]).superRefine((value,ctx)=>{
+const publicDraft=structuredDraft.extend({schemaVersion:z.literal(4),publicSourceReview:publicSourceReviewSchema});
+export const reviewDraftSchema=z.discriminatedUnion('schemaVersion',[legacyDraft,currentDraft,structuredDraft,publicDraft]).superRefine((value,ctx)=>{
  const issue=(path:(string|number)[])=>ctx.addIssue({code:'custom',message:'IMPORT_REVIEW_INVALID',path});
  const requiresTarget=value.action==='REPLACE_CURRENT'||value.action==='AMEND_EXISTING'||value.relationship==='CANCELS';
  if(requiresTarget!==(value.target!==null))issue(['target']);
  if(value.relationship==='CANCELS'&&value.action!=='ADD_ADDITIONAL')issue(['relationship']);
  if(value.metadata.newFamily!==null&&value.action!=='NEW_FAMILY')issue(['metadata','newFamily']);
- if(value.schemaVersion===3){
+ if(value.schemaVersion===3||value.schemaVersion===4){
   if(value.metadata.storageMode==='STRUCTURED'&&value.chunkPlan!==null)issue(['chunkPlan']);
   if(value.structuredMapping!==null){
    if(value.metadata.storageMode!=='STRUCTURED'&&value.metadata.storageMode!=='BOTH')issue(['metadata','storageMode']);

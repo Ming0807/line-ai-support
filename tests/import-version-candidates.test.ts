@@ -8,6 +8,10 @@ function document(overrides:Partial<VersionDocument>={}):VersionDocument{return 
  scope:{semester:null,audience:'ALL',studentType:'ALL',programCode:null,curriculumCode:null,cohort:null},status:'ACTIVE',isCurrent:true,approved:true,isAmendment:false,isCancellation:false,effectiveFrom:'2026-01-01',effectiveTo:null,...overrides};}
 const targets=(row:VersionDocument,review=metadata())=>buildVersionCandidates(review,family,[row]).candidates[0].targetActions;
 describe('reviewed version candidate choices never publish or infer intent',()=>{
+ it('never offers timed replacement or rule effects on a current-reviewed target',()=>{
+  expect(targets(document({temporalBasis:'CURRENT_REVIEWED',effectiveFrom:null}))).toEqual([]);
+  expect(targets(document({temporalBasis:'DATED'}))).toEqual(['REPLACE_CURRENT','AMEND_EXISTING','CANCELS']);
+ });
  it('requires explicit family/department/type/stream and audience/student type rather than interpreting null as ALL',()=>{
   const result=buildVersionCandidates(unfinishedReviewDraft().metadata,null,[]);expect(result.missingMetadata).toEqual(['familyCode','departmentCode','documentType','versionStream','audience','studentType']);expect(result.availableActions).toEqual([]);expect(result.candidates).toEqual([]);
  });

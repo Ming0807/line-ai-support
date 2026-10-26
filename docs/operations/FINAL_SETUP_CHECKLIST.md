@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+26OctoberROOT-CORPUS-PUBLIC-02: schema44migrations/74RLStablesและpublicRAGschema4ใช้แล้วบนDEVELOPMENT; normalYRU182/027เผยแพร่และค้นคืนแล้วรวมPUBLIC7. Runtimecheckตอนปิดงานไม่พบlistener3000/8000; หยุดเฉพาะE5ที่rootเปิดชั่วคราวเพื่อpublicationเรียบร้อย. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้
+
 อัปเดต25ตุลาคม2026 หลังผู้ใช้สั่งลุยต่อ: rootเปิดlocal:aiไว้ให้พร้อมแล้ว ผู้ใช้ยังเป็นผู้ทดสอบคำตอบ/LINEจริงภายหลังตามDEC166. ไม่ยิงmodeltestsเพิ่ม และchecklistนี้ไม่ใช่การประกาศV1ผ่านการตรวจรับจริง
 
 ## Runtime ตอนนี้และคำสั่งที่ใช้

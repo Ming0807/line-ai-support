@@ -5,6 +5,7 @@ export interface VersionDocument {
  documentId:string;revision:number;title:string;departmentCode:string|null;documentType:string;versionName:string;versionStream:string;academicYear:number|null;
  scope:{semester:string|null;audience:string;studentType:string;programCode:string|null;curriculumCode:string|null;cohort:number|null};
  status:KnowledgeMetadata['status'];isCurrent:boolean;approved:boolean;isAmendment:boolean;isCancellation:boolean;effectiveFrom:string|null;effectiveTo:string|null;
+ temporalBasis?:'DATED'|'CURRENT_REVIEWED';
 }
 export type VersionTargetAction='REPLACE_CURRENT'|'AMEND_EXISTING'|'CANCELS';
 export interface VersionCandidate extends VersionDocument {matchingScope:boolean;targetActions:VersionTargetAction[]}
@@ -28,9 +29,9 @@ export function buildVersionCandidates(metadata:ImportReviewDraft['metadata'],fa
   const currentBase=eligible&&row.isCurrent&&row.status==='ACTIVE'&&!row.isAmendment;
   const sameYear=row.academicYear===metadata.academicYear;
   const targetActions:VersionTargetAction[]=[];
-  if(currentBase&&row.versionStream===metadata.versionStream)targetActions.push('REPLACE_CURRENT');
-  if(currentBase&&sameYear)targetActions.push('AMEND_EXISTING');
-  if(eligible&&sameYear)targetActions.push('CANCELS');
+  if(currentBase&&row.versionStream===metadata.versionStream&&row.temporalBasis!=='CURRENT_REVIEWED')targetActions.push('REPLACE_CURRENT');
+  if(currentBase&&sameYear&&row.temporalBasis!=='CURRENT_REVIEWED')targetActions.push('AMEND_EXISTING');
+  if(eligible&&sameYear&&row.temporalBasis!=='CURRENT_REVIEWED')targetActions.push('CANCELS');
   return {...row,scope:{...row.scope},matchingScope,targetActions};
  });
  return result;

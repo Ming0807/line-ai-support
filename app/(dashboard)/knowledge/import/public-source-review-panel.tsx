@@ -1,0 +1,128 @@
+'use client';
+
+import type {ImportReviewDraft} from '@/lib/imports/review-schema';
+import type {PublicSourceReview} from '@/lib/imports/public-source-review';
+
+type Category='GRADES'|'STUDENT_RECORDS'|'PHONE';
+type Basis=PublicSourceReview['sensitivityAdjudications'][number]['basis'];
+type Props={
+ value:PublicSourceReview;
+ documentType:ImportReviewDraft['metadata']['documentType'];
+ visibility:ImportReviewDraft['metadata']['visibility'];
+ storageMode:ImportReviewDraft['metadata']['storageMode'];
+ publishedAt:string|null;
+ effectiveFrom:string|null;
+ effectiveTo:string|null;
+ action:ImportReviewDraft['action'];
+ relationship:ImportReviewDraft['relationship'];
+ target:ImportReviewDraft['target'];
+ sourceUrl:string|null;
+ sensitiveCategories:readonly string[];
+ disabled:boolean;
+ onChange:(value:PublicSourceReview)=>void;
+};
+
+const categoryNames:Record<string,string>={GRADES:'ผลการเรียน',STUDENT_RECORDS:'ข้อมูลนักศึกษา',PHONE:'หมายเลขโทรศัพท์'};
+const basisNames:Record<Basis,string>={
+ GENERAL_POLICY_WORDING:'ถ้อยคำของนโยบายทั่วไป',
+ PUBLIC_BLANK_TEMPLATE:'ช่องข้อมูลในแบบฟอร์มว่าง',
+ INSTITUTIONAL_CONTACT:'หมายเลขติดต่อของหน่วยงาน',
+};
+const categorySet=new Set<Category>(['GRADES','STUDENT_RECORDS','PHONE']);
+export function publicSourceCategoryName(category:string):string{return categoryNames[category]??category;}
+export function publicSourceBasisName(basis:Basis):string{return basisNames[basis];}
+
+function basesFor(category:Category):Basis[]{
+ if(category==='GRADES')return ['GENERAL_POLICY_WORDING','PUBLIC_BLANK_TEMPLATE'];
+ if(category==='STUDENT_RECORDS')return ['PUBLIC_BLANK_TEMPLATE'];
+ return ['INSTITUTIONAL_CONTACT'];
+}
+
+function basisMatchesType(basis:Basis,documentType:string|null):boolean{
+ if(basis==='GENERAL_POLICY_WORDING')return ['REGULATION','GUIDE','CALENDAR','ANNOUNCEMENT'].includes(documentType??'');
+ if(basis==='PUBLIC_BLANK_TEMPLATE')return documentType==='FORM';
+ return documentType==='GUIDE';
+}
+
+export function publicSourceReviewIssues(input:Props):string[]{
+ const issues:string[]=[];
+ if(input.visibility!=='PUBLIC'||input.storageMode!=='RAG')issues.push('การทบทวนแหล่งข้อมูลสาธารณะใช้ได้เฉพาะเอกสารสาธารณะที่ค้นจากข้อความ (RAG)');
+ if(!input.sourceUrl?.trim())issues.push('ระบุ URL ต้นฉบับทางการก่อน');
+ if(input.value.temporalBasis==='CURRENT_REVIEWED'){
+  if(!['FORM','GUIDE','CALENDAR'].includes(input.documentType??''))issues.push('การทบทวนแบบข้อมูลปัจจุบันใช้กับแบบฟอร์ม คู่มือ หรือปฏิทินเท่านั้น');
+  if(input.effectiveFrom!==null||input.effectiveTo!==null)issues.push('ล้างวันที่เริ่มมีผลและวันสิ้นผล เพราะต้นฉบับไม่ได้ระบุวันเหล่านี้');
+  if(!input.value.temporalReason?.trim())issues.push('ระบุเหตุผลที่ยืนยันข้อมูลปัจจุบันโดยไม่แทนวันที่ที่ไม่มีในต้นฉบับ');
+  if(input.action!=='NEW_FAMILY'&&input.action!=='ADD_ADDITIONAL'||input.relationship!==null||input.target!==null)issues.push('เลือกการเพิ่มเอกสารใหม่หรือเพิ่มฉบับในกลุ่มเดิมโดยไม่ผูกกับฉบับหรือการยกเลิก');
+ }
+ if(input.value.temporalBasis==='DATED'&&input.effectiveFrom===null)issues.push('วันที่เริ่มมีผลยังจำเป็นสำหรับเส้นทางที่ใช้วันที่');
+ const adjudications=input.value.sensitivityAdjudications;
+ const supported=input.sensitiveCategories.filter((category):category is Category=>categorySet.has(category as Category));
+ const unsupported=input.sensitiveCategories.filter(category=>!categorySet.has(category as Category));
+ if(unsupported.length)issues.push(`หมวดหมู่ ${unsupported.map(category=>categoryNames[category]??category).join('、')} ยังใช้การทบทวนแหล่งข้อมูลสาธารณะนี้ไม่ได้`);
+ if(adjudications.length!==supported.length||supported.some(category=>!adjudications.some(item=>item.category===category)))issues.push('เลือกเหตุผลให้ครบทุกหมวดหมู่ที่ระบบตรวจพบ');
+ for(const item of adjudications){
+  if(!input.sensitiveCategories.includes(item.category))issues.push(`ลบการพิจารณา ${categoryNames[item.category]} ที่ไม่ตรงกับผลวิเคราะห์ปัจจุบัน`);
+  if(!basisMatchesType(item.basis,input.documentType))issues.push(`ประเภทเอกสารปัจจุบันไม่รองรับเหตุผล “${basisNames[item.basis]}”`);
+  if(item.basis==='GENERAL_POLICY_WORDING'&&item.category!=='GRADES'||item.basis==='PUBLIC_BLANK_TEMPLATE'&&!['STUDENT_RECORDS','GRADES'].includes(item.category)||item.basis==='INSTITUTIONAL_CONTACT'&&item.category!=='PHONE')issues.push(`เหตุผล “${basisNames[item.basis]}” ไม่ตรงกับหมวดหมู่ ${categoryNames[item.category]}`);
+  if(!item.reason?.trim())issues.push(`ระบุเหตุผลจากต้นฉบับสำหรับ ${categoryNames[item.category]}`);
+ }
+ return [...new Set(issues)];
+}
+
+export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,disabled,onChange}:Props){
+ const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,disabled,onChange});
+ const update=(patch:Partial<PublicSourceReview>)=>onChange({...value,...patch});
+
+ function setAdjudication(category:Category,basis:Basis|''){
+  const current=value.sensitivityAdjudications.find(item=>item.category===category);
+  const next=value.sensitivityAdjudications.filter(item=>item.category!==category);
+  if(basis)next.push({category,basis,reason:current?.reason??null});
+  update({sensitivityAdjudications:next});
+ }
+ function setReason(category:Category,reason:string){
+  update({sensitivityAdjudications:value.sensitivityAdjudications.map(item=>item.category===category?{...item,reason:reason===''?null:reason}:item)});
+ }
+
+ return <section className="knowledge-review-section knowledge-public-source-review" aria-labelledby="public-source-review-title">
+  <h4 id="public-source-review-title">ทบทวนแหล่งข้อมูลสาธารณะ</h4>
+  <p className="knowledge-hint">บันทึกการพิจารณาแยกจากคำเตือนเดิม ระบบยังเก็บผลตรวจและประวัติการทบทวนไว้ครบ</p>
+  <div className="knowledge-review-grid">
+   <label className="knowledge-field">
+    ฐานการระบุเวลา
+    <select value={value.temporalBasis} disabled={disabled} onChange={event=>update({temporalBasis:event.currentTarget.value as PublicSourceReview['temporalBasis'],temporalReason:event.currentTarget.value==='DATED'?null:value.temporalReason})}>
+     <option value="DATED">ระบุวันที่ตามต้นฉบับ</option>
+     <option value="CURRENT_REVIEWED">ตรวจแล้วว่าเป็นข้อมูลปัจจุบัน โดยต้นฉบับไม่ระบุวันเริ่มใช้</option>
+    </select>
+    <span className="knowledge-hint">วันที่ประกาศเว้นว่างได้เมื่อไม่ปรากฏในต้นฉบับ ระบบจะไม่ใช้วันดึงหน้าแทน</span>
+   </label>
+   {value.temporalBasis==='CURRENT_REVIEWED'&&<label className="knowledge-field">
+    เหตุผลที่ยืนยันข้อมูลปัจจุบัน *
+    <textarea value={value.temporalReason??''} maxLength={500} disabled={disabled} placeholder="บันทึกสิ่งที่ตรวจจากหน้าแหล่งทางการ" onChange={event=>update({temporalReason:event.currentTarget.value===''?null:event.currentTarget.value})}/>
+   </label>}
+  </div>
+  {value.temporalBasis==='CURRENT_REVIEWED'&&<p className="knowledge-hint">ใช้ได้กับแบบฟอร์ม คู่มือ หรือปฏิทินที่ไม่มีวันเริ่ม/สิ้นผล และเพิ่มเป็นเอกสารใหม่หรือฉบับเพิ่มเติมเท่านั้น</p>}
+  {sensitiveCategories.length>0&&<ul className="knowledge-review-warnings" aria-label="การพิจารณาหมวดหมู่ที่ตรวจพบ">
+   {sensitiveCategories.map(category=>{
+    if(!categorySet.has(category as Category))return <li key={category}><p className="knowledge-review-stale">{categoryNames[category]??category}: หมวดหมู่นี้ยังใช้การทบทวนแหล่งข้อมูลสาธารณะนี้ไม่ได้</p></li>;
+    const typed=category as Category,current=value.sensitivityAdjudications.find(item=>item.category===typed),options=basesFor(typed).filter(basis=>basisMatchesType(basis,documentType));
+    const visibleOptions=current&&!options.includes(current.basis)?[current.basis,...options]:options;
+    return <li key={typed}><fieldset>
+     <legend>{categoryNames[typed]} · ผลตรวจยังคงอยู่</legend>
+     <label className="knowledge-field">
+      เหตุผลที่ตรงกับต้นฉบับ
+      <select value={current?.basis??''} disabled={disabled} onChange={event=>setAdjudication(typed,event.currentTarget.value as Basis|'')}>
+       <option value="">{options.length?'เลือกเหตุผลจากต้นฉบับ':'เลือกประเภทเอกสารที่ตรงกับต้นฉบับก่อน'}</option>
+       {visibleOptions.map(basis=><option value={basis} key={basis}>{basisNames[basis]}{!options.includes(basis)?' · ไม่ตรงกับประเภทเอกสาร':''}</option>)}
+      </select>
+     </label>
+     {current&&<label className="knowledge-field">
+      เหตุผลจากการตรวจต้นฉบับ *
+      <textarea value={current.reason??''} maxLength={500} disabled={disabled} placeholder="ระบุว่าตรวจตรงไหนและพบอะไร" onChange={event=>setReason(typed,event.currentTarget.value)}/>
+     </label>}
+    </fieldset></li>;
+   })}
+  </ul>}
+  {issues.length>0&&<div className="knowledge-review-stale" role="status"><strong>ยังไม่ครบสำหรับการพิจารณานี้</strong><ul>{issues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
+  {sensitiveCategories.length===0&&<p className="knowledge-hint">ยังไม่มีหมวดหมู่ที่ต้องพิจารณาเพิ่ม</p>}
+ </section>;
+}

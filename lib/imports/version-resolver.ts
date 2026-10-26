@@ -55,7 +55,7 @@ export async function resolveImportReviewVersions(actor:string,id:string,review:
       d.status,d.is_current "isCurrent",(d.approval_status='APPROVED') approved,
       exists(select 1 from public.document_relationships r where r.source_document_id=d.id and r.relation_type='AMENDS') "isAmendment",
       exists(select 1 from public.document_relationships r where r.source_document_id=d.id and r.relation_type='CANCELS') "isCancellation",
-      d.effective_from::text "effectiveFrom",d.effective_to::text "effectiveTo"
+      d.effective_from::text "effectiveFrom",d.effective_to::text "effectiveTo",d.temporal_basis "temporalBasis"
      from public.documents d left join public.departments department on department.id=d.department_id
      where d.document_family_id=f.id order by d.id limit 101
     ) candidate),'[]'::jsonb) documents from public.document_families f where f.code=$1`,[metadata.familyCode,metadata.versionStream])).rows[0];

@@ -3,14 +3,16 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
   select coalesce($12::date,$10::date,(statement_timestamp() at time zone 'Asia/Bangkok')::date) evaluation_date
  ), eligible_documents as materialized (
   select d.*,f.code as family_code,row_number() over(partition by d.document_family_id,d.version_stream
-   order by d.effective_from desc,d.approved_at desc,d.id) as version_rank,f.rule_revision::text rule_revision,
+   order by d.effective_from desc nulls last,d.approved_at desc,d.id) as version_rank,f.rule_revision::text rule_revision,
    rd.evaluation_date,
    case when $2::text is not null and dept.code=$2 then 1 else 0 end department_relevance
   from public.documents d join public.document_families f on f.id=d.document_family_id
   left join public.departments dept on dept.id=d.department_id
   cross join request_date rd
   where d.approval_status='APPROVED' and d.official_source and d.extraction_reviewed and not d.requires_review
-   and d.visibility='PUBLIC' and not d.archive_only and d.effective_from is not null
+   and d.visibility='PUBLIC' and not d.archive_only
+   and (d.temporal_basis='DATED' and d.effective_from is not null or d.temporal_basis='CURRENT_REVIEWED' and d.current_reviewed_at is not null and d.effective_from is null and d.effective_to is null
+    and exists(select 1 from private.knowledge_import_publications publication where publication.document_id=d.id and publication.storage_mode='RAG'))
    and not exists(select 1 from public.document_relationships r where r.source_document_id=d.id and r.relation_type in ('AMENDS','CANCELS'))
    and (cardinality($1::text[])=0 or f.code=any($1::text[]))
    and ($2::text is null or d.department_id is null or dept.code=$2)
@@ -18,10 +20,10 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
    and (d.semester is null or d.semester=$5::text) and (d.program_code is null or d.program_code=$6::text)
    and (d.curriculum_code is null or d.curriculum_code=$7::text) and (d.cohort is null or d.cohort=$8::integer)
    and ((not $9::boolean and d.status='ACTIVE' and d.is_current
-     and d.effective_from<=rd.evaluation_date
+     and (d.temporal_basis='DATED' and d.effective_from<=rd.evaluation_date or d.temporal_basis='CURRENT_REVIEWED' and (d.current_reviewed_at at time zone 'Asia/Bangkok')::date<=rd.evaluation_date)
      and (d.effective_to is null or d.effective_to>=rd.evaluation_date)
      and ($11::integer is null or d.academic_year is null or d.academic_year=$11))
-    or ($9::boolean and d.status in ('ACTIVE','SUPERSEDED','EXPIRED')
+    or ($9::boolean and d.temporal_basis='DATED' and d.status in ('ACTIVE','SUPERSEDED','EXPIRED')
      and ($11::integer is null or d.academic_year=$11)
      and ($12::date is null or (d.effective_from<=$12 and (d.effective_to is null or d.effective_to>=$12)))))
  ), base_ambiguity as (
@@ -43,7 +45,7 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
   where d.document_family_id=b.document_family_id and d.version_stream=b.version_stream
    and d.academic_year is not distinct from b.academic_year
    and d.approval_status='APPROVED' and d.official_source and d.extraction_reviewed and not d.requires_review
-   and d.visibility='PUBLIC' and not d.archive_only and d.effective_from is not null
+   and d.visibility='PUBLIC' and not d.archive_only and d.effective_from is not null and d.temporal_basis='DATED'
    and (d.status='ACTIVE' or $9::boolean and d.status in ('SUPERSEDED','EXPIRED'))
    and ($2::text is null or d.department_id is null or dept.code=$2)
    and ($3::text is null or d.audience='ALL' or d.audience=$3)
@@ -60,7 +62,7 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
   join public.documents d on d.id=r.source_document_id left join public.departments dept on dept.id=d.department_id
   where d.document_family_id=b.document_family_id and d.version_stream=b.version_stream and d.academic_year is not distinct from b.academic_year
    and d.approval_status='APPROVED' and d.official_source and d.extraction_reviewed and not d.requires_review
-   and d.visibility='PUBLIC' and not d.archive_only and d.effective_from is not null
+   and d.visibility='PUBLIC' and not d.archive_only and d.effective_from is not null and d.temporal_basis='DATED'
    and (d.status='ACTIVE' or $9::boolean and d.status in ('SUPERSEDED','EXPIRED'))
    and ($2::text is null or d.department_id is null or dept.code=$2)
    and ($3::text is null or d.audience='ALL' or d.audience=$3) and ($4::text is null or d.student_type='ALL' or d.student_type=$4)

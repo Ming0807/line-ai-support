@@ -9,16 +9,18 @@ import {
   requiredReviewFields,
   type ImportAssistance,
 } from '@/lib/imports/assistance-contract';
+import type {PublicSourceReview} from '@/lib/imports/public-source-review';
 import CommonValueField from './common-value-field';
 import VersionPanel from './version-panel';
 import ChunkPlanPanel from './chunk-plan-panel';
 import ApprovalPanel from './approval-panel';
 import StructuredMappingPanel from './structured-mapping-panel';
+import PublicSourceReviewPanel,{publicSourceReviewIssues} from './public-source-review-panel';
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {StructuredMappingChange} from './structured-client-contract';
 import ModelAssistancePanel,{applyModelSuggestionsToDraft} from './model-assistance-panel';
 import type {ImportModelSuggestion} from '@/lib/imports/model-assistance-contract';
-import {changeReviewMode,acknowledgeReviewChunks,restartReviewDraft,reviewPublicationEvidence} from './review-state';
+import {changeReviewMode,acknowledgeReviewChunks,restartReviewDraft,reviewPublicationEvidence,enablePublicSourceReview} from './review-state';
 import {getImportReviewChecklist} from './import-flow';
 import type {VersionCandidate} from '@/lib/imports/version-candidates';
 
@@ -131,6 +133,14 @@ function normalizeDraft(draft:ImportReviewDraft):ImportReviewDraft{
     warningDispositions:draft.warningDispositions.map(item=>({...item,reason:clean(item.reason)})),
   };
 
+  if(normalized.schemaVersion===4){
+    normalized.publicSourceReview={
+      ...normalized.publicSourceReview,
+      temporalReason:clean(normalized.publicSourceReview.temporalReason),
+      sensitivityAdjudications:normalized.publicSourceReview.sensitivityAdjudications.map(item=>({...item,reason:clean(item.reason)})),
+    };
+  }
+
   if(normalized.schemaVersion===3){
     if(normalized.metadata.storageMode==='STRUCTURED'){
       (normalized as {chunkPlan?:unknown}).chunkPlan=null;
@@ -149,6 +159,7 @@ function isRecord(value:unknown):value is Record<string,unknown>{
 function isReviewState(value:unknown):value is ImportReviewState{
   return isRecord(value)&&typeof value.jobId==='string'&&typeof value.jobRevision==='number'&&typeof value.extractionRevision==='number'&&
     typeof value.reviewRevision==='number'&&typeof value.stale==='boolean'&&Array.isArray(value.warnings)&&
+    (value.sensitiveCategories===undefined||Array.isArray(value.sensitiveCategories)&&value.sensitiveCategories.every(category=>typeof category==='string'))&&
     value.warnings.every(warning=>isRecord(warning)&&typeof warning.key==='string'&&typeof warning.code==='string'&&
       (warning.source==='PARSER'||warning.source==='ANALYSIS')&&(warning.severity==='BLOCKING'||warning.severity==='REVIEW')&&typeof warning.count==='number')&&
     (value.saved===null||(isRecord(value.saved)&&typeof value.saved.reviewRevision==='number'&&isRecord(value.saved.draft)));
@@ -259,9 +270,13 @@ export default function ReviewForm({
   const updateMetadata=useCallback(<K extends keyof ImportReviewDraft['metadata']>(key:K,value:ImportReviewDraft['metadata'][K])=>{
     setMutation(current=>{
       if(key==='storageMode'&&(value==='RAG'||value==='STRUCTURED'||value==='BOTH'))return changeReviewMode(current,value);
-      if(key==='datasetType'&&current.schemaVersion===3)return {...current,metadata:{...current.metadata,[key]:value},structuredMapping:null};
+      if(key==='datasetType'&&(current.schemaVersion===3||current.schemaVersion===4))return {...current,metadata:{...current.metadata,[key]:value},structuredMapping:null};
       return {...current,metadata:{...current.metadata,[key]:value}};
     });
+  },[setMutation]);
+
+  const updatePublicSourceReview=useCallback((value:PublicSourceReview)=>{
+    setMutation(current=>current.schemaVersion===4?{...current,publicSourceReview:value}:current);
   },[setMutation]);
 
   const updateScopeText=useCallback((key:Exclude<keyof ImportReviewDraft['metadata']['scope'],'cohort'>,value:string|null)=>{
@@ -294,6 +309,7 @@ export default function ReviewForm({
 
   const onStructuredDraftChange=useCallback((value:StructuredMappingChange)=>{
     setMutation(current=>{
+      if(current.schemaVersion===4)return current;
       if(current.metadata.storageMode!=='STRUCTURED'&&current.metadata.storageMode!=='BOTH')return current;
       const chunkPlan=current.metadata.storageMode==='STRUCTURED'
         ?null
@@ -487,7 +503,17 @@ export default function ReviewForm({
     setMutation(current=>({...current,attestations:{...current.attestations,[key]:value}}));
   }
 
-  const missingFields=draft?requiredReviewFields(draft.metadata):[];
+  const sourceReviewIssues=draft&&review&&draft.schemaVersion===4?publicSourceReviewIssues({
+    value:draft.publicSourceReview,documentType:draft.metadata.documentType,visibility:draft.metadata.visibility,storageMode:draft.metadata.storageMode,
+    publishedAt:draft.metadata.publishedAt,effectiveFrom:draft.metadata.effectiveFrom,effectiveTo:draft.metadata.effectiveTo,
+    action:draft.action,relationship:draft.relationship,target:draft.target,sourceUrl:draft.metadata.sourceUrl,
+    sensitiveCategories:review.sensitiveCategories??[],disabled,
+    onChange:()=>undefined,
+  }):[];
+  const missingFields=draft?[
+    ...requiredReviewFields(draft.metadata,draft.schemaVersion===4?draft.publicSourceReview:undefined),
+    ...sourceReviewIssues.map((label,index)=>({key:`publicSourceReview.${index}`,label})),
+  ]:[];
   const families=assistance?.families??[];
   const departments=assistance?.departments??[];
   const origins=assistance?.origins??{};
@@ -856,6 +882,33 @@ export default function ReviewForm({
 
           </details>
 
+          {mode==='review'&&draft.metadata.visibility==='PUBLIC'&&draft.schemaVersion<4&&<div className="knowledge-review-section" id="review-public-source-upgrade">
+            <div className="knowledge-review-attestations"><label>
+              <input type="checkbox" disabled={disabled} checked={false} onChange={event=>{if(event.currentTarget.checked)setMutation(current=>enablePublicSourceReview(current));}}/>
+              <span>เริ่มทบทวนแหล่งข้อมูลสาธารณะและยืนยันวันที่จากต้นฉบับ</span>
+            </label></div>
+            <p className="knowledge-hint">เปิดเมื่อจำเป็นต้องบันทึกเหตุผลของวันหรือหมวดหมู่ที่ระบบตรวจพบ การเปิดจะเก็บคำเตือนและคำยืนยันเดิมไว้</p>
+          </div>}
+          {mode==='review'&&draft.schemaVersion===4&&<>
+            <p className="knowledge-review-state">เปิดการทบทวนแหล่งข้อมูลสาธารณะแล้ว · ทุกเหตุผลต้องมาจากการตรวจต้นฉบับ</p>
+            <PublicSourceReviewPanel
+              value={draft.publicSourceReview}
+              documentType={draft.metadata.documentType}
+              visibility={draft.metadata.visibility}
+              storageMode={draft.metadata.storageMode}
+              publishedAt={draft.metadata.publishedAt}
+              effectiveFrom={draft.metadata.effectiveFrom}
+              effectiveTo={draft.metadata.effectiveTo}
+              action={draft.action}
+              relationship={draft.relationship}
+              target={draft.target}
+              sourceUrl={draft.metadata.sourceUrl}
+              sensitiveCategories={review?.sensitiveCategories??[]}
+              disabled={disabled}
+              onChange={updatePublicSourceReview}
+            />
+          </>}
+
           <details className="knowledge-review-details knowledge-review-progressive" id="review-version" open={versionDetailsOpen||versionDetailsNeedReview} onToggle={event=>setVersionDetailsOpen(event.currentTarget.open)}>
             <summary>วิธีเพิ่มเอกสารและเลือกฉบับ · {draft.action?actionLabels[draft.action]??'เลือกแล้ว':'ยังไม่เลือก'}</summary>
             <div className="knowledge-review-section">
@@ -924,7 +977,7 @@ export default function ReviewForm({
 
             {(draft.metadata.storageMode==='STRUCTURED'||draft.metadata.storageMode==='BOTH')&&<div className="knowledge-review-section">
               <h4>ข้อมูลจากตาราง</h4>
-              <StructuredMappingPanel
+              {draft.schemaVersion===4?<p className="knowledge-review-stale" role="alert">การทบทวนแหล่งข้อมูลสาธารณะนี้รองรับเฉพาะ RAG กรุณาเลือกค้นหาจากข้อความเพื่อใช้การพิจารณานี้</p>:<StructuredMappingPanel
               key={`mapping:${jobId}:${jobRevision}:${extractionRevision}:${review.reviewRevision}:${draft.metadata.storageMode}`}
               jobId={jobId}
               disabled={disabled || versionSelectionPending}
@@ -932,7 +985,7 @@ export default function ReviewForm({
               savedValue={draft.schemaVersion===3?draft.structuredMapping:null}
               onChange={onStructuredDraftChange}
               onVerifiedChange={setStructuredVerified}
-            />
+              />}
             </div>}
           </details>
 

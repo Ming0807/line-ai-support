@@ -16,6 +16,7 @@ export interface ImportReviewOptions extends ImportExtractionOptions {
 }
 export interface ImportReviewState {
  jobId:string;jobRevision:number;extractionRevision:number;reviewRevision:number;stale:boolean;warnings:ReviewWarning[];
+ sensitiveCategories?:ImportPreview['analysis']['sensitiveCategories'];
  saved:{reviewRevision:number;jobRevision:number;extractionRevision:number;actorId:string;createdAt:string;draft:ImportReviewDraft}|null;
 }
 interface ReviewRow {
@@ -43,7 +44,7 @@ function readDraft(row:ReviewRow,id:string,checksum:string,options:ImportReviewO
  const draft=reviewDraftSchema.parse(JSON.parse(serialized));if(JSON.stringify(draft)!==serialized)throw new ImportStagingError('INTERNAL_ERROR');return draft;
 }
 function state(preview:ImportPreview,saved:ImportReviewState['saved']):ImportReviewState {
- return {jobId:preview.job.id,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,reviewRevision:saved?.reviewRevision??0,
+ return {jobId:preview.job.id,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,reviewRevision:saved?.reviewRevision??0,sensitiveCategories:[...preview.analysis.sensitiveCategories],
   stale:saved!==null&&(saved.jobRevision!==preview.job.revision||saved.extractionRevision!==preview.extractionRevision),warnings:buildReviewWarnings(preview),saved};
 }
 export async function getImportReview(actor:string,id:string,options:ImportReviewOptions={}):Promise<ImportReviewState>{
@@ -75,8 +76,8 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
   if(preview.job.revision!==request.expectedJobRevision||preview.extractionRevision!==request.expectedExtractionRevision)throw new ImportStagingError('CONFLICT');
   const snapshot=await withImportAdminTransaction(actor,options,client=>lockedSnapshot(client,preview,'share'));
   if((snapshot.row?.review_revision??0)!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
-  if(request.expectedReviewRevision>=999_999_999||request.draft.schemaVersion===3&&preview.job.status!=='READY')throw new ImportStagingError('CONFLICT');
-  if(snapshot.row&&request.draft.schemaVersion!==3&&readDraft(snapshot.row,id,snapshot.checksum,options).schemaVersion===3)throw new ImportStagingError('CONFLICT');
+  if(request.expectedReviewRevision>=999_999_999||request.draft.schemaVersion>=3&&preview.job.status!=='READY')throw new ImportStagingError('CONFLICT');
+  if(snapshot.row&&request.draft.schemaVersion<readDraft(snapshot.row,id,snapshot.checksum,options).schemaVersion)throw new ImportStagingError('CONFLICT');
   try{assertReviewWarningBindings(buildReviewWarnings(preview),request.draft.warningDispositions);}catch{throw new ImportStagingError('INVALID_REQUEST');}
   if(request.draft.schemaVersion!==1&&request.draft.chunkPlan!==null){
    const plan=await prepareImportChunkPlan(actor,preview,options);
@@ -93,7 +94,7 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
   const encrypted=encryptStagingValue(serialized,receiptContext(id,snapshot.checksum,preview.job.revision,preview.extractionRevision,reviewRevision),keyFor(options));
   checkSignal(options);await options.beforeCommit?.();checkSignal(options);
   const row=await withImportAdminTransaction(actor,options,async client=>{
-   const current=await lockedSnapshot(client,preview,'update',request.draft.schemaVersion===3);checkSignal(options);
+   const current=await lockedSnapshot(client,preview,'update',request.draft.schemaVersion>=3);checkSignal(options);
    if(current.checksum!==snapshot.checksum||(current.row?.review_revision??0)!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
    const inserted=(await client.query<ReviewRow>(`insert into private.knowledge_import_reviews(job_id,review_revision,job_revision,extraction_revision,actor_id,payload_hash,review_encrypted)
     values($1,$2,$3,$4,$5,$6,$7) returning review_revision,job_revision,extraction_revision,actor_id,payload_hash,review_encrypted,created_at`,

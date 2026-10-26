@@ -7,7 +7,7 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-172; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-173; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
@@ -19,8 +19,8 @@
 - QA pre-screenerเป็นคิวให้คนตรวจ ผูกartifactSHAกับreview; gap reportเป็นSUPER_ADMIN aggregateที่ไม่คืนข้อความผู้ใช้. ไม่ใช่ผู้ตัดสินว่าความรู้หรือโมเดลผ่าน
 - Runtimeเปิดด้วยlocal:aiแล้ว25ตุลาคม21:24Bangkok: E5/เว็บ/4workers/tunnelREADY, local+publicHMAC8checksPASS. URLรอบนี้อยู่[checklist](operations/FINAL_SETUP_CHECKLIST.md); ตรวจregistry/workerแบบอ่านอย่างเดียวพบgenerationattempts0หลังstartupถึง21:27. ไม่รันHermes/modeltestและไม่เปลี่ยนprovider/key/timeout
 - Providerเพิ่มเติม/local generationเลื่อนตามผู้ใช้(DEC-165); ใช้Gemini FREE_ONLYตัวเดิม การต่ออายุattestationถึง24พ.ย.เป็นผลที่GLMบันทึกไว้ ไม่ใช่การตรวจbillingจากvendor
-- ตรวจฐานจริงแบบอ่านอย่างเดียว26ตุลาคมพบ5approvedPUBLICและทั้ง7structuredtablesมี0rows;9starteritemsยังheldตามtechnicalreview. ไม่ยกการทดสอบsyntheticเป็นคุณภาพบนcorpusจริง
-- งานค้าง: actualFlowA–F, actualHermesdraftreview และactivation/deploymentรอผู้ใช้; corpusrootตรวจและนำเข้าต่อเองตามDEC172 ไม่ขอownerapprovalซ้ำ. บันทึกnormalreviewdraftsจริง5รายการแล้ว26ตุลาคม แต่ยังไม่publishเพิ่มเพราะunknown-date/public-template contractsและlocatedextractionยังต้องแก้ [ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ไม่reset/clean/stashหรือstageทั้งworkingtree
+- ROOT-CORPUS-PUBLIC-02เผยแพร่YRU182ห้องสมุดและYRU027แบบฟอร์มว่างผ่านnormalreview/receipt/currentE5retrievalแล้ว26ตุลาคม: ฐานจริงมี7approvedPUBLICและทั้ง7structuredtablesยัง0rows. เหลือ7starteritemsต้องsource/extraction/mappingต่อ ไม่ยกcontrolledtestsหรือRAGpublicationเป็นstructuredcorpusacceptance
+- งานค้าง: actualFlowA–F/actualHermesdraftreview/activationและdeploymentรอผู้ใช้; corpusremaining7/structuredmappingยังเป็นimplementation/datawork. Humanขอส่งต่อGLM5.3Flashและให้rootตรวจlocalcommit/รายงานก่อนรวม. Date/templatecontractsแก้แล้วสำหรับpublicRAGschema4; calendarOCR/flowchart/authorityscopesและSTRUCTURED/BOTHยังไม่ถูกลดscope [ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ไม่reset/clean/stashหรือstageทั้งworkingtree
 
 ผลตรวจROOT-GLM-HERMES-01ก่อนต่อUI:3235tests/236files,type/full lint/build408inputs,ownedPG9/43migrations/credentialscan1592files. ผลรอบต่อUIล่าสุดอยู่[บอร์ดงาน](tasks/V1_TASK_BOARD.md)และ[execution plan](superpowers/plans/2026-10-25-hermes-staff-dashboard.md); มีrootintegrationและLunascopedreviewจริง แต่ไม่มีliveHermes/Gemini/OAqualificationเพิ่มเติม
 

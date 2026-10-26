@@ -18,11 +18,11 @@
 
 ## ข้อจำกัดที่พบในซอฟต์แวร์ปัจจุบัน
 
-`lib/imports/publication-contract.ts` บังคับทั้ง `publishedAt` และ `effectiveFrom` แม้ต้นฉบับไม่ระบุวัน; constraintเอกสารACTIVEและretrievalก็ต้องมีeffectiveFrom การกรอกวันดึงเว็บหรือวันตรวจแทนจะทำให้ประวัติผิด ต้องรองรับแหล่งไม่ระบุวันที่อย่างตรงไปตรงมา ไม่ใช่โยนให้ผู้ใช้รับรองวันที่ที่ไม่มีอยู่
+ROOT-CORPUS-PUBLIC-02 / DEC173แก้แล้วสำหรับpublicRAGschema4: `CURRENT_REVIEWED` เก็บeffective datesเป็นnullและบันทึกเวลาreviewจากserverแยกต่างหาก ค้นได้เฉพาะปัจจุบัน ไม่ใช้ตอบhistorical/as-ofและไม่เป็นundatedruleeffects. CALENDARต้องมีacademicYear; yearlessGUIDE/FORMมีglobalcurrent applicabilityตามscopeเดิม. Schema1–3และSTRUCTURED/BOTHเดิมไม่ถูกผ่อนเงื่อนไข
 
-ตัวตรวจความละเอียดอ่อนมีข้อยกเว้นfalse-positiveจำกัดเฉพาะคำเกรดในREGULATION/RAGที่ไม่มีตาราง จึงยังไม่รองรับreviewแบบฟอร์มว่าง/เบอร์หน่วยงานครบถ้วน คำยืนยันผู้ใช้ให้rootเป็นreviewerได้ แต่ไม่ควรเปลี่ยนชนิดเอกสารปลอมหรือปิดdetectorเพื่อหลบข้อจำกัด
+เพิ่มschema4category/basis/reason ที่ผูกกับencryptedreview/source revisionsแล้ว โดยคงdetectorfindingsและFALSE_POSITIVEreason. ตรวจรูปแบบfilledID/grade/name/sensitivecolumnsและpersonal mobile; unsupportedcategories/structuredmodeยังblocked. Rootsource-wide reviewยังจำเป็น ไม่ถือว่าregexพิสูจน์absenceของข้อมูลรายบุคคลได้ทุกกรณี
 
-Normal import/review drafts เก็บข้อมูลที่ตรวจแล้วได้โดยเว้นวันที่ที่ไม่ทราบ และคงwarning/ฉบับดั้งเดิม งานรองรับundated/public-templateต้องปรับcontract+schema/retrievalพร้อมregressionก่อนเรียกว่าเผยแพร่สำเร็จ **ไม่ใช่รอสิทธิ์ใช้ข้อมูลจากผู้ใช้**
+NormalYRU182และYRU027เผยแพร่แล้วจริงพร้อมreceipt/replay/currentlocatedE5retrievalและhistoricalexclusion; source datesยังnull. ห้องสมุดเก็บmainHTMLblocks54–61เฉพาะส่วนบริการ (ตัดnavigation/footerซ้ำ/obfuscatedemailplaceholder โดยเก็บoriginalและตำแหน่งเดิม)8chunks; แบบฟอร์มแก้titleตามหน้าและglyphขั้นตอนที่ตรวจภาพแล้ว1chunk. PUBLICรวม7; structuredrowsยัง0. เหลือYRU010/011/034/047/007/149/166 ไม่ต้องขอสิทธิ์ใช้ข้อมูลเพิ่ม แต่ต้องทำsource/extraction/mappingอย่างครบถ้วน
 
 ## หลักฐานและสถานะ
 

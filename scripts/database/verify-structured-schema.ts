@@ -236,6 +236,10 @@ stage='import_model_assistance_actual_PG';
  const gradePolicyOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-policy-grades.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(gradePolicyOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='reviewed_public_sources_actual_PG';
+ const publicSourceOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/import-public-source-review.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(publicSourceOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  if(cli){
   stage='isolated_advisors';
   const version=execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true,timeout:10_000,stdio:['pipe','pipe','pipe']}).trim();

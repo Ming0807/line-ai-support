@@ -7,9 +7,10 @@ import type {ImportReviewState} from './import-review';
 import {validateLocatedChunkPlan} from '../knowledge/located-plan-validation';
 import {locatedReviewApplies} from '../knowledge/located-chunk-plan';
 import type {LocatedChunkPlan} from '../knowledge/located-plan-types';
+import {hasValidPublicTemporalReview,reviewedPublicContent} from './public-source-policy';
 export type PublicationPolicyCode='PUBLICATION_REVIEW_INCOMPLETE'|'PUBLICATION_PLAN_MISMATCH'|'PUBLICATION_WARNINGS_UNRESOLVED'|'PUBLICATION_QUALITY_REANALYSIS_REQUIRED'|'PUBLICATION_PUBLIC_SENSITIVE_DATA'|'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE';
 export class PublicationPolicyError extends Error{constructor(readonly code:PublicationPolicyCode){super(code);this.name='PublicationPolicyError';}}
-export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
+export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3|4}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 function fail(code:PublicationPolicyCode):never{throw new PublicationPolicyError(code);}
 /** A current authorized review may adjudicate a pattern-only policy mention.
@@ -79,17 +80,21 @@ function sharedPolicy(preview:ImportPreview,review:ImportReviewState){
  const parsed=reviewDraftSchema.safeParse(saved.draft);
  if(!parsed.success||parsed.data.schemaVersion===1)fail('PUBLICATION_REVIEW_INCOMPLETE');
  const draft=parsed.data,metadata=draft.metadata;
- for(const field of ['title','familyCode','departmentCode','documentType','versionName','versionStream','publishedAt','effectiveFrom','authorityLevel','visibility','storageMode'] as const)if(metadata[field]===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ for(const field of ['title','familyCode','departmentCode','documentType','versionName','versionStream','authorityLevel','visibility','storageMode'] as const)if(metadata[field]===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if(draft.schemaVersion===4){if(!hasValidPublicTemporalReview(draft))fail('PUBLICATION_REVIEW_INCOMPLETE');}
+ else if(metadata.publishedAt===null||metadata.effectiveFrom===null)fail('PUBLICATION_REVIEW_INCOMPLETE');
  if(metadata.scope.audience===null||metadata.scope.studentType===null||draft.action===null||Object.values(draft.attestations).some(v=>!v))fail('PUBLICATION_REVIEW_INCOMPLETE');
  if(draft.action==='NEW_FAMILY'&&(metadata.newFamily===null||metadata.newFamily.name===null||metadata.newFamily.category===null))fail('PUBLICATION_REVIEW_INCOMPLETE');
  const officialSource=metadata.sourceUrl!==null&&isOfficialYruUrl(metadata.sourceUrl);
  if(metadata.visibility==='PUBLIC'&&!officialSource)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if(draft.schemaVersion===4&&(preview.job.sourceUrl===null||metadata.sourceUrl!==preview.job.sourceUrl))fail('PUBLICATION_REVIEW_INCOMPLETE');
  const warnings=buildReviewWarnings(preview);
  try{assertReviewWarningBindings(warnings,draft.warningDispositions);}catch{return fail('PUBLICATION_WARNINGS_UNRESOLVED');}
  if(warnings.some(w=>{const d=draft.warningDispositions.find(d=>d.warningKey===w.key);return !d||d.status==='UNRESOLVED'||d.reason===null;}))fail('PUBLICATION_WARNINGS_UNRESOLVED');
  checkQuality(preview,draft);
  if(metadata.visibility==='PUBLIC'&&(preview.analysis.sensitiveRisk||preview.analysis.sensitiveCategories.length>0||preview.analysis.flags.includes('SENSITIVE_DATA_REVIEW_REQUIRED'))&&
-  !reviewedGradePolicy(preview,draft,warnings))fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+  (draft.schemaVersion===4?!reviewedPublicContent(preview,draft,warnings):!reviewedGradePolicy(preview,draft,warnings)))fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
+ if(draft.schemaVersion===4&&preview.analysis.sensitiveCategories.length===0&&draft.publicSourceReview.sensitivityAdjudications.length>0)fail('PUBLICATION_PUBLIC_SENSITIVE_DATA');
  return {draft,reviewHash:createHash('sha256').update(JSON.stringify(draft),'utf8').digest('hex'),officialSource};
 }
 function checkedChunks(preview:ImportPreview,draft:Exclude<ImportReviewDraft,{schemaVersion:1}>,input:unknown,checksum:string):LocatedChunkPlan{
@@ -103,7 +108,7 @@ export function validatePublicationReview(preview:ImportPreview,review:ImportRev
  if(checked.draft.metadata.storageMode!=='RAG')fail('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
  // A saved review3 stays3 after explicitly clearing its mapping; RAG needs only
  // the reviewed chunk plan. A review schema number never selects persistence.
- if(checked.draft.schemaVersion===3&&checked.draft.structuredMapping!==null)fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if((checked.draft.schemaVersion===3||checked.draft.schemaVersion===4)&&checked.draft.structuredMapping!==null)fail('PUBLICATION_REVIEW_INCOMPLETE');
  const plan=checkedChunks(preview,checked.draft,input,expectedSourceChecksum);
  return {...checked,draft:checked.draft,plan,sourceChecksum:expectedSourceChecksum};
 }

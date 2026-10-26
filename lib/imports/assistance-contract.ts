@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import type {ImportReviewDraft} from './review-schema';
+import type {PublicSourceReview} from './public-source-review';
 /** Pure browser contract: never import source.ts, encrypted originals or server modules. */
 const text=(max:number)=>z.string().trim().min(1).max(max).nullable();
 const code=z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/);
@@ -39,8 +40,8 @@ export function applyImportAssistance(draft:ImportReviewDraft,a:ImportAssistance
  return next;
 }
 const required=[['title','ชื่อเอกสาร'],['familyCode','กลุ่มเอกสาร'],['departmentCode','หน่วยงาน'],['documentType','ประเภทเอกสาร'],['versionName','ชื่อฉบับ'],['versionStream','สายฉบับ'],['publishedAt','วันที่ประกาศ'],['effectiveFrom','วันที่เริ่มมีผล'],['authorityLevel','แหล่งอำนาจเอกสาร'],['visibility','ผู้ที่ใช้ข้อมูลนี้ได้'],['storageMode','วิธีใช้เอกสาร']] as const;
-export function requiredReviewFields(m:ImportReviewDraft['metadata']):Array<{key:string;label:string}>{
- const missing=required.filter(([key])=>m[key]===null).map(([key,label])=>({key:key as string,label:label as string}));
+export function requiredReviewFields(m:ImportReviewDraft['metadata'],sourceReview?:PublicSourceReview):Array<{key:string;label:string}>{
+ const missing=required.filter(([key])=>m[key]===null&&!(sourceReview&&(key==='publishedAt'||key==='effectiveFrom'&&sourceReview.temporalBasis==='CURRENT_REVIEWED'))).map(([key,label])=>({key:key as string,label:label as string}));
  if(m.scope.audience===null)missing.push({key:'scope.audience',label:'กลุ่มผู้ใช้'});
  if(m.scope.studentType===null)missing.push({key:'scope.studentType',label:'ประเภทนักศึกษา'});
  if(m.visibility==='PUBLIC'&&m.sourceUrl===null)missing.push({key:'sourceUrl',label:'URL แหล่งที่มาทางการสำหรับตอบนักศึกษา'});

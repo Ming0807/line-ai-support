@@ -19,18 +19,24 @@ export function isKnowledgeEligible(
 ): boolean {
   if (!isValidKnowledgeDate(today) || !source.approved || !source.officialSource ||
       !source.extractionReviewed || source.requiresReview || source.archiveOnly || source.visibility !== 'PUBLIC') return false;
-  if (source.effectiveFrom === null || !isValidKnowledgeDate(source.effectiveFrom) ||
-      (source.effectiveTo !== null && (!isValidKnowledgeDate(source.effectiveTo) || source.effectiveTo < source.effectiveFrom))) return false;
+  const currentReview=source.temporalBasis==='CURRENT_REVIEWED';
+  if(currentReview){
+    const stamp=source.currentReviewedAt;
+    if(scope.historical||scope.asOfDate!==null||source.effectiveFrom!==null||source.effectiveTo!==null||
+       !stamp||!/^\d{4}-\d{2}-\d{2}T/u.test(stamp)||!Number.isFinite(Date.parse(stamp))||
+       new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(stamp))>today)return false;
+  }else if(source.temporalBasis!==undefined&&source.temporalBasis!=='DATED'||source.effectiveFrom===null||!isValidKnowledgeDate(source.effectiveFrom)||
+      (source.effectiveTo!==null&&(!isValidKnowledgeDate(source.effectiveTo)||source.effectiveTo<source.effectiveFrom)))return false;
 
   if (scope.historical) {
     if (!['ACTIVE', 'SUPERSEDED', 'EXPIRED'].includes(source.status) ||
         (scope.academicYear === null && scope.asOfDate === null)) return false;
     if (scope.academicYear !== null && source.academicYear !== scope.academicYear) return false;
-    if (scope.asOfDate !== null && (!isValidKnowledgeDate(scope.asOfDate) || scope.asOfDate < source.effectiveFrom ||
+    if (scope.asOfDate !== null && (!isValidKnowledgeDate(scope.asOfDate) || scope.asOfDate < source.effectiveFrom! ||
         (source.effectiveTo !== null && scope.asOfDate > source.effectiveTo))) return false;
   } else {
     if (source.status !== 'ACTIVE' || !source.isCurrent || scope.asOfDate !== null ||
-        source.effectiveFrom > today || (source.effectiveTo !== null && source.effectiveTo < today) ||
+        (!currentReview&&source.effectiveFrom! > today) || (source.effectiveTo !== null && source.effectiveTo < today) ||
         (scope.academicYear !== null && !matchesScope(source.academicYear, scope.academicYear))) return false;
   }
 

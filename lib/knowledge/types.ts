@@ -40,6 +40,9 @@ export interface KnowledgeMetadata {
   cohort: number | null;
   effectiveFrom: string | null;
   effectiveTo: string | null;
+  /** Missing only on legacy metadata; never inferred from null dates. */
+  temporalBasis?: 'DATED' | 'CURRENT_REVIEWED';
+  currentReviewedAt?: string | null;
 }
 
 export interface KnowledgeScope {
