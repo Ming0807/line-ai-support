@@ -26,4 +26,27 @@ NormalYRU182และYRU027เผยแพร่แล้วจริงพร�
 
 ## หลักฐานและสถานะ
 
+### ROOT-CORPUS-PUBLIC-03 — 26October root continuation
+
+ผู้ใช้ยกเลิกGLMhandoff. Rootดำเนินการเองและself-review; ไม่อ้างindependentreviewรอบนี้. เพิ่มnormalpublicationจริงอีก2ฉบับ รวมapprovedPUBLIC9:
+
+| เอกสาร | หลักฐานตรวจ / ผลปฏิบัติการ |
+| --- | --- |
+| YRU034 แบบเกิน22หน่วยกิต | SHA`f7561e468e57f26e65e5e54a1e814c8df7a77627f00dc0a12d480597d84b0fe8`; original2หน้าว่างคงเดิม. แก้page1จากภาพครบทุกขั้น/ลูกศรเห็นชอบและไม่เห็นชอบ; page2คงtextเดิม. Parser3fragments/7emptycellsและBLOCKING warningยังอยู่; exactwarning/page/reason adjudicationตามDEC174. Normalreceipt/replay/5chunks/currentlocatedE5/historicalexclusion PASS |
+| ปฏิทินลงทะเบียนเกินหน่วยกิต2569 | แหล่งเพิ่มจากlink24ของ[สารบัญแบบฟอร์ม](https://acdservice.yru.ac.th/page/27). SHA`79652da4841e7124fceb6137573f89f9601c41971e70648332c6e331a9dd0ddf`; rootดูครบ1หน้าสแกน/6แถว/3ภาคเรียน/หมายเหตุ/ผู้ลงนาม. แปลงเลขไทยและชื่อเดือนโดยคงค่า; ช่วงยื่นฤดูร้อนเริ่ม28พ.ย.69ตามภาพ. ใช้ประกาศ12พ.ค.2569เป็นpublishedAtเท่านั้น; effective datesยังnull. ระบุวันที่ประชุมอาจเปลี่ยนตามต้นฉบับ. Normalreceipt/replay/1chunk/currentlocatedE5/historicalexclusion/wrongyear2568และ2570exclusion PASS |
+
+ปฏิทินYRU010/011: rootดูครบ12หน้า พบข้อผิดพลาดในdraftเก่าและสร้างcorrectedcopy9รายการโดยเก็บoldSHA/oldfile unchanged. แก้finalmarkerของภาคปกติ, เลขrowวันหยุดที่ต้นฉบับข้าม5, ตารางweekendที่เดิมนับวันหยุด2–3ม.ค.เป็นสัปดาห์เรียน และรักษาปี69ที่พิมพ์บนsummerheaders. เติมหมายเหตุ1–16/week10ไม่เบิกค่าสอนเกินภาระงานและsummer1–8ตามภาพ. ไม่เผยแพร่fullcalendarsเพราะมีsourceconflicts:
+
+| ตำแหน่งต้นฉบับ | ข้อขัดแย้งที่ห้ามเดาแก้ |
+| --- | --- |
+| YRU010p1 ช่องWterm2 | เริ่ม24พ.ย.69แต่สิ้นสุด26ก.พ.69 |
+| YRU011p4 ช่องIMterm1 | พิมพ์25ต.ค.–23พ.ย.68อยู่ในcalendar2569 |
+| YRU011p5กับp6 finalterm2 | ตารางหลัก3–4เม.ย.70; weektable4–5เม.ย.70 |
+| YRU011p6 summerheaders | พิมพ์เม.ย./พ.ค./มิ.ย.69 แต่ตารางหลักsummer70 |
+| YRU011p2 term2leave | ช่วงขอลาพักถึง17ธ.ค.69 แต่แถวพ้นสภาพเมื่อไม่ลาพักระบุ15ธ.ค.69; ต้องรักษาความต่าง ไม่อนุมานว่าขั้นตอนเดียวกัน |
+
+หลักฐานปัจจุบัน `.superpowers/staging/root-corpus-completion-20261026/`: RED/green/unit/ownedPG/build/currenthash/sourceimage/transcriptioncorrections/conflictmanifest/normalreceipts/retrieval/normalcounts. Private originalsไม่ได้commit. ปฏิทินเฉพาะเรื่องใหม่นี้ไม่ใช่การแก้ขัดแย้งของปฏิทินหลักและไม่ขยายเป็นสิทธิ์เกินหน่วยกิตทุกรณี. ทั้ง7structuredtablesยัง0rows; เหลือ6starteritemsและtypedmappingเป็นงานrootต่อ. ไม่มีการยิงgeneration/Hermes/LINEเพิ่ม
+
+ตรวจเครื่องมืออ้างอิงเบื้องต้นเพิ่มจากarchive: fee2565SHA`1a8d0f0f…`หน้าแรกข้อ1ใช้กับผู้เข้าศึกษา2565เป็นต้นไป และข้อ4ระบุเพดานไม่เกินอัตราตาราง; ไม่ใช่หลักฐานใบแจ้งชำระของทุกคน. Transfer2566SHA`6fa15398…`หน้าแรกข้อ2ผูกกับเกณฑ์มาตรฐานหลักสูตร2548; transfer2568SHA`728110df…`ข้อ2ระบุใช้ตั้งแต่ปีการศึกษา2568เป็นต้นไป. Rootดูเฉพาะหน้าแรก/ท้ายของทั้ง3ฉบับรอบนี้ ไม่อ้างfullinstrumentreviewหรือlivebyteverification และยังไม่publish/ผูกยกเลิก/ตั้งfeeปัจจุบันจากข้อมูลบางหน้า. [สารบัญทางการ](https://eduservice.yru.ac.th/page/?view=aor) เป็นจุดค้นต้นฉบับ ไม่ใช่คำตัดสินว่าlatestdocumentแทนทุกscope
+
 Rootทำsource/image reviewและnormalservice execution; Luna highทำread-only official-source/calendar/forms reviewจริง ไม่ใช่publicationหรือDBacceptanceจากagent ผลปฏิบัติการอยู่ใน `.superpowers/staging/root-public-corpus-20261026/` (ไม่รวมไฟล์ลับในเอกสารนี้) ดูจำนวนdrafts/receiptsจริงที่บอร์ดงาน ไม่ถือว่าsave draftคือpublish และไม่ยิงทดสอบGemini/LINEเพิ่มตามคำสั่งผู้ใช้

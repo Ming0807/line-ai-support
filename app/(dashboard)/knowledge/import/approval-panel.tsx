@@ -93,7 +93,7 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
   value:saved.publicSourceReview,documentType:saved.metadata.documentType,visibility:saved.metadata.visibility,storageMode:saved.metadata.storageMode,
   publishedAt:saved.metadata.publishedAt,effectiveFrom:saved.metadata.effectiveFrom,effectiveTo:saved.metadata.effectiveTo,
   action:saved.action,relationship:saved.relationship,target:saved.target,sourceUrl:saved.metadata.sourceUrl,
-  sensitiveCategories:review.sensitiveCategories??[],disabled,onChange:()=>undefined,
+  sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,onChange:()=>undefined,
  }):[];
  const reviewFieldsComplete=reviewFields.length===0;
  const publicReviewComplete=publicReviewIssues.length===0;
@@ -196,6 +196,9 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
      {savedV2.schemaVersion===4&&<div className="knowledge-approval-wide"><dt>การทบทวนแหล่งข้อมูลสาธารณะ</dt><dd>
       {savedV2.publicSourceReview.temporalBasis==='DATED'?'ใช้วันที่ตามต้นฉบับ':`ตรวจข้อมูลปัจจุบัน · ${display(savedV2.publicSourceReview.temporalReason)}`}
       {savedV2.publicSourceReview.sensitivityAdjudications.map(item=>` · ${publicSourceCategoryName(item.category)}: ${publicSourceBasisName(item.basis)} — ${display(item.reason)}`).join('')}
+      {(savedV2.publicSourceReview.extractionAdjudications??[]).map(item=>{
+       const finding=review.warnings.find(w=>w.key===item.warningKey);return ` · แผนภาพ${finding?.location?.kind==='PDF'?`หน้า ${finding.location.pageNumber}`:''}: ${display(item.reason)}`;
+      }).join('')}
      </dd></div>}
     </dl>
     <label className="knowledge-approval-check"><input type="checkbox" checked={Boolean(checked)} onChange={event=>setConfirmation({key:confirmationKey,open:true,checked:event.currentTarget.checked})} disabled={disabled||childPending}/><span>ฉันตรวจข้อมูลและยืนยันให้นำฉบับที่บันทึกไว้นี้เข้าสู่การอนุมัติ</span></label>

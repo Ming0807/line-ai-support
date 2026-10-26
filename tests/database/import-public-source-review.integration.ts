@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {test} from 'node:test';
+import {test,mock} from 'node:test';
+import {PDFParse} from 'pdf-parse';
 import {Pool} from 'pg';
 import {createImportSource} from '../../lib/imports/source';
 import {createImportJob} from '../../lib/imports/import-staging';
-import {analyzeImportJob,getImportPreview} from '../../lib/imports/import-extraction';
+import {analyzeImportJob,getImportPreview,editImportExtraction} from '../../lib/imports/import-extraction';
+import {parsePdfSource} from '../../lib/imports/pdf-parser';
+import {createPdfFixture} from '../fixtures/import-pdf';
 import {getImportReview,saveImportReview} from '../../lib/imports/import-review';
 import {getImportChunkPlan} from '../../lib/imports/import-chunk-plan';
 import {approveImport,getImportPublication} from '../../lib/imports/import-publication';
@@ -81,4 +84,22 @@ test('saved schema4 cannot downgrade and unknown-date document cannot become an 
  const draft={...candidate.saved.draft,metadata:{...candidate.saved.draft.metadata,familyCode:r.family,newFamily:null},action:'REPLACE_CURRENT' as const,target:{documentId:published.receipt.documentId,revision:0}};
  const saved=await saveImportReview(f.actor,replacement.jobId,{expectedJobRevision:candidate.jobRevision,expectedExtractionRevision:candidate.extractionRevision,expectedReviewRevision:candidate.reviewRevision,draft},f.options);
  await assert.rejects(approveImport(f.actor,{...replacement.request,expectedReviewRevision:saved.reviewRevision},f.options),/CONFLICT/u);assert.equal((await getImportPublication(f.actor,replacement.jobId,f.options)).receipt,null);
+}));
+test('normal source-bound diagram review retains the blocking finding while admitting reviewed empty geometry',()=>fixture(async f=>{
+ const url=`https://www.yru.ac.th/qa-diagram/${randomUUID()}`;
+ const source=createImportSource({bytes:createPdfFixture([{lines:[{text:'Credit overload form workflow',y:720},{text:'Complete the request form and submit to the faculty.',y:690},{text:'If rejected by a committee, notify the applicant.',y:660}]}]),filename:'diagram.pdf',mimeType:'application/pdf',sourceUrl:url,acquiredFrom:'UPLOAD',fetchedAt:null});
+ const {job}=await createImportJob(f.actor,source,f.options);
+ const detector=mock.method(PDFParse.prototype,'getTable',async()=>({total:1,pages:[{num:1,tables:[[[],[''],['']]]}],mergedTables:[]}));
+ let preview;try{preview=await analyzeImportJob(f.actor,job.id,0,{...f.options,parse:parsePdfSource});}finally{detector.mock.restore();}
+ preview=await editImportExtraction(f.actor,job.id,preview.job.revision,{pages:[{index:0,text:preview.extraction.pages[0].text+'\nSource page manually checked in this synthetic fixture; empty boxes are a process diagram.'}],reason:'Every source step and branch checked; original and empty geometry retained.'},f.options);
+ const review=await getImportReview(f.actor,job.id,f.options),base=unfinishedReviewDraft(),family='PUBLIC_'+f.actor.replaceAll('-','').toUpperCase()+'_DIAGRAM';
+ const draft=reviewDraftSchema.parse({...base,schemaVersion:4,metadata:{...base.metadata,title:'Synthetic diagram form',familyCode:family,newFamily:{name:family,category:'TEST_ONLY'},departmentCode:'IT',documentType:'FORM',versionName:'reviewed',versionStream:'ALL',scope:{...base.metadata.scope,audience:'ALL',studentType:'ALL'},authorityLevel:50,sourceUrl:url,visibility:'PUBLIC',storageMode:'RAG'},action:'NEW_FAMILY',attestations:{sourceAuthorityReviewed:true,extractionReviewed:true,applicabilityReviewed:true,sensitivityReviewed:true,versionReviewed:true},chunkPlan:null,structuredMapping:null,
+  publicSourceReview:{temporalBasis:'CURRENT_REVIEWED',temporalReason:'Reviewed current form; no source effective date stated.',sensitivityAdjudications:[],extractionAdjudications:review.warnings.filter(w=>w.code==='UNSUPPORTED_TABLES').map(w=>({warningKey:w.key,basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:'Read the whole synthetic source page: all detected cells empty, full flow text checked.'}))},
+  warningDispositions:review.warnings.map(w=>({warningKey:w.key,status:w.code==='UNSUPPORTED_TABLES'?'FALSE_POSITIVE':'CORRECTED',reason:'Synthetic original source fully reviewed; no warning removed.'}))});
+ let saved=await saveImportReview(f.actor,job.id,{expectedJobRevision:preview.job.revision,expectedExtractionRevision:preview.extractionRevision,expectedReviewRevision:review.reviewRevision,draft},f.options);
+ const plan=await getImportChunkPlan(f.actor,job.id,{expectedJobRevision:saved.jobRevision,expectedExtractionRevision:saved.extractionRevision,expectedReviewRevision:saved.reviewRevision},f.options);
+ saved=await saveImportReview(f.actor,job.id,{expectedJobRevision:saved.jobRevision,expectedExtractionRevision:saved.extractionRevision,expectedReviewRevision:saved.reviewRevision,draft:{...draft,chunkPlan:{digest:plan.plan.digest,chunkerVersion:plan.plan.chunkerVersion}}},f.options);
+ const request={id:job.id,expectedJobRevision:saved.jobRevision,expectedExtractionRevision:saved.extractionRevision,expectedReviewRevision:saved.reviewRevision,confirmPublication:true};
+ const published=await approveImport(f.actor,request,f.options);assert.deepEqual((await approveImport(f.actor,request,f.options)).receipt,published.receipt);
+ const retained=await getImportPreview(f.actor,job.id,f.options);assert(retained.extraction.report.warnings.some(w=>w.code==='UNSUPPORTED_TABLES'&&w.severity==='BLOCKING'));assert((await f.search(family)).some(e=>e.documentId===published.receipt.documentId&&e.sourceLocations?.some(l=>l.kind==='PDF'&&l.pageNumber===1)));
 }));

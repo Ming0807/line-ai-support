@@ -39,3 +39,17 @@ export function reviewedPublicContent(preview:ImportPreview,draft:ImportReviewDr
   return false;
  });
 }
+
+/** No generic quality override: only manually corrected diagram pages whose detected cells are all empty. */
+export function reviewedNonTabularDiagram(preview:ImportPreview,draft:ImportReviewDraft,finding:ReviewWarning):boolean{
+ if(draft.schemaVersion!==4||draft.metadata.visibility!=='PUBLIC'||draft.metadata.storageMode!=='RAG'||draft.metadata.documentType!=='FORM'||
+  preview.job.format!=='PDF'||preview.kind!=='EDITED'||!preview.edit||finding.code!=='UNSUPPORTED_TABLES'||finding.location?.kind!=='PDF')return false;
+ const adjudication=draft.publicSourceReview.extractionAdjudications?.find(a=>a.warningKey===finding.key);
+ if(!adjudication?.reason?.trim()||adjudication.basis!=='REVIEWED_NON_TABULAR_DIAGRAM')return false;
+ const disposition=draft.warningDispositions.find(w=>w.warningKey===finding.key);
+ if(disposition?.status!=='FALSE_POSITIVE'||!disposition.reason?.trim())return false;
+ const pageNumber=finding.location.pageNumber,pageIndex=preview.extraction.pages.findIndex(p=>p.pageNumber===pageNumber);
+ if(pageIndex<0||!preview.edit.changedPages.includes(pageIndex)||preview.extraction.pages[pageIndex].text.trim().length<40)return false;
+ const tables=preview.extraction.tables.filter(t=>t.pageNumber===pageNumber);
+ return tables.length>0&&tables.every(t=>t.rows.length>0&&t.rows.every(row=>row.length>0&&row.every(cell=>cell.trim()==='')));
+}

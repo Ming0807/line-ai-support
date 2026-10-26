@@ -18,6 +18,8 @@ type Props={
  target:ImportReviewDraft['target'];
  sourceUrl:string|null;
  sensitiveCategories:readonly string[];
+ sourceFormat?:string;
+ extractionWarnings?:readonly {key:string;code:string;location?:{kind:string;pageNumber?:number}|null}[];
  disabled:boolean;
  onChange:(value:PublicSourceReview)=>void;
 };
@@ -66,12 +68,20 @@ export function publicSourceReviewIssues(input:Props):string[]{
   if(item.basis==='GENERAL_POLICY_WORDING'&&item.category!=='GRADES'||item.basis==='PUBLIC_BLANK_TEMPLATE'&&!['STUDENT_RECORDS','GRADES'].includes(item.category)||item.basis==='INSTITUTIONAL_CONTACT'&&item.category!=='PHONE')issues.push(`เหตุผล “${basisNames[item.basis]}” ไม่ตรงกับหมวดหมู่ ${categoryNames[item.category]}`);
   if(!item.reason?.trim())issues.push(`ระบุเหตุผลจากต้นฉบับสำหรับ ${categoryNames[item.category]}`);
  }
+ const diagrams=input.value.extractionAdjudications??[];
+ const findings=(input.extractionWarnings??[]).filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF');
+ for(const item of diagrams){
+  if(input.sourceFormat!=='PDF'||input.documentType!=='FORM'||!findings.some(w=>w.key===item.warningKey))issues.push('การตรวจแผนภาพไม่ตรงกับหน้าแบบฟอร์ม PDF ปัจจุบัน กรุณาเริ่มตรวจใหม่');
+  if(!item.reason?.trim())issues.push('ระบุเหตุผลจากการตรวจภาพต้นฉบับสำหรับแผนภาพ');
+ }
+ if(input.sourceFormat==='PDF'&&input.documentType==='FORM'&&findings.some(w=>!diagrams.some(a=>a.warningKey===w.key)))issues.push('แก้การอ่านตาราง หรือทบทวนแผนภาพแต่ละหน้าจากต้นฉบับก่อนอนุมัติ');
  return [...new Set(issues)];
 }
 
-export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,disabled,onChange}:Props){
- const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,disabled,onChange});
+export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,sourceFormat,extractionWarnings=[],disabled,onChange}:Props){
+ const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,sourceFormat,extractionWarnings,disabled,onChange});
  const update=(patch:Partial<PublicSourceReview>)=>onChange({...value,...patch});
+ const diagramWarnings=sourceFormat==='PDF'&&documentType==='FORM'&&storageMode==='RAG'?extractionWarnings.filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF'):[];
 
  function setAdjudication(category:Category,basis:Basis|''){
   const current=value.sensitivityAdjudications.find(item=>item.category===category);
@@ -122,6 +132,17 @@ export default function PublicSourceReviewPanel({value,documentType,visibility,s
     </fieldset></li>;
    })}
   </ul>}
+  {diagramWarnings.map(warning=>{
+   const current=value.extractionAdjudications?.find(a=>a.warningKey===warning.key);
+   return <fieldset className="knowledge-review-section" key={warning.key}><legend>แผนภาพหน้า {warning.location?.pageNumber}</legend>
+    <p className="knowledge-hint">ใช้เมื่ออ่านภาพและข้อความครบแล้ว ช่องที่ตรวจพบเป็นแผนภาพขั้นตอน ไม่มีข้อมูลตารางตกหล่น ระบบยังเก็บคำเตือนและต้นฉบับไว้</p>
+    <label className="knowledge-field"><span><input type="checkbox" checked={Boolean(current)} disabled={disabled} onChange={event=>{
+     const rest=(value.extractionAdjudications??[]).filter(a=>a.warningKey!==warning.key);
+     update({extractionAdjudications:event.currentTarget.checked?[...rest,{warningKey:warning.key,basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:null}]:rest});
+    }}/> ตรวจภาพหน้า {warning.location?.pageNumber} แล้วเป็นแผนภาพขั้นตอน</span></label>
+    {current&&<label className="knowledge-field">สิ่งที่ตรวจยืนยันจากแผนภาพ *<textarea maxLength={500} value={current.reason??''} disabled={disabled} onChange={event=>update({extractionAdjudications:(value.extractionAdjudications??[]).map(a=>a.warningKey===warning.key?{...a,reason:event.currentTarget.value||null}:a)})}/></label>}
+   </fieldset>;
+  })}
   {issues.length>0&&<div className="knowledge-review-stale" role="status"><strong>ยังไม่ครบสำหรับการพิจารณานี้</strong><ul>{issues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>}
   {sensitiveCategories.length===0&&<p className="knowledge-hint">ยังไม่มีหมวดหมู่ที่ต้องพิจารณาเพิ่ม</p>}
  </section>;

@@ -16,6 +16,17 @@ const blankReview=():PublicSourceReview=>({
  temporalBasis:'DATED',temporalReason:null,sensitivityAdjudications:[],
 });
 
+it('offers an unselected source-page diagram review only with a PDF warning',()=>{
+ const warning={key:'c'.repeat(64),code:'UNSUPPORTED_TABLES',location:{kind:'PDF' as const,pageNumber:1,blockStart:1,blockEnd:1,tableIndex:null}};
+ const html=renderToStaticMarkup(createElement(PublicSourceReviewPanel,{value:blankReview(),documentType:'FORM',visibility:'PUBLIC',storageMode:'RAG',publishedAt:null,effectiveFrom:'2026-10-01',effectiveTo:null,action:'NEW_FAMILY',relationship:null,target:null,sourceUrl:'https://www.yru.ac.th/forms',sensitiveCategories:[],disabled:false,onChange:()=>undefined,sourceFormat:'PDF',extractionWarnings:[warning]}));
+ expect(html).toContain('ตรวจภาพหน้า 1 แล้วเป็นแผนภาพขั้นตอน');expect(html).not.toContain('checked=""');
+});
+it('requires a dedicated reason for diagram review instead of only a generic warning dismissal',()=>{
+ const warning={key:'c'.repeat(64),code:'UNSUPPORTED_TABLES',location:{kind:'PDF' as const,pageNumber:1,blockStart:1,blockEnd:1,tableIndex:null}};
+ const issues=publicSourceReviewIssues({value:{...blankReview(),extractionAdjudications:[{warningKey:warning.key,basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:null}]},documentType:'FORM',visibility:'PUBLIC',storageMode:'RAG',publishedAt:null,effectiveFrom:'2026-10-01',effectiveTo:null,action:'NEW_FAMILY',relationship:null,target:null,sourceUrl:'https://www.yru.ac.th/forms',sensitiveCategories:[],disabled:false,onChange:()=>undefined,sourceFormat:'PDF',extractionWarnings:[warning]});
+ expect(issues.some(issue=>issue.includes('เหตุผล')&&issue.includes('แผนภาพ'))).toBe(true);
+});
+
 function schemaFourDraft():Extract<ImportReviewDraft,{schemaVersion:4}>{
  const base=unfinishedReviewDraft();
  return {
@@ -158,9 +169,11 @@ it('upgrades only after a deliberate choice and preserves existing review attest
 
 it('restarts schema-four review without carrying source-review reasons or attestations',()=>{
  const empty={...schemaFourDraft(),publicSourceReview:blankReview()};
- const restarted=restartReviewDraft(empty,schemaFourDraft()) as Extract<ImportReviewDraft,{schemaVersion:4}>;
+ const prior=schemaFourDraft();prior.publicSourceReview.extractionAdjudications=[{warningKey:'c'.repeat(64),basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:'Prior page review'}];
+ const restarted=restartReviewDraft(empty,prior) as Extract<ImportReviewDraft,{schemaVersion:4}>;
  expect(restarted.schemaVersion).toBe(4);
  expect(restarted.publicSourceReview).toEqual(blankReview());
+ expect(restarted.publicSourceReview.extractionAdjudications).toBeUndefined();
  expect(restarted.attestations).toEqual({sourceAuthorityReviewed:false,extractionReviewed:false,applicabilityReviewed:false,sensitivityReviewed:false,versionReviewed:false});
  expect(restarted.chunkPlan).toBeNull();
  expect(restarted.structuredMapping).toBeNull();

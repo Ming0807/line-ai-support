@@ -8,5 +8,7 @@ export const publicSourceReviewSchema=z.object({
   category:z.enum(['GRADES','STUDENT_RECORDS','PHONE']),
   basis:z.enum(['GENERAL_POLICY_WORDING','PUBLIC_BLANK_TEMPLATE','INSTITUTIONAL_CONTACT']),reason,
  }).strict()).max(3).refine(rows=>new Set(rows.map(r=>r.category)).size===rows.length),
+ extractionAdjudications:z.array(z.object({warningKey:z.string().regex(/^[a-f0-9]{64}$/u),basis:z.literal('REVIEWED_NON_TABULAR_DIAGRAM'),reason}).strict()).max(1000)
+  .refine(rows=>new Set(rows.map(r=>r.warningKey)).size===rows.length).optional(),
 }).strict();
 export type PublicSourceReview=z.infer<typeof publicSourceReviewSchema>;

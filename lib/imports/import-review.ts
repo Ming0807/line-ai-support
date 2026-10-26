@@ -17,6 +17,7 @@ export interface ImportReviewOptions extends ImportExtractionOptions {
 export interface ImportReviewState {
  jobId:string;jobRevision:number;extractionRevision:number;reviewRevision:number;stale:boolean;warnings:ReviewWarning[];
  sensitiveCategories?:ImportPreview['analysis']['sensitiveCategories'];
+ sourceFormat?:ImportPreview['job']['format'];
  saved:{reviewRevision:number;jobRevision:number;extractionRevision:number;actorId:string;createdAt:string;draft:ImportReviewDraft}|null;
 }
 interface ReviewRow {
@@ -44,7 +45,7 @@ function readDraft(row:ReviewRow,id:string,checksum:string,options:ImportReviewO
  const draft=reviewDraftSchema.parse(JSON.parse(serialized));if(JSON.stringify(draft)!==serialized)throw new ImportStagingError('INTERNAL_ERROR');return draft;
 }
 function state(preview:ImportPreview,saved:ImportReviewState['saved']):ImportReviewState {
- return {jobId:preview.job.id,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,reviewRevision:saved?.reviewRevision??0,sensitiveCategories:[...preview.analysis.sensitiveCategories],
+ return {jobId:preview.job.id,jobRevision:preview.job.revision,extractionRevision:preview.extractionRevision,reviewRevision:saved?.reviewRevision??0,sensitiveCategories:[...preview.analysis.sensitiveCategories],sourceFormat:preview.job.format,
   stale:saved!==null&&(saved.jobRevision!==preview.job.revision||saved.extractionRevision!==preview.extractionRevision),warnings:buildReviewWarnings(preview),saved};
 }
 export async function getImportReview(actor:string,id:string,options:ImportReviewOptions={}):Promise<ImportReviewState>{

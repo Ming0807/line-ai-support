@@ -7,7 +7,7 @@ import type {ImportReviewState} from './import-review';
 import {validateLocatedChunkPlan} from '../knowledge/located-plan-validation';
 import {locatedReviewApplies} from '../knowledge/located-chunk-plan';
 import type {LocatedChunkPlan} from '../knowledge/located-plan-types';
-import {hasValidPublicTemporalReview,reviewedPublicContent} from './public-source-policy';
+import {hasValidPublicTemporalReview,reviewedPublicContent,reviewedNonTabularDiagram} from './public-source-policy';
 export type PublicationPolicyCode='PUBLICATION_REVIEW_INCOMPLETE'|'PUBLICATION_PLAN_MISMATCH'|'PUBLICATION_WARNINGS_UNRESOLVED'|'PUBLICATION_QUALITY_REANALYSIS_REQUIRED'|'PUBLICATION_PUBLIC_SENSITIVE_DATA'|'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE';
 export class PublicationPolicyError extends Error{constructor(readonly code:PublicationPolicyCode){super(code);this.name='PublicationPolicyError';}}
 export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3|4}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
@@ -61,8 +61,10 @@ function checkQuality(preview:ImportPreview,draft:ImportReviewDraft){
  const invalid=()=>fail('PUBLICATION_QUALITY_REANALYSIS_REQUIRED');
  if(preview.extraction.report.truncated||preview.extraction.report.replacementCharacters>0)invalid();
  const references=buildReviewWarnings(preview);
+ if(draft.schemaVersion===4&&draft.publicSourceReview.extractionAdjudications?.some(a=>!references.some(w=>w.key===a.warningKey&&w.code==='UNSUPPORTED_TABLES')))invalid();
  for(const [index,warning] of preview.extraction.report.warnings.entries()){
-  if(warning.code==='UNSUPPORTED_TABLES'||warning.code==='ENCRYPTED_SOURCE')invalid();
+  if(warning.code==='ENCRYPTED_SOURCE')invalid();
+  if(warning.code==='UNSUPPORTED_TABLES'&&!reviewedNonTabularDiagram(preview,draft,references[index]))invalid();
   if(warning.code==='OCR_REQUIRED'){
    if(draft.warningDispositions.find(d=>d.warningKey===references[index].key)?.status!=='CORRECTED')invalid();
    if(preview.kind!=='EDITED'||!preview.edit)invalid();

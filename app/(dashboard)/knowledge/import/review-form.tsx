@@ -138,6 +138,7 @@ function normalizeDraft(draft:ImportReviewDraft):ImportReviewDraft{
       ...normalized.publicSourceReview,
       temporalReason:clean(normalized.publicSourceReview.temporalReason),
       sensitivityAdjudications:normalized.publicSourceReview.sensitivityAdjudications.map(item=>({...item,reason:clean(item.reason)})),
+      ...(normalized.publicSourceReview.extractionAdjudications===undefined?{}:{extractionAdjudications:normalized.publicSourceReview.extractionAdjudications.map(item=>({...item,reason:clean(item.reason)}))}),
     };
   }
 
@@ -507,7 +508,7 @@ export default function ReviewForm({
     value:draft.publicSourceReview,documentType:draft.metadata.documentType,visibility:draft.metadata.visibility,storageMode:draft.metadata.storageMode,
     publishedAt:draft.metadata.publishedAt,effectiveFrom:draft.metadata.effectiveFrom,effectiveTo:draft.metadata.effectiveTo,
     action:draft.action,relationship:draft.relationship,target:draft.target,sourceUrl:draft.metadata.sourceUrl,
-    sensitiveCategories:review.sensitiveCategories??[],disabled,
+      sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,
     onChange:()=>undefined,
   }):[];
   const missingFields=draft?[
@@ -904,6 +905,8 @@ export default function ReviewForm({
               target={draft.target}
               sourceUrl={draft.metadata.sourceUrl}
               sensitiveCategories={review?.sensitiveCategories??[]}
+                sourceFormat={review?.sourceFormat}
+                extractionWarnings={review?.warnings??[]}
               disabled={disabled}
               onChange={updatePublicSourceReview}
             />
