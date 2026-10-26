@@ -44,16 +44,16 @@ ROOT-LOCAL-READY-01เริ่ม25October2026ประมาณ21:24Bangkokแ
 
 เพิ่มเติม: คุยทั่วไป/คำนวณ/เขียนข้อความ/ติดตามบริบทจริง, คำถามยาวและคำตอบหลายLINEmessagesต้องครบ,staff2คนแย่งรับ,studentหลายคนพร้อมกัน,staffเปลี่ยนเคสขณะstudentตอบ,LINE/AIล่มแล้วretryไม่ซ้ำหรือข้ามคน ต้องตรวจหลังtechnical/model acceptanceตามแผน ไม่ยกcomponentpassมาทดแทน
 
-## ข้อมูลเอกสารที่ต้องให้เจ้าของข้อมูลตัดสิน
+## ข้อมูลเอกสาร — root รับผิดชอบตรวจและนำเข้าต่อ
 
-Rootเตรียมextraction/locatedtranscriptionและตรวจarchiveแล้ว ไม่ส่งงานOCR/เดาวันที่ให้ผู้ใช้ทำใหม่ ดู [technical review9รายการ](../../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md)
+DEC172: ผู้ใช้ยืนยันการใช้ข้อมูลสาธารณะและอาจารย์อนุญาตแล้ว ไม่ต้องขอownerapprovalซ้ำ ตารางเดิมด้านล่างเป็นรายการค้นข้อเท็จจริงของroot ไม่ใช่งานที่ผู้ใช้ต้องตอบก่อนเดินต่อ. ตรวจปฏิทิน/แบบฟอร์ม/ห้องสมุดและบันทึกnormaldrafts5รายการแล้ว26ตุลาคม ดู[ผลตรวจปัจจุบัน](CORPUS_DECISION_PACKETS.md). Publicationยังไม่มีเพิ่ม: ต้องแก้การรองรับunknown dates/public blank templatesและcorrectionของlocated extractionอย่างตรงไปตรงมา ไม่เดาวันที่หรือเปลี่ยนชนิดเอกสารเพื่อหลบguard. [Technical reviewเดิม](../../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md)เป็นประวัติตามวันที่
 
 | กลุ่ม | คำตัดสินที่ยังไม่มีหลักฐาน |
 | --- | --- |
 | Registrar: YRU010/011 | governingcalendar/amendments/ขอบเขตregular-weekend; วันในPDFบางรายการมีข้อสงสัย ห้ามแก้ปีเอง |
 | Registrar: YRU007/034/047/027 | อัตราค่าธรรมเนียมแยกprogram/cohortและrowผิดรูป, แบบเกินหน่วยกิต/ช่วงยื่น, currentnessของformaltransferguideและfeeinstrument2565ที่อ้าง50บาท, title/sensitivityของblankform;43วันกับ30/15วันเป็นคนละpath ไม่ใช่ข้อขัดกันที่พิสูจน์แล้ว |
 | StudentDevelopment: YRU149/166 | currentamendments/annualcriteria/transferdiscrepancyและประกาศรายcohort; indexเป็นdiscoveryไม่ใช่กฎเดียวครอบทุกคน |
-| Library: YRU182 | วันที่เผยแพร่ที่พิสูจน์ได้/normalhoursและข้อยกเว้น/สาธารณะของcontact; ไม่ใช้วันcaptureเป็นวันประกาศ |
+| Library: YRU182 | ยืนยันชั่วโมง/ข้อยกเว้น/เบอร์ติดต่อหน่วยงานแล้วจากเว็บทางการ; วันประกาศไม่ทราบ ต้องรองรับข้อมูลundated ไม่ใช้วันcaptureแทนหรือขอผู้ใช้อนุมัติเบอร์ซ้ำ |
 
 บทความMAC/Passport/Wi-Fi/ห้องstudyroomที่อนุมัติแล้วรับรองเฉพาะข้อความอ้างแหล่ง ไม่รับรองบริการเปิดทำงานจริงหรือเนื้อหาattachmentที่ยังเข้าไม่ได้ ถ้าเพิ่มเอกสารให้ใช้normalreview/publicationservice ห้ามautoapproveทั้งโฟลเดอร์
 
@@ -67,7 +67,7 @@ Rootเตรียมextraction/locatedtranscriptionและตรวจarchiv
 - StaffAuth/department/sensitivity, production provider-account status/FREE_ONLY/quota, retry/queueobservability, backuplifecycleและrestore
 - เปลี่ยนcredentialsสำหรับproductionผ่านsecretconfiguration ไม่commit.env/accountpassword/privateoriginals
 
-Deployment/actualOA/sourceowner evidenceยังไม่ถูกนับว่าผ่าน [บอร์ดงานปัจจุบัน](../tasks/V1_TASK_BOARD.md) เป็นสถานะหลัก [สำเนาchecklistเดิม](FINAL_SETUP_CHECKLIST_HISTORY_2026-10-20.md) เก็บbytesเดิมและURLเก่าทั้งหมดเป็นประวัติ
+Deployment/actualOA/sourceaccuracy/publication evidenceยังไม่ถูกนับว่าผ่าน; sourceownerpermissionได้ตามDEC172แล้ว [บอร์ดงานปัจจุบัน](../tasks/V1_TASK_BOARD.md) เป็นสถานะหลัก [สำเนาchecklistเดิม](FINAL_SETUP_CHECKLIST_HISTORY_2026-10-20.md) เก็บbytesเดิมและURLเก่าทั้งหมดเป็นประวัติ
 
 22ตุลาคม: ทดลอง typed guided advice เฉพาะฐานทดสอบแล้ว ไม่มีการเปิดใช้ใน local:ai/normal workers. Actual A09/A04 ตอบสำเร็จแต่ยังไม่ผ่านคุณภาพ (คำอธิบาย cache และรักษาความหมายเรื่องด่วน). Current3,125unit/type/changed-file lint/buildผ่าน ไม่ใช่การส่งมอบให้ผู้ใช้เทส; runtimeยังหยุดและไม่มี current webhook URL.
 
