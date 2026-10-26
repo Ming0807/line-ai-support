@@ -12,7 +12,7 @@
 
 ## สถานะปัจจุบัน
 
-- งาน GLM ที่ commit แล้วถึง4449381: UI consistency, deadline retune, original30, deterministic discovery correction และชุดเตรียมทดสอบ/เอกสาร. Root ตรวจผ่านการอ่านโค้ดและหลักฐานเดิม; งาน Hermes/QA ที่ค้างได้รับการปรับปรุงใน working tree รอบนี้
+- งานGLMเดิมถึง4449381ได้รับrootauditแล้ว; งานHermes/QAและownedacceptanceรอบใหม่เก็บในlocalcommit`9948ba9`(26ตุลาคม). ตัวเลขoriginal/repeatและข้อจำกัดเดิมยังแยกไว้ ไม่เปลี่ยนprovider/key/timeoutหรือเรียกmodeltestsเพิ่ม
 - Gemini main6 บน source3 มีหลักฐานเดิมครบ30กรณี:29/30 trajectories,19/20 usefulและmandatorygates. ไม่ได้ยิงทดสอบโมเดลเพิ่มรอบตรวจนี้
 - Repeat2 ครบ21executionsและsafetygates แต่ทั้ง3A10ให้เพียงข้อมูลทางการพร้อมแจ้งว่าส่วนคำแนะนำทั่วไปยังตอบไม่ครบ. คำกล่าว21/21ผ่านความครบถ้วนถูกแก้ด้วยaudit DEC-167 โดยเก็บต้นฉบับไว้; ผู้ใช้รับการทดสอบสนทนาต่อเองภายหลัง
 - Hermes: ต่อStaff Copilotเข้าหน้าเคสDashboardแล้วตาม[แผน](superpowers/plans/2026-10-25-hermes-staff-dashboard.md). ใช้native cacheเฉพาะเมื่อเจ้าหน้าที่กด ผูกผู้รับผิดชอบ/หัวหน้า+ticket+revision และตรวจหลักฐานซ้ำหลังร่างเสร็จ. แสดงร่างครบ/แก้ไข/นำเข้าช่องตอบกลับเอง; ไม่ส่งอัตโนมัติ. Controlled child/loopback/PG/browserผ่าน; actualHermes+modeldraftยังรอผู้ใช้ ไม่มีStudent responderใหม่
@@ -24,7 +24,7 @@
 
 ผลตรวจROOT-GLM-HERMES-01ก่อนต่อUI:3235tests/236files,type/full lint/build408inputs,ownedPG9/43migrations/credentialscan1592files. ผลรอบต่อUIล่าสุดอยู่[บอร์ดงาน](tasks/V1_TASK_BOARD.md)และ[execution plan](superpowers/plans/2026-10-25-hermes-staff-dashboard.md); มีrootintegrationและLunascopedreviewจริง แต่ไม่มีliveHermes/Gemini/OAqualificationเพิ่มเติม
 
-26ตุลาคมROOT-CLOSEOUT-01:657registeredPG/41groups/43migrations/exactcleanup,advisors0ERROR/0WARN/111INFO,3272unit/type/lint/full849inputbuild/899codefreezeผ่านครบ. แก้เฉพาะtestoracles/fixturecleanupตามDEC169–171และจัดlocalcommit52ไฟล์ชัดเจน;generatednext-env.d.tsไม่รวม. งานข้อมูลจริง/ตรวจรับจริง/deployยังค้างตามบอร์ด ไม่ยิงโมเดลเพิ่ม
+26ตุลาคมROOT-CLOSEOUT-01:657registeredPG/41groups/43migrations/exactcleanup,advisors0ERROR/0WARN/111INFO,3272unit/type/lint/full849inputbuild/899codefreezeผ่านครบ. แก้testoracles/fixturecleanupตามDEC169–171และcommit52ไฟล์ใน`9948ba9`;generatednext-env.d.tsไม่รวมและยังunstaged. งานข้อมูลจริง/ตรวจรับจริง/deployยังค้างตามบอร์ด ไม่ยิงโมเดลเพิ่ม
 
 ## เอกสารตามงาน
 

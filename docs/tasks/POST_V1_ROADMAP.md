@@ -4,7 +4,7 @@
 
 ## สถานะโปรเจ็ค ณ ตอนนี้ (สรุปตรวจ)
 
-**ผลตรวจล่าสุด26ต.ค.: original30historicalคงเดิม; repeatedA10เป็นsafepartial3รอบไม่ใช่usefulnessPASSตามDEC167. StaffDashboardCopilotต่อแล้วตามDEC168;ROOT-CLOSEOUT-01ผ่าน657registeredPG/3272unit/type/lint/buildและกำลังเก็บlocalcommit. Actualnative/modeldraft/LINEยังรอผู้ใช้ ไม่ใช้คำกล่าวgitcleanของcheckpointเดิมเป็นสถานะปัจจุบัน.**
+**ผลตรวจล่าสุด26ต.ค.: original30historicalคงเดิม; repeatedA10เป็นsafepartial3รอบไม่ใช่usefulnessPASSตามDEC167. StaffDashboardCopilotต่อแล้วตามDEC168;ROOT-CLOSEOUT-01ผ่าน657registeredPG/3272unit/type/lint/buildและเก็บlocalcommit`9948ba9`แล้ว. Actualnative/modeldraft/LINEยังรอผู้ใช้;generatednext-env.d.tsยังเป็นunstageddevoutput ไม่เรียกworkingtreeclean.**
 
 **งานฐานตามรายงานGLMและrootaudit:**13modulesตามmaster§3,43migrations/74RLStables,import5formats/atomicpublication,incidents/batchreply,Providerorder/test/quota/observationsและUIconsistency. ตัวเลขเดิม3184unit/645ownedPGเป็นหลักฐานตามsourceขณะนั้น; ผลล่าสุดอยู่บอร์ดงาน. Original30historicalPASS ส่วนrepeatA10ห้ามนับsafe partialเป็นคำตอบครบ. Branch`feat/yru-v1-final-polish`;ไม่ใช้คำว่าagentงานจบทั้งหมดหรือgitcleanจากcheckpointเก่าแทนสถานะปัจจุบัน
 
@@ -73,7 +73,7 @@
 ## เพิ่มเติมจากรอบ 25 ต.ค. (หลังปิดเฟส 0)
 
 - สร้าง **[เอกสารเตรียมทดสอบจริง](../operations/LIVE_TEST_QA_PREP.md)** แล้ว — ตรวจฐานจริงพบ: PUBLIC 5 เอกสาร/52 chunks พร้อมตอบ, **structured 7 ตาราง = 0 แถวจริง** (คำถามค่าเทอม/ปฏิทินต้องได้คำตอบ "ยังไม่พบเอกสาร")
-- Historicalcheckpoint `checkpoint/v1-agent-complete` เคยสะอาดก่อนรอบHermes/QA; ปัจจุบันมีงานใหม่ยังไม่commit ใช้tagเทียบประวัติเท่านั้น ห้ามresetทับงานค้าง
+- Historicalcheckpoint `checkpoint/v1-agent-complete` เคยสะอาดก่อนรอบHermes/QA; รอบใหม่เก็บในlocalcommit`9948ba9`แล้ว เหลือgeneratednext-env.d.tsเป็นunstageddevoutput. ใช้tagเทียบประวัติเท่านั้น ห้ามresetทับงานค้าง
 
 ## ลำดับแนะนำ (critical path)
 
