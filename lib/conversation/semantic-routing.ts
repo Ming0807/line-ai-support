@@ -7,18 +7,18 @@ import {userEventSchema,type DirectUserEvent} from '../line/events';
 import {decryptValue,hashLineUserId} from '../security/identity';
 import type {InboxJob} from '../queue/process-inbox';
 import {loadCandidates} from './context-resolver';
-import {projectRoutingContext,resolveRoutingProposal,routingInferenceBudgetMs,SemanticRoutingUnavailableError,type SemanticCandidate,type SemanticClassifier} from './semantic-routing-contracts';
+import {projectRoutingContext,resolveRoutingProposal,routingInferenceBudgetMs,SemanticRoutingUnavailableError,SEMANTIC_CANDIDATE_LIMIT,type SemanticCandidate,type SemanticClassifier} from './semantic-routing-contracts';
 import {readExplicitNewTopic} from './explicit-focus';
 import {isTypedRouteNavigation} from './quick-reply';
 import {isTypedSupportConfirmation} from './support-confirmation';
-import {recordRoutingObservation,routingLatency,type RoutingReason} from './routing-telemetry';
+import {recordRoutingObservation,routingLatency,type RoutingReason,type RoutingDecisionObservation} from './routing-telemetry';
 type Selection=NonNullable<ReturnType<typeof resolveRoutingProposal>>;
 export interface SemanticRoutingAdvice {eventId:string;sessionId:string;questionDigest:string;contextDigest:string;selection:Selection}
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 async function loadContext(client:DbClient,sessionId:string):Promise<SemanticCandidate[]>{
  const candidates=await loadCandidates(client,sessionId);
- if(candidates.length>12)return [];
+ if(candidates.length>SEMANTIC_CANDIDATE_LIMIT)return [];
  const rows=(await client.query(`select c.id,c.topic,t.problem_summary,
   coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'content',m.content,'createdAt',m.created_at,'senderType',m.sender_type) order by m.created_at,m.id)
    from(select id,content,created_at,sender_type from public.messages history where conversation_id=c.id and sender_type in('USER','AI') and message_type='TEXT'
@@ -47,6 +47,8 @@ type PreflightOutcome={kind:'skip';reason:RoutingReason;candidates?:number}
 export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:string,classify:SemanticClassifier,onUnavailable?:(reason:SemanticRoutingUnavailableError['reason'])=>void):Promise<SemanticRoutingAdvice|null>{
  if(job.channel!=='STUDENT')return null;
  const started=Date.now();
+ let observationSession:string|undefined;
+ const observe=(value:RoutingDecisionObservation)=>recordRoutingObservation(pool,{...value,inboxEventId:job.id,lineSessionId:observationSession});
  let prepared:PreflightOutcome;
  try{
   prepared=await transaction(async c=>{
@@ -63,6 +65,7 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
    await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
    const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
    if(!session)return {kind:'skip',reason:'SESSION_MISSING'};
+   observationSession=session.line_session_id;
    if(await readExplicitNewTopic(c,session.line_session_id))return {kind:'skip',reason:'EXPLICIT_NEW_TOPIC'};
    const recent=(await c.query(`select count(*)::int n from private.webhook_inbox prior where prior.user_hash=$1 and prior.channel='STUDENT'
     and prior.event_kind='MESSAGE' and prior.received_at>$2::timestamptz-interval '1 minute' and prior.received_at<=$2 and prior.event_seq<$3`,[hash,row.received_at,row.event_seq])).rows[0].n;
@@ -70,7 +73,7 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
    if((await c.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return {kind:'skip',reason:'DUPLICATE_MESSAGE'};
    const candidates=await loadCandidates(c,session.line_session_id);
    if(!candidates.length)return {kind:'skip',reason:'CANDIDATES_EMPTY'};
-   if(candidates.length>12)return {kind:'skip',reason:'CANDIDATES_OVERFLOW',candidates:candidates.length};
+   if(candidates.length>SEMANTIC_CANDIDATE_LIMIT)return {kind:'skip',reason:'CANDIDATES_OVERFLOW',candidates:candidates.length};
    for(const candidate of [...candidates].sort((a,b)=>a.conversationId.localeCompare(b.conversationId)))await lockConversation(c,candidate.conversationId);
    if(isTypedRouteNavigation(question,await loadCandidates(c,session.line_session_id)))return {kind:'skip',reason:'ROUTE_NAVIGATION'};
    const context=await loadContext(c,session.line_session_id);if(!context.length)return {kind:'skip',reason:'CONTEXT_MISMATCH',candidates:candidates.length};
@@ -79,34 +82,35 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
    return {kind:'ready',sessionId:session.line_session_id as string,question,context,duration,candidates:candidates.length};
   },pool);
  }catch(error){
-  recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'ERROR',reasonCode:'INTERNAL_ERROR',latencyMs:routingLatency(started)});
+  observe({stage:'PREFLIGHT',status:'ERROR',reasonCode:'INTERNAL_ERROR',latencyMs:routingLatency(started)});
   throw error;
  }
  const preflightLatency=routingLatency(started);
  if(prepared.kind==='skip'){
-  recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'SKIPPED',reasonCode:prepared.reason,candidates:prepared.candidates,latencyMs:preflightLatency});
+  if(prepared.reason==='CANDIDATES_OVERFLOW')onUnavailable?.('CONTEXT_LIMIT');
+  observe({stage:'PREFLIGHT',status:'SKIPPED',reasonCode:prepared.reason,candidates:prepared.candidates,latencyMs:preflightLatency});
   return null;
  }
- recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'SUCCESS',candidates:prepared.candidates,latencyMs:preflightLatency});
+ observe({stage:'PREFLIGHT',status:'SUCCESS',candidates:prepared.candidates,latencyMs:preflightLatency});
  const before={sessionId:prepared.sessionId,question:prepared.question,context:prepared.context,duration:prepared.duration};
  const classifyStarted=Date.now(),controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
  const boundary=new Promise<null>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(null);},before.duration);});
  try{
   const proposal=await Promise.race([boundary,Promise.resolve().then(()=>classify({question:before.question,contexts:projectRoutingContext(before.context)},controller.signal))]);
   if(controller.signal.aborted){onUnavailable?.('TIMEOUT');
-   recordRoutingObservation(pool,{stage:'CLASSIFY',status:'TIMEOUT',reasonCode:'TIMEOUT',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
+   observe({stage:'CLASSIFY',status:'TIMEOUT',reasonCode:'TIMEOUT',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
    return null;}
   const selection=resolveRoutingProposal(proposal,before.context);
-  if(!selection){recordRoutingObservation(pool,{stage:'CLASSIFY',status:'SKIPPED',reasonCode:'NO_VALID_PROPOSAL',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});return null;}
-  recordRoutingObservation(pool,{stage:'CLASSIFY',status:'SUCCESS',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
+  if(!selection){observe({stage:'CLASSIFY',status:'SKIPPED',reasonCode:'NO_VALID_PROPOSAL',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});return null;}
+  observe({stage:'CLASSIFY',status:'SUCCESS',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
   return {eventId:job.id,sessionId:before.sessionId,questionDigest:digest(before.question),contextDigest:digest(before.context),selection};
  }catch(error){
   if(error instanceof SemanticRoutingUnavailableError){
    const aborted=controller.signal.aborted;
    onUnavailable?.(aborted?'TIMEOUT':error.reason);
-   recordRoutingObservation(pool,{stage:'CLASSIFY',status:error.reason==='TIMEOUT'||aborted?'TIMEOUT':'ERROR',
+   observe({stage:'CLASSIFY',status:error.reason==='TIMEOUT'||aborted?'TIMEOUT':'ERROR',
     reasonCode:aborted?'TIMEOUT':error.reason,candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
-  }else recordRoutingObservation(pool,{stage:'CLASSIFY',status:'ERROR',reasonCode:'INTERNAL_ERROR',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
+  }else observe({stage:'CLASSIFY',status:'ERROR',reasonCode:'INTERNAL_ERROR',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
   return null;
  }
  finally{if(timer)clearTimeout(timer);controller.abort();}

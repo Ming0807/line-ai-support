@@ -50,6 +50,42 @@ async function explicit(f:Awaited<ReturnType<typeof fixture>>,text:string,option
 const aiJobs=async(session:string)=>(await pool.query('select * from private.ai_jobs where line_session_id=$1',[session])).rows;
 const sourceNow=async(id:string)=>(await pool.query('select * from public.messages where id=$1',[id])).rows[0];
 
+test('named context pages reach omitted conversations with the original pending question and reject replay',async()=>{
+ const f=await fixture();
+ const extra=(await pool.query("insert into public.conversations(line_session_id,topic,created_at) select $1,'เพิ่ม'||n,statement_timestamp()+n*interval '1 millisecond' from generate_series(1,13) n returning id",[f.session])).rows;
+ const pendingJob=await eventFor(f.userId,'คำถามที่ต้องเลือกเรื่องจากหน้าถัดไป');await apply(pendingJob);
+ const pending=(await pool.query('select id from public.messages where source_event_id=$1',[pendingJob.id])).rows[0];
+ const responseFor=async(id:string)=>JSON.parse(decryptValue((await pool.query('select payload_encrypted from private.message_outbox where idempotency_key=$1',[`student-response:${id}`])).rows[0].payload_encrypted,key)).messages[0];
+ const first=await responseFor(pendingJob.id);
+ assert(first.quickReply.items.length<=13);
+ const next=first.quickReply.items.find((item:{action:{label:string}})=>item.action.label==='เรื่องอื่น ๆ');assert(next);
+ const pageJob=await eventFor(f.userId,'',{postback:next.action.data});await apply(pageJob);
+ assert.equal((await aiJobs(f.session)).length,0);
+ const second=await responseFor(pageJob.id);
+ assert(second.quickReply.items.length<=13);assert(second.text.includes('หน้า 2/2'));
+ const chosen=second.quickReply.items.find((item:{action:{label:string}})=>item.action.label==='ต่อ เพิ่ม13');assert(chosen);
+ const choiceJob=await eventFor(f.userId,'',{postback:chosen.action.data});await apply(choiceJob);
+ const jobs=await aiJobs(f.session);assert.equal(jobs.length,1);assert.equal(jobs[0].message_id,pending.id);assert.equal(jobs[0].conversation_id,extra[12].id);
+ await apply(await eventFor(f.userId,'',{postback:chosen.action.data}));
+ assert.equal((await aiJobs(f.session)).length,1);
+ assert.equal((await sourceNow(pending.id)).content,'คำถามที่ต้องเลือกเรื่องจากหน้าถัดไป');
+});
+
+test('stale navigation without a pending question only offers a working new-topic action',async()=>{
+ const f=await fixture();
+ await pool.query("update public.messages set metadata='{\"routing_status\":\"ROUTED\"}' where id=$1",[f.source.id]);
+ await pool.query("insert into public.conversations(line_session_id,topic) select $1,'หัวข้อ'||n from generate_series(1,13) n",[f.session]);
+ const result=await explicit(f,'ต่อ เรื่อง 2');assert.equal(result.calls,0);
+ const payload=JSON.parse(decryptValue((await pool.query('select payload_encrypted from private.message_outbox where idempotency_key=$1',[`student-response:${result.job.id}`])).rows[0].payload_encrypted,key));
+ const items=payload.messages[0].quickReply.items;
+ assert.equal(items.length,1);assert.equal(items[0].action.label,'เริ่มเรื่องใหม่');
+ await explicit(f,'',{postback:items[0].action.data});
+ const next=await explicit(f,'คำถามใหม่หลังเลือกเริ่มเรื่อง');assert.equal(next.calls,0);
+ const jobs=await aiJobs(f.session);assert.equal(jobs.length,1);
+ assert.equal((await sourceNow(jobs[0].message_id)).content,'คำถามใหม่หลังเลือกเริ่มเรื่อง');
+ assert.notEqual(jobs[0].conversation_id,f.human);
+});
+
 test('typed NEW consumes the offered prompt without model HTTP and queues the complete original question once',async()=>{
  const f=await fixture('ต้นคำถาม '+ 'รายละเอียด'.repeat(450)+' ท้ายคำถาม');
  const result=await explicit(f,'เริ่มเรื่องใหม่');assert.equal(result.calls,0);
@@ -111,8 +147,8 @@ test('actual ambiguous prompt describes owned topics and numbered choice routes 
  const row=(await pool.query('select payload_encrypted from private.message_outbox where line_session_id=$1 order by created_at desc,id desc limit 1',[f.session])).rows[0];
  const message=JSON.parse(decryptValue(row.payload_encrypted,key)).messages[0];
  const labels=message.quickReply.items.map((item:{action:{label:string}})=>item.action.label);
- assert.equal(new Set(labels).size,4);assert(labels.includes('ต่อ เรื่อง 2'));
- assert(message.text.includes('2. ห้องสมุด'));assert(message.text.includes('3. การลงทะเบียน'));
+ assert.equal(new Set(labels).size,4);assert(labels.includes('ต่อ ห้องสมุด'));
+ assert(message.text.includes('• ห้องสมุด'));assert(message.text.includes('• การลงทะเบียน'));
  const result=await explicit(f,'ต่อ เรื่อง 2');assert.equal(result.calls,0);
  const jobs=await aiJobs(f.session);assert.equal(jobs.length,1);assert.equal(jobs[0].message_id,pending.id);assert.equal(jobs[0].conversation_id,f.ai);
  assert.equal((await sourceNow(pending.id)).content,'ยังเลือกเรื่องไม่ได้ครับ');

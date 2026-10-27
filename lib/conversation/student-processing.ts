@@ -53,9 +53,9 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    const controlConversation=source?.conversation_id??(await client.query("insert into public.conversations(line_session_id,conversation_type) values($1,'SUPPORT') returning id",[sessionId])).rows[0].id;
    await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata)
     values($1,'USER','TEXT',$2,$3,$4,'{"routing_status":"ROUTE_CONTROL"}'::jsonb)`,[controlConversation,event.message.text,event.message.id,eventId]);
-   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:source?.id,choices:contextChoiceOptions(candidates)},key);
-   await respond(contextChoiceText(source?'ตัวเลือกเดิมใช้ไม่ได้แล้วครับ กรุณากดเลือกด้านล่างเพื่อส่งคำถามเดิมเข้าหัวข้อที่ต้องการ':
-    'ยังไม่มีคำถามที่รอเลือกเรื่องครับ ส่งคำถามมาได้เลย หรือกด “เริ่มเรื่องใหม่” ก่อนส่งคำถาม',candidates),quickReply);
+   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:source?.id,choices:source?contextChoiceOptions(candidates):[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
+   await respond(source?contextChoiceText('ตัวเลือกเดิมใช้ไม่ได้แล้วครับ กรุณากดเลือกด้านล่างเพื่อส่งคำถามเดิมเข้าหัวข้อที่ต้องการ',candidates):
+    'ยังไม่มีคำถามที่รอเลือกเรื่องครับ ส่งคำถามมาได้เลย หรือกด “เริ่มเรื่องใหม่” ก่อนส่งคำถาม',quickReply);
    return 'INVALID_CHOICE';
   }
   }
@@ -64,6 +64,15 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   const consumed=await consumeChoice(client,sessionId,event.postback.data,snapshot,key);
   if(!consumed){await respond('ตัวเลือกนี้หมดอายุหรือถูกใช้แล้วครับ กรุณาส่งข้อความใหม่');return 'INVALID_CHOICE';}
   choice=consumed.choice;pendingMessageId=consumed.pendingMessageId;
+  if(choice.action==='ROUTE_PAGE'){
+   const page=typeof choice.page==='string'&&/^(0|[1-9]\d{0,3})$/u.test(choice.page)?Number(choice.page):-1;
+   const source=await latestPendingRouteSource(client,sessionId);
+   if(!source||source.id!==pendingMessageId||page<0||page>=(candidates.length<=12?1:Math.ceil(candidates.length/10))){
+    await respond('รายการเรื่องเปลี่ยนแล้วครับ ส่งคำถามมาได้เลย');return 'INVALID_CHOICE';
+   }
+   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:source.id,choices:contextChoiceOptions(candidates,page)},key);
+   await respond(contextChoiceText('เลือกชื่อเรื่องที่ต้องการต่อครับ หรือพิมพ์คำถามเพิ่มเติมได้เลย',candidates,page),quickReply);return null;
+  }
   selected=choice.conversationId;newTopic=choice.action==='NEW';
   if(newTopic)await clearExplicitHumanFocus(client,sessionId);
   if(newTopic&&!pendingMessageId){

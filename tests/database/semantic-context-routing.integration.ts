@@ -40,6 +40,37 @@ async function fixture(options:{second?:boolean;spam?:boolean;duplicate?:boolean
 }
 const applyInbox=(job:InboxJob,advice:Awaited<ReturnType<typeof classifyStudentInboxContext>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,routingAdvice:advice??undefined}),pool);
 
+test('fifteen active contexts still classify and route the exact thirteenth AI context once',async()=>{
+ const f=await fixture({second:true,question:'ขอรายละเอียดหัวข้อทดสอบสิบสาม'});
+ const extra=(await pool.query("insert into public.conversations(line_session_id,topic) select $1,'หัวข้อทดสอบ '||n from generate_series(1,13) n returning id",[f.session])).rows;
+ const target=extra[12].id;let count=0;
+ const advice=await classifyStudentInboxContext(pool,f.job,key,async input=>{
+  count++;assert.equal(input.contexts.length,15);
+  const chosen=input.contexts.find(c=>c.topic==='หัวข้อทดสอบ 13');assert(chosen);
+  return {decision:'CONTINUE',candidateCode:chosen.code,confidence:.99};
+ });
+ assert(advice);assert.equal(count,1);assert.equal(advice.selection.selectedConversationId,target);
+ await applyInbox(f.job,advice);
+ const jobs=(await pool.query('select conversation_id,message_id from private.ai_jobs where line_session_id=$1',[f.session])).rows;
+ assert.equal(jobs.length,1);assert.equal(jobs[0].conversation_id,target);
+ assert.equal((await pool.query('select count(*)::int n from public.messages where ticket_id=$1',[f.ticket])).rows[0].n,1);
+ assert.equal((await pool.query('select content from public.messages where ticket_id=$1',[f.ticket])).rows[0].content,'ลงทะเบียนไม่ได้ครับ');
+});
+
+test('sixty-five contexts report capacity unavailability without calling AI or guessing a recipient',async()=>{
+ const f=await fixture({question:'คำถามเมื่อมีเรื่องเกินขอบเขต'});
+ await pool.query("insert into public.conversations(line_session_id,topic) select $1,'หัวข้อ'||n from generate_series(1,64) n",[f.session]);
+ let calls=0;const reasons:string[]=[];
+ assert.equal(await classifyStudentInboxContext(pool,f.job,key,async()=>{calls++;return {decision:'NEW',candidateCode:null,confidence:1};},reason=>reasons.push(reason)),null);
+ assert.equal(calls,0);assert.deepEqual(reasons,['CONTEXT_LIMIT']);
+ await pool.query("update private.webhook_inbox set status='PENDING',lease_token=null,lease_until=null where id=$1",[f.job.id]);
+ assert.deepEqual(await runInboxCycle(pool,key,{aiEnabled:true,classify:async()=>{throw new Error('MUST_NOT_CALL');}}),{claimed:1,completed:1,failed:0});
+ const saved=(await pool.query('select content,metadata,ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0];
+ assert.equal(saved.content,'คำถามเมื่อมีเรื่องเกินขอบเขต');assert.equal(saved.metadata.routing_status,'PENDING');assert.equal(saved.ticket_id,null);
+ assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
+ assert.equal((await pool.query('select last_error_code from private.webhook_inbox where id=$1',[f.job.id])).rows[0].last_error_code,'ROUTING_UNAVAILABLE');
+});
+
 test('provider outage preserves the pending message and choices without claiming semantic ambiguity or sending to HUMAN',async()=>{
  const f=await fixture({second:true,question:'แล้วเรื่องที่คุยไว้ล่ะ'});
  await pool.query("update private.webhook_inbox set status='PENDING',lease_token=null,lease_until=null where id=$1",[f.job.id]);
@@ -137,7 +168,7 @@ test('semantic routing receives and stores complete long Thai and prior USER tex
 });
 test('new semantic topic during HUMAN starts an independent AI job; classifier sees minimized evidence outside SQL',async()=>{
  const f=await fixture();const classify:SemanticClassifier=async input=>{
-  assert.equal((await pool.query("select count(*)::int n from pg_stat_activity where application_name='semantic-route-owned-qa' and pid<>pg_backend_pid() and xact_start is not null")).rows[0].n,0);
+  assert.equal((await pool.query("select count(*)::int n from pg_stat_activity where application_name='semantic-route-owned-qa' and pid<>pg_backend_pid() and xact_start is not null and query not like 'insert into private.inbox_routing_observations%'")).rows[0].n,0);
   for(const privateValue of [f.userId,f.session,f.conversation,f.ticket,'PRIVATE_ROUTE_'])assert(!JSON.stringify(input).includes(privateValue));assert.equal(input.contexts[0].code,'C1');
   return {decision:'NEW',candidateCode:null,confidence:.98};
  };

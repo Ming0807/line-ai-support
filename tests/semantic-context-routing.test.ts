@@ -21,7 +21,7 @@ it('provides contextual acknowledgement and assistant-reference guidance instead
 });
 it('accepts strict consistent semantic decisions; rejects tools, unknown fields and bogus candidate spellings',()=>{
  expect(routingProposalSchema.parse({decision:'NEW',candidateCode:null,confidence:.95})).toEqual({decision:'NEW',candidateCode:null,confidence:.95});
- for(const value of [{decision:'CONTINUE',candidateCode:null,confidence:1},{decision:'NEW',candidateCode:'C1',confidence:1},{decision:'CONTINUE',candidateCode:'C13',confidence:1},{decision:'CONTINUE',candidateCode:'private-conversation-a',confidence:1},{decision:'NEW',candidateCode:null,confidence:1,sql:'select 1'},{decision:'NEW',candidateCode:null,confidence:Infinity}])expect(routingProposalSchema.safeParse(value).success).toBe(false);
+ for(const value of [{decision:'CONTINUE',candidateCode:null,confidence:1},{decision:'NEW',candidateCode:'C1',confidence:1},{decision:'CONTINUE',candidateCode:'C65',confidence:1},{decision:'CONTINUE',candidateCode:'private-conversation-a',confidence:1},{decision:'NEW',candidateCode:null,confidence:1,sql:'select 1'},{decision:'NEW',candidateCode:null,confidence:Infinity}])expect(routingProposalSchema.safeParse(value).success).toBe(false);
 });
 it('projects ephemeral labels and bounded actual USER text without explicit IDs, ticket numbers or unrelated fields',()=>{
  const projected=projectRoutingContext(candidates);expect(projected.map(c=>c.code)).toEqual(['C1','C2']);expect(JSON.stringify(projected)).not.toContain('private-');

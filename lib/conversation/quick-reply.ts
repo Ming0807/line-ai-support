@@ -11,17 +11,36 @@ type TypedRouteChoice={action:'NEW'}|{action:'CONTINUE';conversationId:string};
 const canonicalSnapshot=(values:CandidateSnapshot[])=>JSON.stringify([...values].sort((a,b)=>a.id.localeCompare(b.id)));
 const orderedSnapshot=(values:CandidateSnapshot[])=>JSON.stringify(values.map(value=>[value.id,value.revision,value.ticketId,value.ticketRevision]));
 const numberedRouteCommand=/^ต่อ เรื่อง ([1-9]|1[0-2])$/u;
+function displayPrefix(value:string,limit:number):string{
+ let text='';for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(value)){
+  if(text.length+segment.length>limit)break;text+=segment;
+ }return text;
+}
+export function contextChoicePage(candidates:RouteCandidate[],page=0){
+ const size=candidates.length<=12?12:10,total=Math.max(1,Math.ceil(candidates.length/size));
+ if(!Number.isSafeInteger(page)||page<0||page>=total)throw new Error('ROUTE_PAGE_INVALID');
+ return {page,total,items:candidates.slice(page*size,(page+1)*size)};
+}
 
 /** Display numbering is not routing authority; the offered opaque choice still binds its exact owned snapshot. */
-export function contextChoiceOptions(candidates:RouteCandidate[]):{label:string;value:Record<string,string>}[]{
- return [{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}},...candidates.slice(0,12).map((candidate,index)=>({
-  label:`ต่อ เรื่อง ${index+1}`,value:{action:'CONTINUE',conversationId:candidate.conversationId},
- }))];
+export function contextChoiceOptions(candidates:RouteCandidate[],page=0):{label:string;value:Record<string,string>}[]{
+ const current=contextChoicePage(candidates,page),labels=new Set<string>();
+ const options:{label:string;value:Record<string,string>}[]=[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}];
+ for(const candidate of current.items){
+  const name=(candidate.topicLabel??'เรื่องที่กำลังคุย').replace(/\s+/gu,' ').trim();
+  let label=displayPrefix(`ต่อ ${name}`,20),suffix=1;
+  while(labels.has(label)){const end=` #${++suffix}`;label=displayPrefix(`ต่อ ${name}`,20-end.length)+end;}
+  labels.add(label);options.push({label,value:{action:'CONTINUE',conversationId:candidate.conversationId}});
+ }
+ if(page>0)options.push({label:'เรื่องก่อนหน้า',value:{action:'ROUTE_PAGE',page:String(page-1)}});
+ if(page+1<current.total)options.push({label:'เรื่องอื่น ๆ',value:{action:'ROUTE_PAGE',page:String(page+1)}});
+ return options;
 }
-export function contextChoiceText(text:string,candidates:RouteCandidate[]):string{
+export function contextChoiceText(text:string,candidates:RouteCandidate[],page=0):string{
  // This is a display preview only. Original USER/history and candidate authority stay complete.
- const subjects=candidates.slice(0,12).map((candidate,index)=>`${index+1}. ${Array.from((candidate.topicLabel??'เรื่องที่กำลังคุย').replace(/\s+/gu,' ').trim()).slice(0,120).join('')}`);
- return subjects.length?`${text}\n${subjects.join('\n')}`:text;
+ const current=contextChoicePage(candidates,page);
+ const subjects=current.items.map(candidate=>`• ${Array.from((candidate.topicLabel??'เรื่องที่กำลังคุย').replace(/\s+/gu,' ').trim()).slice(0,120).join('')}`);
+ return subjects.length?`${text}${current.total>1?` (หน้า ${page+1}/${current.total})`:''}\n${subjects.join('\n')}`:text;
 }
 
 /** Reserve only standalone server navigation forms, including stale YRU references; mixed text remains semantic input. */
@@ -40,9 +59,11 @@ export async function latestPendingRouteSource(client:DbClient,sessionId:string)
 
 /** Only exact labels of explicit navigation offered by this server, never general keyword routing. */
 export function resolveTypedRouteChoice(text:string,candidates:RouteCandidate[]):TypedRouteChoice|null {
- if(!candidates.length||candidates.length>12)return null;
+ if(!candidates.length)return null;
  const command=text.trim();if(command==='เริ่มเรื่องใหม่')return {action:'NEW'};
  const number=numberedRouteCommand.exec(command)?.[1];
+ // Legacy ordinal commands are accepted only when the entire offered menu fits one page.
+ if(number!==undefined&&candidates.length>12)return null;
  const matches=command==='ต่อ เรื่องที่กำลังคุย'?candidates.filter(candidate=>candidate.mode==='AI'):
   number===undefined?candidates.filter(candidate=>candidate.topicLabel!==null&&command===`ต่อ ${candidate.topicLabel}`):candidates.slice(Number(number)-1,Number(number));
  if(matches.length!==1)return null;
@@ -75,15 +96,15 @@ export async function createChoices(client:DbClient,input:{sessionId:string;snap
  const items:NonNullable<OutboundText['quickReply']>['items']=[];
  // A refreshed context menu supersedes its previous offer for this exact owned source.
  // Leave unrelated prompts and support-action confirmation offers untouched.
- if(input.pendingMessageId&&input.choices.length&&input.choices.every(choice=>['NEW','CONTINUE'].includes(choice.value.action))){
+ if(input.pendingMessageId&&input.choices.length&&input.choices.every(choice=>['NEW','CONTINUE','ROUTE_PAGE'].includes(choice.value.action))){
   await client.query(`update private.pending_route_choices set consumed_at=clock_timestamp()
-   where line_session_id=$1 and pending_message_id=$2 and consumed_at is null and choice->>'action' in ('NEW','CONTINUE')`,[input.sessionId,input.pendingMessageId]);
+   where line_session_id=$1 and pending_message_id=$2 and consumed_at is null and choice->>'action' in ('NEW','CONTINUE','ROUTE_PAGE')`,[input.sessionId,input.pendingMessageId]);
  }
  for(const choice of input.choices.slice(0,13)){
   const token=randomBytes(32).toString('base64url');
   await client.query(`insert into private.pending_route_choices(token_hash,line_session_id,choice,candidate_snapshot,pending_message_id,expires_at)
    values($1,$2,$3,$4,$5,clock_timestamp()+interval '10 minutes')`,[hashOpaqueToken(token,key),input.sessionId,choice.value,JSON.stringify(input.snapshot),input.pendingMessageId??null]);
-  items.push({type:'action',action:{type:'postback',label:Array.from(choice.label).slice(0,20).join(''),data:`yru:choice:${token}`,displayText:choice.label}});
+  items.push({type:'action',action:{type:'postback',label:displayPrefix(choice.label,20),data:`yru:choice:${token}`,displayText:displayPrefix(choice.label,300)}});
  }
  return {items};
 }

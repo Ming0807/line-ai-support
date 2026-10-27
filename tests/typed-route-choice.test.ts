@@ -45,10 +45,10 @@ describe('typed offered route choices', () => {
   it('presents distinct bounded buttons and matching subjects for competing owned contexts', () => {
     const candidates = [candidate({conversationId:'registration',topicLabel:'registration'}),candidate({conversationId:'library',topicLabel:'library'})];
     const options=contextChoiceOptions(candidates);
-    expect(options).toEqual([{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}},{label:'ต่อ เรื่อง 1',value:{action:'CONTINUE',conversationId:'registration'}},{label:'ต่อ เรื่อง 2',value:{action:'CONTINUE',conversationId:'library'}}]);
+    expect(options).toEqual([{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}},{label:'ต่อ registration',value:{action:'CONTINUE',conversationId:'registration'}},{label:'ต่อ library',value:{action:'CONTINUE',conversationId:'library'}}]);
     expect(new Set(options.map(option=>option.label)).size).toBe(3);
     expect(options.every(option=>Array.from(option.label).length<=20)).toBe(true);
-    expect(contextChoiceText('เลือกเรื่องครับ',candidates)).toBe('เลือกเรื่องครับ\n1. registration\n2. library');
+    expect(contextChoiceText('เลือกเรื่องครับ',candidates)).toBe('เลือกเรื่องครับ\n• registration\n• library');
     expect(resolveTypedRouteChoice('ต่อ เรื่อง 2',candidates)).toEqual({action:'CONTINUE',conversationId:'library'});
   });
   it('keeps numbered navigation exact, reserved when stale, and terminal/overflow fenced', () => {
@@ -62,7 +62,8 @@ describe('typed offered route choices', () => {
     const topic='หัวข้อ🧑‍💻'.repeat(100),candidates=[candidate({conversationId:'first',topicLabel:topic}),candidate({conversationId:'second',topicLabel:topic})],before=structuredClone(candidates);
     const text=contextChoiceText('เลือกเรื่องครับ',candidates);
     expect(text.length).toBeLessThan(600);
-    expect(text).toContain('\n1. ');expect(text).toContain('\n2. ');
+    expect(text.split('\n').filter(line=>line.startsWith('• '))).toHaveLength(2);
+    expect(new Set(contextChoiceOptions(candidates).map(option=>option.label)).size).toBe(3);
     expect(candidates).toEqual(before);
     expect(resolveTypedRouteChoice('ต่อ เรื่อง 2',candidates)).toEqual({action:'CONTINUE',conversationId:'second'});
   });
@@ -131,7 +132,7 @@ describe('typed offered route choices', () => {
     expect(resolveTypedRouteChoice('ต่อ null', [candidate({ topicLabel: null })])).toBeNull();
   });
 
-  it('rejects empty, unavailable, and over-limit candidate snapshots', () => {
+  it('rejects empty snapshots and retains explicit named/new navigation above twelve', () => {
     const twelveCandidates = Array.from({ length: 12 }, (_, index) => candidate({
       conversationId: `conversation-${index}`,
       topicLabel: `Topic ${index}`,
@@ -147,8 +148,8 @@ describe('typed offered route choices', () => {
     expect(resolveTypedRouteChoice('เริ่มเรื่องใหม่', twelveCandidates)).toEqual({
       action: 'NEW',
     });
-    expect(resolveTypedRouteChoice('เริ่มเรื่องใหม่', thirteenCandidates)).toBeNull();
-    expect(resolveTypedRouteChoice('ต่อ Topic 0', thirteenCandidates)).toBeNull();
+    expect(resolveTypedRouteChoice('เริ่มเรื่องใหม่', thirteenCandidates)).toEqual({action:'NEW'});
+    expect(resolveTypedRouteChoice('ต่อ Topic 0', thirteenCandidates)).toEqual({action:'CONTINUE',conversationId:'conversation-0'});
   });
 
   it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)(

@@ -40,6 +40,23 @@ it('bounds latency inside the observation envelope',()=>{
  expect(routingLatency(Date.now()+5000)).toBe(0);
 });
 
+it('isolates a synchronous database submission failure',()=>{
+ const warn=vi.spyOn(console,'warn').mockImplementation(()=>{}),query=vi.fn(()=>{throw new Error('private DB details');});
+ try{
+  expect(()=>recordRoutingObservation(poolOf(query),{stage:'DECISION',status:'SUCCESS',latencyMs:1})).not.toThrow();
+  expect(warn).toHaveBeenCalledWith('ROUTING_TELEMETRY_UNAVAILABLE');
+ }finally{warn.mockRestore();}
+});
+it('drops further observations while one pool submission is still pending',async()=>{
+ let release:(value:unknown)=>void=()=>{};
+ const query=vi.fn(()=>new Promise(resolve=>{release=resolve;})),pool=poolOf(query);
+ recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'SUCCESS',latencyMs:1});
+ recordRoutingObservation(pool,{stage:'CLASSIFY',status:'SUCCESS',latencyMs:1});
+ expect(query).toHaveBeenCalledTimes(1);release({rowCount:1});await Promise.resolve();await Promise.resolve();
+ recordRoutingObservation(pool,{stage:'DECISION',status:'SUCCESS',latencyMs:1});
+ expect(query).toHaveBeenCalledTimes(2);release({rowCount:1});
+});
+
 it('keeps every routing reason inside the database code shape, buckets and Thai label size',()=>{
  expect(Object.keys(routingReasons)).toContain('CANDIDATES_OVERFLOW');
  expect(Object.keys(routingReasons)).toContain('LOW_CONFIDENCE');

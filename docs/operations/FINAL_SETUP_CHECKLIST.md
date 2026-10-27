@@ -1,5 +1,17 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+## 28 October 2026 — ROOT-ROUTE-RECOVERY-01 current local session
+
+Root restarted only the canonical owned session using `pnpm local:ai --web-search` after the routing repair. Natural assistant ON; offlineE5, four workers and local/public signed-empty200 plus invalid401 for both OAs PASS. Gemini configuration is unchanged and no new generation/model qualification is claimed. Update both LINE Developers URLs after this tunnel restart:
+
+- Student: https://looks-won-statement-approximately.trycloudflare.com/api/line/student/webhook
+- Staff: https://looks-won-statement-approximately.trycloudflare.com/api/line/staff/webhook
+- Dashboard: http://127.0.0.1:3000/login
+- Sanitized runtime log: `.superpowers/staging/local-test/run-2026-10-27T19-34-05-517Z.log`; stop with `pnpm local:stop`.
+
+User may test later as authorized: send a normal question/follow-up across existing topics without choosing numbers; genuine ambiguity should show named topics with paging. Verify HUMAN messages stay with Staff and repeated page/choice actions cannot duplicate a reply. Root technical tests do not replace this actual OA check. This is the current URL; all older URLs below are historical. Web account attestation retains its original24h expiry; no extension was made.
+
+
 27OctoberROOT-CORPUS-PUBLIC-04: DEVELOPMENT45migrations/74RLStables; starter13รายการมีฉบับที่ตรวจทานได้ รวม15approvedPUBLICกับ2แหล่งเพิ่มเติม. ปฏิทินหลัก2ฉบับและประกาศกิจกรรมมีข้อยกเว้น/ขอบเขตที่ต้องรักษา [source facts](CORPUS_DECISION_PACKETS.md); ทั้ง7structuredtablesยัง0rows. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่.
 
 ROOT-NATURAL-03: ไม่มี Tavily key/attestation ในเครื่อง ณ การตรวจรอบนี้ จึงยังไม่ได้เปิดหรือทดสอบค้นเว็บจริง. เมื่อต้องการใช้ส่วนนี้ ผู้ดูแลสร้างบัญชี/คีย์ ตรวจแผนฟรีและปิด Pay-as-you-go ด้วยตนเอง แล้วทำ[ขั้นตอนตั้งค่า](LOCAL_TEST.md#เปิดค้นเว็บแบบเลือกใช้ภายหลัง)และใช้ `pnpm local:ai --web-search`; โหมดปกติยังใช้ `pnpm local:ai` ได้. Backend แสดงเว็บเป็นแหล่งค้นที่จำกัดและตรวจ free/quota ก่อนค้น ไม่รับรองความถูกต้องของประกาศจากลิงก์เพียงอย่างเดียว.

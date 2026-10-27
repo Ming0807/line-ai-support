@@ -28,7 +28,7 @@ export async function rememberExplicitNewTopic(client:DbClient,sessionId:string)
 
 /** A deliberate USER choice, not the most recent ticket, is the only fallback authority. */
 export async function readExplicitHumanFocus(client:DbClient,sessionId:string,candidates:RouteCandidate[]):Promise<(ExplicitHumanFocus&{conversationId:string})|null>{
- if(candidates.length>12||!candidates.some(c=>c.mode==='HUMAN'))return null;
+ if(!candidates.some(c=>c.mode==='HUMAN'))return null;
  const latest=(await client.query(`select m.id,m.conversation_id,m.metadata,clock_timestamp() as server_now
   from public.messages m join public.conversations c on c.id=m.conversation_id
   where c.line_session_id=$1 and m.sender_type='USER' and m.metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by m.created_at desc,m.id desc limit 1`,[sessionId])).rows[0];

@@ -15,6 +15,8 @@ export const routingReasons={
  DUPLICATE_MESSAGE:{severity:'INFO',label:'ข้อความซ้ำของกิจกรรมเดิม'},
  CANDIDATES_EMPTY:{severity:'INFO',label:'ไม่มีบริบทเรื่องที่คุยอยู่'},
  CANDIDATES_OVERFLOW:{severity:'WARN',label:'หัวข้อที่ยังเปิดเกินขีดจำนวนรองรับ'},
+ CONTEXT_LIMIT:{severity:'WARN',label:'จำนวนบริบทเกินงบวิเคราะห์ในรอบนี้'},
+ PROMPT_LIMIT:{severity:'WARN',label:'บริบทข้อความยาวเกินงบวิเคราะห์ในรอบนี้'},
  ROUTE_NAVIGATION:{severity:'INFO',label:'ข้อความเป็นคำสั่งเลือกเรื่อง'},
  CONTEXT_MISMATCH:{severity:'WARN',label:'โหลดบริบทหัวข้อไม่ครบ'},
  LEASE_STALE:{severity:'INFO',label:'งานถูกเคลมทับระหว่างเตรียม'},
@@ -45,16 +47,23 @@ export type RoutingObservationInput=z.infer<typeof routingObservationSchema>;
 /** What a caller inside routing code provides; storage columns are bound at the worker boundary. */
 export type RoutingDecisionObservation=Omit<RoutingObservationInput,'inboxEventId'|'lineSessionId'>;
 
-/** Fire-and-forget: best-effort single row never fails, throws, slows or spans the routing transaction.
+/** Best effort: caller never awaits storage; at most one pending submission per pool.
+ * The independent query can use DB capacity, but cannot build an unbounded queue.
  * A caller mistake (unknown/range-violating field) downgrades to one warn with the row dropped;
  * it must never abort the caller's transaction the way a synchronous throw once did. */
+const pendingPools=new WeakSet<Pool>();
 export function recordRoutingObservation(pool:Pool,input:RoutingObservationInput):void {
+ try{
  const parsed=routingObservationSchema.safeParse(input);
  if(!parsed.success){console.warn('ROUTING_TELEMETRY_UNAVAILABLE');return;}
  const {inboxEventId,lineSessionId,stage,status,reasonCode,candidates,latencyMs}=parsed.data;
  const query={text:`insert into private.inbox_routing_observations(inbox_event_id,line_session_id,stage,status,reason_code,candidates,latency_ms)
   values($1,$2,$3,$4,$5,$6,$7)`,values:[inboxEventId??null,lineSessionId??null,stage,status,reasonCode??null,candidates??null,latencyMs],query_timeout:2000};
- void pool.query(query).catch(()=>{console.warn('ROUTING_TELEMETRY_UNAVAILABLE');});
+ if(pendingPools.has(pool))return;
+ pendingPools.add(pool);
+ try{void pool.query(query).catch(()=>{console.warn('ROUTING_TELEMETRY_UNAVAILABLE');}).finally(()=>pendingPools.delete(pool));}
+ catch{pendingPools.delete(pool);console.warn('ROUTING_TELEMETRY_UNAVAILABLE');}
+ }catch{console.warn('ROUTING_TELEMETRY_UNAVAILABLE');}
 }
 
 /** Bounded cap helper so long turns cannot exceed the observation latency envelope. */

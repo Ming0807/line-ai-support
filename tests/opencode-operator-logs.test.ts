@@ -106,7 +106,7 @@ describe('OC-UI-02.07 log query validation (production parser)', () => {
 
   it('keeps severity and component vocabularies fixed, never inferred', () => {
     expect(Object.keys(LOG_SEVERITIES)).toEqual(['ERROR', 'WARN', 'INFO']);
-    expect(LOG_COMPONENTS).toEqual(['ai-gateway', 'line-delivery']);
+    expect(LOG_COMPONENTS).toEqual(['ai-gateway', 'line-delivery', 'route-planner']);
   });
 });
 
