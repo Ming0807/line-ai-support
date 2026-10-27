@@ -13,6 +13,15 @@ it('identifies supported source formats without pretending ZIP validates an Offi
 it('auto-detects supported upload bytes when a browser supplies empty/generic or legacy CSV media type',()=>{
  for(const mimeType of ['', 'application/octet-stream','text/plain','application/vnd.ms-excel'])expect(createImportSource({...input,mimeType}).mimeType).toBe('text/csv');
 });
+it('admits valid HTML after inert leading comments while retaining the exact immutable original',()=>{
+ const original=bytes('<!--<!DOCTYPE html PUBLIC "legacy"><html xmlns="legacy">-->\n <!-- archived header -->\n<!DOCTYPE html><html><body><h1>ค่าธรรมเนียม</h1></body></html>');
+ const result=createImportSource({...input,bytes:original,filename:'fees.html',mimeType:'text/html'});
+ expect(result.format).toBe('HTML');expect(result.bytes).toEqual(original);
+ expect(result.checksum).not.toBe(createImportSource({...input,bytes:bytes('<!DOCTYPE html><html><body><h1>ค่าธรรมเนียม</h1></body></html>'),filename:'fees.html',mimeType:'text/html'}).checksum);
+});
+it.each(['<!-- comment only -->','<!-- never closed <html><body>','<!-- closed --> not HTML','<!-- closed --><script>alert(1)</script><html></html>'])('retains HTML admission boundaries after a leading comment: %s',body=>{
+ expect(()=>createImportSource({...input,bytes:bytes(body),filename:'fees.html',mimeType:'text/html'})).toThrow('IMPORT_SOURCE_INVALID');
+});
 it('copies immutable original bytes and computes SHA256 of exactly the original including UTF8 BOM',()=>{
  const original=bytes('\ufeffหัวข้อ,วันที่');const result=createImportSource({...input,bytes:original});
  const snapshot=result.bytes[0];original[0]=0;expect(result.bytes[0]).toBe(snapshot);expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);

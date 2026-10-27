@@ -17,6 +17,7 @@ type Props={
  relationship:ImportReviewDraft['relationship'];
  target:ImportReviewDraft['target'];
  sourceUrl:string|null;
+ scope?:ImportReviewDraft['metadata']['scope'];
  sensitiveCategories:readonly string[];
  sourceFormat?:string;
  extractionWarnings?:readonly {key:string;code:string;location?:{kind:string;pageNumber?:number}|null}[];
@@ -51,7 +52,9 @@ export function publicSourceReviewIssues(input:Props):string[]{
  if(input.visibility!=='PUBLIC'||input.storageMode!=='RAG')issues.push('การทบทวนแหล่งข้อมูลสาธารณะใช้ได้เฉพาะเอกสารสาธารณะที่ค้นจากข้อความ (RAG)');
  if(!input.sourceUrl?.trim())issues.push('ระบุ URL ต้นฉบับทางการก่อน');
  if(input.value.temporalBasis==='CURRENT_REVIEWED'){
-  if(!['FORM','GUIDE','CALENDAR'].includes(input.documentType??''))issues.push('การทบทวนแบบข้อมูลปัจจุบันใช้กับแบบฟอร์ม คู่มือ หรือปฏิทินเท่านั้น');
+  if(!['FORM','GUIDE','CALENDAR','ANNOUNCEMENT'].includes(input.documentType??''))issues.push('การทบทวนแบบข้อมูลปัจจุบันใช้กับแบบฟอร์ม คู่มือ ปฏิทิน หรือประกาศเฉพาะรุ่นเท่านั้น');
+  if(input.documentType==='ANNOUNCEMENT'&&(input.scope?.cohort==null||!input.scope.audience||input.scope.audience==='ALL'||!input.scope.studentType||input.scope.studentType==='ALL'))issues.push('ประกาศแบบข้อมูลปัจจุบันต้องระบุรุ่น ระดับผู้เรียน และภาคการศึกษาเฉพาะ ห้ามใช้ทุกกลุ่ม');
+  if(input.documentType==='ANNOUNCEMENT'&&input.publishedAt===null)issues.push('ระบุวันที่ประกาศตามต้นฉบับ โดยไม่ใช้แทนวันเริ่มมีผล');
   if(input.effectiveFrom!==null||input.effectiveTo!==null)issues.push('ล้างวันที่เริ่มมีผลและวันสิ้นผล เพราะต้นฉบับไม่ได้ระบุวันเหล่านี้');
   if(!input.value.temporalReason?.trim())issues.push('ระบุเหตุผลที่ยืนยันข้อมูลปัจจุบันโดยไม่แทนวันที่ที่ไม่มีในต้นฉบับ');
   if(input.action!=='NEW_FAMILY'&&input.action!=='ADD_ADDITIONAL'||input.relationship!==null||input.target!==null)issues.push('เลือกการเพิ่มเอกสารใหม่หรือเพิ่มฉบับในกลุ่มเดิมโดยไม่ผูกกับฉบับหรือการยกเลิก');
@@ -71,17 +74,17 @@ export function publicSourceReviewIssues(input:Props):string[]{
  const diagrams=input.value.extractionAdjudications??[];
  const findings=(input.extractionWarnings??[]).filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF');
  for(const item of diagrams){
-  if(input.sourceFormat!=='PDF'||input.documentType!=='FORM'||!findings.some(w=>w.key===item.warningKey))issues.push('การตรวจแผนภาพไม่ตรงกับหน้าแบบฟอร์ม PDF ปัจจุบัน กรุณาเริ่มตรวจใหม่');
+  if(input.sourceFormat!=='PDF'||!['FORM','GUIDE'].includes(input.documentType??'')||!findings.some(w=>w.key===item.warningKey))issues.push('การตรวจแผนภาพไม่ตรงกับหน้าเอกสาร PDF ปัจจุบัน กรุณาเริ่มตรวจใหม่');
   if(!item.reason?.trim())issues.push('ระบุเหตุผลจากการตรวจภาพต้นฉบับสำหรับแผนภาพ');
  }
- if(input.sourceFormat==='PDF'&&input.documentType==='FORM'&&findings.some(w=>!diagrams.some(a=>a.warningKey===w.key)))issues.push('แก้การอ่านตาราง หรือทบทวนแผนภาพแต่ละหน้าจากต้นฉบับก่อนอนุมัติ');
+ if(input.sourceFormat==='PDF'&&['FORM','GUIDE'].includes(input.documentType??'')&&findings.some(w=>!diagrams.some(a=>a.warningKey===w.key)))issues.push('แก้การอ่านตาราง หรือทบทวนแผนภาพแต่ละหน้าจากต้นฉบับก่อนอนุมัติ');
  return [...new Set(issues)];
 }
 
-export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,sourceFormat,extractionWarnings=[],disabled,onChange}:Props){
- const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,sensitiveCategories,sourceFormat,extractionWarnings,disabled,onChange});
+export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings=[],disabled,onChange}:Props){
+ const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings,disabled,onChange});
  const update=(patch:Partial<PublicSourceReview>)=>onChange({...value,...patch});
- const diagramWarnings=sourceFormat==='PDF'&&documentType==='FORM'&&storageMode==='RAG'?extractionWarnings.filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF'):[];
+ const diagramWarnings=sourceFormat==='PDF'&&['FORM','GUIDE'].includes(documentType??'')&&storageMode==='RAG'?extractionWarnings.filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF'):[];
 
  function setAdjudication(category:Category,basis:Basis|''){
   const current=value.sensitivityAdjudications.find(item=>item.category===category);
@@ -95,6 +98,7 @@ export default function PublicSourceReviewPanel({value,documentType,visibility,s
 
  return <section className="knowledge-review-section knowledge-public-source-review" aria-labelledby="public-source-review-title">
   <h4 id="public-source-review-title">ทบทวนแหล่งข้อมูลสาธารณะ</h4>
+  {documentType==='ANNOUNCEMENT'&&value.temporalBasis==='CURRENT_REVIEWED'&&<p className="knowledge-hint">ขอบเขตประกาศ: รุ่น {scope?.cohort??'ยังไม่ระบุ'} · {scope?.audience??'ยังไม่ระบุระดับผู้เรียน'} · {scope?.studentType??'ยังไม่ระบุภาคการศึกษา'}</p>}
   <p className="knowledge-hint">บันทึกการพิจารณาแยกจากคำเตือนเดิม ระบบยังเก็บผลตรวจและประวัติการทบทวนไว้ครบ</p>
   <div className="knowledge-review-grid">
    <label className="knowledge-field">

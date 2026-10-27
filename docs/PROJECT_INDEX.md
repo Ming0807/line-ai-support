@@ -1,16 +1,19 @@
 # YRU AI Helpdesk — จุดเริ่มอ่าน
 
-อัปเดต 26 ตุลาคม 2026 โดย root หลังตรวจงาน GLMและเก็บงานส่งมอบHermes/QA. **V1 ยังรอการตรวจรับจากผู้ใช้บน LINE จริง** ผู้ใช้สั่งหยุดทดสอบคำตอบ Gemini เพิ่มและจะทดสอบเองภายหลัง; ไม่เริ่ม profile ใหม่หรือเปลี่ยน provider/key/timeout จากการตรวจครั้งนี้
+อัปเดต 27 ตุลาคม 2026 โดย root หลังเผยแพร่ชุดเริ่มต้นในขอบเขตที่ตรวจทานได้. **V1 ยังไม่เสร็จและยังรอการตรวจรับจากผู้ใช้บน LINE จริง** ผู้ใช้สั่งหยุดทดสอบคำตอบ Gemini เพิ่มและจะทดสอบเองภายหลัง; ไม่เริ่ม profile ใหม่หรือเปลี่ยน provider/key/timeout จากการตรวจครั้งนี้
 
 ## อ่านตามลำดับนี้
 
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-173; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-175; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+- ROOT-CORPUS-PUBLIC-04: เผยแพร่ชุดเริ่มต้น13รายการในขอบเขตที่ตรวจทานได้แล้ว ฐานDEVELOPMENTมี15 approved PUBLICรวม2เอกสารเพิ่มเติม ตรวจreceipt/replay/การค้นคืนE5จริง6รายการรอบนี้ผ่าน; ปฏิทิน2ฉบับและประกาศกิจกรรมเป็นส่วนตรวจทานที่มีข้อจำกัด ไม่ใช่รับรองทุกช่อง/ทุกรุ่น ดู[ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ทั้ง7structuredtablesยัง0rows. Migration45ผ่านguarded apply,74ตารางRLS,ข้อมูลเอกสารเดิมไม่เปลี่ยนระหว่างmigration;3330unit/245files,type/lint/buildและ17affectedownedPGผ่าน. LiveGemini/LINE/actualHermesยังไม่ทดสอบรอบนี้.
+- [แผนสนทนา ROOT-NATURAL-01](superpowers/plans/2026-10-27-natural-university-assistant.md): ตรวจflowจริง,วัดคุณภาพแยกความครบ/หลักฐาน,ปรับแบบมีขอบเขต และเปรียบเทียบHermesก่อนตัดสินใจใช้ฝั่งนักศึกษา. นี่คือแผน ไม่ใช่ฟีเจอร์ที่ทำเสร็จแล้ว.
 
 - งานGLMเดิมถึง4449381ได้รับrootauditแล้ว; งานHermes/QAและownedacceptanceรอบใหม่เก็บในlocalcommit`9948ba9`(26ตุลาคม). ตัวเลขoriginal/repeatและข้อจำกัดเดิมยังแยกไว้ ไม่เปลี่ยนprovider/key/timeoutหรือเรียกmodeltestsเพิ่ม
 - Gemini main6 บน source3 มีหลักฐานเดิมครบ30กรณี:29/30 trajectories,19/20 usefulและmandatorygates. ไม่ได้ยิงทดสอบโมเดลเพิ่มรอบตรวจนี้
@@ -21,7 +24,7 @@
 - Providerเพิ่มเติม/local generationเลื่อนตามผู้ใช้(DEC-165); ใช้Gemini FREE_ONLYตัวเดิม การต่ออายุattestationถึง24พ.ย.เป็นผลที่GLMบันทึกไว้ ไม่ใช่การตรวจbillingจากvendor
 - ROOT-CORPUS-PUBLIC-02เผยแพร่YRU182ห้องสมุดและYRU027แบบฟอร์มว่างผ่านnormalreview/receipt/currentE5retrievalแล้ว26ตุลาคม: ฐานจริงมี7approvedPUBLICและทั้ง7structuredtablesยัง0rows. เหลือ7starteritemsต้องsource/extraction/mappingต่อ ไม่ยกcontrolledtestsหรือRAGpublicationเป็นstructuredcorpusacceptance
 - ROOT-CORPUS-PUBLIC-03 / DEC174: ผู้ใช้ยกเลิกส่งต่อGLMและให้rootทำเอง. เพิ่มการตรวจแผนภาพที่ผูกกับคำเตือน/หน้า/เหตุผลโดยคงparser findings; normalYRU034และปฏิทินเกินหน่วยกิต2569เผยแพร่/receipt/replay/currentlocatedE5แล้ว รวมPUBLIC9. ปฏิทินเฉพาะเรื่องไม่ข้ามปีและทั้งสองฉบับไม่ใช้ตอบย้อนหลัง. แก้สำเนาถอดปฏิทินหลักและแยกข้อขัดแย้งต้นฉบับ5จุด; ไม่เผยแพร่ทั้งฉบับแบบไม่มีเงื่อนไข
-- งานค้าง: actualFlowA–F/actualHermesdraftreview/activationและdeploymentรอผู้ใช้; starterremaining6และstructuredmappingยังเป็นimplementation/datawork. ทั้ง7structuredtablesยัง0rows. Date/template/diagramcontractsแก้แล้วสำหรับpublicRAGschema4; authorityscopesและSTRUCTURED/BOTHยังไม่ถูกลดscope [ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ไม่reset/clean/stashหรือstageทั้งworkingtree
+- งานค้าง: actualFlowA–F/actualHermesdraftreview/activationและdeploymentรอผู้ใช้; structuredmappingและขอบเขตแหล่งข้อมูลที่ยังงดใช้ยังเป็นimplementation/datawork. ทั้ง7structuredtablesยัง0rows. Date/template/diagramcontractsแก้แล้วสำหรับpublicRAGschema4; authorityscopesและSTRUCTURED/BOTHยังไม่ถูกลดscope [ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ไม่reset/clean/stashหรือstageทั้งworkingtree
 
 ผลตรวจROOT-GLM-HERMES-01ก่อนต่อUI:3235tests/236files,type/full lint/build408inputs,ownedPG9/43migrations/credentialscan1592files. ผลรอบต่อUIล่าสุดอยู่[บอร์ดงาน](tasks/V1_TASK_BOARD.md)และ[execution plan](superpowers/plans/2026-10-25-hermes-staff-dashboard.md); มีrootintegrationและLunascopedreviewจริง แต่ไม่มีliveHermes/Gemini/OAqualificationเพิ่มเติม
 

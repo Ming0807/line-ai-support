@@ -39,6 +39,15 @@ describe('explicit reviewed public source publication',()=>{
   expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');
  });
  for(const documentType of ['FEE','REGULATION','ANNOUNCEMENT'])it(`does not give ${documentType} current-only applicability`,async()=>{const f=await fixture('<p>ประกาศทั่วไป</p>',documentType);expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');});
+ it('admits only explicitly cohort/degree/study-type scoped current notices without invented effective dates',async()=>{
+  const f=await fixture('<p>ประกาศกิจกรรมสำหรับผู้เข้าศึกษาปี2568 ภาคปกติ ระดับปริญญาตรี</p>','ANNOUNCEMENT');
+  const scoped={...f.input,metadata:{...f.input.metadata,publishedAt:'2025-06-06',scope:{...f.input.metadata.scope,cohort:2568,audience:'ปริญญาตรี',studentType:'ภาคปกติ'}}};
+  f.review.saved.draft=reviewDraftSchema.parse(scoped);expect(f.validate().draft.metadata.effectiveFrom).toBeNull();
+  for(const scope of [{...scoped.metadata.scope,cohort:null},{...scoped.metadata.scope,audience:'ALL'},{...scoped.metadata.scope,studentType:'ALL'}]){
+   f.review.saved.draft=reviewDraftSchema.parse({...scoped,metadata:{...scoped.metadata,scope}});expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');
+  }
+  f.review.saved.draft=reviewDraftSchema.parse({...scoped,metadata:{...scoped.metadata,publishedAt:null}});expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');
+ });
  it('requires a deliberate temporal reason and keeps structured mode outside this exception',async()=>{
   const f=await fixture();f.review.saved.draft=reviewDraftSchema.parse({...f.input,publicSourceReview:{...f.input.publicSourceReview,temporalReason:null}});expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');
   f.review.saved.draft=reviewDraftSchema.parse({...f.input,metadata:{...f.input.metadata,storageMode:'BOTH'}});expect(f.validate).toThrow('PUBLICATION_REVIEW_INCOMPLETE');

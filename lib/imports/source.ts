@@ -24,6 +24,16 @@ export function provenanceUrl(value:string):string{
 export function isOfficialYruUrl(value:string):boolean{
  try{const hostname=new URL(provenanceUrl(value)).hostname;return hostname==='yru.ac.th'||hostname.endsWith('.yru.ac.th');}catch{return false;}
 }
+/** Sniff through inert comments without changing original bytes or executing HTML. */
+function htmlPrefix(text:string):string{
+ let offset=0;
+ while(offset<text.length){
+  while(offset<text.length&&/\s/u.test(text[offset]))offset++;
+  if(!text.startsWith('<!--',offset))return text.slice(offset,offset+64);
+  const end=text.indexOf('-->',offset+4);if(end<0)return invalid();offset=end+3;
+ }
+ return '';
+}
 /** Container sniffing is preliminary; Office parsers must verify ZIP entries/format safely. */
 export function createImportSource(input:unknown):ImportSource{
  const parsed=inputSchema.safeParse(input);if(!parsed.success)return invalid();const value=parsed.data;
@@ -43,7 +53,7 @@ export function createImportSource(input:unknown):ImportSource{
  }else{
   let text:string;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{return invalid();}
   if(!text.trim()||text.includes('\u0000'))return invalid();
-  if(format==='HTML'&&!/^\s*(?:<!doctype\s+html\b|<html\b|<(?:head|body|title|h[1-6]|p|table)\b)/i.test(text))return invalid();
+  if(format==='HTML'&&!/^(?:<!doctype\s+html\b|<html\b|<(?:head|body|title|h[1-6]|p|table)\b)/i.test(htmlPrefix(text)))return invalid();
  }
  const sourceUrl=value.sourceUrl===null?null:provenanceUrl(value.sourceUrl);
  if(value.acquiredFrom==='URL'&&(!sourceUrl||!isOfficialYruUrl(sourceUrl)||value.fetchedAt===null))return invalid();

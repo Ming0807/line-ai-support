@@ -7,7 +7,8 @@ export function hasValidPublicTemporalReview(draft:Extract<ImportReviewDraft,{sc
  const m=draft.metadata,r=draft.publicSourceReview;
  if(m.visibility!=='PUBLIC'||m.storageMode!=='RAG'||draft.structuredMapping!==null)return false;
  if(r.temporalBasis==='DATED')return m.effectiveFrom!==null;
- return ['FORM','GUIDE','CALENDAR'].includes(m.documentType??'')&&(m.documentType!=='CALENDAR'||m.academicYear!==null)&&m.effectiveFrom===null&&m.effectiveTo===null&&
+ const scopedNotice=m.documentType==='ANNOUNCEMENT'&&m.publishedAt!==null&&m.scope.cohort!==null&&m.scope.audience!==null&&m.scope.audience!=='ALL'&&m.scope.studentType!==null&&m.scope.studentType!=='ALL';
+ return (['FORM','GUIDE','CALENDAR'].includes(m.documentType??'')||scopedNotice)&&(m.documentType!=='CALENDAR'||m.academicYear!==null)&&m.effectiveFrom===null&&m.effectiveTo===null&&
   Boolean(r.temporalReason?.trim())&&draft.relationship===null&&draft.target===null&&
   (draft.action==='NEW_FAMILY'||draft.action==='ADD_ADDITIONAL');
 }
@@ -42,7 +43,7 @@ export function reviewedPublicContent(preview:ImportPreview,draft:ImportReviewDr
 
 /** No generic quality override: only manually corrected diagram pages whose detected cells are all empty. */
 export function reviewedNonTabularDiagram(preview:ImportPreview,draft:ImportReviewDraft,finding:ReviewWarning):boolean{
- if(draft.schemaVersion!==4||draft.metadata.visibility!=='PUBLIC'||draft.metadata.storageMode!=='RAG'||draft.metadata.documentType!=='FORM'||
+ if(draft.schemaVersion!==4||draft.metadata.visibility!=='PUBLIC'||draft.metadata.storageMode!=='RAG'||!['FORM','GUIDE'].includes(draft.metadata.documentType??'')||
   preview.job.format!=='PDF'||preview.kind!=='EDITED'||!preview.edit||finding.code!=='UNSUPPORTED_TABLES'||finding.location?.kind!=='PDF')return false;
  const adjudication=draft.publicSourceReview.extractionAdjudications?.find(a=>a.warningKey===finding.key);
  if(!adjudication?.reason?.trim()||adjudication.basis!=='REVIEWED_NON_TABULAR_DIAGRAM')return false;
@@ -51,5 +52,5 @@ export function reviewedNonTabularDiagram(preview:ImportPreview,draft:ImportRevi
  const pageNumber=finding.location.pageNumber,pageIndex=preview.extraction.pages.findIndex(p=>p.pageNumber===pageNumber);
  if(pageIndex<0||!preview.edit.changedPages.includes(pageIndex)||preview.extraction.pages[pageIndex].text.trim().length<40)return false;
  const tables=preview.extraction.tables.filter(t=>t.pageNumber===pageNumber);
- return tables.length>0&&tables.every(t=>t.rows.length>0&&t.rows.every(row=>row.length>0&&row.every(cell=>cell.trim()==='')));
+ return tables.every(t=>t.rows.length>0&&t.rows.every(row=>row.length>0&&row.every(cell=>cell.trim()==='')));
 }

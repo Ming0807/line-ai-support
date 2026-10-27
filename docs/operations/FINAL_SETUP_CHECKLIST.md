@@ -1,6 +1,6 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-26OctoberROOT-CORPUS-PUBLIC-03: ผู้ใช้ยกเลิกGLMhandoffและให้rootทำเอง. DEVELOPMENTยัง44migrations/74RLStables; ไม่มีmigrationใหม่รอบนี้. เพิ่มnormalYRU034และปฏิทินเกินหน่วยกิต2569พร้อมreceipt/replay/currentlocatedE5 รวมPUBLIC9. ทั้ง7structuredtablesยัง0rows. ปฏิทินหลัก2ฉบับมีsourceconflictsที่แยกไว้ ไม่ให้ผู้ใช้กรอกข้อมูลหรือขอสิทธิ์เผยแพร่ซ้ำ. Runtimecheckหลังpublicationไม่พบlistener3000/8000; หยุดเฉพาะE5ที่rootเปิดชั่วคราวแล้ว. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้
+27OctoberROOT-CORPUS-PUBLIC-04: DEVELOPMENT45migrations/74RLStables; starter13รายการมีฉบับที่ตรวจทานได้ รวม15approvedPUBLICกับ2แหล่งเพิ่มเติม. ปฏิทินหลัก2ฉบับและประกาศกิจกรรมมีข้อยกเว้น/ขอบเขตที่ต้องรักษา [source facts](CORPUS_DECISION_PACKETS.md); ทั้ง7structuredtablesยัง0rows. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่.
 
 อัปเดต25ตุลาคม2026 หลังผู้ใช้สั่งลุยต่อ: rootเปิดlocal:aiไว้ให้พร้อมแล้ว ผู้ใช้ยังเป็นผู้ทดสอบคำตอบ/LINEจริงภายหลังตามDEC166. ไม่ยิงmodeltestsเพิ่ม และchecklistนี้ไม่ใช่การประกาศV1ผ่านการตรวจรับจริง
 
@@ -26,7 +26,7 @@ ROOT-LOCAL-READY-01เริ่ม25October2026ประมาณ21:24Bangkokแ
 
 ## ขั้นตอนรวมสำหรับทดสอบระบบจริง
 
-1. รอการส่งมอบจากroot แล้วเปิดlocal:ai รอREADY เก็บterminalไว้เพื่อดูlog ปัจจุบันมีapprovedPUBLIC5ฉบับ (เพิ่มระเบียบเทียบโอนที่ตรวจครบ5หน้า/22chunks) ไม่ใช่ทุกไฟล์ในdocuments/yruพร้อมตอบ
+1. เมื่อพร้อมทดสอบ เปิดlocal:ai รอREADY เก็บterminalไว้เพื่อดูlog ปัจจุบันมีapprovedPUBLIC15ฉบับ รวมส่วนตรวจทานที่มีข้อจำกัด ไม่ใช่ทุกไฟล์ในdocuments/yruพร้อมตอบหรือทุกตารางstructuredมีข้อมูล
 2. LoginDashboard→Providers ตรวจmodel/order/statusและFree-account permissionตามบัญชีจริง Freshread-onlyregistry25October21:27ยืนยันGemini3.5FlashLite/FREE_ONLY/25s/modelrev3 และmanagedaccountattestationACTIVEถึง24November2026 12:08Bangkok; ไม่มีการต่ออายุหรือแก้configurationในรอบstartupนี้. นี่คือoperatorattestationไม่ใช่การตรวจvendorbillingจริง. ต่อผ่านSuperAdminUIเมื่อจำเป็น ไม่หมุนบัญชี/keyเพื่อหลบquota ไม่เปิดpaidหรือ17ตัวที่ยังไม่qualified
 3. ตั้งWebhookURLจากREADYทั้งStudent/StaffในLINE Developers กดVerify/UseWebhook ปิดOAauto-replyที่ตอบซ้ำ Quicktunnelเปลี่ยนURLเมื่อเปิดใหม่
 4. StaffLoginของแต่ละคน→Settings→สร้างbindingcode→ส่งให้StaffOAภายใน10นาที ตรวจdepartment/roleและสถานะbindingก่อนทดสอบแจ้งเตือน

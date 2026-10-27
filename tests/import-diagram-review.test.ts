@@ -24,10 +24,17 @@ async function fixture(){
   publicSourceReview:{temporalBasis:'CURRENT_REVIEWED',temporalReason:'Official current blank form with no effective date.',sensitivityAdjudications:[],extractionAdjudications:warnings.filter(w=>w.code==='UNSUPPORTED_TABLES').map(w=>({warningKey:w.key,basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:'Manually checked all source boxes/arrows; empty detector geometry only; no table data omitted.'}))},
   warningDispositions:warnings.map(w=>({warningKey:w.key,status:w.code==='UNSUPPORTED_TABLES'?'FALSE_POSITIVE':'CORRECTED',reason:'Full physical page reviewed with the original retained.'}))};
  const draft=reviewDraftSchema.parse(input);const review={jobId:preview.job.id,jobRevision:3,extractionRevision:2,reviewRevision:1,stale:false,warnings,saved:{reviewRevision:1,jobRevision:3,extractionRevision:2,actorId:'123e4567-e89b-42d3-a456-426614174001',createdAt:'2026-10-26T00:00:00.000Z',draft}};
- return {preview,input,review,validate:()=>validatePublicationReview(preview,review,plan,source.checksum)};
+ return {preview,input,review,source,counter:f.counter,plan,validate:()=>validatePublicationReview(preview,review,plan,source.checksum)};
 }
 it('admits only explicitly reviewed non-tabular empty PDF geometry without removing warnings',async()=>{
  const f=await fixture();expect(f.validate().draft.schemaVersion).toBe(4);expect(f.preview.extraction.flags).toContain('UNSUPPORTED_TABLES');expect(f.preview.extraction.report.warnings.some(w=>w.code==='UNSUPPORTED_TABLES'&&w.severity==='BLOCKING')).toBe(true);
+});
+it('admits a reviewed textual GUIDE workflow with zero detected table fragments',async()=>{
+ const f=await fixture();f.preview.extraction.tables=[];f.preview.extraction.locations.tables=[];f.preview.extraction.report.tables=0;f.preview.extraction.report.cells=0;
+ const plan=await buildLocatedChunkPlan(f.source,f.preview.extraction,f.plan.binding,f.counter);
+ f.review.saved.draft=reviewDraftSchema.parse({...f.input,metadata:{...f.input.metadata,documentType:'GUIDE'},chunkPlan:{digest:plan.digest,chunkerVersion:plan.chunkerVersion}});
+ expect(validatePublicationReview(f.preview,f.review,plan,f.source.checksum).draft.metadata.documentType).toBe('GUIDE');
+ const nonempty=await fixture();nonempty.review.saved.draft=reviewDraftSchema.parse({...nonempty.input,metadata:{...nonempty.input.metadata,documentType:'GUIDE'}});nonempty.preview.extraction.tables[0].rows[0][0]='real cell';expect(nonempty.validate).toThrow('PUBLICATION_QUALITY_REANALYSIS_REQUIRED');
 });
 it('does not accept a generic warning dismissal, missing reason or an unrelated adjudication key',async()=>{
  const f=await fixture();

@@ -93,7 +93,7 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
   value:saved.publicSourceReview,documentType:saved.metadata.documentType,visibility:saved.metadata.visibility,storageMode:saved.metadata.storageMode,
   publishedAt:saved.metadata.publishedAt,effectiveFrom:saved.metadata.effectiveFrom,effectiveTo:saved.metadata.effectiveTo,
   action:saved.action,relationship:saved.relationship,target:saved.target,sourceUrl:saved.metadata.sourceUrl,
-  sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,onChange:()=>undefined,
+  scope:saved.metadata.scope,sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,onChange:()=>undefined,
  }):[];
  const reviewFieldsComplete=reviewFields.length===0;
  const publicReviewComplete=publicReviewIssues.length===0;

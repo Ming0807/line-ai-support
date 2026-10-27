@@ -3,6 +3,7 @@ import type {DefaultTreeAdapterTypes} from 'parse5';
 import {validateLocatedExtraction} from './extraction';
 import {verifyImportSource} from './source';
 import {IMPORT_LIMITS,extractionSchema,type Extraction,type ExtractionWarning,type ImportSource,type LocatedExtraction,type SourceLocation} from './types';
+import {expandHtmlTableGrid,type HtmlGridRow} from './html-table-grid';
 
 const invalid=():never=>{throw new Error('IMPORT_PARSE_INVALID');};
 const PARSER_NAME='parse5';
@@ -58,9 +59,27 @@ export function parseHtmlSource(source:ImportSource):LocatedExtraction{
   const html=new TextDecoder('utf-8',{fatal:true}).decode(verified.bytes);
   let markers=0;for(const character of html)if(character==='<'){markers++;if(markers>MAX_HTML_NODES)return invalid();}
 
-  const parseErrors:string[]=[];
-  const document=parse(html,{scriptingEnabled:false,onParseError:error=>parseErrors.push(error.code)});
-  if(parseErrors.some(code=>code!==ErrorCodes.missingDoctype))return invalid();
+  const parseErrors:{code:string;startOffset:number}[]=[];
+  const document=parse(html,{scriptingEnabled:false,sourceCodeLocationInfo:true,onParseError:error=>parseErrors.push(error)});
+  const duplicateErrors=parseErrors.filter(error=>error.code===ErrorCodes.duplicateAttribute);
+  const skippedTags:{start:number;end:number}[]=[];
+  if(duplicateErrors.length){
+   let visited=0;
+   const locateSkipped=(node:HtmlNode,depth:number):void=>{
+    if(++visited>MAX_HTML_NODES||depth>MAX_HTML_DEPTH)return invalid();
+    if(isElement(node)&&isSkipped(node)){
+     const location=node.sourceCodeLocation?.startTag;if(location)skippedTags.push({start:location.startOffset,end:location.endOffset});
+    }
+    for(const child of isElement(node)?elementChildren(node):'childNodes' in node?node.childNodes:[])locateSkipped(child,depth+1);
+   };
+   locateSkipped(document,0);skippedTags.sort((a,b)=>a.start-b.start);
+  }
+  const skippedError=(offset:number):boolean=>{
+   let low=0,high=skippedTags.length-1;
+   while(low<=high){const middle=(low+high)>>>1,tag=skippedTags[middle];if(offset<tag.start)high=middle-1;else if(offset>=tag.end)low=middle+1;else return true;}
+   return false;
+  };
+  if(parseErrors.some(error=>error.code!==ErrorCodes.missingDoctype&&!(error.code===ErrorCodes.duplicateAttribute&&skippedError(error.startOffset))))return invalid();
 
   const observedNodes=new Set<HtmlNode>();
   const pages:Extraction['pages']=[];const tables:Extraction['tables']=[];
@@ -84,6 +103,7 @@ export function parseHtmlSource(source:ImportSource):LocatedExtraction{
    if(previous)previous.count+=count;
    else warnings.set(code,{code,severity,location,count,disposition:'UNRESOLVED'});
   };
+  if(duplicateErrors.length)addWarning('HIDDEN_DATA_REVIEW','BLOCKING',null,duplicateErrors.length);
   const htmlLocation=(start:number,end:number,headingPath:string[],tableIndex:number|null):SourceLocation=>({
    kind:'HTML',sourceUrl:verified.sourceUrl,blockStart:start,blockEnd:end,headingPath:[...headingPath],tableIndex,
   });
@@ -126,20 +146,26 @@ export function parseHtmlSource(source:ImportSource):LocatedExtraction{
    };
    findRows(element,depth,true);
    if(nestedTables)addWarning('UNSUPPORTED_TABLES','BLOCKING',location,nestedTables);
-   const rows:string[][]=[];let maxWidth=0;let minWidth=Number.POSITIVE_INFINITY;
+   let rows:string[][]=[];const gridRows:HtmlGridRow[]=[];let spans=0;let maxWidth=0;let minWidth=Number.POSITIVE_INFINITY;
    for(const row of rowsFound){
     if(rows.length>=IMPORT_LIMITS.rows)return invalid();
     const rowCells=row.childNodes.filter((node):node is HtmlElement=>isElement(node)&&(node.tagName==='td'||node.tagName==='th'));
-    if(!rowCells.length){rows.push(['']);cells++;if(cells>IMPORT_LIMITS.cells)return invalid();minWidth=Math.min(minWidth,1);maxWidth=Math.max(maxWidth,1);addWarning('TABLE_SHAPE_REVIEW','REVIEW',location);continue;}
+    if(!rowCells.length){rows.push(['']);gridRows.push({group:row.parentNode,cells:[]});cells++;if(cells>IMPORT_LIMITS.cells)return invalid();minWidth=Math.min(minWidth,1);maxWidth=Math.max(maxWidth,1);addWarning('TABLE_SHAPE_REVIEW','REVIEW',location);continue;}
     if(rowCells.length>IMPORT_LIMITS.columns)return invalid();
-    const values:string[]=[];
+    const values:string[]=[];const gridRow:HtmlGridRow={group:row.parentNode,cells:[]};
     for(const cell of rowCells){
      cells++;if(cells>IMPORT_LIMITS.cells)return invalid();
      const colspan=attribute(cell,'colspan');const rowspan=attribute(cell,'rowspan');
-     if((colspan!==undefined&&colspan.trim()!=='1')||(rowspan!==undefined&&rowspan.trim()!=='1'))addWarning('UNSUPPORTED_TABLES','BLOCKING',location);
+     if((colspan!==undefined&&colspan.trim()!=='1')||(rowspan!==undefined&&rowspan.trim()!=='1'))spans++;
      const value=tableText(cell,depth+1);outputCharacters+=value.length;if(outputCharacters>IMPORT_LIMITS.characters)return invalid();values.push(value);
+     gridRow.cells.push({value,colspan,rowspan});
     }
-    maxWidth=Math.max(maxWidth,values.length);minWidth=Math.min(minWidth,values.length);rows.push(values);
+    maxWidth=Math.max(maxWidth,values.length);minWidth=Math.min(minWidth,values.length);rows.push(values);gridRows.push(gridRow);
+   }
+   if(spans){
+    const expanded=nestedTables?null:expandHtmlTableGrid(gridRows);
+    if(expanded){cells+=expanded.reduce((sum,row)=>sum+row.length,0)-rows.reduce((sum,row)=>sum+row.length,0);if(cells>IMPORT_LIMITS.cells)return invalid();rows=expanded;addWarning('TABLE_SHAPE_REVIEW','REVIEW',location,spans);}
+    else addWarning('UNSUPPORTED_TABLES','BLOCKING',location,spans);
    }
    if(!rows.length){rows.push(['']);cells++;if(cells>IMPORT_LIMITS.cells)return invalid();maxWidth=1;minWidth=1;addWarning('TABLE_SHAPE_REVIEW','REVIEW',location);}
    if(maxWidth!==minWidth)addWarning('TABLE_SHAPE_REVIEW','REVIEW',location);

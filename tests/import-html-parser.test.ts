@@ -59,6 +59,29 @@ it('keeps nested tables separately and flags nested, merged and ragged table sha
  expect(result.flags).toContain('UNSUPPORTED_TABLES');expect(result.flags).toContain('TABLE_SHAPE_REVIEW');
  expect(result.report.warnings.every(warning=>warning.disposition==='UNRESOLVED')).toBe(true);
 });
+it('expands complete simple HTML header spans without shifting data or inventing amounts',()=>{
+ const result=parseHtmlSource(source('<!doctype html><html><body><h1>อัตราค่าธรรมเนียม</h1><table><thead><tr><th rowspan="2">หลักสูตร</th><th colspan="2">รหัส62–64</th><th colspan="2">รหัส65เป็นต้นไป</th></tr><tr><th>ปกติ</th><th>พิเศษ</th><th>ปกติ</th><th>พิเศษ</th></tr></thead><tbody><tr><td colspan="5">ครุศาสตรบัณฑิต</td></tr><tr><td>ภาษาอังกฤษ</td><td>14,500</td><td>15,500</td><td>11,000</td><td>12,000</td></tr><tr><td>ไม่มีอัตรา</td><td></td><td>10,000</td><td></td><td></td></tr></tbody></table></body></html>'));
+ expect(result.tables[0].rows).toEqual([['หลักสูตร','รหัส62–64','','รหัส65เป็นต้นไป',''],['','ปกติ','พิเศษ','ปกติ','พิเศษ'],['ครุศาสตรบัณฑิต','','','',''],['ภาษาอังกฤษ','14,500','15,500','11,000','12,000'],['ไม่มีอัตรา','','10,000','','']]);
+ expect(result.flags).not.toContain('UNSUPPORTED_TABLES');expect(result.flags).toContain('TABLE_SHAPE_REVIEW');expect(result.report.cells).toBe(25);
+ expect(result.locations.tables[0]).toMatchObject({kind:'HTML',tableIndex:1,blockStart:2});
+});
+it('retains unsupported raw span geometry rather than filling gaps, crossing row groups or overlapping cells',()=>{
+ for(const table of ['<thead><tr><th rowspan="2">x</th><th>y</th></tr></thead><tbody><tr><td>z</td></tr></tbody>','<tbody><tr><td>a</td><td rowspan="2">b</td></tr><tr><td colspan="2">c</td></tr></tbody>','<tr><td colspan="bad">a</td><td>b</td></tr>','<tr><td rowspan="0">a</td></tr>']){
+  const result=parseHtmlSource(source('<!doctype html><html><body><table>'+table+'</table></body></html>'));expect(result.flags).toContain('UNSUPPORTED_TABLES');
+ }
+});
+it('keeps trailing layout slots blank when a full-width section spans beyond the rate columns',()=>{
+ const result=parseHtmlSource(source('<!doctype html><html><body><table><tr><th>หลักสูตร</th><th colspan="2">รหัส65+</th></tr><tr><td colspan="5">สาขา</td></tr><tr><td>ภาษาอังกฤษ</td><td>11,000</td><td>12,000</td></tr></table></body></html>'));
+ expect(result.tables[0].rows).toEqual([['หลักสูตร','รหัส65+','','',''],['สาขา','','','',''],['ภาษาอังกฤษ','11,000','12,000','','']]);
+ expect(result.flags).toContain('TABLE_SHAPE_REVIEW');expect(result.flags).not.toContain('UNSUPPORTED_TABLES');expect(result.report.cells).toBe(15);
+});
+it('recovers duplicate attributes only inside skipped element start tags, retaining hidden-data review',()=>{
+ const fetchSpy=vi.spyOn(globalThis,'fetch');try{
+  const result=parseHtmlSource(source('<!doctype html><html><body><p>ประกาศ</p><img class="banner" src="https://external.invalid/a" class="responsive"><p>อ่านข้อมูล</p></body></html>'));
+  expect(result.pages.map(p=>p.text)).toEqual(['ประกาศ','อ่านข้อมูล']);expect(result.flags).toContain('HIDDEN_DATA_REVIEW');expect(fetchSpy).not.toHaveBeenCalled();
+  expect(()=>parseHtmlSource(source('<!doctype html><html><body><p class="a" class="b">data</p></body></html>'))).toThrow('IMPORT_PARSE_INVALID');
+ }finally{fetchSpy.mockRestore();}
+});
 
 it('rejects parse errors with a fixed error and does not expose malformed source text',()=>{
  expect(()=>parseHtmlSource(source('<!doctype html><html><body><p><SECRET_TOKEN</body></html>'))).toThrowError(/^IMPORT_PARSE_INVALID$/u);

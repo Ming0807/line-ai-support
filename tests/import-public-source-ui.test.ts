@@ -26,6 +26,16 @@ it('requires a dedicated reason for diagram review instead of only a generic war
  const issues=publicSourceReviewIssues({value:{...blankReview(),extractionAdjudications:[{warningKey:warning.key,basis:'REVIEWED_NON_TABULAR_DIAGRAM',reason:null}]},documentType:'FORM',visibility:'PUBLIC',storageMode:'RAG',publishedAt:null,effectiveFrom:'2026-10-01',effectiveTo:null,action:'NEW_FAMILY',relationship:null,target:null,sourceUrl:'https://www.yru.ac.th/forms',sensitiveCategories:[],disabled:false,onChange:()=>undefined,sourceFormat:'PDF',extractionWarnings:[warning]});
  expect(issues.some(issue=>issue.includes('เหตุผล')&&issue.includes('แผนภาพ'))).toBe(true);
 });
+it('offers the same deliberate page review for a textual PDF GUIDE workflow',()=>{
+ const warning={key:'d'.repeat(64),code:'UNSUPPORTED_TABLES',location:{kind:'PDF' as const,pageNumber:1}};
+ const html=renderToStaticMarkup(createElement(PublicSourceReviewPanel,{value:blankReview(),documentType:'GUIDE',visibility:'PUBLIC',storageMode:'RAG',publishedAt:null,effectiveFrom:null,effectiveTo:null,action:'NEW_FAMILY',relationship:null,target:null,sourceUrl:'https://www.yru.ac.th/guide',sensitiveCategories:[],sourceFormat:'PDF',extractionWarnings:[warning],disabled:false,onChange:()=>undefined}));
+ expect(html).toContain('ตรวจภาพหน้า 1 แล้วเป็นแผนภาพขั้นตอน');expect(html).not.toContain('checked=""');
+});
+it('discloses and requires a specific cohort scope for a current-reviewed notice',()=>{
+ const input={value:{...blankReview(),temporalBasis:'CURRENT_REVIEWED' as const,temporalReason:'ตรวจประกาศครบทุกหน้าแล้ว'},documentType:'ANNOUNCEMENT',visibility:'PUBLIC' as const,storageMode:'RAG' as const,publishedAt:'2025-06-06',effectiveFrom:null,effectiveTo:null,action:'NEW_FAMILY' as const,relationship:null,target:null,sourceUrl:'https://www.yru.ac.th/notice',sensitiveCategories:[],disabled:false,onChange:()=>undefined,scope:{semester:null,audience:'ปริญญาตรี',studentType:'ภาคปกติ',programCode:null,curriculumCode:null,cohort:2568}};
+ expect(publicSourceReviewIssues(input)).toEqual([]);const html=renderToStaticMarkup(createElement(PublicSourceReviewPanel,input));expect(html).toContain('2568');expect(html).toContain('ภาคปกติ');
+ expect(publicSourceReviewIssues({...input,scope:{...input.scope,cohort:null}}).some(issue=>issue.includes('รุ่น'))).toBe(true);
+});
 
 function schemaFourDraft():Extract<ImportReviewDraft,{schemaVersion:4}>{
  const base=unfinishedReviewDraft();
@@ -83,7 +93,8 @@ it('explains when current-reviewed cannot replace dates or a version relationshi
  });
  expect(issues).toContain('การทบทวนแหล่งข้อมูลสาธารณะใช้ได้เฉพาะเอกสารสาธารณะที่ค้นจากข้อความ (RAG)');
  expect(issues).toContain('ระบุ URL ต้นฉบับทางการก่อน');
- expect(issues).toContain('การทบทวนแบบข้อมูลปัจจุบันใช้กับแบบฟอร์ม คู่มือ หรือปฏิทินเท่านั้น');
+ expect(issues).toContain('ประกาศแบบข้อมูลปัจจุบันต้องระบุรุ่น ระดับผู้เรียน และภาคการศึกษาเฉพาะ ห้ามใช้ทุกกลุ่ม');
+ expect(issues).toContain('ระบุวันที่ประกาศตามต้นฉบับ โดยไม่ใช้แทนวันเริ่มมีผล');
  expect(issues).toContain('ล้างวันที่เริ่มมีผลและวันสิ้นผล เพราะต้นฉบับไม่ได้ระบุวันเหล่านี้');
  expect(issues).toContain('ระบุเหตุผลที่ยืนยันข้อมูลปัจจุบันโดยไม่แทนวันที่ที่ไม่มีในต้นฉบับ');
  expect(issues).toContain('เลือกการเพิ่มเอกสารใหม่หรือเพิ่มฉบับในกลุ่มเดิมโดยไม่ผูกกับฉบับหรือการยกเลิก');

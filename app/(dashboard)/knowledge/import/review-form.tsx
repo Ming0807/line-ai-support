@@ -508,7 +508,7 @@ export default function ReviewForm({
     value:draft.publicSourceReview,documentType:draft.metadata.documentType,visibility:draft.metadata.visibility,storageMode:draft.metadata.storageMode,
     publishedAt:draft.metadata.publishedAt,effectiveFrom:draft.metadata.effectiveFrom,effectiveTo:draft.metadata.effectiveTo,
     action:draft.action,relationship:draft.relationship,target:draft.target,sourceUrl:draft.metadata.sourceUrl,
-      sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,
+    scope:draft.metadata.scope,sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,
     onChange:()=>undefined,
   }):[];
   const missingFields=draft?[
@@ -904,6 +904,7 @@ export default function ReviewForm({
               relationship={draft.relationship}
               target={draft.target}
               sourceUrl={draft.metadata.sourceUrl}
+              scope={draft.metadata.scope}
               sensitiveCategories={review?.sensitiveCategories??[]}
                 sourceFormat={review?.sourceFormat}
                 extractionWarnings={review?.warnings??[]}
