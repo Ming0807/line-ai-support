@@ -38,10 +38,16 @@ export function createAssistantOrchestrator(options:Options):AIWorkerOptions['pr
     const reason=generalReplyEvidenceReason(decision.action==='MIXED_REPLY'?decision.generalText:decision.text,snapshot.question,snapshot.history);
     if(reason){
      const wasMixed=decision.action==='MIXED_REPLY';
-     const corrected=await options.decide({question:snapshot.question,history:snapshot.history},signal,{reason,rejectedProposal:decision});
-     if(signal.aborted)throw new AIProviderError('CANCELLED');
-     if(wasMixed&&corrected.decision.action!=='MIXED_REPLY')return failedReply();
-     decision=corrected.decision;repaired=true;
+     try{
+      const corrected=await options.decide({question:snapshot.question,history:snapshot.history},signal,{reason,rejectedProposal:decision});
+      if(signal.aborted)throw new AIProviderError('CANCELLED');
+      // A failed mixed repair must not erase the independently requested official lookup.
+      // Retain the rejected proposal only as a retrieval hint; its prose is screened below.
+      if(!wasMixed||corrected.decision.action==='MIXED_REPLY'){decision=corrected.decision;repaired=true;}
+     }catch(error){
+      if(signal.aborted||error instanceof AIProviderError&&error.code==='CANCELLED')throw new AIProviderError('CANCELLED');
+      if(!wasMixed)throw error;
+     }
     }
    }
    if(decision.action==='MIXED_REPLY'){

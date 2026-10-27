@@ -281,6 +281,31 @@ test('unsupported mandatory personal fields are suppressed while the actual revi
  }finally{await f.cleanup();}
 });
 
+test('failed mixed repair retains the reviewed answer and partial disclosure through owned delivery',async()=>{
+ const f=await createFlow();try{
+  const received=await inbound(f,mixedQuestion),taskCalls:string[]=[];
+  const unsafe='ข้อมูลที่จำเป็น ได้แก่ รหัสนักศึกษา ชื่อ-นามสกุล และเบอร์ติดต่อ';
+  const decide=createAssistantDecision({generate:async input=>{
+   await f.assertOutsideSql();taskCalls.push(input.taskType);
+   if(input.taskType==='ASSISTANT_DECISION_REPAIR')throw new Error('controlled unavailable');
+   assert.equal(input.taskType,'ASSISTANT_DECISION');
+   return {output:{decision:{action:'MIXED_REPLY',generalText:unsafe,query:'YRU-Student connection instructions'}},toolCalls:[]};
+  }});
+  const produce=createAssistantOrchestrator({decide,repairRejectedGeneral:true,lookup:createKnowledgeProducer(knowledgeOptions(f,taskCalls,'MIXED')),handoff:async()=>{throw Error('UNEXPECTED_HANDOFF');}});
+  assert.equal((await runAICycle(f.pool,f.key,{supportEnabled:true,produce})).completed,1);
+  const job=(await f.pool.query('select * from private.ai_jobs where id=$1',[received.jobId])).rows[0] as AIJob;
+  const result=decodeAIResult(job,f.key);assert(result?.kind==='MIXED');assert.equal(result.official.kind,'ANSWER');
+  assert.match(result.general.text,/ยังตอบส่วนคำแนะนำทั่วไปได้ไม่ครบ/u);
+  assert.deepEqual(taskCalls,['ASSISTANT_DECISION','ASSISTANT_DECISION_REPAIR','KNOWLEDGE_PLAN','KNOWLEDGE_ANSWER']);
+  const capture:{bodies:Record<string,unknown>[]}={bodies:[]};assert.equal((await dispatch(f,capture)).sent,1);
+  const delivered=(capture.bodies[0] as {messages:{text:string}[]}).messages.map(message=>message.text).join('');
+  assert(delivered.includes(officialAnswer));assert.match(delivered,/แหล่งอ้างอิง/u);assert.match(delivered,/ยังตอบส่วนคำแนะนำทั่วไปได้ไม่ครบ/u);
+  assert(!delivered.includes('รหัสนักศึกษา'));assert(!delivered.includes('controlled unavailable'));
+  const answer=(await f.pool.query("select metadata from public.messages where conversation_id=$1 and sender_type='AI' and metadata->>'ai_job_id'=$2",[received.conversationId,received.jobId])).rows[0];
+  assert.equal(answer.metadata.citations[0].documentId,f.documentId);assert.equal(answer.metadata.citations[0].chunkId,f.chunkId);
+ }finally{await f.cleanup();}
+});
+
 for(const evidenceFirstMixed of [false,true])test(`configured retrieval hint preserves source authority${evidenceFirstMixed?' with evidence-first mixed composition':''}`,async()=>{
  const f=await createFlow();let providerId:string|undefined;
  const hint='YRU-Student connection instructions unverified programZZZ year2577',modelId='fixture/retrieval-hint:free';

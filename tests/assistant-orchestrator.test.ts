@@ -1,5 +1,6 @@
 import {expect,it,vi} from 'vitest';
 import {createAssistantOrchestrator} from '../lib/ai/assistant-orchestrator';
+import {AIProviderError} from '../lib/ai/types';
 import type {AISnapshot,AIWorkerOptions} from '../lib/ai/run-worker';
 import type {AssistantDecision,AssistantHandoffReason} from '../lib/ai/assistant-decision';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -68,11 +69,29 @@ it.each([
  expect(f.decide).toHaveBeenCalledTimes(2);expect(f.decide).toHaveBeenLastCalledWith({question:current.question,history:current.history},signal,{reason:'INSTITUTIONAL_REQUIREMENT',rejectedProposal:rejected});
  expect(f.lookup).toHaveBeenCalledExactlyOnceWith(current,signal,safe.query);expect(JSON.stringify(result)).not.toContain('รหัสนักศึกษา');expect(f.handoff).not.toHaveBeenCalled();
 });
-it('does not silently lose requested general help to a pure LOOKUP returned against the MIXED repair contract',async()=>{
+it('retains the original official lookup and discloses missing general help when mixed repair returns an invalid action',async()=>{
  const rejected={action:'MIXED_REPLY' as const,generalText:'ควรระบุรหัสนักศึกษาครับ',query:'แบบคำร้องทั่วไป'},f=fixture(rejected);
  f.decide.mockResolvedValueOnce({decision:rejected,provenance:'MODEL_PROPOSAL_UNVERIFIED',historyOmittedCount:0}).mockResolvedValueOnce({decision:{action:'LOOKUP',query:'ค้นอย่างเดียว'},provenance:'MODEL_PROPOSAL_UNVERIFIED',historyOmittedCount:0});
- const result=await createAssistantOrchestrator({...f,repairRejectedGeneral:true})({...snapshot,question:'ช่วยเตรียมตัวก่อนยื่นคำร้องและหาแบบให้ด้วย'},new AbortController().signal);
- expect(result.kind).toBe('CLARIFY');expect(f.decide).toHaveBeenCalledTimes(2);expect(f.lookup).not.toHaveBeenCalled();expect(f.handoff).not.toHaveBeenCalled();
+ const current={...snapshot,question:'ช่วยเตรียมตัวก่อนยื่นคำร้องและหาแบบให้ด้วย'},signal=new AbortController().signal;
+ const result=await createAssistantOrchestrator({...f,repairRejectedGeneral:true})(current,signal);
+ expect(result).toMatchObject({kind:'MIXED',general:{text:expect.stringContaining('ยังตอบส่วนคำแนะนำทั่วไปได้ไม่ครบ')},official:{kind:'CLARIFY',text:'ยังไม่มีเอกสาร'}});
+ expect(f.decide).toHaveBeenCalledTimes(2);expect(f.lookup).toHaveBeenCalledExactlyOnceWith(current,signal,rejected.query);expect(f.handoff).not.toHaveBeenCalled();
+ expect(JSON.stringify(result)).not.toContain('รหัสนักศึกษา');expect(JSON.stringify(result)).not.toContain('ค้นอย่างเดียว');
+});
+it('retains the official lookup and partial disclosure after mixed repair fails',async()=>{
+ const rejected={action:'MIXED_REPLY' as const,generalText:'ควรระบุรหัสนักศึกษาครับ',query:'แบบคำร้องทั่วไป'},f=fixture(rejected);
+ f.decide.mockResolvedValueOnce({decision:rejected,provenance:'MODEL_PROPOSAL_UNVERIFIED',historyOmittedCount:0}).mockRejectedValueOnce(Error('private upstream detail'));
+ const current={...snapshot,question:'ช่วยเตรียมตัวก่อนยื่นคำร้องและหาแบบให้ด้วย'},signal=new AbortController().signal;
+ const result=await createAssistantOrchestrator({...f,repairRejectedGeneral:true})(current,signal);
+ expect(result).toMatchObject({kind:'MIXED',general:{text:expect.stringContaining('ยังตอบส่วนคำแนะนำทั่วไปได้ไม่ครบ')},official:{kind:'CLARIFY',text:'ยังไม่มีเอกสาร'}});
+ expect(f.decide).toHaveBeenCalledTimes(2);expect(f.lookup).toHaveBeenCalledExactlyOnceWith(current,signal,rejected.query);expect(f.handoff).not.toHaveBeenCalled();
+ expect(JSON.stringify(result)).not.toContain('รหัสนักศึกษา');expect(JSON.stringify(result)).not.toContain('private upstream detail');
+});
+it('propagates typed cancellation from mixed repair without lookup or delivery',async()=>{
+ const rejected={action:'MIXED_REPLY' as const,generalText:'ควรระบุรหัสนักศึกษาครับ',query:'แบบคำร้องทั่วไป'},f=fixture(rejected);
+ f.decide.mockResolvedValueOnce({decision:rejected,provenance:'MODEL_PROPOSAL_UNVERIFIED',historyOmittedCount:0}).mockRejectedValueOnce(new AIProviderError('CANCELLED'));
+ await expect(createAssistantOrchestrator({...f,repairRejectedGeneral:true})({...snapshot,question:'ช่วยเตรียมตัวก่อนยื่นคำร้องและหาแบบให้ด้วย'},new AbortController().signal)).rejects.toMatchObject({code:'CANCELLED'});
+ expect(f.lookup).not.toHaveBeenCalled();expect(f.handoff).not.toHaveBeenCalled();
 });
 it('does not opt legacy callers into the extra generation',async()=>{
  const f=fixture({action:'GENERAL_REPLY',text:'ค่าเทอมคือ500บาทครับ'}),signal=new AbortController().signal;
