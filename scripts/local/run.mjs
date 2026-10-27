@@ -262,7 +262,7 @@ async function main(){
  state={...state,status:'READY',assistantMode:options.assistantPreview?'NATURAL_PREVIEW':sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'NATURAL':'LEGACY',
   localUrl:`http://127.0.0.1:${options.port}`,publicUrl:options.tunnel?sessionEnv.APP_BASE_URL:null};persist();
  for(const message of readyMessages(options.port,options.tunnel?sessionEnv.APP_BASE_URL:null,hermesStatus,hermesPhase,options))log('READY',message);
- log('READY','Durable + AI enabled for this session; .env unchanged; web search remains off');
+ log('READY',options.webSearch?'Durable + AI enabled for this session; .env unchanged; web source leads configured, subject to runtime checks':'Durable + AI enabled for this session; .env unchanged; web search remains off');
  log('READY',sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'Natural assistant: enabled; Hermes remains an isolated pilot':'Natural assistant: not activated; legacy support pipeline is running');
  log('READY','Manual tests: docs/operations/LOCAL_TEST.md; login accounts: .superpowers/staging/dev-staff-credentials.json');
 }

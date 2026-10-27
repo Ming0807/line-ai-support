@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {spawn,type ChildProcess} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth} from '../scripts/local/config.mjs';
 import {forceStopOwnedTree} from '../scripts/local/process-tree.mjs';
@@ -13,7 +14,24 @@ const env={YRU_DEPLOYMENT_ENV:'development',DEV_SUPABASE_PROJECT_REF:'abcdefghij
  LINE_STUDENT_CHANNEL_ACCESS_TOKEN:'student-fixture-access',LINE_STAFF_CHANNEL_ACCESS_TOKEN:'staff-fixture-access',
  EMBEDDING_API_URL:'http://127.0.0.1:8000',LINE_WEBHOOK_MODE:'echo',YRU_AI_ENABLED:'false'};
 const embedding={EMBEDDING_MODEL_CACHE_DIR:'D:/fixture/cache',EMBEDDING_HOST:'127.0.0.1',EMBEDDING_PORT:'8000'};
+const webConfig=()=>{const key='fixture-web-key';return {TAVILY_API_KEY:key,TAVILY_FREE_NO_PAYG_ATTESTED:'true',TAVILY_FREE_KEY_SHA256:createHash('sha256').update(key).digest('hex'),TAVILY_FREE_ATTESTED_AT:new Date().toISOString()};};
 describe('local test session configuration',()=>{
+ it('keeps web off by default and enables configured web only for an explicit session',()=>{
+  const input={...env,...webConfig(),YRU_WEB_SEARCH_ENABLED:'true'},before={...input};
+  expect(buildSessionEnvironment(input,embedding,'http://127.0.0.1:3000',3000).YRU_WEB_SEARCH_ENABLED).toBe('false');
+  for(const base of ['http://127.0.0.1:3000','https://example.trycloudflare.com']){
+   expect(buildSessionEnvironment(input,embedding,base,3000,{assistantPreview:true,webSearch:true}).YRU_WEB_SEARCH_ENABLED).toBe('true');
+  }
+  expect(input).toEqual(before);
+ });
+ it.each([
+  {},{TAVILY_API_KEY:''},{TAVILY_FREE_NO_PAYG_ATTESTED:'false'},{TAVILY_FREE_KEY_SHA256:'a'.repeat(64)},
+  {TAVILY_FREE_ATTESTED_AT:'invalid'},{TAVILY_FREE_ATTESTED_AT:new Date(Date.now()+3600000).toISOString()},
+  {TAVILY_FREE_ATTESTED_AT:new Date(Date.now()-25*3600000).toISOString()},
+ ])('rejects unavailable, unverified, mismatched or expired web credentials before starting %j',patch=>{
+  const input=Object.keys(patch).length?{...env,...webConfig(),...patch}:env;
+  expect(()=>buildSessionEnvironment(input,embedding,'http://127.0.0.1:3000',3000,{webSearch:true})).toThrow('LOCAL_WEB_SEARCH_CONFIG_INVALID');
+ });
  it('explicit natural preview overrides inherited OFF on both local and tunnel children without editing saved env',()=>{
   const saved={...env,YRU_ASSISTANT_ENABLED:'false'},before={...saved};
   for(const base of ['http://127.0.0.1:3000','https://example.trycloudflare.com']){
@@ -109,6 +127,12 @@ describe('actual local child shutdown transport',()=>{
  },15_000);
 });
 describe('local command and output boundaries',()=>{
+ it('accepts explicit web search only on start and reports its limited unverified scope',()=>{
+  expect(parseArguments(['--assistant-preview','--web-search'])).toMatchObject({assistantPreview:true,webSearch:true});
+  for(const args of [['--web-search','--check'],['--web-search','--stop'],['--web-search','--web-search']])expect(()=>parseArguments(args)).toThrow('LOCAL_ARGUMENTS_INVALID');
+  const output=readyMessages(3000,'https://example.trycloudflare.com','SKIPPED','CONFIGURATION',{assistantPreview:true,webSearch:true}).join('\n');
+  expect(output).toContain('Web search configured');expect(output).toContain('source leads');expect(output).toContain('runtime checks');expect(output).not.toContain('verified provider');
+ });
  it('accepts explicit natural preview, optional isolated Hermes and refuses conflicting modes/duplicates',()=>{
   expect(parseArguments(['--assistant-preview'])).toMatchObject({mode:'start',assistantPreview:true,hermesCheck:false});
   expect(parseArguments(['--assistant-preview','--no-tunnel','--port','3001','--hermes-check']))

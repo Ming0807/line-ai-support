@@ -59,6 +59,18 @@ pnpm local:test --no-tunnel
 
 ถ้าพอร์ต3000ถูกใช้ ให้หยุด server เดิมเอง หรือเลือก `pnpm local:test --port 3001` ระบบจะสร้าง webhook/ลิงก์ด้วยพอร์ตที่เลือก อย่าเปิด runners ซ้อนกัน
 
+## เปิดค้นเว็บแบบเลือกใช้ภายหลัง
+
+ค่าเริ่มต้นยังปิดอยู่ และการค้นที่มีในระบบเป็น **การแสดงลิงก์แหล่งข้อมูลที่จำกัด** หลังตรวจไม่พบข้อมูลภายในที่เข้าเงื่อนไข ไม่ใช่การค้นทุกเว็บไซต์หรือรับรองคำตอบทางการจากเว็บโดยอัตโนมัติ. การตั้งค่าพร้อมไม่เท่ากับผลตรวจ provider หรือผลค้นจริงผ่าน
+
+เมื่อมีบัญชี Tavily และผู้ดูแลตรวจยืนยันเองว่าเป็น Researcher ฟรีและปิด Pay-as-you-go แล้ว ให้ใส่ `TAVILY_API_KEY` และ `TAVILY_FREE_NO_PAYG_ATTESTED=true` ใน `.env` ของเครื่อง จากนั้นใช้คำสั่งนี้เพื่อแสดงเฉพาะ fingerprint ของ key และเวลาปัจจุบัน UTC แล้วคัดลอกทั้งสองบรรทัดใส่ใน `.env` (คำสั่งไม่พิมพ์ key):
+
+```powershell
+node -e "const fs=require('fs'),d=require('dotenv'),c=require('crypto');const e=d.parse(fs.readFileSync('.env'));if(!e.TAVILY_API_KEY)throw Error('TAVILY_API_KEY missing');console.log('TAVILY_FREE_KEY_SHA256='+c.createHash('sha256').update(e.TAVILY_API_KEY).digest('hex'));console.log('TAVILY_FREE_ATTESTED_AT='+new Date().toISOString())"
+```
+
+เริ่ม session ด้วย `pnpm local:ai --web-search`. ข้อมูลยืนยันต้องตรงกับ key และมีอายุไม่เกิน24ชั่วโมง เมื่อหมดอายุต้องตรวจบัญชีอีกครั้งแล้วสร้างเวลายืนยันใหม่ด้วยคำสั่งเดิม. สคริปต์ปฏิเสธการตั้งค่าที่ขาดหรือไม่ตรงก่อนเปิดบริการ; ก่อนค้นจริง backend จะตรวจบัญชี/โควต้าและเงื่อนไขแหล่งข้อมูลอีกครั้ง. หากไม่มี key หรือต้องการทดสอบระบบส่วนอื่น ใช้ `pnpm local:ai` ตามปกติ.
+
 ## เริ่มทดสอบครั้งแรก
 
 1. เข้าหน้า `/login` บัญชี development ที่มีอยู่เก็บใน `.superpowers/staging/dev-staff-credentials.json` บนเครื่องเดิม เปิดไฟล์เองเพื่อดูบัญชี SUPER_ADMIN/เจ้าหน้าที่ ไม่ส่งรหัสผ่านในแชตหรือรายงาน

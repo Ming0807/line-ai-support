@@ -1,25 +1,35 @@
 import {assertDevelopmentTarget} from '../../lib/database/development-target.ts';
+import {createHash} from 'node:crypto';
 export const MODEL='intfloat/multilingual-e5-small';
 export const REVISION='614241f622f53c4eeff9890bdc4f31cfecc418b3';
 const loopbacks=new Set(['127.0.0.1','localhost','[::1]']);
 const pgOptions=new Set(['pgbouncer','ssl','sslmode','sslcert','sslkey','sslrootcert','uselibpqcompat']);
 const fail=code=>{throw new Error(code);};
 export function parseArguments(args){
- let mode='start',port=3000,tunnel=true,hermesCheck=false,staffTest=false,assistantPreview=false;const seen=new Set();
+ let mode='start',port=3000,tunnel=true,hermesCheck=false,staffTest=false,assistantPreview=false,webSearch=false;const seen=new Set();
  for(let i=0;i<args.length;i++){
-  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port','--hermes-check','--staff-test','--assistant-preview'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
+  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port','--hermes-check','--staff-test','--assistant-preview','--web-search'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
   if(arg==='--check'||arg==='--stop'){if(mode!=='start')fail('LOCAL_ARGUMENTS_INVALID');mode=arg.slice(2);}
   if(arg==='--no-tunnel')tunnel=false;
   if(arg==='--hermes-check')hermesCheck=true;
   if(arg==='--staff-test')staffTest=true;
   if(arg==='--assistant-preview')assistantPreview=true;
+  if(arg==='--web-search')webSearch=true;
   if(arg==='--port'){const raw=args[++i];if(!/^[1-9]\d{0,4}$/.test(raw??'')||Number(raw)>65535)fail('LOCAL_ARGUMENTS_INVALID');port=Number(raw);}
  }
- if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview)||staffTest&&(hermesCheck||assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
- return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{})};
+ if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview||webSearch)||staffTest&&(hermesCheck||assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
+ return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{}),...(webSearch?{webSearch:true}:{})};
+}
+function validateWebSearch(env){
+ const key=env.TAVILY_API_KEY,stamp=env.TAVILY_FREE_ATTESTED_AT;
+ if(typeof key!=='string'||!/^[\x21-\x7e]{1,512}$/.test(key)||env.TAVILY_FREE_NO_PAYG_ATTESTED!=='true'||
+  env.TAVILY_FREE_KEY_SHA256!==createHash('sha256').update(key).digest('hex')||typeof stamp!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(stamp))fail('LOCAL_WEB_SEARCH_CONFIG_INVALID');
+ const time=Date.parse(stamp),now=Date.now();
+ if(!Number.isFinite(time)||new Date(time).toISOString()!==stamp||now<time||now-time>86400000)fail('LOCAL_WEB_SEARCH_CONFIG_INVALID');
 }
 export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
  if(options.staffTest&&options.assistantPreview)fail('LOCAL_ARGUMENTS_INVALID');
+ if(options.webSearch===true)validateWebSearch(env);
  for(const key of ['DATABASE_URL','DIRECT_URL','ENCRYPTION_KEY','SUPABASE_URL','NEXT_PUBLIC_SUPABASE_URL',
  'SUPABASE_SECRET_KEY','LINE_STUDENT_CHANNEL_SECRET','LINE_STUDENT_CHANNEL_ACCESS_TOKEN','LINE_STAFF_CHANNEL_SECRET','LINE_STAFF_CHANNEL_ACCESS_TOKEN'])
   if(typeof env[key]!=='string'||!env[key].trim())fail('LOCAL_MISSING_'+key);
@@ -50,7 +60,7 @@ export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
  const base=new URL(baseUrl);
  if(base.username||base.password||base.search||base.hash||base.pathname!=='/'||!(base.protocol==='https:'&&/^[a-z0-9-]+\.trycloudflare\.com$/.test(base.hostname)||base.protocol==='http:'&&base.hostname==='127.0.0.1'&&base.port===String(port)))fail('LOCAL_BASE_URL_INVALID');
  return {...env,...service,EMBEDDING_HOST:host,EMBEDDING_PORT:embeddingPort,EMBEDDING_MODEL:MODEL,EMBEDDING_MODEL_REVISION:REVISION,EMBEDDING_DIMENSION:'384',
-  EMBEDDING_API_URL:endpoint.origin,APP_BASE_URL:base.origin,LINE_WEBHOOK_MODE:'durable',YRU_AI_ENABLED:'true',YRU_WEB_SEARCH_ENABLED:'false',
+  EMBEDDING_API_URL:endpoint.origin,APP_BASE_URL:base.origin,LINE_WEBHOOK_MODE:'durable',YRU_AI_ENABLED:'true',YRU_WEB_SEARCH_ENABLED:options.webSearch===true?'true':'false',
   HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',
   ...(options.staffTest?{YRU_ASSISTANT_ENABLED:'false'}:options.assistantPreview?{YRU_ASSISTANT_ENABLED:'true'}:{})};
 }
@@ -68,6 +78,7 @@ export function assistantPreviewMessages(){
 }
 export function readyMessages(port,publicUrl,hermesStatus='SKIPPED',hermesPhase='CONFIGURATION',options={}){
  const messages=[`Dashboard: http://127.0.0.1:${port}/login`];
+ if(options.webSearch)messages.push('Web search configured: limited source leads after eligible internal misses; provider and free quota remain subject to runtime checks');
  if(publicUrl){
   messages.push(`Student webhook: ${publicUrl}/api/line/student/webhook`);
   messages.push(`Staff webhook: ${publicUrl}/api/line/staff/webhook`);

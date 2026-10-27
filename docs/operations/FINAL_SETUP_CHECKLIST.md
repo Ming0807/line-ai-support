@@ -2,6 +2,8 @@
 
 27OctoberROOT-CORPUS-PUBLIC-04: DEVELOPMENT45migrations/74RLStables; starter13รายการมีฉบับที่ตรวจทานได้ รวม15approvedPUBLICกับ2แหล่งเพิ่มเติม. ปฏิทินหลัก2ฉบับและประกาศกิจกรรมมีข้อยกเว้น/ขอบเขตที่ต้องรักษา [source facts](CORPUS_DECISION_PACKETS.md); ทั้ง7structuredtablesยัง0rows. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่.
 
+ROOT-NATURAL-03: ไม่มี Tavily key/attestation ในเครื่อง ณ การตรวจรอบนี้ จึงยังไม่ได้เปิดหรือทดสอบค้นเว็บจริง. เมื่อต้องการใช้ส่วนนี้ ผู้ดูแลสร้างบัญชี/คีย์ ตรวจแผนฟรีและปิด Pay-as-you-go ด้วยตนเอง แล้วทำ[ขั้นตอนตั้งค่า](LOCAL_TEST.md#เปิดค้นเว็บแบบเลือกใช้ภายหลัง)และใช้ `pnpm local:ai --web-search`; โหมดปกติยังใช้ `pnpm local:ai` ได้. Backend แสดงเว็บเป็นแหล่งค้นที่จำกัดและตรวจ free/quota ก่อนค้น ไม่รับรองความถูกต้องของประกาศจากลิงก์เพียงอย่างเดียว.
+
 อัปเดต25ตุลาคม2026 หลังผู้ใช้สั่งลุยต่อ: rootเปิดlocal:aiไว้ให้พร้อมแล้ว ผู้ใช้ยังเป็นผู้ทดสอบคำตอบ/LINEจริงภายหลังตามDEC166. ไม่ยิงmodeltestsเพิ่ม และchecklistนี้ไม่ใช่การประกาศV1ผ่านการตรวจรับจริง
 
 ## Runtime ตอนนี้และคำสั่งที่ใช้
