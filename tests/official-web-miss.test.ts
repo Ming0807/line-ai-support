@@ -15,7 +15,7 @@ const proof={version:1 as const,policy:'LOCAL_E5_384_THRESHOLD_065_LIMIT_12_V1' 
  structuredQuery:{version:1 as const,dataset:'university_services' as const,filters:{name:'Wi-Fi'},limit:20},queryVector:[1,...Array<number>(383).fill(0)],fingerprint:LOCAL_EMBEDDING_FINGERPRINT};
 function fixture(){
  const attemptId=randomUUID(),result={requestId:randomUUID(),credits:1 as const,results:[]},identity=webSearchAdmissionIdentity(request,key);
- const row={attempt_id:attemptId,request_key:identity.requestKey,owner_digest:identity.ownerDigest,consumer:'STUDENT',purpose:plan.purpose,topic:plan.topic,academic_year:null,
+ const row={provider:'TAVILY',attempt_id:attemptId,request_key:identity.requestKey,owner_digest:identity.ownerDigest,consumer:'STUDENT',purpose:plan.purpose,topic:plan.topic,academic_year:null,
   observation:'SUCCESS',http_status:200,credits:1,provider_request_id:result.requestId,reserved_at:new Date(Date.parse(stamp)-1000)};
  let time=new Date(stamp);
  const query=vi.fn(async(sql:string)=>({rows:sql.includes('clock_timestamp()')?[{observed_at:time}]:[row]}));

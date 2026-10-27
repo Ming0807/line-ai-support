@@ -43,6 +43,12 @@ it('GET usage projects only bounded account observations and remains detached an
  expect(Object.isFrozen(result)).toBe(true);json.key.usage=100;expect(result.keyUsage).toBe(2);
 });
 
+it('preserves explicit unknown key and paygo limits without inventing zero',async()=>{
+ const json=usageJson();
+ const result=await fixture({...json,key:{...json.key,limit:null},account:{...json.account,paygo_limit:null}}).adapter.usage(key,signal());
+ expect(result.keyLimit).toBeNull();expect(result.paygoLimit).toBeNull();
+});
+
 it('returns detached immutable candidates without provider echo or generated answers',async()=>{
  const json=searchJson(),f=fixture(json),result=await f.adapter.search(official,key,signal());
  expect(result).toEqual({requestId,credits:1,results:[candidate]});

@@ -77,6 +77,22 @@ async function staff(text=question){
  return {actor,session,conversation,ticket,before};
 }
 
+test('owned Student fallback uses real DDGS admission after exhausted Tavily, strips snippets and prevents replay',async()=>{
+ const f=await student(),c=connector();let calls=0;
+ c.adapter.usage=async()=>{await outsideSql();return {currentPlan:'Researcher',keyUsage:1000,keyLimit:1000,planUsage:1000,planLimit:1000,paygoUsage:0,paygoLimit:0};};
+ const options={...c,ddgs:{enabled:true,pythonPath:'D:/fixture/python.exe'},ddgsAdapter:{search:async()=>{
+  await outsideSql();calls++;return [{title:'Library reference',url:'https://www.yru.ac.th/library',content:'PRIVATE_UNVERIFIED_SNIPPET'}];
+ }}};
+ try{
+  const run=createStudentWebFallback(pool,key,f.before,options);assert(run);
+  const result=await run(input(),new AbortController().signal);assert(result);assert.equal(result.kind,'WEB_LEADS');
+  assert.equal(calls,1);assert(!JSON.stringify(result).includes('PRIVATE_UNVERIFIED_SNIPPET'));assert(!JSON.stringify(result).includes(f.before.question));
+  const rows=(await pool.query("select provider,observation,http_status,provider_request_id,credits from private.web_search_attempts where provider='DDGS' and quota_day=(clock_timestamp() at time zone 'UTC')::date")).rows;
+  assert.deepEqual(rows,[{provider:'DDGS',observation:'SUCCESS',http_status:null,provider_request_id:null,credits:null}]);
+  assert.equal(await run(input(),new AbortController().signal),null);assert.equal(calls,1);assert.equal(c.counts.search,0);
+ }finally{await f.cleanup();}
+});
+
 test('owned Student fallback rechecks actual source and lease outside HTTP, commits one attempt, strips snippets and fences replay',async()=>{
  const f=await student(),c=connector();try{
   const run=createStudentWebFallback(pool,key,f.before,c);assert(run);

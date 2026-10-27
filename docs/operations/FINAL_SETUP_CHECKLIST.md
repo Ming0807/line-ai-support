@@ -1,5 +1,9 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+## 28 October 2026 — root implementation maintenance
+
+ROOT-WEB-DDGS-02 activated DEVELOPMENT47/75RLS. Prior runner/control state proved stale: saved runner and all seven service PIDs were absent. Earlier READY/URLs below are historical until root restarts after the source-quality slice. No user action is requested during this maintenance. Actual OA/model tests remain deferred.
+
 ## 28 October 2026 — ROOT-ROUTE-RECOVERY-01 current local session
 
 Root restarted only the canonical owned session using `pnpm local:ai --web-search` after the routing repair. Natural assistant ON; offlineE5, four workers and local/public signed-empty200 plus invalid401 for both OAs PASS. Gemini configuration is unchanged and no new generation/model qualification is claimed. Update both LINE Developers URLs after this tunnel restart:
@@ -11,6 +15,16 @@ Root restarted only the canonical owned session using `pnpm local:ai --web-searc
 
 User may test later as authorized: send a normal question/follow-up across existing topics without choosing numbers; genuine ambiguity should show named topics with paging. Verify HUMAN messages stay with Staff and repeated page/choice actions cannot duplicate a reply. Root technical tests do not replace this actual OA check. This is the current URL; all older URLs below are historical. Web account attestation retains its original24h expiry; no extension was made.
 
+## 27 October 2026 — ROOT-NATURAL-06 local preview
+
+`pnpm local:ai --web-search` is running with the natural assistant and limited web leads enabled for this session. Offline E5, dashboard, four worker check-ins and signed local/public empty webhooks passed. Temporary URLs for this running tunnel:
+
+- Student: https://bob-unions-chain-wrapped.trycloudflare.com/api/line/student/webhook
+- Staff: https://bob-unions-chain-wrapped.trycloudflare.com/api/line/staff/webhook
+
+Actual Tavily connector and synthetic Gemini general probes passed separately. One actual Student LINE Wi-Fi question reached AI and a delivered answer with two cited internal sources, but the answer omitted device MAC settings/Passport URL and misordered steps. That message did not trigger web search; full AI/web end-to-end acceptance remains pending. The URLs change after tunnel restart. Web attestation is key-bound and expires after 24 hours. Stop this session with `pnpm local:stop`.
+
+## Earlier checkpoints below are historical
 
 27OctoberROOT-CORPUS-PUBLIC-04: DEVELOPMENT45migrations/74RLStables; starter13รายการมีฉบับที่ตรวจทานได้ รวม15approvedPUBLICกับ2แหล่งเพิ่มเติม. ปฏิทินหลัก2ฉบับและประกาศกิจกรรมมีข้อยกเว้น/ขอบเขตที่ต้องรักษา [source facts](CORPUS_DECISION_PACKETS.md); ทั้ง7structuredtablesยัง0rows. Rootไม่ยิงGemini/LINEtestเพิ่มและไม่ถือว่าFlowA–Fผ่านจากการค้นเอกสารนี้. State/URLของ25Octoberด้านล่างเป็นประวัติ เมื่อพร้อมทดสอบใช้ `pnpm local:ai` และตั้งLINEตามURLStudent/Staffที่scriptพิมพ์รอบใหม่.
 

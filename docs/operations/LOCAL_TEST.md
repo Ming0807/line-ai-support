@@ -63,7 +63,7 @@ pnpm local:test --no-tunnel
 
 ค่าเริ่มต้นยังปิดอยู่ และการค้นที่มีในระบบเป็น **การแสดงลิงก์แหล่งข้อมูลที่จำกัด** หลังตรวจไม่พบข้อมูลภายในที่เข้าเงื่อนไข ไม่ใช่การค้นทุกเว็บไซต์หรือรับรองคำตอบทางการจากเว็บโดยอัตโนมัติ. การตั้งค่าพร้อมไม่เท่ากับผลตรวจ provider หรือผลค้นจริงผ่าน
 
-เมื่อมีบัญชี Tavily และผู้ดูแลตรวจยืนยันเองว่าเป็น Researcher ฟรีและปิด Pay-as-you-go แล้ว ให้ใส่ `TAVILY_API_KEY` และ `TAVILY_FREE_NO_PAYG_ATTESTED=true` ใน `.env` ของเครื่อง จากนั้นใช้คำสั่งนี้เพื่อแสดงเฉพาะ fingerprint ของ key และเวลาปัจจุบัน UTC แล้วคัดลอกทั้งสองบรรทัดใส่ใน `.env` (คำสั่งไม่พิมพ์ key):
+เมื่อมีบัญชี Tavily และผู้ดูแลตรวจยืนยันว่าเป็น Researcher ฟรี ปิด Pay-as-you-go และไม่ผูกบัตร ให้จำกัด key ไม่เกิน500เครดิตต่อเดือน ใส่ `TAVILY_API_KEY` และ `TAVILY_FREE_NO_PAYG_ATTESTED=true` ใน `.env` ของเครื่อง จากนั้นใช้คำสั่งนี้เพื่อแสดงเฉพาะ fingerprint ของ key และเวลาปัจจุบัน UTC แล้วคัดลอกทั้งสองบรรทัดใส่ใน `.env` (คำสั่งไม่พิมพ์ key):
 
 ```powershell
 node -e "const fs=require('fs'),d=require('dotenv'),c=require('crypto');const e=d.parse(fs.readFileSync('.env'));if(!e.TAVILY_API_KEY)throw Error('TAVILY_API_KEY missing');console.log('TAVILY_FREE_KEY_SHA256='+c.createHash('sha256').update(e.TAVILY_API_KEY).digest('hex'));console.log('TAVILY_FREE_ATTESTED_AT='+new Date().toISOString())"
@@ -111,3 +111,9 @@ Get-Content -LiteralPath $localLog.FullName -Tail 80 -Wait
 | `LOCAL_FREE_ONLY_REQUIRED` | ปิด provider ที่อนุญาต paid แล้วใช้ FREE_ONLY ใน Providers สำหรับรอบทดสอบนี้ |
 
 Log ต่อไฟล์จำกัด10MiB การมี process ทำงานและ signed smoke ผ่านยังไม่แทน live model/corpus/OA A–F หลักฐาน local ที่รันจริงและข้อจำกัดอยู่ใน [รายงานตัวรัน](../reports/LOCAL_TEST_RUNNER_REPORT.md)
+
+## DuckDuckGo ผ่าน DDGS — ทางสำรองฟรี
+
+ROOT-WEB-DDGS-02: เมื่อเปิดด้วย `pnpm local:ai --web-search` ระบบใช้ Tavily ก่อน แล้วลอง DDGS ได้ครั้งเดียวเมื่อบริการหลักไม่พร้อม/โควต้าหมด โดยยังตรวจสิทธิ์และเอกสารก่อน/หลังค้น หากสถานะบันทึกคำขอไม่แน่นอนหรือเป็นคำขอซ้ำจะหยุด ไม่สลับซ้ำไปมา. DDGS ไม่ต้องมี API key และไม่ต้องยืนยันบัญชี Tavily แต่ต้องติดตั้ง `scripts/qa/requirements-ddgs.txt` ใน Python environment แยกและตั้ง `DDGS_ENABLED=true`, `DDGS_PYTHON_PATH` เป็นพาธเต็มของ Python ที่ติดตั้งไว้. เครื่องนี้ใช้ D:/codex-cache/yru-ddgs/.venv/Scripts/python.exe; ไม่มีการดาวน์โหลดตอนเปิดแอป.
+
+ตรึงddgs9.16.1และใช้backendDuckDuckGoเท่านั้น ไม่สลับengine/proxyเพื่อหลบการจำกัด. Libraryไม่รับรองโควต้าหรือความพร้อมไม่จำกัด; แอปจำกัดDDGSห่างกัน10วินาที และนับร่วมเพดาน50คำขอ/วัน500/เดือนตามUTC. เพดานนี้เป็นของแอป ไม่ใช่ข้อเสนอของผู้ให้บริการ. เมื่อถูกจำกัด/ค้นไม่ได้จะแจ้งข้อจำกัดตามระบบเดิม ไม่สร้างหลักฐานว่าไม่มีข้อมูล. ผลเป็นลิงก์ให้อ่านต่อ ไม่ใช่ข้อเท็จจริงที่อนุมัติแล้ว. Tavilyยังต้องผ่านattestationและfreequotaของตัวเองทุกครั้ง.

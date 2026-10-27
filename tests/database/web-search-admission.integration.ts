@@ -180,7 +180,8 @@ test('invalid helper input/key fails closed and isolation cannot bypass direct i
 });
 
 test('concurrent direct service inserts enforce the shared daily ceiling atomically',async()=>{
- const before=(await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n;
+ const before=(await pool.query("select count(*)::int n from private.web_search_attempts where quota_day=(clock_timestamp() at time zone 'UTC')::date")).rows[0].n;
+ const retainedBefore=(await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n;
  const values=await Promise.all(Array.from({length:65},async()=>{
   const c=await pool.connect();try{await c.query('begin');await c.query("set local statement_timeout='10s';set local role service_role");
    await insert(c);await c.query('commit');return 'RESERVED';
@@ -188,7 +189,8 @@ test('concurrent direct service inserts enforce the shared daily ceiling atomica
   finally{c.release();}
  }));
  assert.equal(values.filter(v=>v==='RESERVED').length,50-before);assert.equal(values.filter(v=>v==='EXHAUSTED').length,15+before);
- assert.equal((await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,50);
+ assert.equal((await pool.query("select count(*)::int n from private.web_search_attempts where quota_day=(clock_timestamp() at time zone 'UTC')::date")).rows[0].n,50);
+ assert.equal((await pool.query('select count(*)::int n from private.web_search_attempts')).rows[0].n,retainedBefore+50-before);
  assert.deepEqual(await reserveWebSearch(pool,request(),key),{status:'EXHAUSTED'});
  assert.deepEqual(await reserveWebSearch(servicePool,recoveredRequest,key),{status:'DUPLICATE'});
 });

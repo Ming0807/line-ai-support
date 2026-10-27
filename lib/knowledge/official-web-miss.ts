@@ -46,7 +46,7 @@ export async function officialWebMissStillApplies(client:PoolClient,input:unknow
   const fresh=(time:Date)=>time.getTime()>=Date.parse(value.observedAt)&&time.getTime()<Date.parse(value.expiresAt);
   if(!fresh(await clock(client)))return false;
   const row=(await client.query('select * from private.web_search_attempts where attempt_id=$1',[value.attemptId])).rows[0];
-  if(!row||row.attempt_id!==value.attemptId||row.request_key!==value.requestKey||row.owner_digest!==value.ownerDigest||row.consumer!==value.consumer||
+  if(!row||row.provider!=='TAVILY'||row.attempt_id!==value.attemptId||row.request_key!==value.requestKey||row.owner_digest!==value.ownerDigest||row.consumer!==value.consumer||
    row.purpose!==value.plan.purpose||row.topic!==value.plan.topic||row.academic_year!==value.plan.academicYear||row.observation!=='SUCCESS'||row.http_status!==200||
    row.credits!==1||!z.uuid().safeParse(row.provider_request_id).success||!(row.reserved_at instanceof Date)||row.reserved_at.getTime()>Date.parse(value.observedAt))return false;
   return fresh(await clock(client));

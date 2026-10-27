@@ -2,18 +2,20 @@ import {createHash} from 'node:crypto';
 import type {Pool} from 'pg';
 import {z} from 'zod';
 import {copyStructuredJson,freezeStructuredData} from '../imports/structured-mapping-contract';
-import {parseWebSearchRequest,reserveWebSearch,observeWebSearch,type WebSearchAdmission,type WebSearchRequest,type WebSearchObservation} from './web-search-admission';
+import {parseWebSearchRequest,reserveWebSearch,observeWebSearch,type WebSearchAdmission,type WebSearchRequest,type WebSearchObservation,type WebSearchProvider} from './web-search-admission';
 import {createTavilySearchAdapter,TavilySearchError,type TavilySearchAdapter,type TavilySearchResult,type TavilyUsage} from './tavily-search';
+import {createDdgsWebRuntime,type DdgsRuntimeResult,type DdgsAdapter} from './ddgs-web-runtime';
 
-export type WebSearchRuntimeResult=Readonly<{status:'READY';attemptId:string;result:TavilySearchResult}|{
+export type WebSearchRuntimeResult=DdgsRuntimeResult|Readonly<{status:'READY';provider?:'TAVILY';attemptId:string;result:TavilySearchResult}|{
  status:'NOT_CONFIGURED'|'FREE_ONLY_UNVERIFIABLE'|'QUOTA_EXHAUSTED'|'ALREADY_ATTEMPTED'|'UNAVAILABLE'}>;
 const configSchema=z.object({enabled:z.literal(true),apiKey:z.string().regex(/^[\x21-\x7e]{1,512}$/u),
  attestation:z.object({mode:z.string().max(80),keySha256:z.string().max(128),attestedAt:z.string().max(80)}).strict()}).strict();
 type Config=z.infer<typeof configSchema>;
 interface Options {
  pool:Pool;encryptionKey:string;config?:unknown;adapter?:TavilySearchAdapter;now?:()=>number;
+ ddgs?:unknown;ddgsAdapter?:DdgsAdapter;
  // Server-only seams for deterministic tests; never sourced from a request/model.
- reserve?:(request:WebSearchRequest)=>Promise<WebSearchAdmission>;
+ reserve?:(request:WebSearchRequest,provider?:WebSearchProvider)=>Promise<WebSearchAdmission>;
  observe?:(attemptId:string,value:WebSearchObservation)=>Promise<boolean>;
  preflight?:(request:WebSearchRequest,signal:AbortSignal)=>Promise<boolean>;
 }
@@ -24,9 +26,11 @@ function attested(config:Config,now:number):boolean{
   new Date(stamp).toISOString()===value.attestedAt&&now>=stamp&&now-stamp<=86400000;
 }
 function eligible(usage:TavilyUsage):'READY'|'FREE_ONLY_UNVERIFIABLE'|'QUOTA_EXHAUSTED'{
- const fields=[usage.keyUsage,usage.keyLimit,usage.planUsage,usage.planLimit,usage.paygoUsage,usage.paygoLimit];
- if(fields.some(v=>!Number.isSafeInteger(v)||v<0)||usage.currentPlan!=='Researcher'||usage.paygoUsage!==0||usage.paygoLimit!==0||
-  usage.keyLimit<=0||usage.keyLimit>1000||usage.planLimit<=0||usage.planLimit>1000)return 'FREE_ONLY_UNVERIFIABLE';
+ if(usage.keyLimit===null)return 'FREE_ONLY_UNVERIFIABLE';
+ const fields=[usage.keyUsage,usage.keyLimit,usage.planUsage,usage.planLimit,usage.paygoUsage];
+ if(fields.some(v=>!Number.isSafeInteger(v)||v<0)||usage.currentPlan!=='Researcher'||usage.paygoUsage!==0||
+  (usage.paygoLimit!==0&&usage.paygoLimit!==null)||usage.keyLimit<=0||usage.keyLimit>1000||
+  (usage.paygoLimit===null&&usage.keyLimit>500)||usage.planLimit<=0||usage.planLimit>1000)return 'FREE_ONLY_UNVERIFIABLE';
  return usage.keyUsage>=usage.keyLimit||usage.planUsage>=usage.planLimit?'QUOTA_EXHAUSTED':'READY';
 }
 
@@ -51,7 +55,7 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
   }catch{return false;}
   finally{if(timer)clearTimeout(timer);signal.removeEventListener('abort',abort);controller.abort();}
  }
- return async(input,signal)=>{
+ const primary=async(input:unknown,signal:AbortSignal,blockFallback:()=>void):Promise<WebSearchRuntimeResult>=>{
   let attemptId:string|undefined;
   const record=async(value:WebSearchObservation)=>{if(attemptId)try{await observe(attemptId,value);}catch{/* No refund, retry or raw error log. */}};
   try{
@@ -65,7 +69,9 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
    if(observed!=='READY')return {status:observed};
    if(!attested(config,now()))return {status:'FREE_ONLY_UNVERIFIABLE'};
    if(!await allowed(request,signal))return {status:'UNAVAILABLE'};
-   const admission=await reserve(request);
+   let admission:WebSearchAdmission;
+   try{admission=await reserve(request);}catch{blockFallback();return {status:'UNAVAILABLE'};}
+   if(admission.status==='UNAVAILABLE')blockFallback();
    if(admission.status!=='RESERVED')return {status:admission.status==='DUPLICATE'?'ALREADY_ATTEMPTED':admission.status==='EXHAUSTED'?'QUOTA_EXHAUSTED':'UNAVAILABLE'};
    attemptId=admission.attemptId;
    if(signal.aborted)return {status:'UNAVAILABLE'};
@@ -80,5 +86,13 @@ export function createWebSearchRuntime(options:Options):(input:unknown,signal:Ab
    await record({kind:'ERROR',httpStatus:error instanceof TavilySearchError?error.httpStatus??null:null});
    return {status:'UNAVAILABLE'};
   }
+ };
+ const fallback=createDdgsWebRuntime({config:options.ddgs,adapter:options.ddgsAdapter,preflight:allowed,
+  reserve:request=>options.reserve?options.reserve(request,'DDGS'):reserveWebSearch(options.pool,request,options.encryptionKey,'DDGS'),observe});
+ return async(input,signal)=>{
+  let uncertainAdmission=false;
+  const result=await primary(input,signal,()=>{uncertainAdmission=true;});
+  if(uncertainAdmission||!fallback||result.status==='READY'||result.status==='ALREADY_ATTEMPTED'||!(signal instanceof AbortSignal)||signal.aborted)return result;
+  try{return await fallback(parseWebSearchRequest(input),signal);}catch{return {status:'UNAVAILABLE'};}
  };
 }

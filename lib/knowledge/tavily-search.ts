@@ -17,8 +17,8 @@ export class TavilySearchError extends Error {
  }
 }
 export interface TavilyUsage {
- readonly keyUsage:number;readonly keyLimit:number;readonly currentPlan:string;
- readonly planUsage:number;readonly planLimit:number;readonly paygoUsage:number;readonly paygoLimit:number;
+ readonly keyUsage:number;readonly keyLimit:number|null;readonly currentPlan:string;
+ readonly planUsage:number;readonly planLimit:number;readonly paygoUsage:number;readonly paygoLimit:number|null;
 }
 export interface TavilyCandidate {readonly title:string;readonly url:string;readonly content:string;readonly score:number}
 export interface TavilySearchResult {readonly requestId:string;readonly credits:1;readonly results:readonly TavilyCandidate[]}
@@ -31,8 +31,8 @@ interface TavilyTestOptions {
  requestImpl?:PinnedHttpsRequest;
 }
 const integer=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const usageSchema=z.object({key:z.object({usage:integer,limit:integer}),account:z.object({
- current_plan:z.string().min(1).max(80),plan_usage:integer,plan_limit:integer,paygo_usage:integer,paygo_limit:integer,
+const usageSchema=z.object({key:z.object({usage:integer,limit:integer.nullable()}),account:z.object({
+ current_plan:z.string().min(1).max(80),plan_usage:integer,plan_limit:integer,paygo_usage:integer,paygo_limit:integer.nullable(),
 })});
 const candidateSchema=z.object({title:z.string().min(1).max(500),url:z.string().min(1).max(2048),content:z.string().max(4000),score:z.number().finite().min(0).max(1)});
 const searchSchema=z.object({request_id:z.uuid(),usage:z.object({credits:z.literal(1)}),results:z.array(candidateSchema).max(3)});

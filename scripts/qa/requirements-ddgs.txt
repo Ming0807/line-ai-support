@@ -1,0 +1,2 @@
+# Optional standalone evaluation; not loaded by the application runtime.
+ddgs==9.16.1

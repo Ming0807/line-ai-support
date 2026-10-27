@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-181; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-182; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+- ROOT-WEB-DDGS-02: เชื่อมDDGSสำรองผ่านledgerจริงและsource/leaseguardsแล้ว ฐานDEVELOPMENT47migrations;3383unit/55ownedPGผ่าน. ยังไม่ยิงค้นเว็บ/model/OAจริงรอบนี้. [แผน](superpowers/plans/2026-10-28-ddgs-fallback.md).
 
 - ROOT-ROUTE-RECOVERY-01 / DEC181: แก้ semantic cap12 ที่ทำให้คุยแล้วตกเมนู แยก64 AI contexts ออกจาก13ปุ่มLINE, ใช้ชื่อเรื่อง/แบ่งหน้าและตรวจsource/replayเดิม; เพิ่มtelemetry failure isolation. [แผนและหลักฐาน](superpowers/plans/2026-10-28-routing-recovery.md). ผลcomponentไม่ใช่การรับรองคุณภาพคำตอบหรือV1ครบ.
 - ROOT-C-DISK-02: Cจาก0.09เป็น3.20GiB; ย้ายpnpmcontentstoreและruntimehistory6ชุดไปDพร้อมjunctionเดิม. UVย้ายบางส่วนเจอไฟล์ล็อก จึงเก็บเดิมและตั้งfutureUVcacheไปD; pnpmprojectindexesที่เหลือเก็บCแยกไว้ ไม่ลบoriginal/model/Docker/Windowsไฟล์.
@@ -18,7 +20,10 @@
 - ROOT-CORPUS-PUBLIC-04: เผยแพร่ชุดเริ่มต้น13รายการในขอบเขตที่ตรวจทานได้แล้ว ฐานDEVELOPMENTมี15 approved PUBLICรวม2เอกสารเพิ่มเติม ตรวจreceipt/replay/การค้นคืนE5จริง6รายการรอบนี้ผ่าน; ปฏิทิน2ฉบับและประกาศกิจกรรมเป็นส่วนตรวจทานที่มีข้อจำกัด ไม่ใช่รับรองทุกช่อง/ทุกรุ่น ดู[ข้อเท็จจริง](operations/CORPUS_DECISION_PACKETS.md). ทั้ง7structuredtablesยัง0rows. Migration45ผ่านguarded apply,74ตารางRLS,ข้อมูลเอกสารเดิมไม่เปลี่ยนระหว่างmigration;3330unit/245files,type/lint/buildและ17affectedownedPGผ่าน. LiveGemini/LINE/actualHermesยังไม่ทดสอบรอบนี้.
 - [แผนสนทนา ROOT-NATURAL-01](superpowers/plans/2026-10-27-natural-university-assistant.md): ตรวจflowจริง,วัดคุณภาพแยกความครบ/หลักฐาน,ปรับแบบมีขอบเขต และเปรียบเทียบHermesก่อนตัดสินใจใช้ฝั่งนักศึกษา. นี่คือแผน ไม่ใช่ฟีเจอร์ที่ทำเสร็จแล้ว.
 - ROOT-NATURAL-02 / DEC176: เมื่อการแก้คำแนะนำทั่วไปแบบMIXEDล้ม ยังค้นข้อมูลทางการจากคำถามเดิมและแจ้งว่าส่วนทั่วไปยังไม่ครบ; targeted103และownedPG19ผ่านด้วยmock model/LINE. ไม่อ้างว่าคุณภาพA10หรือการทดสอบจริงผ่าน.
-- ROOT-NATURAL-03 / DEC177: runner รองรับ opt-in `--web-search` หลังตั้ง key/ยืนยันบัญชีฟรีด้วยผู้ดูแล; local configuration ปัจจุบันยังไม่มี key. นี่เปิดเฉพาะการค้นลิงก์ที่มีขอบเขตและตรวจ runtime free/quota ไม่ใช่หลักฐานว่าค้นจริงผ่านหรือ AI ตอบจากเว็บได้ทุกเรื่อง. [วิธีตั้งค่า](operations/LOCAL_TEST.md#เปิดค้นเว็บแบบเลือกใช้ภายหลัง).
+- ROOT-NATURAL-03–05 / DEC177–179: runner รองรับ opt-in `--web-search`; เจ้าของยืนยันไม่ผูกบัตร ให้ key และอนุญาตใช้บัญชี Researcher/PAYG-off ที่จำกัด500. Null paygo limit ยังเป็น unknown; runtime อนุญาตภายใต้ owner attestation และเงื่อนไขจำกัด. ค้น YRU Wi-Fi จริง1ครั้งผ่าน durable reservation ได้3ลิงก์และบันทึก SUCCESS. ยังไม่ใช่การทดสอบ LINE/AI หรือ broad web answering. [วิธีตั้งค่า](operations/LOCAL_TEST.md#เปิดค้นเว็บแบบเลือกใช้ภายหลัง).
+- ROOT-NATURAL-06: ผู้ใช้ขอทดสอบ จึงเปิด local preview พร้อม web; actual Gemini synthetic4turns ผ่านการตรวจคำตอบคณิต/บริบท, actual Tavily Wi-Fi ได้3ลิงก์, E5/4workers/local+public HMAC ผ่าน; ส่วนเหล่านี้ทดสอบแยกกัน ไม่ใช่ LINE→AI→web end-to-end. URLและการตรวจจริงอยู่ [checklist](operations/FINAL_SETUP_CHECKLIST.md).
+- ROOT-NATURAL-07: ผู้ใช้ส่งคำถาม Wi-Fi จริงผ่าน Student OA แล้ว inbound→AI→LINE ส่งสำเร็จ; exact-question database review ยืนยันคำตอบ/2แหล่ง. เทียบต้นทางพบยังขาดการตั้งค่า MAC ของอุปกรณ์และ URL Passport รวมถึงลำดับขั้นไม่ตรง จึงเป็นคำตอบบางส่วนไม่ใช่ความครบถ้วนผ่าน; กรณีนี้ใช้ความรู้ภายในไม่เรียก web search ใหม่.
+- ROOT-WEB-DDGS-01: ติดตั้ง `ddgs==9.16.1` แบบแยกบน D และลอง backend DuckDuckGo ค้น YRU Wi-Fi หนึ่งครั้งได้3ลิงก์; [dependency](../scripts/qa/requirements-ddgs.txt). ยังไม่ได้ต่อเข้าแอปหรือผ่านการทดสอบ quota/concurrency/คุณภาพ/LINE; Tavily ยังคงทำงานเดิม.
 
 - งานGLMเดิมถึง4449381ได้รับrootauditแล้ว; งานHermes/QAและownedacceptanceรอบใหม่เก็บในlocalcommit`9948ba9`(26ตุลาคม). ตัวเลขoriginal/repeatและข้อจำกัดเดิมยังแยกไว้ ไม่เปลี่ยนprovider/key/timeoutหรือเรียกmodeltestsเพิ่ม
 - Gemini main6 บน source3 มีหลักฐานเดิมครบ30กรณี:29/30 trajectories,19/20 usefulและmandatorygates. ไม่ได้ยิงทดสอบโมเดลเพิ่มรอบตรวจนี้

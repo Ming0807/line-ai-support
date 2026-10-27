@@ -1,5 +1,6 @@
 import {assertDevelopmentTarget} from '../../lib/database/development-target.ts';
 import {createHash} from 'node:crypto';
+import {isAbsolute} from 'node:path';
 export const MODEL='intfloat/multilingual-e5-small';
 export const REVISION='614241f622f53c4eeff9890bdc4f31cfecc418b3';
 const loopbacks=new Set(['127.0.0.1','localhost','[::1]']);
@@ -21,6 +22,7 @@ export function parseArguments(args){
  return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{}),...(webSearch?{webSearch:true}:{})};
 }
 function validateWebSearch(env){
+ if(env.DDGS_ENABLED==='true'&&typeof env.DDGS_PYTHON_PATH==='string'&&env.DDGS_PYTHON_PATH.length<=2048&&isAbsolute(env.DDGS_PYTHON_PATH))return;
  const key=env.TAVILY_API_KEY,stamp=env.TAVILY_FREE_ATTESTED_AT;
  if(typeof key!=='string'||!/^[\x21-\x7e]{1,512}$/.test(key)||env.TAVILY_FREE_NO_PAYG_ATTESTED!=='true'||
   env.TAVILY_FREE_KEY_SHA256!==createHash('sha256').update(key).digest('hex')||typeof stamp!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(stamp))fail('LOCAL_WEB_SEARCH_CONFIG_INVALID');

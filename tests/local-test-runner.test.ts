@@ -16,6 +16,11 @@ const env={YRU_DEPLOYMENT_ENV:'development',DEV_SUPABASE_PROJECT_REF:'abcdefghij
 const embedding={EMBEDDING_MODEL_CACHE_DIR:'D:/fixture/cache',EMBEDDING_HOST:'127.0.0.1',EMBEDDING_PORT:'8000'};
 const webConfig=()=>{const key='fixture-web-key';return {TAVILY_API_KEY:key,TAVILY_FREE_NO_PAYG_ATTESTED:'true',TAVILY_FREE_KEY_SHA256:createHash('sha256').update(key).digest('hex'),TAVILY_FREE_ATTESTED_AT:new Date().toISOString()};};
 describe('local test session configuration',()=>{
+ it('explicit web search accepts configured DDGS without a Tavily account or fresh Tavily attestation',()=>{
+  const input={...env,DDGS_ENABLED:'true',DDGS_PYTHON_PATH:'D:/fixture/python.exe'};
+  expect(buildSessionEnvironment(input,embedding,'http://127.0.0.1:3000',3000,{assistantPreview:true,webSearch:true}).YRU_WEB_SEARCH_ENABLED).toBe('true');
+  expect(buildSessionEnvironment(input,embedding,'http://127.0.0.1:3000',3000).YRU_WEB_SEARCH_ENABLED).toBe('false');
+ });
  it('keeps web off by default and enables configured web only for an explicit session',()=>{
   const input={...env,...webConfig(),YRU_WEB_SEARCH_ENABLED:'true'},before={...input};
   expect(buildSessionEnvironment(input,embedding,'http://127.0.0.1:3000',3000).YRU_WEB_SEARCH_ENABLED).toBe('false');

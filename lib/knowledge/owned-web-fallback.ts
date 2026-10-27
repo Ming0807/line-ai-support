@@ -17,9 +17,10 @@ import {sealOfficialWebMiss,officialWebMissStillApplies,type OfficialWebMiss} fr
 import {createWebSearchRuntime} from './web-search-runtime';
 import {createWebLeads,type WebLeadsResult} from './web-leads';
 import type {TavilySearchAdapter} from './tavily-search';
+import type {DdgsAdapter} from './ddgs-web-runtime';
 import {validateStructuredProcedure} from './structured-not-applicable';
 
-export interface OwnedWebOptions {config?:unknown;adapter?:TavilySearchAdapter}
+export interface OwnedWebOptions {config?:unknown;adapter?:TavilySearchAdapter;ddgs?:unknown;ddgsAdapter?:DdgsAdapter}
 export type OwnedWebFallback=(input:unknown,signal:AbortSignal)=>Promise<WebLeadsResult|null>;
 const inputSchema=z.object({question:z.string().min(1).max(6000),scope:knowledgeScopeSchema,structuredQuery:structuredQuerySchema.nullable(),notApplicable:z.unknown().optional(),
  queryVector:z.array(z.number().finite()).length(384),fingerprint:z.string().regex(/^[a-f0-9]{64}$/u),proposal:z.unknown()}).strict()
@@ -42,7 +43,7 @@ function sameSource(before:AISnapshot,current:AISnapshot):boolean{
 }
 type SourceRead=<T>(work:(client:PoolClient,current:AISnapshot)=>Promise<T>)=>Promise<T>;
 function callback(pool:Pool,key:string,consumer:'STUDENT'|'STAFF',operationId:string,ownerId:string,before:AISnapshot|undefined,
- read:SourceRead,config:unknown,adapter?:TavilySearchAdapter):OwnedWebFallback{
+ read:SourceRead,config:unknown,options:OwnedWebOptions):OwnedWebFallback{
  return async(input,signal)=>{
   try{
    if(!before||!z.uuid().safeParse(operationId).success||!z.uuid().safeParse(ownerId).success||signal.aborted)return null;
@@ -67,7 +68,8 @@ function callback(pool:Pool,key:string,consumer:'STUDENT'|'STAFF',operationId:st
    async function stage(stagePlan:PublicWebPlan|GeneralWebPlan,officialMiss?:OfficialWebMiss){
     let stamp:string|undefined;
     const request={consumer,operationId,ownerId,purpose:stagePlan.purpose,topic:stagePlan.topic,academicYear:stagePlan.academicYear};
-    const runtime=createWebSearchRuntime({pool,encryptionKey:key,config,adapter,preflight:async(current,inner)=>{
+    const ddgs=options.ddgs??(options.config===undefined?{enabled:process.env.DDGS_ENABLED==='true',pythonPath:process.env.DDGS_PYTHON_PATH??''}:undefined);
+    const runtime=createWebSearchRuntime({pool,encryptionKey:key,config,adapter:options.adapter,ddgs,ddgsAdapter:options.ddgsAdapter,preflight:async(current,inner)=>{
      if(canonicalDigest('owned-web-request',current)!==canonicalDigest('owned-web-request',request)||inner.aborted||signal.aborted)return false;
      return read(async(c,source)=>{
       if(!sameSource(before!,source)||inner.aborted||signal.aborted||!await internalMissStillApplies(c,proof,source,key))return false;
@@ -82,7 +84,7 @@ function callback(pool:Pool,key:string,consumer:'STUDENT'|'STAFF',operationId:st
    }
    const official=await stage(plan);if(!official)return null;
    if(official.result.result.results.length)return createWebLeads(plan,official.result.result.results,proof,official.stamp);
-   if(!general)return null;
+   if(!general||official.result.provider==='DDGS')return null;
    const officialMiss=await read(async(c,source)=>{
     if(!sameSource(before,source)||signal.aborted||!await internalMissStillApplies(c,proof,source,key))return null;
     return sealOfficialWebMiss(c,official.request,official.result.attemptId,official.result.result,plan,proof,source,key,official.stamp);
@@ -112,7 +114,7 @@ export function createStudentWebFallback(pool:Pool,key:string,source:AISnapshot,
   const current=await readAIKnowledgeSnapshot(c,job,key,!!before.support);if(!current)throw new Error('WEB_CONTEXT_CHANGED');
   return work(c,current);
  },pool);
- return callback(pool,key,'STUDENT',operationId,ownerId,before,read,config,options.adapter);
+ return callback(pool,key,'STUDENT',operationId,ownerId,before,read,config,options);
 }
 function staffOperation(key:string,input:unknown):string{
  const master=Buffer.from(key,'base64');if(master.length!==32||master.toString('base64')!==key)throw new Error('WEB_CONTEXT_CHANGED');
@@ -131,5 +133,5 @@ export function createStaffWebFallback(pool:Pool,key:string,actorId:string,ticke
   if(current.digest!==digest||!current.knowledge||!before||before.jobId!==ticketId)throw new Error('WEB_CONTEXT_CHANGED');
   return work(c,current.knowledge);
  },{knowledgeCatalog:true});
- return callback(pool,key,'STAFF',operationId,actorId,before,read,config,options.adapter);
+ return callback(pool,key,'STAFF',operationId,actorId,before,read,config,options);
 }

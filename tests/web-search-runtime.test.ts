@@ -2,7 +2,8 @@ import {createHash,randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 import {afterEach,expect,it,vi} from 'vitest';
 import {createWebSearchRuntime} from '../lib/knowledge/web-search-runtime';
-import {TavilySearchError,type TavilySearchAdapter,type TavilyUsage} from '../lib/knowledge/tavily-search';
+import {createTavilySearchAdapter,TavilySearchError,type TavilySearchAdapter,type TavilyUsage} from '../lib/knowledge/tavily-search';
+import type {PinnedHttpsRequest} from '../lib/ai/compatible-network';
 import type {WebSearchAdmission} from '../lib/knowledge/web-search-admission';
 
 const key='synthetic-web-key',master=Buffer.alloc(32,11).toString('base64');
@@ -100,6 +101,30 @@ it('rejects invalid own request and already-cancelled calls without usage',async
 it('unknown or paid usage and invalid counters never reserve or search',async()=>{
  for(const patch of [{currentPlan:'Bootstrap'},{currentPlan:'researcher'},{paygoUsage:1},{paygoLimit:100},
   {keyLimit:1001},{planLimit:1001},{keyLimit:0},{planLimit:0},{keyUsage:-1},{planUsage:NaN}]){
+  const f=fixture();f.adapter.usage.mockResolvedValue({...usage(),...patch});
+  expect((await f.run(input(),new AbortController().signal)).status).toBe('FREE_ONLY_UNVERIFIABLE');
+  expect(f.reserve).not.toHaveBeenCalled();expect(f.adapter.search).not.toHaveBeenCalled();
+ }
+});
+it('unknown key limit blocks without reservation or a search POST',async()=>{
+ for(const limits of [{keyLimit:null,paygoLimit:0},{keyLimit:null,paygoLimit:null}]){
+  const send=vi.fn<PinnedHttpsRequest>(async()=>({status:200,contentType:'application/json',retryAfter:null,json:{
+   key:{usage:0,limit:limits.keyLimit},account:{current_plan:'Researcher',plan_usage:0,plan_limit:1000,paygo_usage:0,paygo_limit:limits.paygoLimit},
+  }}));
+  const adapter=createTavilySearchAdapter({resolvePublicAddresses:async()=>[{address:'8.8.8.8',family:4}],requestImpl:send});
+  const f=fixture({adapter});
+  expect(await f.run(input(),new AbortController().signal)).toEqual({status:'FREE_ONLY_UNVERIFIABLE'});
+  expect(send).toHaveBeenCalledTimes(1);expect(send.mock.calls[0][0].method).toBe('GET');
+  expect(f.reserve).not.toHaveBeenCalled();expect(f.observe).not.toHaveBeenCalled();
+ }
+});
+it('owner-attested capped Researcher usage permits null paygo limit without treating it as zero',async()=>{
+ const f=fixture();f.adapter.usage.mockResolvedValue({...usage(),keyLimit:500,paygoLimit:null});
+ expect((await f.run(input(),new AbortController().signal)).status).toBe('READY');
+ expect(f.reserve).toHaveBeenCalledTimes(1);expect(f.adapter.search).toHaveBeenCalledTimes(1);
+});
+it('null paygo limit still requires key cap at most 500 and zero paygo usage',async()=>{
+ for(const patch of [{keyLimit:501,paygoLimit:null},{keyLimit:null,paygoLimit:null},{keyLimit:500,paygoLimit:null,paygoUsage:1}]){
   const f=fixture();f.adapter.usage.mockResolvedValue({...usage(),...patch});
   expect((await f.run(input(),new AbortController().signal)).status).toBe('FREE_ONLY_UNVERIFIABLE');
   expect(f.reserve).not.toHaveBeenCalled();expect(f.adapter.search).not.toHaveBeenCalled();
