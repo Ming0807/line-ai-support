@@ -11,6 +11,7 @@ import {projectRoutingContext,resolveRoutingProposal,routingInferenceBudgetMs,Se
 import {readExplicitNewTopic} from './explicit-focus';
 import {isTypedRouteNavigation} from './quick-reply';
 import {isTypedSupportConfirmation} from './support-confirmation';
+import {recordRoutingObservation,routingLatency,type RoutingReason} from './routing-telemetry';
 type Selection=NonNullable<ReturnType<typeof resolveRoutingProposal>>;
 export interface SemanticRoutingAdvice {eventId:string;sessionId:string;questionDigest:string;contextDigest:string;selection:Selection}
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -40,45 +41,72 @@ export async function validateRoutingAdvice(client:DbClient,input:{sessionId:str
  if(advice.selection.selectedConversationId&&!current.some(c=>c.conversationId===advice.selection.selectedConversationId))return null;
  return advice.selection;
 }
+type PreflightOutcome={kind:'skip';reason:RoutingReason;candidates?:number}
+ |{kind:'ready';sessionId:string;question:string;context:SemanticCandidate[];duration:number;candidates:number};
 /** Lease preflight commits before provider HTTP. No ticket/message/outbox effects occur here. */
 export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:string,classify:SemanticClassifier,onUnavailable?:(reason:SemanticRoutingUnavailableError['reason'])=>void):Promise<SemanticRoutingAdvice|null>{
  if(job.channel!=='STUDENT')return null;
- const before=await transaction(async c=>{
-  await c.query("set local statement_timeout='5s';set local lock_timeout='2s'");
-  const row=(await c.query(`select * from private.webhook_inbox where id=$1 and lease_token=$2 and status='PROCESSING'
-   and lease_until>clock_timestamp()+interval '7 seconds' for share`,[job.id,job.lease_token])).rows[0];
-  if(!row||row.channel!=='STUDENT'||row.payload_encrypted!==job.payload_encrypted)return null;
-  let parsed;try{parsed=userEventSchema.safeParse(JSON.parse(decryptValue(row.payload_encrypted,key)));}catch{return null;}
-  if(!parsed.success)return null;
-  const event=parsed.data;if(event.type!=='message'||event.message.type!=='text')return null;
-  const question=event.message.text;if(question.length>20000||Buffer.byteLength(question,'utf8')>60000||!question.trim())return null;
-  const hash=hashLineUserId(event.source.userId,key);if(row.user_hash!==hash||job.user_hash!==hash)return null;
-  if(isTypedSupportConfirmation(question))return null;
-  await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
-  const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
-  if(!session)return null;
-  if(await readExplicitNewTopic(c,session.line_session_id))return null;
-  const recent=(await c.query(`select count(*)::int n from private.webhook_inbox prior where prior.user_hash=$1 and prior.channel='STUDENT'
-   and prior.event_kind='MESSAGE' and prior.received_at>$2::timestamptz-interval '1 minute' and prior.received_at<=$2 and prior.event_seq<$3`,[hash,row.received_at,row.event_seq])).rows[0].n;
-  if(recent>=20||(await c.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return null;
-  const candidates=await loadCandidates(c,session.line_session_id);if(!candidates.length||candidates.length>12)return null;
-  for(const candidate of [...candidates].sort((a,b)=>a.conversationId.localeCompare(b.conversationId)))await lockConversation(c,candidate.conversationId);
-  if(isTypedRouteNavigation(question,await loadCandidates(c,session.line_session_id)))return null;
-  const context=await loadContext(c,session.line_session_id);if(!context.length)return null;
-  const remaining=(await c.query('select extract(epoch from(lease_until-clock_timestamp()))*1000 ms from private.webhook_inbox where id=$1 and lease_token=$2 and status=\'PROCESSING\'',[job.id,job.lease_token])).rows[0];
-  const duration=routingInferenceBudgetMs(remaining?.ms);if(duration===null)return null;
-  return {sessionId:session.line_session_id as string,question,context,duration};
- },pool);
- if(!before)return null;
- const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+ const started=Date.now();
+ let prepared:PreflightOutcome;
+ try{
+  prepared=await transaction(async c=>{
+   await c.query("set local statement_timeout='5s';set local lock_timeout='2s'");
+   const row=(await c.query(`select * from private.webhook_inbox where id=$1 and lease_token=$2 and status='PROCESSING'
+    and lease_until>clock_timestamp()+interval '7 seconds' for share`,[job.id,job.lease_token])).rows[0];
+   if(!row||row.channel!=='STUDENT'||row.payload_encrypted!==job.payload_encrypted)return {kind:'skip',reason:'LEASE_STALE'};
+   let parsed;try{parsed=userEventSchema.safeParse(JSON.parse(decryptValue(row.payload_encrypted,key)));}catch{return {kind:'skip',reason:'PAYLOAD_UNPARSEABLE'};}
+   if(!parsed.success)return {kind:'skip',reason:'PAYLOAD_SCHEMA'};
+   const event=parsed.data;if(event.type!=='message'||event.message.type!=='text')return {kind:'skip',reason:'NON_TEXT_EVENT'};
+   const question=event.message.text;if(question.length>20000||Buffer.byteLength(question,'utf8')>60000||!question.trim())return {kind:'skip',reason:'QUESTION_SIZE'};
+   const hash=hashLineUserId(event.source.userId,key);if(row.user_hash!==hash||job.user_hash!==hash)return {kind:'skip',reason:'IDENTITY_MISMATCH'};
+   if(isTypedSupportConfirmation(question))return {kind:'skip',reason:'SUPPORT_CONFIRMATION'};
+   await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
+   const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
+   if(!session)return {kind:'skip',reason:'SESSION_MISSING'};
+   if(await readExplicitNewTopic(c,session.line_session_id))return {kind:'skip',reason:'EXPLICIT_NEW_TOPIC'};
+   const recent=(await c.query(`select count(*)::int n from private.webhook_inbox prior where prior.user_hash=$1 and prior.channel='STUDENT'
+    and prior.event_kind='MESSAGE' and prior.received_at>$2::timestamptz-interval '1 minute' and prior.received_at<=$2 and prior.event_seq<$3`,[hash,row.received_at,row.event_seq])).rows[0].n;
+   if(recent>=20)return {kind:'skip',reason:'INBOX_RATE_LIMIT'};
+   if((await c.query('select id from public.messages where line_message_id=$1',[event.message.id])).rowCount)return {kind:'skip',reason:'DUPLICATE_MESSAGE'};
+   const candidates=await loadCandidates(c,session.line_session_id);
+   if(!candidates.length)return {kind:'skip',reason:'CANDIDATES_EMPTY'};
+   if(candidates.length>12)return {kind:'skip',reason:'CANDIDATES_OVERFLOW',candidates:candidates.length};
+   for(const candidate of [...candidates].sort((a,b)=>a.conversationId.localeCompare(b.conversationId)))await lockConversation(c,candidate.conversationId);
+   if(isTypedRouteNavigation(question,await loadCandidates(c,session.line_session_id)))return {kind:'skip',reason:'ROUTE_NAVIGATION'};
+   const context=await loadContext(c,session.line_session_id);if(!context.length)return {kind:'skip',reason:'CONTEXT_MISMATCH',candidates:candidates.length};
+   const remaining=(await c.query('select extract(epoch from(lease_until-clock_timestamp()))*1000 ms from private.webhook_inbox where id=$1 and lease_token=$2 and status=\'PROCESSING\'',[job.id,job.lease_token])).rows[0];
+   const duration=routingInferenceBudgetMs(remaining?.ms);if(duration===null)return {kind:'skip',reason:'LEASE_BUDGET_EXHAUSTED',candidates:candidates.length};
+   return {kind:'ready',sessionId:session.line_session_id as string,question,context,duration,candidates:candidates.length};
+  },pool);
+ }catch(error){
+  recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'ERROR',reasonCode:'INTERNAL_ERROR',latencyMs:routingLatency(started)});
+  throw error;
+ }
+ const preflightLatency=routingLatency(started);
+ if(prepared.kind==='skip'){
+  recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'SKIPPED',reasonCode:prepared.reason,candidates:prepared.candidates,latencyMs:preflightLatency});
+  return null;
+ }
+ recordRoutingObservation(pool,{stage:'PREFLIGHT',status:'SUCCESS',candidates:prepared.candidates,latencyMs:preflightLatency});
+ const before={sessionId:prepared.sessionId,question:prepared.question,context:prepared.context,duration:prepared.duration};
+ const classifyStarted=Date.now(),controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
  const boundary=new Promise<null>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(null);},before.duration);});
  try{
   const proposal=await Promise.race([boundary,Promise.resolve().then(()=>classify({question:before.question,contexts:projectRoutingContext(before.context)},controller.signal))]);
-  if(controller.signal.aborted){onUnavailable?.('TIMEOUT');return null;}
-  const selection=resolveRoutingProposal(proposal,before.context);if(!selection)return null;
+  if(controller.signal.aborted){onUnavailable?.('TIMEOUT');
+   recordRoutingObservation(pool,{stage:'CLASSIFY',status:'TIMEOUT',reasonCode:'TIMEOUT',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
+   return null;}
+  const selection=resolveRoutingProposal(proposal,before.context);
+  if(!selection){recordRoutingObservation(pool,{stage:'CLASSIFY',status:'SKIPPED',reasonCode:'NO_VALID_PROPOSAL',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});return null;}
+  recordRoutingObservation(pool,{stage:'CLASSIFY',status:'SUCCESS',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
   return {eventId:job.id,sessionId:before.sessionId,questionDigest:digest(before.question),contextDigest:digest(before.context),selection};
  }catch(error){
-  if(error instanceof SemanticRoutingUnavailableError)onUnavailable?.(controller.signal.aborted?'TIMEOUT':error.reason);
+  if(error instanceof SemanticRoutingUnavailableError){
+   const aborted=controller.signal.aborted;
+   onUnavailable?.(aborted?'TIMEOUT':error.reason);
+   recordRoutingObservation(pool,{stage:'CLASSIFY',status:error.reason==='TIMEOUT'||aborted?'TIMEOUT':'ERROR',
+    reasonCode:aborted?'TIMEOUT':error.reason,candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
+  }else recordRoutingObservation(pool,{stage:'CLASSIFY',status:'ERROR',reasonCode:'INTERNAL_ERROR',candidates:prepared.candidates,latencyMs:routingLatency(classifyStarted)});
   return null;
  }
  finally{if(timer)clearTimeout(timer);controller.abort();}

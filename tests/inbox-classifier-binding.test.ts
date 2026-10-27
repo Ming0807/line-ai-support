@@ -27,7 +27,7 @@ it('carries an unavailable observation only into Student processing while Staff 
  const result=await runInboxCycle({query} as unknown as Pool,'synthetic-key',{aiEnabled:true,classify:vi.fn()});
  expect(result).toEqual({claimed:2,completed:2,failed:0});
  expect(mocks.process.mock.calls).toEqual([
-  [expect.anything(),student,'synthetic-key',{aiEnabled:true,routingAdvice:undefined,routingUnavailable:true}],
-  [expect.anything(),staff,'synthetic-key',{aiEnabled:true,routingAdvice:undefined,routingUnavailable:false}],
+  [expect.anything(),student,'synthetic-key',expect.objectContaining({aiEnabled:true,routingAdvice:undefined,routingUnavailable:true,routingObservation:expect.any(Function)})],
+  [expect.anything(),staff,'synthetic-key',expect.objectContaining({aiEnabled:true,routingAdvice:undefined,routingUnavailable:false,routingObservation:expect.any(Function)})],
  ]);
 });

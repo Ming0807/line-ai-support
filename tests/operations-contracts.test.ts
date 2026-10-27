@@ -1,5 +1,6 @@
 import {expect,it} from 'vitest';
 import {parseActivityQuery,parseLogQuery,projectActivity,projectLog,makePagination,operationsEnvelopeSchema} from '../lib/operations/contracts';
+import {routingReasons} from '../lib/conversation/routing-telemetry';
 
 const now=new Date('2026-10-07T18:00:00Z');
 it('uses Bangkok civil days and derives bounded seven-day windows',()=>{
@@ -29,6 +30,18 @@ it('projects transport observations and suppresses raw unknown LINE codes/reques
  expect(projectLog({...row,error_code:'LINE_DELIVERED',accepted:false})).toMatchObject({code:'LINE_DELIVERY_FAILED',severity:'WARN'});
 });
 it.each(['AI_PROVIDERS_REORDERED','AI_MODELS_REORDERED','AI_PROVIDER_COST_MODE_CHANGED','AI_MODEL_TESTED','AI_MODEL_PRICING_CHECKED','AI_PROVIDER_QUOTA_CHECKED'])('groups actual provider audit action %s without metadata',action=>expect(projectActivity({id:'9fe2233d-05b8-4e91-8b26-fc2773f96fe5',created_at:new Date(),action}).action).toBe('PROVIDER'));
+it('maps routing observations into the operator vocabulary with bucketed severity and no content echo',()=>{
+ const base={created_at:new Date('2026-10-28T01:00:00Z'),component:'route-planner',http_status:null,accepted:false};
+ const row={...base,id:'routing:11111111-2222-3333-4444-555555555555',error_code:'CANDIDATES_OVERFLOW',secret_field:'never-public'};
+ expect(projectLog(row)).toMatchObject({code:'CANDIDATES_OVERFLOW',severity:'WARN',label:routingReasons.CANDIDATES_OVERFLOW.label});
+ expect(projectLog({...row,error_code:'TIMEOUT'})).toMatchObject({code:'TIMEOUT',severity:'ERROR'});
+ expect(projectLog({...row,error_code:'LOW_CONFIDENCE'})).toMatchObject({code:'LOW_CONFIDENCE',severity:'WARN'});
+ expect(projectLog({...row,error_code:'EXPLICIT_NEW_TOPIC'})).toMatchObject({code:'EXPLICIT_NEW_TOPIC',severity:'INFO'});
+ expect(projectLog({...row,error_code:'not-public'})).toMatchObject({code:'INTERNAL_ERROR',severity:'ERROR'});
+ expect(JSON.stringify(projectLog(row))).not.toContain('never-public');
+ expect(()=>projectLog({...base,id:'routing:short'})).toThrow();
+ expect(parseLogQuery(new URLSearchParams('component=route-planner'),now)).toMatchObject({component:'route-planner'});
+});
 it('keeps zero and out-of-range pagination truthful and validates the full public envelope',()=>{
  expect(makePagination(4,25,3)).toEqual({page:4,pageSize:25,total:3,totalPages:1,hasNext:false,hasPrevious:true});
  expect(makePagination(1,25,0).totalPages).toBe(0);

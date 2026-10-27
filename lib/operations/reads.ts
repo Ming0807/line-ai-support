@@ -1,7 +1,7 @@
 import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../database/pool';
 import {loadActor} from '../tickets/authorization';
-import {OperationsError,activityGroups,activityLabels,activityActions,aiCodes,lineCodes,projectActivity,projectLog,makePagination,validateActivityFilters,validateLogFilters,type ActivityFilters,type LogFilters,type ActivityItem,type LogItem,type ReadEnvelope} from './contracts';
+import {OperationsError,activityGroups,activityLabels,activityActions,aiCodes,lineCodes,routeCodes,routingSeverityBuckets,projectActivity,projectLog,makePagination,validateActivityFilters,validateLogFilters,type ActivityFilters,type LogFilters,type ActivityItem,type LogItem,type ReadEnvelope} from './contracts';
 
 // These literals come only from this module's fixed vocabularies, never request data.
 const literal=(value:string)=>"'"+value.replaceAll("'","''")+"'";
@@ -46,11 +46,19 @@ export async function readLogs(staffId:string,input:LogFilters,options:{pool?:Po
   const query=`with observations as (
    select 'ai:'||id::text id,created_at,'ai-gateway'::text component,error_type::text error_code,http_status,false accepted from private.ai_errors
    union all select 'line:'||id::text,created_at,'line-delivery',error_code,http_status,accepted from private.delivery_attempts
+   union all select 'routing:'||o.id::text,o.created_at,'route-planner',coalesce(o.reason_code,o.status),null,false from private.inbox_routing_observations o
+    where o.status in ('SKIPPED','TIMEOUT','ERROR')
   ),coded as (select *,case when component='line-delivery' and accepted then 'LINE_DELIVERED'
    when component='ai-gateway' and error_code in (${aiCodes.map(literal).join(',')}) then error_code
    when component='line-delivery' and error_code in (${lineCodes.filter(code=>code!=='LINE_DELIVERED').map(literal).join(',')}) then error_code
-   when component='line-delivery' then 'LINE_DELIVERY_FAILED' else 'PROVIDER_UNAVAILABLE' end code from observations),
-  labelled as (select *,case when accepted and component='line-delivery' then 'INFO' when http_status=429 or code in ('CANCELLED','REPLY_OUTCOME_UNKNOWN','REPLY_ALREADY_ATTEMPTED') then 'WARN' else 'ERROR' end severity from coded),
+   when component='route-planner' and error_code in (${[...routeCodes,...aiCodes].map(literal).join(',')}) then error_code
+   when component='line-delivery' then 'LINE_DELIVERY_FAILED' when component='route-planner' then 'INTERNAL_ERROR'
+    else 'PROVIDER_UNAVAILABLE' end code from observations),
+  labelled as (select *,case when component='route-planner' and code in (${routingSeverityBuckets.ERROR.map(literal).join(',')}) then 'ERROR'
+   when component='route-planner' and code in (${routingSeverityBuckets.WARN.map(literal).join(',')}) then 'WARN'
+   when component='route-planner' and code in (${routingSeverityBuckets.INFO.map(literal).join(',')}) then 'INFO'
+   when component='route-planner' then 'ERROR' when accepted and component='line-delivery' then 'INFO'
+   when http_status=429 or code in ('CANCELLED','REPLY_OUTCOME_UNKNOWN','REPLY_ALREADY_ATTEMPTED') then 'WARN' else 'ERROR' end severity from coded),
   matching as materialized (select * from labelled where ${where.join(' and ')}),${pageSql(values,filters)}`;
   return result((await client.query(query,values)).rows,filters,projectLog);
  },options.pool);

@@ -3,6 +3,7 @@ import { transaction } from '../database/pool';
 import { processInboxEvent, type InboxJob } from './process-inbox';
 import type {StudentProcessingOptions} from '../conversation/student-processing';
 import {classifyStudentInboxContext} from '../conversation/semantic-routing';
+import {recordRoutingObservation,type RoutingDecisionObservation} from '../conversation/routing-telemetry';
 import type {SemanticClassifier} from '../conversation/semantic-routing-contracts';
 
 /** Service one job per fixed channel so a busy Student lane cannot starve Staff. */
@@ -20,7 +21,9 @@ export async function runInboxCycle(pool:Pool,key:string,options:StudentProcessi
    const routingAdvice=classify?await classifyStudentInboxContext(pool,claimed,key,classify,reason=>{
     routingUnavailable=true;console.warn('INBOX_ROUTING_UNAVAILABLE',{channel,reason});
    }):null;
-   await transaction(client=>processInboxEvent(client,claimed,key,{aiEnabled:options.aiEnabled,routingAdvice:routingAdvice??undefined,routingUnavailable}),pool);
+   const processing:StudentProcessingOptions={aiEnabled:options.aiEnabled,routingAdvice:routingAdvice??undefined,routingUnavailable,
+    routingObservation:(observation:RoutingDecisionObservation)=>recordRoutingObservation(pool,{...observation,inboxEventId:claimed.id})};
+   await transaction(client=>processInboxEvent(client,claimed,key,processing),pool);
    result.completed++;
    console.info('INBOX_PROCESSED',{channel});
   } catch {

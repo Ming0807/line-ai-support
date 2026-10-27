@@ -10,12 +10,15 @@ import {applyUserReply} from '../tickets/human-takeover';
 import {prepareAIJob} from '../ai/jobs';
 import {createTicketToolRegistry} from '../ai/backend-tools';
 import {validateRoutingAdvice,type SemanticRoutingAdvice} from './semantic-routing';
+import type {RoutingDecisionObservation} from './routing-telemetry';
+import {routingLatency} from './routing-telemetry';
 import {loadSupportActionState} from '../ai/support-state';
 import {confirmSupportSolved} from '../ai/support-actions';
 import {consumeTypedSupportConfirmation,isTypedSupportConfirmation} from './support-confirmation';
 import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
 
-export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean}
+export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;
+ routingObservation?:(observation:RoutingDecisionObservation)=>void}
 
 export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string,options:StudentProcessingOptions={}):Promise<string|null> {
  const {sessionId,eventId,event,receivedAt}=input;
@@ -72,7 +75,10 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
  const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice):null;
  const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
+ const decisionStart=Date.now();
  const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
+ options.routingObservation?.({stage:'DECISION',status:decision.route==='ASK_CONTEXT'?'SKIPPED':'SUCCESS',reasonCode:decision.reason.toUpperCase(),
+  candidates:candidates.length,latencyMs:routingLatency(decisionStart),...(decision.conversationId?{conversationId:decision.conversationId}:{})});
  let conversationId=selected;
  if(choice?.supportDigest){
   const state=conversationId?await loadSupportActionState(client,sessionId,conversationId,key):null;

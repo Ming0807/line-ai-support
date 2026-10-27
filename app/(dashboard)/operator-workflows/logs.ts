@@ -2,6 +2,7 @@
 
 import {
   logCodes,
+  logComponents,
   operationsEnvelopeSchema,
   parseLogQuery as parseRootLogQuery,
   type LogFilters,
@@ -15,7 +16,7 @@ import { LOG_SEVERITY_LABELS, projectLogFields } from './privacy';
 export type { LogFilters as LogServiceFilters, LogItem };
 export type ValidatedLogQuery = LogFilters & { validationError?: string };
 export const LOG_SEVERITIES = LOG_SEVERITY_LABELS;
-export const LOG_COMPONENTS = ['ai-gateway', 'line-delivery'] as const;
+export const LOG_COMPONENTS = logComponents;
 export const LOG_CODES = logCodes;
 export const ALLOWED_LOG_QUERY_KEYS = ['q', 'severity', 'component', 'code', 'from', 'to', 'page', 'pageSize'] as const;
 

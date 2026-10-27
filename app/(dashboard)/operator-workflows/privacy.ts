@@ -4,6 +4,7 @@ import {
   activityItemSchema,
   activityLabels,
   logCodes,
+  logComponents,
   logItemSchema,
   type ActivityItem,
   type LogItem,
@@ -19,7 +20,7 @@ export const LOG_SEVERITY_LABELS: Record<'ERROR' | 'WARN' | 'INFO', string> = {
   INFO: 'ข้อมูลทั่วไป',
 };
 export const LOG_CODES = logCodes;
-export const LOG_COMPONENTS = ['ai-gateway', 'line-delivery'] as const;
+export const LOG_COMPONENTS = logComponents;
 
 export function projectActivityFields(raw: unknown): ProjectionResult<ActivityItem> {
   const parsed = activityItemSchema.safeParse(raw);
