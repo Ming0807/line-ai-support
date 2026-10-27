@@ -21,13 +21,20 @@ it('downgrades a failed telemetry write to a fixed warn instead of failing routi
  warn.mockRestore();
 });
 
-it('rejects malformed observations synchronously so nothing degrades silently',()=>{
- const query=vi.fn();
- expect(()=>recordRoutingObservation(poolOf(query),{stage:'PREFLIGHT',status:'SKIPPED',reasonCode:'bad_code',latencyMs:1})).toThrow('ROUTING_OBSERVATION_INVALID');
- expect(()=>recordRoutingObservation(poolOf(query),{stage:'THEORY',status:'SKIPPED',latencyMs:1} as unknown as RoutingObservationInput)).toThrow('ROUTING_OBSERVATION_INVALID');
+it('isolates observation writer faults: unknown or out-of-range fields warn and drop, never throw',()=>{
+ const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ const query=vi.fn().mockResolvedValue({rowCount:1});
+ // Regression guard: a DECISION route row once carried an extra field unknown to the schema and threw
+ // synchronously inside the processing transaction, which rolled back and marked the event DEAD.
+ expect(()=>recordRoutingObservation(poolOf(query),{stage:'DECISION',status:'SUCCESS',reasonCode:'EXPLICIT_NEW_TOPIC',latencyMs:0,
+  conversationId:'11111111-2222-3333-4444-555555555555'} as unknown as RoutingObservationInput)).not.toThrow();
  expect(query).not.toHaveBeenCalled();
+ expect(()=>recordRoutingObservation(poolOf(query),{stage:'PREFLIGHT',status:'SKIPPED',reasonCode:'bad_code',latencyMs:1})).not.toThrow();
+ expect(()=>recordRoutingObservation(poolOf(query),{stage:'THEORY',status:'SKIPPED',latencyMs:1} as unknown as RoutingObservationInput)).not.toThrow();
+ expect(query).not.toHaveBeenCalled();
+ expect(warn).toHaveBeenCalledWith('ROUTING_TELEMETRY_UNAVAILABLE');
+ warn.mockRestore();
 });
-
 it('bounds latency inside the observation envelope',()=>{
  expect(routingLatency(Date.now()-10_000_000)).toBe(3_600_000);
  expect(routingLatency(Date.now()+5000)).toBe(0);

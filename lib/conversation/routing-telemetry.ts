@@ -45,10 +45,12 @@ export type RoutingObservationInput=z.infer<typeof routingObservationSchema>;
 /** What a caller inside routing code provides; storage columns are bound at the worker boundary. */
 export type RoutingDecisionObservation=Omit<RoutingObservationInput,'inboxEventId'|'lineSessionId'>;
 
-/** Fire-and-forget: best-effort single row never fails, slows or spans the routing transaction. */
+/** Fire-and-forget: best-effort single row never fails, throws, slows or spans the routing transaction.
+ * A caller mistake (unknown/range-violating field) downgrades to one warn with the row dropped;
+ * it must never abort the caller's transaction the way a synchronous throw once did. */
 export function recordRoutingObservation(pool:Pool,input:RoutingObservationInput):void {
  const parsed=routingObservationSchema.safeParse(input);
- if(!parsed.success)throw new Error('ROUTING_OBSERVATION_INVALID');
+ if(!parsed.success){console.warn('ROUTING_TELEMETRY_UNAVAILABLE');return;}
  const {inboxEventId,lineSessionId,stage,status,reasonCode,candidates,latencyMs}=parsed.data;
  const query={text:`insert into private.inbox_routing_observations(inbox_event_id,line_session_id,stage,status,reason_code,candidates,latency_ms)
   values($1,$2,$3,$4,$5,$6,$7)`,values:[inboxEventId??null,lineSessionId??null,stage,status,reasonCode??null,candidates??null,latencyMs],query_timeout:2000};

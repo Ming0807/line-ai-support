@@ -78,7 +78,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  const decisionStart=Date.now();
  const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
  options.routingObservation?.({stage:'DECISION',status:decision.route==='ASK_CONTEXT'?'SKIPPED':'SUCCESS',reasonCode:decision.reason.toUpperCase(),
-  candidates:candidates.length,latencyMs:routingLatency(decisionStart),...(decision.conversationId?{conversationId:decision.conversationId}:{})});
+  candidates:candidates.length,latencyMs:routingLatency(decisionStart)});
  let conversationId=selected;
  if(choice?.supportDigest){
   const state=conversationId?await loadSupportActionState(client,sessionId,conversationId,key):null;
