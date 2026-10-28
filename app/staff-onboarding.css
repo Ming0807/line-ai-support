@@ -1,0 +1,165 @@
+/* Staff onboarding surfaces (public apply/status + SuperAdmin approvals).
+   Class prefix: staff-onboard-. Tokens come from app/globals.css. */
+
+/* ---------- shared shell (public pages) ---------- */
+.staff-onboard-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--canvas-bg); }
+.staff-onboard-shell-header {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: .75rem 1rem; padding: .9rem clamp(1rem, 4vw, 2.5rem);
+  background: var(--sidebar-bg); color: #fff;
+}
+.staff-onboard-brand {
+  display: inline-flex; align-items: center; gap: .65rem;
+  color: #fff; font-weight: 700; text-decoration: none; min-width: 0;
+}
+.staff-onboard-brand-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; flex: 0 0 auto; border-radius: .75rem;
+  background: var(--hero-gradient); color: #fff; font-weight: 800;
+}
+.staff-onboard-shell-header-link { color: #fff; font-weight: 650; text-underline-offset: 3px; }
+.staff-onboard-shell-main { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: clamp(1.25rem, 4vw, 3rem) clamp(.75rem, 4vw, 2.5rem) 2rem; }
+.staff-onboard-shell-footer { padding: 1rem clamp(1rem, 4vw, 2.5rem) 1.5rem; color: var(--muted); font-size: .82rem; }
+
+/* ---------- card ---------- */
+.staff-onboard-card {
+  width: 100%; max-width: 40rem; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--card-radius);
+  box-shadow: var(--soft-shadow); padding: clamp(1.25rem, 3vw, 2rem);
+}
+.staff-onboard-eyebrow { margin: 0 0 .35rem; color: var(--muted); font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.staff-onboard-h1 { margin: 0 0 .5rem; font-size: clamp(1.3rem, 3.4vw, 1.7rem); line-height: 1.3; overflow-wrap: anywhere; }
+.staff-onboard-lead { margin: 0; color: var(--muted); }
+.staff-onboard-divider { height: 1px; border: none; background: var(--line); margin: 1.1rem 0; min-width: 0; }
+
+/* ---------- forms ---------- */
+.staff-onboard-fields { display: grid; gap: 1rem; margin: 1.25rem 0; }
+.staff-onboard-field { display: grid; gap: .4rem; min-width: 0; color: var(--ink); font-size: .9rem; font-weight: 600; }
+.staff-onboard-field input, .staff-onboard-field select, .staff-onboard-field textarea {
+  width: 100%; min-width: 0; min-height: 2.7rem; padding: .55rem .65rem;
+  color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: .5rem; font: inherit; font-weight: 400;
+}
+.staff-onboard-field textarea { min-height: 6rem; resize: vertical; }
+.staff-onboard-field-error { margin: 0; color: #b3261e; font-size: .85rem; font-weight: 500; }
+
+.staff-onboard-actions { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1.25rem; }
+.staff-onboard-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  min-height: 2.7rem; padding: .55rem 1.05rem; border-radius: .6rem;
+  border: 1px solid var(--focus); background: var(--focus); color: #fff;
+  font: inherit; font-weight: 650; cursor: pointer; text-decoration: none;
+}
+.staff-onboard-button:hover { filter: brightness(.93); }
+.staff-onboard-button:disabled { opacity: .65; cursor: wait; }
+.staff-onboard-button-secondary { background: #fff; color: var(--ink); border-color: var(--line); }
+.staff-onboard-button-quiet { background: transparent; color: var(--ink); border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+
+.staff-onboard-check { display: flex; align-items: flex-start; gap: .6rem; font: inherit; font-weight: 400; font-size: .92rem; color: var(--ink); }
+.staff-onboard-check input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin-top: .15rem; }
+
+/* ---------- notices ---------- */
+.staff-onboard-notice {
+  display: flex; align-items: flex-start; gap: .5rem; margin: 1rem 0 0;
+  padding: .7rem .9rem; border-radius: .6rem; font-size: .92rem; border: 1px solid transparent;
+  overflow-wrap: anywhere;
+}
+.staff-onboard-notice[data-tone="info"] { color: #1e40af; background: var(--blue-subtle); border-color: #bfdbfe; }
+.staff-onboard-notice[data-tone="error"] { color: #b3261e; background: #fef2f2; border-color: #fecaca; }
+.staff-onboard-notice[data-tone="conflict"] { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+.staff-onboard-notice[data-tone="uncertain"] { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+.staff-onboard-notice[data-tone="success"] { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
+
+/* ---------- chips ---------- */
+.staff-onboard-chip {
+  display: inline-flex; align-items: center; gap: .35rem; flex: 0 0 auto;
+  padding: .28rem .75rem; border-radius: 999px; font-size: .8rem; font-weight: 700;
+}
+.staff-onboard-chip[data-tone="pending"] { color: #92400e; background: #fef3c7; }
+.staff-onboard-chip[data-tone="approved"] { color: #065f46; background: #d1fae5; }
+.staff-onboard-chip[data-tone="rejected"] { color: #991b1b; background: #fee2e2; }
+.staff-onboard-chip[data-tone="suspended"] { color: #4c1d95; background: #ede9fe; }
+.staff-onboard-chip[data-tone="unknown"] { color: var(--ink); background: var(--paper); }
+
+/* ---------- definition rows ---------- */
+.staff-onboard-definition { display: grid; grid-template-columns: minmax(8.5rem, 11rem) minmax(0, 1fr); gap: .4rem 1rem; margin: 0; }
+.staff-onboard-definition dt { color: var(--muted); font-size: .85rem; }
+.staff-onboard-definition dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- LINE entry (login page) ---------- */
+.staff-onboard-line-entry {
+  display: grid; gap: .8rem; margin-top: 1.25rem; padding: 1rem;
+  border: 1px dashed var(--line); border-radius: 1rem; background: var(--blue-subtle);
+}
+.staff-onboard-line-entry-heading { margin: 0; font-size: 1.05rem; }
+.staff-onboard-line-entry-note { margin: 0; font-size: .9rem; color: var(--ink); }
+.staff-onboard-line-entry-actions { display: grid; gap: .8rem; margin: 0; padding: 0; list-style: none; }
+.staff-onboard-line-entry-muted { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
+
+/* ---------- SuperAdmin console ---------- */
+.staff-onboard-admin { width: 100%; max-width: 1440px; min-width: 0; margin: 0 auto; display: grid; gap: 1.1rem; padding: 1.75rem clamp(1rem, 3vw, 2.5rem) 3rem; }
+.staff-onboard-admin-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1rem; min-width: 0; }
+.staff-onboard-admin-heading h1 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.6rem); overflow-wrap: anywhere; }
+.staff-onboard-admin-heading p { margin: .25rem 0 0; color: var(--muted); }
+.staff-onboard-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
+.staff-onboard-tab {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: .45rem .95rem;
+  border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+  font: inherit; font-size: .88rem; font-weight: 650; cursor: pointer;
+}
+.staff-onboard-tab[aria-pressed="true"] { background: var(--sidebar-bg); color: #fff; border-color: var(--sidebar-bg); }
+
+.staff-onboard-list { display: grid; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); overflow: hidden; }
+.staff-onboard-list-grid { display: grid; min-width: 0; }
+.staff-onboard-row {
+  display: grid; grid-template-columns: minmax(11rem, 1.55fr) minmax(8.5rem, 1fr) minmax(8.5rem, 1fr) minmax(7.5rem, .95fr) minmax(10.5rem, auto);
+  align-items: center; gap: .75rem; min-width: 0; padding: .9rem 1rem; border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.staff-onboard-row:last-child { border-bottom: none; }
+.staff-onboard-row-head { background: var(--paper); font-size: .78rem; font-weight: 700; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+.staff-onboard-row > * { min-width: 0; }
+.staff-onboard-row-main { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.staff-onboard-row-title { font-weight: 650; overflow-wrap: anywhere; }
+.staff-onboard-row-sub { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.staff-onboard-row-cell { font-size: .9rem; overflow-wrap: anywhere; }
+.staff-onboard-row-actions { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
+.staff-onboard-row-button { display: inline-flex; align-items: center; min-height: 2.3rem; padding: .35rem .75rem; border-radius: .5rem; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; font-size: .85rem; font-weight: 650; cursor: pointer; }
+.staff-onboard-row-button:hover { background: var(--paper); }
+.staff-onboard-empty { padding: 2.25rem 1rem; text-align: center; color: var(--muted); }
+.staff-onboard-legend { color: var(--muted); font-size: .82rem; }
+
+.staff-onboard-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+
+/* ---------- decision drawer ---------- */
+.staff-onboard-drawer::backdrop { background: rgba(20, 22, 34, .45); }
+.staff-onboard-drawer:not([open]) { display: none; }
+.staff-onboard-drawer {
+  position: fixed; inset: 0 0 0 auto; margin: 0; z-index: 61; height: 100dvh; width: min(30rem, 100%);
+  max-width: none; max-height: none; color: var(--ink); border: 0;
+  display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--surface); border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(20, 22, 34, .18);
+}
+.staff-onboard-drawer-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; min-width: 0; }
+.staff-onboard-drawer-heading h2 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
+.staff-onboard-drawer-close { display: inline-flex; align-items: center; justify-content: center; width: 2.4rem; height: 2.4rem; flex: 0 0 auto; border-radius: .6rem; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 1.1rem; cursor: pointer; }
+.staff-onboard-drawer-section { display: grid; gap: .75rem; min-width: 0; }
+.staff-onboard-drawer-section h3 { margin: 0; font-size: .95rem; }
+.staff-onboard-drawer-note { margin: 0; color: var(--muted); font-size: .85rem; }
+
+/* ---------- focus / motion / mobile ---------- */
+.staff-onboard-shell :focus-visible, .staff-onboard-admin :focus-visible, .staff-onboard-drawer :focus-visible {
+  outline: 3px solid var(--focus); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .staff-onboard-drawer, .staff-onboard-button, .staff-onboard-tab, .staff-onboard-row-button { transition: none !important; animation: none !important; }
+}
+@media (max-width: 720px) {
+  .staff-onboard-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .staff-onboard-row-actions { justify-content: flex-start; }
+}
+@media (max-width: 460px) {
+  .staff-onboard-row { grid-template-columns: minmax(0, 1fr); }
+  .staff-onboard-definition { grid-template-columns: 1fr; gap: .15rem 0; }
+  .staff-onboard-definition dt { margin-top: .35rem; }
+  .staff-onboard-drawer { width: 100%; border-left: none; }
+}

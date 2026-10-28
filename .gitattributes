@@ -1,3 +1,6 @@
 # User requirement archives are byte-for-byte evidence, including line endings.
 docs/requirements/sources/original-*.md -text
 docs/requirements/sources/2026-10-05-local-e5-embedding.md -text
+
+# Frozen evaluator evidence is hashed byte-for-byte; Windows must not rewrite LF.
+tests/fixtures/assistant-conversations.json -text
