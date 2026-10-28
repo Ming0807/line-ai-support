@@ -9,6 +9,24 @@ const evidence:KnowledgeEvidence={chunkId:'11111111-1111-4111-8111-111111111111'
  pageNumber:12,sectionTitle:'ข้อ 5',content:'Controlled reviewed rule',sourceUrl:'https://fixture.yru.ac.th/transfer.pdf',similarity:0.9};
 const output={answer:'ยื่นคำร้องตามระเบียบที่อ้างอิงครับ',citationChunkIds:[evidence.chunkId]};
 describe('backend-owned source citations',()=>{
+ it('keeps HTML references readable while retaining full private extraction coordinates and complete answer prose',()=>{
+  const title='การเชื่อมต่อ YRU-WiFi';
+  const location={kind:'HTML' as const,blockStart:21,blockEnd:23,sourceUrl:evidence.sourceUrl!,headingPath:[title],tableIndex:null};
+  const row={...evidence,title,pageNumber:null,sectionTitle:title,sourceLocations:[location]};
+  const answer='1. ลงทะเบียนที่ passport.yru.ac.th\n2. เลือก Phone MAC\n3. เชื่อมต่อ YRU-WiFi';
+  const reply=buildCitedAnswer({answer,citationChunkIds:[row.chunkId]},[row]),text=reply.messages.map(message=>message.text).join('');
+  expect(text.startsWith(answer+'\n\n')).toBe(true);expect(text.split(title).length-1).toBe(1);
+  expect(text).not.toContain('HTML');expect(text).not.toContain('ช่วง 21');expect(text).toContain(evidence.sourceUrl);
+  expect(reply.citations[0].sourceLocations).toEqual([location]);
+ });
+ it('shows one identical HTML reference for multiple cited chunks while retaining both exact evidence records',()=>{
+  const location={kind:'HTML' as const,blockStart:21,blockEnd:21,sourceUrl:evidence.sourceUrl!,headingPath:['คู่มือ Wi-Fi'],tableIndex:null};
+  const first={...evidence,title:'คู่มือ Wi-Fi',sectionTitle:'คู่มือ Wi-Fi',pageNumber:null,sourceLocations:[location]};
+  const second={...first,chunkId:'33333333-3333-4333-8333-333333333333',sourceLocations:[{...location,blockStart:23,blockEnd:23}]};
+  const reply=buildCitedAnswer({...output,citationChunkIds:[first.chunkId,second.chunkId]},[first,second]);
+  expect(reply.messages.map(message=>message.text).join('').split(evidence.sourceUrl!).length-1).toBe(1);
+  expect(reply.citations).toHaveLength(2);expect(reply.citations[1].sourceLocations).toEqual(second.sourceLocations);
+ });
  it('preserves internal rule proof and rejects an epoch change even when the cited chunk remains',()=>{
   const proof=buildRuleProof({familyId:'33333333-3333-4333-8333-333333333333',baseDocumentId:evidence.documentId,versionStream:'main',ruleRevision:'0',evaluationDate:'2026-10-06',members:[{documentId:evidence.documentId,revision:2}],effects:[]});
   const row={...evidence,ruleProof:proof};
@@ -22,7 +40,7 @@ describe('backend-owned source citations',()=>{
   const reply=buildCitedAnswer(output,[row]);
   expect(reply.citations[0]).toHaveProperty('sourceLocations',[location]);
   const text=reply.messages.map(item=>item.text).join('');
-  const expected={PDF:['PDF','หน้า 12','ช่วง 2–3'],DOCX:['Word','ช่วง 2–3','ข้อ 5'],XLSX:['Excel','ค่าธรรมเนียม','แถว 2–3','คอลัมน์ 1–2'],CSV:['CSV','แถว 2–3','คอลัมน์ 1–2'],HTML:['HTML','ช่วง 2–3','ข้อ 5']}[location.kind];
+  const expected={PDF:['PDF','หน้า 12','ช่วง 2–3'],DOCX:['Word','ช่วง 2–3','ข้อ 5'],XLSX:['Excel','ค่าธรรมเนียม','แถว 2–3','คอลัมน์ 1–2'],CSV:['CSV','แถว 2–3','คอลัมน์ 1–2'],HTML:['ข้อ 5']}[location.kind];
   for(const coordinate of expected)expect(text).toContain(coordinate);
   if(location.kind!=='PDF')expect(text).not.toContain('หน้า 12');
   expect(reply.citations[0].sourceLocations).not.toBe(row.sourceLocations);

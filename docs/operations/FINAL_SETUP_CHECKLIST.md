@@ -1,6 +1,18 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-## 28 October 2026 — root implementation maintenance
+## 28 October 2026 — current ROOT-NATURAL-08 / DDGS session
+
+Canonical hidden detached runner is READY at09:01Bangkok with current source-quality and DDGS code. OfflineCPU E5/384, four fresh worker check-ins, login200 and local/public signed-empty200 plus invalid401 for both OAs PASS. DEVELOPMENT47/75RLS,15approvedPUBLIC documents and one enabled generation model remain. These verification requests contain no conversation events; actual Gemini/LINE/Hermes quality and Flow A–F are still human-deferred.
+
+- Student: https://through-nuke-ministries-causes.trycloudflare.com/api/line/student/webhook
+- Staff: https://through-nuke-ministries-causes.trycloudflare.com/api/line/staff/webhook
+- Dashboard: http://127.0.0.1:3000/login
+- Sanitized log: `.superpowers/staging/local-test/run-2026-10-28T01-59-35-608Z.log`.
+- Start one command: `pnpm local:ai --web-search`; the current session is already running. Stop with `pnpm local:stop`. Temporary URLs change on restart; the script prints both new webhook URLs.
+
+When ready later, update both LINE Developers URLs above. Test natural misspellings and follow-ups, a complete Wi-Fi procedure with reviewed sources, existing-topic continuation beyond12 contexts, named clarification paging only when genuinely ambiguous, and HUMAN handoff/Staff ownership. Keep real answer completeness, actual Flow A–F, actual Hermes draft review and source-derived structured corpus acceptance separate from automated passes. Latest corpus audit still has seven typed tables with zero rows; RAG publication is not typed-dataset completion. Earlier session URLs below are historical. No user action is required before independent implementation continues.
+
+## Earlier 28 October maintenance — historical
 
 ROOT-WEB-DDGS-02 activated DEVELOPMENT47/75RLS. Prior runner/control state proved stale: saved runner and all seven service PIDs were absent. Earlier READY/URLs below are historical until root restarts after the source-quality slice. No user action is requested during this maintenance. Actual OA/model tests remain deferred.
 

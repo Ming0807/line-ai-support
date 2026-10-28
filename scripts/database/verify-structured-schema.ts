@@ -67,6 +67,10 @@ stage='import_model_assistance_actual_PG';
  const ddgsOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/ddgs-admission.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
  console.log(ddgsOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
+ stage='public_family_catalog_actual_PG';
+ const familyCatalogOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/family-catalog.integration.ts'],
+  {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});
+ console.log(familyCatalogOutput.split(/\r?\n/u).filter(line=>/^ℹ/u.test(line)).join('\n'));
  stage='owned_web_leads_actual_PG';
  const ownedWebOutput=execFileSync(process.execPath,['--import','tsx','--test','--test-concurrency=1','tests/database/owned-web-fallback.integration.ts'],
   {cwd:root,env:{...process.env,YRU_STRUCTURED_SCHEMA_DATABASE:database},encoding:'utf8',windowsHide:true,timeout:120_000,maxBuffer:4*1024*1024,stdio:['pipe','pipe','pipe']});

@@ -13,7 +13,7 @@ it('uses the supplied server-only generation boundary with the bound ticket and 
  const current={source:{summary:'Synthetic',category:'IT',priority:'NORMAL',messages:[],departments:[],truncated:false},serialized:'{}',digest:'stable',revision:0,
   knowledge:{jobId:id,sessionId:id,conversationId:id,messageId:id,revision:0,question:'คำถามทดสอบ',history:[]}};
  vi.mocked(withStaffAssistanceSnapshot).mockImplementation(async(...args)=>{
-  const client=Object.assign(new Client(),{release:vi.fn()});
+  const client=Object.assign(new Client(),{query:vi.fn(async()=>({rows:[]})),release:vi.fn()});
   return args[4](client,current);
  });
  const generate=vi.fn(async()=>({output:null,toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));

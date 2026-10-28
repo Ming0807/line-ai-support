@@ -72,10 +72,27 @@ export function buildCitedAnswer(input:unknown,available:KnowledgeEvidence[]):{
   return {chunkId:row.chunkId,documentId:row.documentId,documentRevision:row.documentRevision,title:row.title,familyCode:row.familyCode,
    academicYear:row.academicYear,authorityLevel:row.authorityLevel,pageNumber:row.pageNumber,sectionTitle:row.sectionTitle,sourceUrl:safeSourceUrl(row.sourceUrl),sourceLocations:structuredClone(row.sourceLocations??[]),...(row.ruleProof?{ruleProof:structuredClone(row.ruleProof)}:{})};
  });
- const references=citations.map((c,i)=>`${i+1}. ${c.title.replace(/[\r\n]/g,' ')}${c.academicYear===null?'':` (ปี ${c.academicYear})`}`+
-  `${c.sourceLocations.length?` · ${c.sourceLocations.map(locationLabel).join(' · ').replace(/[\r\n]/g,' ')}`:c.pageNumber===null?'':` หน้า ${c.pageNumber}`}${c.sectionTitle===null?'':` · ${c.sectionTitle.replace(/[\r\n]/g,' ')}`}`+
-  `${c.sourceUrl===null?'':`\n${c.sourceUrl}`}`).join('\n');
- return {messages:lineMessages(`${answer.data.answer}\n\nแหล่งอ้างอิง:\n${references}`),citations};
+ const displayed=new Set<string>(),references:string[]=[];
+ for(const c of citations){
+  let label=`${c.title.replace(/[\r\n]/g,' ')}${c.academicYear===null?'':` (ปี ${c.academicYear})`}`;
+  const html=c.sourceLocations.length>0&&c.sourceLocations.every(location=>location.kind==='HTML');
+  if(html){
+   const normalize=(value:string)=>value.normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('th');
+   const seen=new Set([normalize(c.title)]),parts:string[]=[];
+   const add=(value:string)=>{const clean=value.replace(/[\r\n]/g,' ').trim(),key=normalize(clean);if(clean&&!seen.has(key)){seen.add(key);parts.push(clean);}};
+   for(const location of c.sourceLocations)if(location.kind==='HTML'){
+    for(const heading of location.headingPath)add(heading);
+    if(location.tableIndex!==null)add(`ตาราง ${location.tableIndex}`);
+   }
+   if(c.sectionTitle!==null)add(c.sectionTitle);
+   if(parts.length)label+=' · '+parts.join(' · ');
+  }else label+=`${c.sourceLocations.length?` · ${c.sourceLocations.map(locationLabel).join(' · ').replace(/[\r\n]/g,' ')}`:c.pageNumber===null?'':` หน้า ${c.pageNumber}`}${c.sectionTitle===null?'':` · ${c.sectionTitle.replace(/[\r\n]/g,' ')}`}`;
+  if(c.sourceUrl!==null)label+='\n'+c.sourceUrl;
+  const key=JSON.stringify([c.documentId,c.documentRevision,label]);
+  if(html&&displayed.has(key))continue;
+  displayed.add(key);references.push(`${references.length+1}. ${label}`);
+ }
+ return {messages:lineMessages(`${answer.data.answer}\n\nแหล่งอ้างอิง:\n${references.join('\n')}`),citations};
 }
 
 /** Run after a fresh, fenced retrieval in finalization; changes invalidate the result. */

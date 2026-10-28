@@ -3,6 +3,16 @@ import {afterEach,expect,it,vi} from 'vitest';
 
 const generation=vi.hoisted(()=>vi.fn());
 vi.mock('../lib/ai/gateway',()=>({generate:generation}));
+// These generation-diagnostic units have no database; navigation is explicitly unavailable.
+// Business tool behavior remains real and is covered by owned-context integration checks.
+vi.mock('../lib/ai/backend-tools',async importOriginal=>{
+ const actual=await importOriginal<typeof import('../lib/ai/backend-tools')>();
+ return {...actual,createKnowledgeToolRegistry:(...args:Parameters<typeof actual.createKnowledgeToolRegistry>)=>{
+  const registry=actual.createKnowledgeToolRegistry(...args),execute=registry.execute.bind(registry);
+  vi.spyOn(registry,'execute').mockImplementation((call,context,allowed)=>call.name==='get_public_family_catalog'?Promise.resolve(null):execute(call,context,allowed));
+  return registry;
+ }};
+});
 
 import {createConfiguredKnowledgeProducer} from '../lib/knowledge/configured';
 

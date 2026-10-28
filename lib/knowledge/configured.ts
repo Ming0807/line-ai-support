@@ -177,6 +177,11 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
    if(!result||typeof result!=='object'||!('exists' in result)||typeof result.exists!=='boolean')throw new Error('KNOWLEDGE_CATALOG_INVALID');
    return result.exists;
   },
+  publicFamilyCatalog:async()=>{
+   const registry=createKnowledgeToolRegistry(pool,{});
+   return registry.execute({name:'get_public_family_catalog',arguments:{}},
+    {lineSessionId:snapshot.sessionId,conversationId:snapshot.conversationId,conversationRevision:snapshot.revision},['get_public_family_catalog']);
+  },
  };
  const support=createSupportProducer(bound);
  return (options.assistantEnabled===true?createAssistantOrchestrator({repairRejectedGeneral:!options.scopeFirst,decide:(options.scopeFirst?createScopedAssistantDecision:createAssistantDecision)({

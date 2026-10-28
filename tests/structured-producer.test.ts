@@ -15,7 +15,8 @@ function fixture(selected:unknown={method:'STRUCTURED',query}){
  const generate=vi.fn(async()=>({output:outputs.shift(),toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));
  const embed=vi.fn(async()=>{throw Error('E5_NOT_EXPECTED');}),search=vi.fn(async()=>{throw Error('RAG_NOT_EXPECTED');});
  const structuredSearch=vi.fn(async()=>({status:'READY' as const,evidence:[evidence]}));
- const options={generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search,structuredSearch};
+ const options={generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search,structuredSearch,
+  publicFamilyCatalog:async()=>[{code:'LIBRARY',name:'ห้องสมุด',category:'SERVICE'}]};
  return {generate,embed,search,structuredSearch,produce:createKnowledgeProducer(options)};
 }
 it('produces a durable exact answer without E5/RAG and passes the complete query/scope',async()=>{
@@ -41,7 +42,7 @@ function cascadeFixture(status:unknown={status:'EMPTY'}){
  const structuredSearch=vi.fn(async()=>{calls.push('structured');return status as Awaited<ReturnType<NonNullable<KnowledgeProducerOptions['structuredSearch']>>>;});
  const embed=vi.fn(async()=>{calls.push('embed');return {vectors:[[1,0,0]],fingerprint:hash,dimensions:3,providerId:id,modelId:id,fallbackUsed:false};});
  const search=vi.fn(async()=>{calls.push('rag');return [rag];});
- return {generate,structuredSearch,embed,search,calls,produce:createKnowledgeProducer({generate:generate as KnowledgeProducerOptions['generate'],structuredSearch,embed,search})};
+ return {generate,structuredSearch,embed,search,calls,produce:createKnowledgeProducer({publicFamilyCatalog:async()=>[{code:"LIBRARY",name:"ห้องสมุด",category:"SERVICE"}],generate:generate as KnowledgeProducerOptions['generate'],structuredSearch,embed,search})};
 }
 it('continues a complete Structured miss into reviewed RAG with the same grounded scope',async()=>{
  const f=cascadeFixture(),result=await f.produce(snapshot,new AbortController().signal);

@@ -14,6 +14,7 @@ import {structuredQuerySchema} from '../knowledge/structured-query';
 import {searchStructured,discoverPublicForms,discoverPublicStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
 import {structuredDiscoveryRequestSchema} from '../knowledge/structured-discovery';
 import {loadSupportActionState} from './support-state';
+import {readPublicFamilyCatalog} from '../knowledge/family-catalog';
 import {supportConfirmationMatches,recordSupportEscalation} from './support-actions';
 
 export const structuredDatasetNames=['academic_calendar_events','tuition_fees','transfer_courses','university_services',
@@ -43,6 +44,8 @@ export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptio
   await client.query("set local statement_timeout='5s'");await authorizeAIContext(client,context);return work(client);
  },pool);
  return new ToolRegistry()
+  .register('get_public_family_catalog',z.object({}).strict(),(_args,context)=>withContext(context,readPublicFamilyCatalog),
+   'Read a complete bounded approved PUBLIC family navigation catalog; metadata alone never grants source or personal applicability authority.')
   .register('check_public_authority',z.strictObject({}),(args,context)=>withContext(context,async client=>{
    void args;
    const result=await client.query(`select exists(select 1 from public.documents where approval_status='APPROVED'

@@ -4,7 +4,7 @@ const mocks=vi.hoisted(()=>({generate:vi.fn(),embed:vi.fn(),execute:vi.fn(),web:
 vi.mock('../lib/ai/gateway',()=>({generate:mocks.generate}));
 vi.mock('../lib/knowledge/embedding-client',()=>({createLocalE5EmbeddingProvider:()=>({}),embedLocalConfigured:mocks.embed}));
 vi.mock('../lib/ai/backend-tools',()=>({createKnowledgeToolRegistry:(_pool:unknown,options:{vector?:number[]})=>{
- mocks.contexts.push(options);return {execute:mocks.execute};
+ mocks.contexts.push(options);return {execute:(call:{name:string},...args:unknown[])=>call.name==='get_public_family_catalog'?Promise.resolve(null):mocks.execute(call,...args)};
 }}));
 vi.mock('../lib/knowledge/owned-web-fallback',()=>({createStudentWebFallback:()=>mocks.web}));
 import {createConfiguredKnowledgeProducer} from '../lib/knowledge/configured';

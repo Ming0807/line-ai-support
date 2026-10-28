@@ -36,9 +36,61 @@ function fixture() {
  }));
  const embed=vi.fn(async()=>embedding);
  const search=vi.fn(async()=>[evidence]);
- const producer=createKnowledgeProducer({generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search});
+ const producer=createKnowledgeProducer({generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search,
+  publicFamilyCatalog:async()=>[{code:'TRANSFER_REGULATION',name:'Transfer rules',category:'REGULATION'}]});
  return {generate,embed,search,producer,outputs,toolCallResponses};
 }
+
+it('compact planning uses the actual public family catalog and retains multiple valid related families without an extra model call',async()=>{
+ const f=fixture(),families=[{code:'YRU_WIFI_CONNECTION_WEB',name:'การเชื่อมต่อ YRU-WiFi',category:'GUIDE'},
+  {code:'YRU_WIFI_MAC_REGISTRATION_WEB',name:'ลงทะเบียนอุปกรณ์ YRU-WiFi',category:'GUIDE'}];
+ const selected=families.map(family=>family.code);
+ f.outputs.push({scope:{...scope,familyCodes:selected},selection:{method:'RAG',query:null,notApplicable:null}});
+ const produce=createKnowledgeProducer({...{generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search,structuredSearch:vi.fn(),compactPlanning:true},publicFamilyCatalog:vi.fn(async()=>families)});
+ expect((await produce(snapshot({question:'ต่อไวไฟมหาลัยยังไง',history:[]}),new AbortController().signal)).kind).toBe('ANSWER');
+ expect(f.search).toHaveBeenCalledWith(expect.objectContaining({scope:expect.objectContaining({familyCodes:selected})}));
+ expect(JSON.parse(f.generate.mock.calls[0][0].messages[1].content).familyCatalog).toEqual(families);
+ expect(f.generate.mock.calls.map(([input])=>input.taskType)).toEqual(['KNOWLEDGE_PLAN','KNOWLEDGE_ANSWER']);
+});
+it.each([{familyCodes:['INVENTED_FAMILY']},{familyCodes:['TRANSFER_REGULATION','TRANSFER_REGULATION']}])('rejects unknown or duplicate codes from a supplied complete family catalog',async({familyCodes})=>{
+ const f=fixture();f.outputs.push({scope:{...scope,familyCodes},selection:{method:'RAG',query:null,notApplicable:null}});
+ const produce=createKnowledgeProducer({...{generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search,structuredSearch:vi.fn(),compactPlanning:true},publicFamilyCatalog:async()=>[{code:'TRANSFER_REGULATION',name:'Transfer rules',category:'REGULATION'}]});
+ expect((await produce(snapshot(),new AbortController().signal)).kind).toBe('CLARIFY');
+ expect(f.embed).not.toHaveBeenCalled();expect(f.search).not.toHaveBeenCalled();
+});
+it('catalog authorization failure cannot fall through to model generation or search',async()=>{
+ const f=fixture();const produce=createKnowledgeProducer({...{generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search},publicFamilyCatalog:async()=>{throw new Error('AI_TOOL_CONTEXT_CHANGED');}});
+ expect((await produce(snapshot(),new AbortController().signal)).kind).toBe('CLARIFY');expect(f.generate).not.toHaveBeenCalled();expect(f.search).not.toHaveBeenCalled();
+});
+it('explicit unavailable catalog retains broad compact search and does not authorize a model-invented family filter',async()=>{
+ const f=fixture();f.outputs.push({scope:{...scope,familyCodes:['INVENTED_FAMILY']},selection:{method:'RAG',query:null,notApplicable:null}});
+ const produce=createKnowledgeProducer({...{generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search,structuredSearch:vi.fn(),compactPlanning:true},publicFamilyCatalog:async()=>null});
+ expect((await produce(snapshot(),new AbortController().signal)).kind).toBe('ANSWER');
+ expect(f.search).toHaveBeenCalledWith(expect.objectContaining({scope:expect.objectContaining({familyCodes:[]})}));
+});
+it('a legacy non-compact scope cannot narrow to uncatalogued model codes when no navigation catalog was supplied',async()=>{
+ const f=fixture();f.outputs.push({...scope,familyCodes:['INVENTED_FAMILY']});
+ const produce=createKnowledgeProducer({generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search});
+ expect((await produce(snapshot(),new AbortController().signal)).kind).toBe('ANSWER');
+ expect(f.search).toHaveBeenCalledWith(expect.objectContaining({scope:expect.objectContaining({familyCodes:[]})}));
+});
+it('omits optional family navigation when it cannot fit beside a complete long current question',async()=>{
+ const f=fixture(),question='ต่อไวไฟอย่างไร '+'ก'.repeat(18000);
+ f.outputs.push({scope,selection:{method:'RAG',query:null,notApplicable:null}});
+ const families=Array.from({length:20},(_,i)=>({code:`FAMILY_${i}`,name:'ก'.repeat(300),category:'GUIDE'}));
+ const options={generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search,structuredSearch:vi.fn(),compactPlanning:true,
+  retrievalQuery:'YRU Wi-Fi',publicFamilyCatalog:async()=>families};
+ expect((await createKnowledgeProducer(options)(snapshot({question,history:[]}),new AbortController().signal)).kind).toBe('ANSWER');
+ const prompt=JSON.parse(f.generate.mock.calls[0][0].messages[1].content);
+ expect(prompt.question).toBe(question);expect(prompt).not.toHaveProperty('familyCatalog');
+ expect(f.search).toHaveBeenCalledWith(expect.objectContaining({scope:expect.objectContaining({familyCodes:[]})}));
+});
+it('cancellation during an unresponsive catalog read stops before generation or embeddings',async()=>{
+ const f=fixture(),controller=new AbortController();
+ const produce=createKnowledgeProducer({...{generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search},publicFamilyCatalog:()=>new Promise(()=>{})});
+ const result=produce(snapshot(),controller.signal);controller.abort();
+ await expect(result).rejects.toMatchObject({code:'CANCELLED'});expect(f.generate).not.toHaveBeenCalled();expect(f.embed).not.toHaveBeenCalled();
+});
 it('asks only the registered form identifier after the captured ungrounded generic form-name proposal',async()=>{
  const f=fixture(),structuredSearch=vi.fn();f.outputs.push({scope:{...scope,familyCodes:[]},selection:{method:'STRUCTURED',query:{version:1,dataset:'service_forms',filters:[{field:'name',value:'แบบคำร้องทั่วไป'}],limit:20},notApplicable:null}});
  const produce=createKnowledgeProducer({generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search,structuredSearch,compactPlanning:true});

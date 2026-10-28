@@ -11,6 +11,7 @@ import type {AIWorkerOptions,AISnapshot} from '../ai/run-worker';
 import {createKnowledgeProducer,type KnowledgeProducerOptions} from '../knowledge/answer-producer';
 import {embedLocalConfigured} from '../knowledge/embedding-client';
 import {searchKnowledge} from '../knowledge/retrieval';
+import {readPublicFamilyCatalog} from '../knowledge/family-catalog';
 import {searchStructured,discoverPublicForms,discoverPublicStructured} from '../knowledge/structured-search';
 import {evidenceStillMatches} from '../knowledge/citations';
 import {ruleContextsStillMatch} from '../knowledge/rule-proof';
@@ -54,6 +55,7 @@ export async function createStaffKnowledgeAssistance(actorId:string,id:string,in
   key=key??readServerEnv().encryptionKey;if(!key)throw new AssistError('UNAVAILABLE');
   const configuredKey=key,store=createAIStore(pool),adapters=createProviderRegistry(),priceReader=createPriceReader();
   produce=createKnowledgeProducer({
+   publicFamilyCatalog:()=>snapshot(async(c,current)=>{unchanged(current);return readPublicFamilyCatalog(c);}),
    webFallback:createStaffWebFallback(pool,configuredKey,actorId,id,parsed.data.revision,before),
    // Server-only injection lets a bounded staff copilot pin the approved model.
    // HTTP input cannot replace the ticket, source selection or authorization.

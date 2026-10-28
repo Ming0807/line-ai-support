@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-182; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-183; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+- ROOT-NATURAL-08: เพิ่มหมวดจากชื่อเอกสารPUBLICจริงให้AIเลือกก่อนค้นในmodelcallเดิม ตรวจรหัสที่เลือกและย่อข้อความอ้างอิงHTMLโดยเก็บพิกัดภายใน.3396unit/250files,24ownedPG47migrations,type/changedlint/build871matchinginputsผ่าน. CurrentlocalREADY09:01Bangkok E5/fourworkers/local+publicHMAC8ผ่าน; URLใหม่ในchecklist. [แผนและข้อจำกัด](superpowers/plans/2026-10-28-grounded-context-completeness.md). ActualGemini/LINE/FlowA–Fยังเลื่อนตามผู้ใช้.
 
 - ROOT-WEB-DDGS-02: เชื่อมDDGSสำรองผ่านledgerจริงและsource/leaseguardsแล้ว ฐานDEVELOPMENT47migrations;3383unit/55ownedPGผ่าน. ยังไม่ยิงค้นเว็บ/model/OAจริงรอบนี้. [แผน](superpowers/plans/2026-10-28-ddgs-fallback.md).
 
