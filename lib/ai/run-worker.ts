@@ -1,4 +1,5 @@
 import type {Pool,PoolClient} from 'pg';
+import {structuredReferenceSources} from '../knowledge/structured-row-reference';
 import {transaction} from '../database/pool';
 import {lockConversation} from '../tickets/authorization';
 import {decryptValue,encryptValue} from '../security/identity';
@@ -124,9 +125,10 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    }else{const reply=buildWebLeadReply(result);messages=reply.messages;citations=reply.citations;}
   }else if(result.kind==='STRUCTURED_ANSWER'||result.kind==='FORM_DIRECTORY'||result.kind==='STRUCTURED_DISCOVERY'){
    try{
-    for(const familyId of [...new Set(result.evidence.map(e=>e.reference.ruleProof.familyId))].sort())
+    const sources=structuredReferenceSources(result.evidence.map(e=>e.reference));
+    for(const familyId of [...new Set(sources.map(source=>source.familyId))].sort())
      await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(familyId)]);
-    const ids=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
+    const ids=sources.map(source=>source.documentId);
     for(const id of ids)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(id)]);
     await client.query('select id from public.documents where id=any($1::uuid[]) order by id for share',[ids]);
     const fresh=result.kind==='FORM_DIRECTORY'?await discoverPublicForms(client,{scope:result.scope},key):result.kind==='STRUCTURED_DISCOVERY'

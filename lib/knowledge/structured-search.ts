@@ -1,7 +1,10 @@
 import type {PoolClient} from 'pg';
 import {knowledgeScopeSchema} from './retrieval';
 import type {KnowledgeScope} from './types';
-import {knowledgeRuleSelectionSQL} from './rule-selection-sql';
+import {structuredRuleSelectionSQL} from './rule-selection-sql';
+import {decodeStoredImportReview} from '../imports/import-review';
+import {readServiceTranscriptionParent} from '../imports/public-service-transcription-source';
+import {serviceTranscriptionProof,assertServiceTranscriptionLocations} from '../imports/public-service-transcription';
 import {validateStructuredQuery,assessStructuredQuery,matchesStructuredPayload,type StructuredQuery} from './structured-query';
 import {getStructuredRegistryEntry} from './structured-registry';
 import {decryptStructuredRowEvidence} from './structured-row-envelope';
@@ -30,6 +33,7 @@ export function buildStructuredSelector(input:unknown){
 export interface StructuredSearchRequest {query:StructuredQuery;scope:KnowledgeScope}
 export type StructuredSearchResult={status:'READY';evidence:StructuredEvidence[]}|{status:'EMPTY'|'UNAVAILABLE'|'CONTEXT_INCOMPLETE'}|{status:'CLARIFICATION_REQUIRED';missing:string[]};
 interface StoredRow extends Record<string,unknown>{
+ temporal_basis:string;review_encrypted:string;review_payload_hash:string;receipt_review_hash:string;
  row_id:string;document_id:string;live_revision:number;title:string;family_code:string;academic_year:number|null;authority_level:number;
  document_family_id:string;base_id:string;version_stream:string;rule_revision:string;evaluation_date:string;typed_matches:boolean;
  job_id:string;proof_job_id:string;published_document_revision:number;proof_document_revision:number;source_checksum:string;proof_source_checksum:string;
@@ -64,10 +68,11 @@ async function searchReviewedRows(client:PoolClient,query:StructuredQuery,scope:
  const selector=buildStructuredSelector(query),fields=getStructuredRegistryEntry(query.dataset).fields.map(field=>field.name);
  const fieldKeys=fields.map(field=>`'${field}'`).join(',');
  // Selection, complete effect flags and limit+1 matching rows share one PostgreSQL statement snapshot.
- const sqlQuery={text:`${knowledgeRuleSelectionSQL},
+ const sqlQuery={text:`${structuredRuleSelectionSQL},
  bindings as (select $13::text,$14::integer,$15::text,$16::real,$17::integer),
  matched as materialized (
-  select r.id row_id,d.id document_id,d.revision live_revision,d.title,b.family_code,d.academic_year,d.authority_level,
+  select r.id row_id,d.id document_id,d.revision live_revision,d.title,b.family_code,d.academic_year,d.authority_level,d.temporal_basis,d.department_id source_department_id,
+   review.review_encrypted,review.payload_hash review_payload_hash,receipt.review_hash receipt_review_hash,
    b.document_family_id,b.id base_id,b.version_stream,b.rule_revision,b.evaluation_date,
    (select jsonb_agg(jsonb_build_object('documentId',document_id,'revision',revision) order by document_id) from(select document_id,revision from members where base_id=b.id order by document_id limit 201) selected_members) group_members,
    coalesce((select jsonb_agg(jsonb_build_object('sourceDocumentId',source_document_id,'targetDocumentId',target_document_id,'relationType',relation_type,'revision',revision) order by source_document_id,target_document_id,relation_type) from(select source_document_id,target_document_id,relation_type,revision from potential_effects where base_id=b.id and not unresolved_scope order by source_document_id,target_document_id,relation_type limit 401) selected_effects),'[]'::jsonb) group_effects,
@@ -83,6 +88,7 @@ async function searchReviewedRows(client:PoolClient,query:StructuredQuery,scope:
   join private.structured_publication_effects e on e.document_id=d.id and e.dataset_code=$19
   join private.knowledge_import_publications receipt on receipt.job_id=e.job_id and receipt.document_id=e.document_id and receipt.storage_mode=e.storage_mode
   join private.knowledge_import_jobs j on j.id=e.job_id and j.publication_status='COMPLETED' and j.checksum=receipt.source_checksum
+  join private.knowledge_import_reviews review on review.job_id=receipt.job_id and review.review_revision=receipt.review_revision and review.job_revision=receipt.job_revision and review.extraction_revision=receipt.extraction_revision
   cross join lateral jsonb_to_recordset(e.row_manifest) m(id uuid,payload jsonb,"payloadDigest" text)
   where m.id=r.id and ${selector.predicate}
   order by d.authority_level desc,d.approved_at desc nulls last,d.id,r.id limit $20
@@ -108,7 +114,17 @@ async function searchReviewedRows(client:PoolClient,query:StructuredQuery,scope:
    // Complete effects include canceled amendments; active extra members require text clarification above.
    const ruleProof=buildRuleProof({familyId:row.document_family_id,baseDocumentId:row.base_id,versionStream:row.version_stream,ruleRevision:row.rule_revision,evaluationDate:row.evaluation_date,members:row.group_members,effects:row.group_effects});
    const {sourceFormat:_format,...reference}=context;void _format;
-   evidence.push(validateStructuredEvidence({rowId:row.row_id,dataset:query.dataset,payload:decoded.payload,reference:{...reference,documentRevision:row.live_revision,sourceLocation:decoded.sourceLocation,ruleProof},title:row.title,familyCode:row.family_code,academicYear:row.academic_year,authorityLevel:row.authority_level,sourceUrl:row.document_source_url}));
+   let transcription;
+   if(row.temporal_basis==='CURRENT_REVIEWED'){
+    if(query.dataset!=='university_services'||row.review_payload_hash!==row.receipt_review_hash)throw new Error('STRUCTURED_ROW_EVIDENCE_INVALID');
+    const review=decodeStoredImportReview({jobId:row.job_id,checksum:row.source_checksum,jobRevision:row.job_revision,extractionRevision:row.extraction_revision,reviewRevision:row.review_revision,encrypted:row.review_encrypted,payloadHash:row.review_payload_hash},key);
+    if(review.schemaVersion!==4||review.metadata.storageMode!=='STRUCTURED'||review.metadata.datasetType!=='university_services'||review.publicSourceReview.temporalBasis!=='CURRENT_REVIEWED'||!review.publicSourceReview.transcription)throw new Error('STRUCTURED_ROW_EVIDENCE_INVALID');
+    const parent=await readServiceTranscriptionParent(client,review.publicSourceReview.transcription.parent,key);
+    assertServiceTranscriptionLocations(review.publicSourceReview.transcription,parent.approvedLocations);
+    if(parent.departmentId!==row.source_department_id||row.authority_level>parent.authorityLevel||review.publicSourceReview.transcription.parent.sourceUrl!==original.sourceUrl||row.document_source_url!==original.sourceUrl)throw new Error('STRUCTURED_ROW_EVIDENCE_INVALID');
+    transcription=serviceTranscriptionProof(review.publicSourceReview.transcription);
+   }
+   evidence.push(validateStructuredEvidence({rowId:row.row_id,dataset:query.dataset,payload:decoded.payload,reference:{...reference,documentRevision:row.live_revision,sourceLocation:decoded.sourceLocation,ruleProof,...(transcription?{transcription}:{})},title:row.title,familyCode:row.family_code,academicYear:row.academic_year,authorityLevel:row.authority_level,sourceUrl:row.document_source_url}));
   }
   if(query.dataset==='tuition_fees'&&!Object.hasOwn(query.filters,'currency')&&new Set(evidence.map(row=>(row.payload as {currency:string}).currency)).size>1)return {status:'CLARIFICATION_REQUIRED',missing:['currency']};
   return {status:'READY',evidence:validateStructuredEvidenceList(evidence)};

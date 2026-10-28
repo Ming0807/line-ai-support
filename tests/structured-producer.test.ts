@@ -1,9 +1,10 @@
 import {expect,it,vi} from 'vitest';
 import {createKnowledgeProducer,type KnowledgeProducerOptions} from '../lib/knowledge/answer-producer';
-import {validateStructuredEvidence} from '../lib/knowledge/structured-citations';
+import {validateStructuredEvidence,buildStructuredAnswer} from '../lib/knowledge/structured-citations';
 import {canonicalDigest} from '../lib/imports/structured-mapping-contract';
 import {aiResultSchema} from '../lib/ai/jobs';
 import {buildRuleProof} from '../lib/knowledge/rule-proof';
+import {serviceTranscriptionProofSchema} from '../lib/imports/public-service-transcription-contract';
 
 const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',hash='a'.repeat(64),payload={service_code:'LIBRARY',name:'ห้องสมุด',description:null,location:null,opening_hours:null,phone:null,email:null,url:null};
 const scope={historical:false,academicYear:null,asOfDate:null,familyCodes:['LIBRARY'],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
@@ -12,7 +13,7 @@ const evidence=validateStructuredEvidence({rowId:id,dataset:'university_services
 const snapshot={jobId:id,sessionId:id,conversationId:id,messageId:id,revision:0,question:'ห้องสมุดเปิดกี่โมง',history:[]};
 function fixture(selected:unknown={method:'STRUCTURED',query}){
  const outputs=[scope,selected,{answer:'ตรวจสอบห้องสมุดได้ครับ',citationRowIds:[id]}];
- const generate=vi.fn(async()=>({output:outputs.shift(),toolCalls:[],providerId:id,modelId:id,fallbackUsed:false}));
+ const generate=vi.fn(async(input:unknown)=>{void input;return {output:outputs.shift(),toolCalls:[],providerId:id,modelId:id,fallbackUsed:false};});
  const embed=vi.fn(async()=>{throw Error('E5_NOT_EXPECTED');}),search=vi.fn(async()=>{throw Error('RAG_NOT_EXPECTED');});
  const structuredSearch=vi.fn(async()=>({status:'READY' as const,evidence:[evidence]}));
  const options={generate:generate as unknown as KnowledgeProducerOptions['generate'],embed,search,structuredSearch,
@@ -22,6 +23,16 @@ function fixture(selected:unknown={method:'STRUCTURED',query}){
 it('produces a durable exact answer without E5/RAG and passes the complete query/scope',async()=>{
  const f=fixture(),result=await f.produce(snapshot,new AbortController().signal);
  expect(result).toMatchObject({kind:'STRUCTURED_ANSWER',query,scope,evidence:[evidence]});expect(f.structuredSearch).toHaveBeenCalledWith({query,scope});expect(f.embed).not.toHaveBeenCalled();expect(f.search).not.toHaveBeenCalled();expect(aiResultSchema.safeParse(result).success).toBe(true);
+});
+it('does not present a reviewer-assigned transcription service code as an official source fact to the model',async()=>{
+ const parentId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',url='https://library.yru.ac.th/contact';
+ const proof=serviceTranscriptionProofSchema.parse({kind:'PUBLIC_SERVICE_TRANSCRIPTION_PROOF_V1',manifestDigest:'b'.repeat(64),parent:{documentId:parentId,familyId:parentId,documentRevision:0,jobId:parentId,jobRevision:1,extractionRevision:1,reviewRevision:1,sourceChecksum:'c'.repeat(64),sourceUrl:url,title:'Official source'},sourceLocations:[{kind:'HTML',sourceUrl:url,blockStart:1,blockEnd:1,headingPath:[],tableIndex:null}]});
+ const derivedPayload={...payload,service_code:'YRU_LIBRARY_CONTACT'},derived=validateStructuredEvidence({...evidence,payload:derivedPayload,reference:{...evidence.reference,payloadDigest:canonicalDigest('structured-payload-v1',{dataset:'university_services',payload:derivedPayload}),transcription:proof}}),f=fixture();f.structuredSearch.mockResolvedValue({status:'READY',evidence:[derived]});
+ expect((await f.produce(snapshot,new AbortController().signal)).kind).toBe('STRUCTURED_ANSWER');
+ const prompt=JSON.stringify(f.generate.mock.calls.at(-1)?.[0]);expect(prompt).toContain('ห้องสมุด');expect(prompt).not.toContain('service_code');expect(prompt).not.toContain(proof.manifestDigest);expect(prompt).not.toContain(proof.parent.sourceChecksum);
+ const legacy=fixture();await legacy.produce(snapshot,new AbortController().signal);expect(JSON.stringify(legacy.generate.mock.calls.at(-1)?.[0])).toContain('service_code');
+ expect(()=>buildStructuredAnswer({answer:'รหัสบริการทางการคือ '+derivedPayload.service_code,citationRowIds:[id]},[derived])).toThrow('STRUCTURED_CITATION_INVALID');
+ expect(()=>buildStructuredAnswer({answer:'รหัสบริการตามต้นฉบับคือ '+payload.service_code,citationRowIds:[id]},[evidence])).not.toThrow();
 });
 it('rejects a model invented exact label before database work',async()=>{
  const f=fixture({method:'STRUCTURED',query:{...query,filters:{name:'บริการลับที่ไม่ได้ถาม'}}});

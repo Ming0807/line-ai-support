@@ -1,5 +1,5 @@
 /** Shared source-owned eligibility/effect selection. Parameter slots1..12 retain the legacy RAG contract. */
-export const knowledgeRuleSelectionSQL=`with request_date as materialized (
+function selectionSQL(structuredTranscriptions:boolean):string{return `with request_date as materialized (
   select coalesce($12::date,$10::date,(statement_timestamp() at time zone 'Asia/Bangkok')::date) evaluation_date
  ), eligible_documents as materialized (
   select d.*,f.code as family_code,row_number() over(partition by d.document_family_id,d.version_stream
@@ -12,7 +12,7 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
   where d.approval_status='APPROVED' and d.official_source and d.extraction_reviewed and not d.requires_review
    and d.visibility='PUBLIC' and not d.archive_only
    and (d.temporal_basis='DATED' and d.effective_from is not null or d.temporal_basis='CURRENT_REVIEWED' and d.current_reviewed_at is not null and d.effective_from is null and d.effective_to is null
-    and exists(select 1 from private.knowledge_import_publications publication where publication.document_id=d.id and publication.storage_mode='RAG'))
+    and exists(select 1 from private.knowledge_import_publications publication where publication.document_id=d.id and ${structuredTranscriptions?"(publication.storage_mode='RAG' or publication.storage_mode='STRUCTURED' and d.document_type='GUIDE' and exists(select 1 from private.structured_publication_effects transcription_effect where transcription_effect.document_id=d.id and transcription_effect.dataset_code='university_services' and transcription_effect.storage_mode='STRUCTURED'))":"publication.storage_mode='RAG'"}))
    and not exists(select 1 from public.document_relationships r where r.source_document_id=d.id and r.relation_type in ('AMENDS','CANCELS'))
    and (cardinality($1::text[])=0 or f.code=any($1::text[]))
    and ($2::text is null or d.department_id is null or dept.code=$2)
@@ -81,4 +81,7 @@ export const knowledgeRuleSelectionSQL=`with request_date as materialized (
   select b.id,e.source_document_id,e.revision from groups b join potential_effects e on e.base_id=b.id
    where e.relation_type='AMENDS' and not e.unresolved_scope and not exists(select 1 from potential_effects cancel
     where cancel.base_id=b.id and cancel.relation_type='CANCELS' and cancel.target_document_id=e.source_document_id and not cancel.unresolved_scope)
- )`;
+ )`;}
+/** RAG eligibility is unchanged; only structured search may inspect parent-backed service transcriptions. */
+export const knowledgeRuleSelectionSQL=selectionSQL(false);
+export const structuredRuleSelectionSQL=selectionSQL(true);

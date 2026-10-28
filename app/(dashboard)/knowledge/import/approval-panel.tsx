@@ -90,7 +90,7 @@ export default function ApprovalPanel({review,dirty,disabled,onPendingChange,onR
  const warningsReviewed=Boolean(saved&&saved.warningDispositions.every(item=>item.status!=='UNRESOLVED'&&Boolean(item.reason?.trim())));
  const reviewFields=saved?requiredReviewFields(saved.metadata,saved.schemaVersion===4?saved.publicSourceReview:undefined):[];
  const publicReviewIssues=saved&&review&&saved.schemaVersion===4?publicSourceReviewIssues({
-  value:saved.publicSourceReview,documentType:saved.metadata.documentType,visibility:saved.metadata.visibility,storageMode:saved.metadata.storageMode,
+  value:saved.publicSourceReview,documentType:saved.metadata.documentType,visibility:saved.metadata.visibility,storageMode:saved.metadata.storageMode,datasetType:saved.metadata.datasetType,academicYear:saved.metadata.academicYear,
   publishedAt:saved.metadata.publishedAt,effectiveFrom:saved.metadata.effectiveFrom,effectiveTo:saved.metadata.effectiveTo,
   action:saved.action,relationship:saved.relationship,target:saved.target,sourceUrl:saved.metadata.sourceUrl,
   scope:saved.metadata.scope,sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,onChange:()=>undefined,

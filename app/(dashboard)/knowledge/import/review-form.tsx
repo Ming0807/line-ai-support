@@ -505,7 +505,7 @@ export default function ReviewForm({
   }
 
   const sourceReviewIssues=draft&&review&&draft.schemaVersion===4?publicSourceReviewIssues({
-    value:draft.publicSourceReview,documentType:draft.metadata.documentType,visibility:draft.metadata.visibility,storageMode:draft.metadata.storageMode,
+    value:draft.publicSourceReview,documentType:draft.metadata.documentType,visibility:draft.metadata.visibility,storageMode:draft.metadata.storageMode,datasetType:draft.metadata.datasetType,academicYear:draft.metadata.academicYear,
     publishedAt:draft.metadata.publishedAt,effectiveFrom:draft.metadata.effectiveFrom,effectiveTo:draft.metadata.effectiveTo,
     action:draft.action,relationship:draft.relationship,target:draft.target,sourceUrl:draft.metadata.sourceUrl,
     scope:draft.metadata.scope,sensitiveCategories:review.sensitiveCategories??[],sourceFormat:review.sourceFormat,extractionWarnings:review.warnings,disabled,
@@ -897,6 +897,8 @@ export default function ReviewForm({
               documentType={draft.metadata.documentType}
               visibility={draft.metadata.visibility}
               storageMode={draft.metadata.storageMode}
+              datasetType={draft.metadata.datasetType}
+              academicYear={draft.metadata.academicYear}
               publishedAt={draft.metadata.publishedAt}
               effectiveFrom={draft.metadata.effectiveFrom}
               effectiveTo={draft.metadata.effectiveTo}

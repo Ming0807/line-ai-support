@@ -4,7 +4,27 @@
 
 การเตรียม extraction/transcription เดิมครบ9รายการอยู่ใน [technical review](../../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md) ซึ่งเก็บเป็นหลักฐานตามวันที่เดิม แผนปัจจุบัน: [ROOT-CORPUS-PUBLIC-01](../superpowers/plans/2026-10-26-public-corpus-review.md)
 
-## สถานะล่าสุด ROOT-CORPUS-PUBLIC-04 — 27 ตุลาคม 2026
+## สถานะปัจจุบัน ROOT-STR-CORPUS-01 — 28 ตุลาคม 2026
+
+Normal DEVELOPMENT มี16 approvedPUBLIC: 15RAGเดิมและ1STRUCTUREDฉบับถอดข้อมูลบริการห้องสมุด. ใช้ครอบครัวLIBRARY_GUIDEเดิมแต่คนละversionstream ไม่แทนที่HTMLเดิม. RootตรวจretainedrawSHAและexactpublishedextraction/review receiptของต้นฉบับ [หน้าติดต่อห้องสมุด](https://library.yru.ac.th/contact), HTMLblocks55/57/59–61 แล้วนำเข้าผ่านUPLOAD CSV/review4/Mapping1/5attestations/normalapprove. ไม่อ้างว่าCSVเป็นไฟล์downloadจากมหาวิทยาลัย.
+
+| ข้อมูลที่ตรวจจากต้นฉบับ | ค่าที่เผยแพร่ |
+| --- | --- |
+| ชื่อ | ศูนย์บรรณสารสนเทศ |
+| สถานที่ | อาคารบรรณราชนครินทร์ มหาวิทยาลัยราชภัฏยะลา |
+| วันธรรมดา | จ-ศ 08.00-17.00 น. |
+| เสาร์–อาทิตย์ | ส-อา 08.30-16.30 น. |
+| ข้อยกเว้น | หยุดทุกวันหยุดนักขัตฤกษ์ |
+| โทรศัพท์หน่วยงาน | 073-299675 ต่อ 23300 |
+| อีเมล / วันที่เริ่มมีผล | null: ไม่เดาจากplaceholderหรือวันตรวจทาน |
+
+service_codeเป็นรหัสที่ผู้ตรวจตั้งเพื่อค้นภายใน ไม่ใช่รหัสทางการและไม่ส่งเป็นข้อเท็จจริงให้model. Manifestผูกทุกค่ากับข้อความจริง ส่วนCSVยังมีพิกัดเซลล์ของตนเอง. Normalreceipt/replay/currenttypeddiscovery/historicalexclusionผ่าน; university_services1แถว/อีก6dataset0; เอกสารเดิม15ฉบับไม่เปลี่ยน. สคริปต์ปฏิบัติการครั้งแรกหยุดก่อนsaveที่whitelistคำเตือน: analyzerเดาdatasetจากชื่อCSVไม่ได้และแจ้งSTRUCTURED_SCHEMA_UNAVAILABLE. RootตรวจcanonicalMapping1 publicationAvailable=trueแล้วบันทึกFALSE_POSITIVEพร้อมเหตุผลตรงคำเตือน; คงfindingและเงื่อนไขruntimeไว้ทั้งหมด. ไม่แก้productguardเพื่อให้ผ่าน.
+
+Current3418unit/252files,150focused,114ownedPG/47migrations/exactcleanup,type/changedlint/build879matchinginputsผ่าน. หลักฐานprivateอยู่ `.superpowers/staging/root-library-service-20261028/` และ `root-transcription-*.log`; ไม่commitoriginals/credentials. Actual Luna high authoredpuretests, Luna maxตรวจdesign/finalsourceguardsเฉพาะขอบเขต และLuna highตรวจcandidateถัดไปแบบอ่านอย่างเดียว; rootทำimplementation/normalDB/acceptance. การทดสอบจริงGemini/LINE/Hermes/FlowA–Fยังไม่ทำรอบนี้.
+
+Candidateaudit: ปฏิทินเกินหน่วยกิต2569มีหลักฐานชัดที่สุดถัดไป แต่typedcalendarต้องออกแบบscopeปกติ/กศ.บป./การแปลงวันที่/parentproofและrefreshแยกจากpermissionGUIDE/servicesปัจจุบัน. YRU027ไม่มีeffective dateที่ยืนยัน; YRU010/011ยังมีdategroupsขัดแย้ง; fees/transfer/รุ่นยังมีauthority/applicabilitygaps. คงRAGที่ตรวจแล้วและงดtypedfactsที่ไม่มีหลักฐาน. ทั้ง7schemasต้องพร้อมใช้งาน ไม่ได้แปลว่าต้องแต่งข้อมูลให้ครบ7ตาราง. Sourceversionrefreshใช้จริงเมื่อพบต้นฉบับใหม่ที่พิสูจน์ได้ ไม่สร้างreplacementจำลองเพื่อปิดFlowFจริง.
+
+## Checkpoint ROOT-CORPUS-PUBLIC-04 — 27 ตุลาคม 2026 (historical)
 
 Root ตรวจและเผยแพร่ชุดเริ่มต้น13รายการในขอบเขตที่ตรวจทานได้ รวมกับระเบียบแม่บทและปฏิทินเกินหน่วยกิตเพิ่มเติมเป็น15 approved PUBLIC ในฐานพัฒนา ตัวเลขนี้นับเอกสาร RAG ไม่ได้ยืนยันว่าทุกข้อมูลในต้นฉบับใช้ตอบได้ ทุกหลักสูตร/รุ่นครอบคลุม หรือ structured dataset มีข้อมูลครบ ทั้ง7structuredtablesยัง0แถว Root ตรวจเอง ไม่มี independent reviewer รอบนี้
 

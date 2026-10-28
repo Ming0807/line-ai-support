@@ -9,6 +9,9 @@ import {prepareImportChunkPlan} from './chunk-preparation';
 import {prepareImportStructuredPlan,computeStructuredAcknowledgment} from './structured-preparation';
 import {StructuredMappingError} from './structured-mapping-contract';
 import type {PassageTokenCounter} from '../knowledge/embedding-client';
+import {validateServiceTranscriptionSource,readServiceTranscriptionParent} from './public-service-transcription-source';
+import {PublicServiceTranscriptionError,assertServiceTranscriptionLocations} from './public-service-transcription';
+import {knowledgeStructuredCatalogLock,knowledgeFamilyLock,knowledgeDocumentLock} from '../knowledge/source-locks';
 export interface ImportReviewOptions extends ImportExtractionOptions {
  counter?:PassageTokenCounter;
  /** Internal deterministic concurrency seam, outside SQL; never request-configurable. */
@@ -26,7 +29,7 @@ interface ReviewRow {
 const digest=(value:string)=>createHash('sha256').update(value,'utf8').digest('hex');
 function keyFor(options:ImportReviewOptions){const key=options.key??process.env.ENCRYPTION_KEY;if(!key)throw new ImportStagingError('INTERNAL_ERROR');return key;}
 function checkSignal(options:ImportReviewOptions){if(options.signal?.aborted)throw new ImportStagingError('CONFLICT');}
-async function safe<T>(work:()=>Promise<T>):Promise<T>{try{return await work();}catch(error){if(error instanceof ImportStagingError||error instanceof StructuredMappingError)throw error;throw new ImportStagingError('INTERNAL_ERROR');}}
+async function safe<T>(work:()=>Promise<T>):Promise<T>{try{return await work();}catch(error){if(error instanceof PublicServiceTranscriptionError)throw new ImportStagingError('INVALID_REQUEST');if(error instanceof ImportStagingError||error instanceof StructuredMappingError)throw error;throw new ImportStagingError('INTERNAL_ERROR');}}
 function receiptContext(jobId:string,checksum:string,jobRevision:number,extractionRevision:number,reviewRevision:number){
  return {jobId,checksum:digest(JSON.stringify(['yru:knowledge-review-receipt:v1',checksum,jobRevision,extractionRevision])),revision:reviewRevision,purpose:'REVIEW' as const};
 }
@@ -40,8 +43,12 @@ async function lockedSnapshot(client:PoolClient,preview:ImportPreview,mode:'shar
  return {checksum:job.checksum,row};
 }
 function readDraft(row:ReviewRow,id:string,checksum:string,options:ImportReviewOptions):ImportReviewDraft{
- const serialized=decryptStagingValue(row.review_encrypted,receiptContext(id,checksum,row.job_revision,row.extraction_revision,row.review_revision),keyFor(options));
- if(digest(serialized)!==row.payload_hash)throw new ImportStagingError('INTERNAL_ERROR');
+ return decodeStoredImportReview({jobId:id,checksum,jobRevision:row.job_revision,extractionRevision:row.extraction_revision,reviewRevision:row.review_revision,encrypted:row.review_encrypted,payloadHash:row.payload_hash},keyFor(options));
+}
+/** Internal exact immutable receipt decoder; authorization belongs to the calling SQL/source operation. */
+export function decodeStoredImportReview(input:{jobId:string;checksum:string;jobRevision:number;extractionRevision:number;reviewRevision:number;encrypted:string;payloadHash:string},key:string):ImportReviewDraft{
+ const serialized=decryptStagingValue(input.encrypted,receiptContext(input.jobId,input.checksum,input.jobRevision,input.extractionRevision,input.reviewRevision),key);
+ if(digest(serialized)!==input.payloadHash)throw new ImportStagingError('INTERNAL_ERROR');
  const draft=reviewDraftSchema.parse(JSON.parse(serialized));if(JSON.stringify(draft)!==serialized)throw new ImportStagingError('INTERNAL_ERROR');return draft;
 }
 function state(preview:ImportPreview,saved:ImportReviewState['saved']):ImportReviewState {
@@ -90,6 +97,7 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
    if(mapped.acknowledgment!==null){const ack=computeStructuredAcknowledgment(plan);
     if(mapped.acknowledgment.contentDigest!==ack.contentDigest||mapped.acknowledgment.mapperVersion!==ack.mapperVersion)throw new ImportStagingError('INVALID_REQUEST');
    }
+   if(request.draft.schemaVersion===4&&request.draft.publicSourceReview.transcription){const parent=await validateServiceTranscriptionSource(actor,request.draft.publicSourceReview.transcription,plan,options);if(request.draft.metadata.authorityLevel!==null&&request.draft.metadata.authorityLevel>parent.authorityLevel)throw new ImportStagingError('INVALID_REQUEST');}
   }
   const reviewRevision=request.expectedReviewRevision+1,serialized=JSON.stringify(request.draft),payloadHash=digest(serialized);
   const encrypted=encryptStagingValue(serialized,receiptContext(id,snapshot.checksum,preview.job.revision,preview.extractionRevision,reviewRevision),keyFor(options));
@@ -97,6 +105,13 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
   const row=await withImportAdminTransaction(actor,options,async client=>{
    const current=await lockedSnapshot(client,preview,'update',request.draft.schemaVersion>=3);checkSignal(options);
    if(current.checksum!==snapshot.checksum||(current.row?.review_revision??0)!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
+   if(request.draft.schemaVersion===4&&request.draft.publicSourceReview.transcription){
+    const parent=request.draft.publicSourceReview.transcription.parent;
+    await client.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
+    await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(parent.familyId)]);
+    await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(parent.documentId)]);
+    const currentParent=await readServiceTranscriptionParent(client,parent,keyFor(options),true);assertServiceTranscriptionLocations(request.draft.publicSourceReview.transcription,currentParent.approvedLocations);
+   }
    const inserted=(await client.query<ReviewRow>(`insert into private.knowledge_import_reviews(job_id,review_revision,job_revision,extraction_revision,actor_id,payload_hash,review_encrypted)
     values($1,$2,$3,$4,$5,$6,$7) returning review_revision,job_revision,extraction_revision,actor_id,payload_hash,review_encrypted,created_at`,
     [id,reviewRevision,preview.job.revision,preview.extractionRevision,actor,payloadHash,encrypted])).rows[0];

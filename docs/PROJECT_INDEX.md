@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-184; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-185; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+- ROOT-STR-CORPUS-01 / DEC184–185: เผยแพร่ข้อมูลบริการห้องสมุดจริง1แถวจากCSVฉบับถอดที่ตรวจเทียบกับHTMLทางการ ผูกreceipt/ตำแหน่งต้นฉบับ/current coverageจนส่งคำตอบ.16approvedPUBLIC (15RAGเดิม+1structured),services1/อีก6datasets0; old15unchanged,receipt/replay/currentquery/historicalexclusionผ่าน.3418unit/252files,114ownedPG47migrations,type/changedlint/build879matchinginputsผ่าน. ถ้าtypedcatalogว่างหรือชื่อบริการไม่ตรงคำถาม ให้ค้นRAGจากคำถามเดิมต่อ. [แผน/หลักฐาน](superpowers/plans/2026-10-28-public-structured-service-corpus.md). Current runtimeในchecklist; actualGemini/LINE/Hermes/FlowA–Fยังเลื่อน. จำนวน0rowsในcheckpointด้านล่างเป็นประวัติ ไม่ใช่จำนวนปัจจุบัน. แหล่งปฏิทิน/แบบฟอร์ม/ค่าใช้จ่ายที่ยังมีช่องว่างยังไม่สร้างtypedrowsจากการเดา.
 
 - ROOT-NATURAL-08: เพิ่มหมวดจากชื่อเอกสารPUBLICจริงให้AIเลือกก่อนค้นในmodelcallเดิม ตรวจรหัสที่เลือกและย่อข้อความอ้างอิงHTMLโดยเก็บพิกัดภายใน.3396unit/250files,24ownedPG47migrations,type/changedlint/build871matchinginputsผ่าน. CurrentlocalREADY09:01Bangkok E5/fourworkers/local+publicHMAC8ผ่าน; URLใหม่ในchecklist. [แผนและข้อจำกัด](superpowers/plans/2026-10-28-grounded-context-completeness.md). ActualGemini/LINE/FlowA–Fยังเลื่อนตามผู้ใช้.
 

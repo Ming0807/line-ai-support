@@ -11,7 +11,7 @@ import {hasValidPublicTemporalReview,reviewedPublicContent,reviewedNonTabularDia
 export type PublicationPolicyCode='PUBLICATION_REVIEW_INCOMPLETE'|'PUBLICATION_PLAN_MISMATCH'|'PUBLICATION_WARNINGS_UNRESOLVED'|'PUBLICATION_QUALITY_REANALYSIS_REQUIRED'|'PUBLICATION_PUBLIC_SENSITIVE_DATA'|'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE';
 export class PublicationPolicyError extends Error{constructor(readonly code:PublicationPolicyCode){super(code);this.name='PublicationPolicyError';}}
 export interface ValidatedPublicationReview{draft:Extract<ImportReviewDraft,{schemaVersion:2|3|4}>;plan:LocatedChunkPlan;sourceChecksum:string;reviewHash:string;officialSource:boolean}
-export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
+export interface ValidatedStructuredReview{draft:Extract<ImportReviewDraft,{schemaVersion:3|4}>;plan:LocatedChunkPlan|null;sourceChecksum:string;reviewHash:string;officialSource:boolean}
 function fail(code:PublicationPolicyCode):never{throw new PublicationPolicyError(code);}
 /** A current authorized review may adjudicate a pattern-only policy mention.
  * This retains the detector finding; it never classifies personal grades safe.
@@ -117,7 +117,8 @@ export function validatePublicationReview(preview:ImportPreview,review:ImportRev
 /** Internal mode policy; actual source assembly and final SQL readiness/authorization are separate. */
 export function validateStructuredPublicationReview(preview:ImportPreview,review:ImportReviewState,input:unknown,checksum:string):ValidatedStructuredReview{
  const checked=sharedPolicy(preview,review),draft=checked.draft;
- if(draft.schemaVersion!==3||!draft.structuredMapping?.acknowledgment||!['STRUCTURED','BOTH'].includes(draft.metadata.storageMode??''))fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if((draft.schemaVersion!==3&&draft.schemaVersion!==4)||!draft.structuredMapping?.acknowledgment||!['STRUCTURED','BOTH'].includes(draft.metadata.storageMode??''))fail('PUBLICATION_REVIEW_INCOMPLETE');
+ if(draft.schemaVersion===4&&preview.job.format!=='CSV')fail('PUBLICATION_REVIEW_INCOMPLETE');
  const source=draft.structuredMapping.mapping.source;
  if(!/^[a-f0-9]{64}$/.test(checksum)||source.sourceChecksum!==checksum||source.jobId!==preview.job.id||source.jobRevision!==preview.job.revision||source.extractionRevision!==preview.extractionRevision)fail('PUBLICATION_PLAN_MISMATCH');
  const plan=draft.metadata.storageMode==='BOTH'?checkedChunks(preview,draft,input,checksum):null;

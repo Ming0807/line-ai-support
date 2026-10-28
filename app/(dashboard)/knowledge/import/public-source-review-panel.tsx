@@ -2,6 +2,7 @@
 
 import type {ImportReviewDraft} from '@/lib/imports/review-schema';
 import type {PublicSourceReview} from '@/lib/imports/public-source-review';
+import {publicSourceModeAllowed} from '@/lib/imports/public-source-mode';
 
 type Category='GRADES'|'STUDENT_RECORDS'|'PHONE';
 type Basis=PublicSourceReview['sensitivityAdjudications'][number]['basis'];
@@ -10,6 +11,8 @@ type Props={
  documentType:ImportReviewDraft['metadata']['documentType'];
  visibility:ImportReviewDraft['metadata']['visibility'];
  storageMode:ImportReviewDraft['metadata']['storageMode'];
+ datasetType?:ImportReviewDraft['metadata']['datasetType'];
+ academicYear?:number|null;
  publishedAt:string|null;
  effectiveFrom:string|null;
  effectiveTo:string|null;
@@ -49,7 +52,11 @@ function basisMatchesType(basis:Basis,documentType:string|null):boolean{
 
 export function publicSourceReviewIssues(input:Props):string[]{
  const issues:string[]=[];
- if(input.visibility!=='PUBLIC'||input.storageMode!=='RAG')issues.push('การทบทวนแหล่งข้อมูลสาธารณะใช้ได้เฉพาะเอกสารสาธารณะที่ค้นจากข้อความ (RAG)');
+ if(input.visibility!=='PUBLIC'||!publicSourceModeAllowed(input,Boolean(input.value.transcription)))issues.push('ใช้กับเอกสารสาธารณะ หรือข้อมูลบริการที่ตรวจเทียบกับต้นฉบับทางการแล้วเท่านั้น');
+ if(input.value.transcription){
+  if(input.sourceFormat!=='CSV'||input.sourceUrl!==input.value.transcription.parent.sourceUrl)issues.push('ไฟล์ถอดข้อมูลต้องเป็น CSV และอ้างถึงหน้าเว็บต้นฉบับที่เลือกไว้');
+  if(input.academicYear!=null||input.scope?.audience!=='ALL'||input.scope?.studentType!=='ALL'||[input.scope?.semester,input.scope?.programCode,input.scope?.curriculumCode,input.scope?.cohort].some(value=>value!=null))issues.push('ข้อมูลบริการทั่วไปต้องไม่เติมปี รุ่น หรือหลักสูตรที่ต้นฉบับไม่ได้ระบุ');
+ }
  if(!input.sourceUrl?.trim())issues.push('ระบุ URL ต้นฉบับทางการก่อน');
  if(input.value.temporalBasis==='CURRENT_REVIEWED'){
   if(!['FORM','GUIDE','CALENDAR','ANNOUNCEMENT'].includes(input.documentType??''))issues.push('การทบทวนแบบข้อมูลปัจจุบันใช้กับแบบฟอร์ม คู่มือ ปฏิทิน หรือประกาศเฉพาะรุ่นเท่านั้น');
@@ -81,8 +88,8 @@ export function publicSourceReviewIssues(input:Props):string[]{
  return [...new Set(issues)];
 }
 
-export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings=[],disabled,onChange}:Props){
- const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings,disabled,onChange});
+export default function PublicSourceReviewPanel({value,documentType,visibility,storageMode,datasetType,academicYear,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings=[],disabled,onChange}:Props){
+ const issues=publicSourceReviewIssues({value,documentType,visibility,storageMode,datasetType,academicYear,publishedAt,effectiveFrom,effectiveTo,action,relationship,target,sourceUrl,scope,sensitiveCategories,sourceFormat,extractionWarnings,disabled,onChange});
  const update=(patch:Partial<PublicSourceReview>)=>onChange({...value,...patch});
  const diagramWarnings=sourceFormat==='PDF'&&['FORM','GUIDE'].includes(documentType??'')&&storageMode==='RAG'?extractionWarnings.filter(w=>w.code==='UNSUPPORTED_TABLES'&&w.location?.kind==='PDF'):[];
 
@@ -98,6 +105,7 @@ export default function PublicSourceReviewPanel({value,documentType,visibility,s
 
  return <section className="knowledge-review-section knowledge-public-source-review" aria-labelledby="public-source-review-title">
   <h4 id="public-source-review-title">ทบทวนแหล่งข้อมูลสาธารณะ</h4>
+  {value.transcription&&<p className="knowledge-hint">ไฟล์นี้เป็นฉบับถอดข้อมูล ระบบจะตรวจเทียบเมื่อบันทึก · ต้นฉบับ: <a href={value.transcription.parent.sourceUrl} target="_blank" rel="noreferrer">{value.transcription.parent.title}</a></p>}
   {documentType==='ANNOUNCEMENT'&&value.temporalBasis==='CURRENT_REVIEWED'&&<p className="knowledge-hint">ขอบเขตประกาศ: รุ่น {scope?.cohort??'ยังไม่ระบุ'} · {scope?.audience??'ยังไม่ระบุระดับผู้เรียน'} · {scope?.studentType??'ยังไม่ระบุภาคการศึกษา'}</p>}
   <p className="knowledge-hint">บันทึกการพิจารณาแยกจากคำเตือนเดิม ระบบยังเก็บผลตรวจและประวัติการทบทวนไว้ครบ</p>
   <div className="knowledge-review-grid">

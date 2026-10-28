@@ -3,6 +3,7 @@ import {sourceLocationSchema} from '../imports/extraction';
 import {canonicalDigest,copyStructuredJson,freezeStructuredData} from '../imports/structured-mapping-contract';
 import {STRUCTURED_DATASETS,STRUCTURED_REGISTRY_VERSION,validateStructuredPayload} from './structured-payload';
 import {ruleProofSchema} from './rule-proof';
+import {serviceTranscriptionProofSchema,reviewerAssignedServiceCodeSchema} from '../imports/public-service-transcription-contract';
 
 export class StructuredRowReferenceError extends Error {
  constructor(){super('STRUCTURED_ROW_REFERENCE_INVALID');this.name='StructuredRowReferenceError';}
@@ -14,7 +15,7 @@ const schema=z.object({
  rowId:uuid,documentId:uuid,documentRevision:revision,jobId:uuid,jobRevision:revision,extractionRevision:revision.min(1),reviewRevision:revision.min(1),
  sourceChecksum:hash,extractionDigest:hash,mappingDigest:hash,payloadDigest:hash,planDigest:hash,
  tableIndex:z.number().int().min(0).max(999),rowIndex:z.number().int().min(0).max(9999),tableFirstRow:z.number().int().min(1).max(1_048_576),sourceRow:z.number().int().min(1).max(1_048_576),
- coordinateKind:z.enum(['WORKSHEET_CELL','CSV_RECORD','EXTRACTED_LOGICAL']),sourceLocation:sourceLocationSchema,ruleProof:ruleProofSchema,
+ coordinateKind:z.enum(['WORKSHEET_CELL','CSV_RECORD','EXTRACTED_LOGICAL']),sourceLocation:sourceLocationSchema,ruleProof:ruleProofSchema,transcription:serviceTranscriptionProofSchema.optional(),
 }).strict();
 export type StructuredRowReference=z.infer<typeof schema>;
 function parse(input:unknown):StructuredRowReference {
@@ -23,6 +24,7 @@ function parse(input:unknown):StructuredRowReference {
   if(location.tableIndex!==value.tableIndex+1||value.sourceRow!==value.tableFirstRow+value.rowIndex)throw new StructuredRowReferenceError();
   const kind=location.kind==='XLSX'?'WORKSHEET_CELL':location.kind==='CSV'?'CSV_RECORD':'EXTRACTED_LOGICAL';
   if(value.coordinateKind!==kind)throw new StructuredRowReferenceError();
+  if(value.transcription&&(value.dataset!=='university_services'||value.sourceLocation.kind!=='CSV'||value.transcription.parent.documentId===value.documentId||value.transcription.parent.jobId===value.jobId))throw new StructuredRowReferenceError();
   if(location.kind==='XLSX'||location.kind==='CSV'){
    if(value.tableFirstRow!==location.rowStart||value.sourceRow>location.rowEnd)throw new StructuredRowReferenceError();
   }else if(value.tableFirstRow>100_000||value.sourceRow>100_000)throw new StructuredRowReferenceError();
@@ -33,6 +35,7 @@ function parse(input:unknown):StructuredRowReference {
 export function validateStructuredRowReference(input:unknown,payloadInput:unknown):StructuredRowReference {
  try{
   const value=parse(input),payload=validateStructuredPayload(value.dataset,copyStructuredJson(payloadInput,64*1024,256));
+  if(value.transcription&&(!('service_code'in payload)||!reviewerAssignedServiceCodeSchema.safeParse(payload.service_code).success))throw new StructuredRowReferenceError();
   if(canonicalDigest('structured-payload-v1',{dataset:value.dataset,payload})!==value.payloadDigest)throw new StructuredRowReferenceError();
   return value;
  }catch{throw new StructuredRowReferenceError();}
@@ -40,4 +43,12 @@ export function validateStructuredRowReference(input:unknown,payloadInput:unknow
 /** Compare strictly shaped references. Live retrieval/finalization must re-read the underlying rows. */
 export function structuredRowReferencesEqual(left:unknown,right:unknown):boolean {
  try{return canonicalDigest('structured-row-reference-v1',parse(left))===canonicalDigest('structured-row-reference-v1',parse(right));}catch{return false;}
+}
+/** Private source dependencies, including the independently approved transcription parent. */
+export function structuredReferenceSources(references:readonly StructuredRowReference[]):{documentId:string;familyId:string}[]{
+ const sources=new Map<string,string>();
+ for(const reference of references)for(const source of [{documentId:reference.documentId,familyId:reference.ruleProof.familyId},...(reference.transcription?[{documentId:reference.transcription.parent.documentId,familyId:reference.transcription.parent.familyId}]:[])]){
+  if(sources.has(source.documentId)&&sources.get(source.documentId)!==source.familyId)throw new StructuredRowReferenceError();sources.set(source.documentId,source.familyId);
+ }
+ return [...sources].map(([documentId,familyId])=>({documentId,familyId})).sort((a,b)=>a.documentId.localeCompare(b.documentId));
 }

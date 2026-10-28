@@ -33,6 +33,11 @@ export function validateStructuredEvidence(input:unknown){
  }catch{return invalid();}
 }
 export type StructuredEvidence=ReturnType<typeof validateStructuredEvidence>;
+/** Administrative codes assigned during transcription are selectors, not facts observed in the source. */
+export function structuredPromptEvidence(row:StructuredEvidence){
+ const payload:Record<string,unknown>={...row.payload};if(row.reference.transcription)delete payload.service_code;
+ return {rowId:row.rowId,dataset:row.dataset,payload,title:row.title,academicYear:row.academicYear};
+}
 export const structuredEvidenceListSchema=z.unknown().transform((input,context)=>{
  try{return validateStructuredEvidenceList(input);}catch{context.addIssue({code:'custom',message:'STRUCTURED_CITATION_INVALID'});return z.NEVER;}
 });
@@ -66,9 +71,9 @@ function renderStructuredAnswer(answer:string,citationRowIds:readonly string[],e
    const row=byId.get(rowId);if(!row)return invalid();
    return {rowId,dataset:row.dataset,documentId:row.reference.documentId,documentRevision:row.reference.documentRevision,title:row.title,
     familyCode:row.familyCode,academicYear:row.academicYear,sourceUrl:row.sourceUrl,sourceLocation:structuredClone(row.reference.sourceLocation),
-    sourceRow:row.reference.sourceRow,coordinateKind:row.reference.coordinateKind};
+    sourceRow:row.reference.sourceRow,coordinateKind:row.reference.coordinateKind,...(row.reference.transcription?{primarySource:structuredClone(row.reference.transcription)}:{})};
   });
- const references=citations.map((c,i)=>`${i+1}. ${citationLabel(c.title)}${c.academicYear===null?'':` (ปี ${c.academicYear})`} · ${citationLabel(locationLabel(c.sourceLocation))} · แถว ${c.sourceRow}${c.coordinateKind==='EXTRACTED_LOGICAL'?' ของตารางที่สกัด':''}${c.sourceUrl===null?'':`\n${c.sourceUrl}`}`).join('\n');
+ const references=citations.map((c,i)=>c.primarySource?`${i+1}. ${citationLabel(c.primarySource.parent.title)} · ตรวจเทียบข้อมูลจากหน้าเว็บทางการ\n${c.primarySource.parent.sourceUrl}`:`${i+1}. ${citationLabel(c.title)}${c.academicYear===null?'':` (ปี ${c.academicYear})`} · ${citationLabel(locationLabel(c.sourceLocation))} · แถว ${c.sourceRow}${c.coordinateKind==='EXTRACTED_LOGICAL'?' ของตารางที่สกัด':''}${c.sourceUrl===null?'':`\n${c.sourceUrl}`}`).join('\n');
  // Destination links come only from validated cited rows, never model prose.
  // Keep them distinct from the document/page proving where the data came from.
  const formLinks=citationRowIds.flatMap((rowId,index)=>{
@@ -92,6 +97,7 @@ export function buildStructuredAnswer(input:unknown,available:StructuredEvidence
  try{
   const answer=structuredAnswerSchema.parse(input),evidence=validateStructuredEvidenceList(available);
   if(evidence.some(row=>answer.answer.toLowerCase().includes(row.rowId.toLowerCase())))return invalid();
+  if(evidence.some(row=>row.reference.transcription&&row.dataset==='university_services'&&'service_code'in row.payload&&answer.answer.toLowerCase().includes(row.payload.service_code.toLowerCase())))return invalid();
   const byId=new Map(evidence.map(row=>[row.rowId,row]));
   const selected=answer.citationRowIds.map(rowId=>{const row=byId.get(rowId);return row??invalid();});
   let text=answer.answer;

@@ -1,4 +1,5 @@
 import type {PoolClient} from 'pg';
+import {structuredReferenceSources} from './structured-row-reference';
 import {z} from 'zod';
 import {decodeAIResult,requiresStructuredCatalog,type AIJob} from '../ai/jobs';
 import {searchKnowledge} from './retrieval';
@@ -11,11 +12,8 @@ import {readAIKnowledgeSnapshot} from '../ai/knowledge-snapshot';
 import {verifyWebLeads} from './web-leads';
 import {verifyConversationReply} from '../ai/conversation-reply';
 
-/** M7 writers acquire sorted family locks, then sorted document locks, before publishing or changing eligibility. */
-export const knowledgeDocumentLock=(documentId:string)=>`knowledge-document:${documentId}`;
-export const knowledgeFamilyLock=(familyId:string)=>`knowledge-family:${familyId}`;
-/** Shared readers fence even a newly created family. Publication takes the exclusive catalog lock first. */
-export const knowledgeStructuredCatalogLock='knowledge-structured-selection-catalog:v1';
+import {knowledgeDocumentLock,knowledgeFamilyLock,knowledgeStructuredCatalogLock} from './source-locks';
+export {knowledgeDocumentLock,knowledgeFamilyLock,knowledgeStructuredCatalogLock} from './source-locks';
 type OutboxEvidenceInput={idempotencyKey:string;conversationId:string|null;sessionId:string|null};
 /** A pre-read only chooses lock order; the locked delivery verification remains authoritative. */
 export async function aiOutboxNeedsStructuredCatalog(client:PoolClient,input:OutboxEvidenceInput,key:string):Promise<boolean>{
@@ -67,10 +65,10 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
   }catch(error){await client.query('rollback');throw error;}
  }
  if(result.kind==='STRUCTURED_ANSWER'||result.kind==='FORM_DIRECTORY'||result.kind==='STRUCTURED_DISCOVERY'){
-  const documentIds=[...new Set(result.evidence.map(e=>e.reference.documentId))].sort();
+  const sources=structuredReferenceSources(result.evidence.map(e=>e.reference)),documentIds=sources.map(source=>source.documentId);
   const documents=(await client.query('select id,document_family_id from public.documents where id=any($1::uuid[])',[documentIds])).rows;
-  if(documents.length!==documentIds.length||documents.some(d=>!result.evidence.some(e=>e.reference.documentId===d.id&&e.reference.ruleProof.familyId===d.document_family_id)))return false;
-  for(const familyId of [...new Set(result.evidence.map(e=>e.reference.ruleProof.familyId))].sort()){
+  if(documents.length!==documentIds.length||documents.some(d=>!sources.some(source=>source.documentId===d.id&&source.familyId===d.document_family_id)))return false;
+  for(const familyId of [...new Set(sources.map(source=>source.familyId))].sort()){
    const lock=knowledgeFamilyLock(familyId);await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);heldLocks.push(lock);
   }
   for(const documentId of documentIds){const lock=knowledgeDocumentLock(documentId);await client.query('select pg_advisory_lock(hashtextextended($1,0))',[lock]);heldLocks.push(lock);}

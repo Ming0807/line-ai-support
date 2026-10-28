@@ -91,7 +91,7 @@ it('explains when current-reviewed cannot replace dates or a version relationshi
   publishedAt:null,effectiveFrom:'2026-01-01',effectiveTo:'2026-02-01',action:'ADD_ADDITIONAL',relationship:'CANCELS',
   target:{documentId:'123e4567-e89b-42d3-a456-426614174002',revision:2},sourceUrl:null,sensitiveCategories:['PHONE','MEDICAL'],disabled:false,onChange:()=>undefined,
  });
- expect(issues).toContain('การทบทวนแหล่งข้อมูลสาธารณะใช้ได้เฉพาะเอกสารสาธารณะที่ค้นจากข้อความ (RAG)');
+ expect(issues).toContain('ใช้กับเอกสารสาธารณะ หรือข้อมูลบริการที่ตรวจเทียบกับต้นฉบับทางการแล้วเท่านั้น');
  expect(issues).toContain('ระบุ URL ต้นฉบับทางการก่อน');
  expect(issues).toContain('ประกาศแบบข้อมูลปัจจุบันต้องระบุรุ่น ระดับผู้เรียน และภาคการศึกษาเฉพาะ ห้ามใช้ทุกกลุ่ม');
  expect(issues).toContain('ระบุวันที่ประกาศตามต้นฉบับ โดยไม่ใช้แทนวันเริ่มมีผล');

@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';import {test} from 'node:test';import {randomUUID} from 'node:crypto';import {Pool} from 'pg';
+import {createImportSource} from '../../lib/imports/source';import {createImportJob,markImportFailed} from '../../lib/imports/import-staging';import {analyzeImportJob,editImportExtraction} from '../../lib/imports/import-extraction';
+import {getImportReview,saveImportReview} from '../../lib/imports/import-review';import {getImportChunkPlan} from '../../lib/imports/import-chunk-plan';import {getImportStructuredSource,getImportStructuredPlan} from '../../lib/imports/import-structured-plan';
+import {approveImport,getImportPublication} from '../../lib/imports/import-publication';import {reviewDraftSchema} from '../../lib/imports/review-schema';import {buildReviewWarnings} from '../../lib/imports/review-warnings';import {unfinishedReviewDraft} from '../fixtures/import-review';
+import {serviceTranscriptionSchema} from '../../lib/imports/public-service-transcription-contract';import {discoverPublicStructured} from '../../lib/knowledge/structured-search';import {buildStructuredAnswer} from '../../lib/knowledge/structured-citations';import {searchKnowledge} from '../../lib/knowledge/retrieval';
+import type {LocalE5EmbeddingProvider} from '../../lib/knowledge/embedding-client';import {LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION,LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';import type {KnowledgeScope} from '../../lib/knowledge/types';
+import {transaction} from '../../lib/database/pool';import {prepareAIJob} from '../../lib/ai/jobs';import {runAICycle} from '../../lib/ai/run-worker';import {runOutboxCycle} from '../../lib/queue/run-outbox';import {encryptValue,hashLineUserId} from '../../lib/security/identity';import {knowledgeDocumentLock,knowledgeFamilyLock} from '../../lib/knowledge/source-locks';
+const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};const vector=[1,...Array(383).fill(0)];
+async function fixture(work:(f:Awaited<ReturnType<typeof setup>>)=>Promise<void>){const actor=randomUUID(),pool=new Pool({host:'127.0.0.1',port:54422,database,user:'postgres',password:'postgres',max:3,application_name:'transcription-test:'+actor});try{await work(await setup(pool,actor));}finally{await pool.end();}}
+async function setup(pool:Pool,actor:string){
+ await pool.query('insert into auth.users(id) values($1)',[actor]);await pool.query("insert into public.staff_profiles(id,role,display_name,active) values($1,'SUPER_ADMIN','Synthetic transcription reviewer',true)",[actor]);
+ let embeddingCalls=0;const provider:LocalE5EmbeddingProvider={modelId:LOCAL_EMBEDDING_MODEL,revision:LOCAL_EMBEDDING_REVISION,dimension:384,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,countPassageTokens:async texts=>texts.map(()=>20),embedPassages:async texts=>{embeddingCalls++;return texts.map(()=>vector);},embedQuery:async()=>vector,healthCheck:async()=>({healthy:true,model:LOCAL_EMBEDDING_MODEL,dimension:384,mode:'Local',observedAt:new Date().toISOString(),httpStatus:200})};
+ const options={pool,key:Buffer.alloc(32,126).toString('base64'),originalBackend:'PRIVATE_DATABASE' as const,provider,counter:provider,structuredVerificationDatabase:database!};
+ const suffix=actor.replaceAll('-','').toUpperCase(),url=`https://library.yru.ac.th/qa-transcription/${actor}`,family='SERVICE_PARENT_'+suffix,childFamily=family;
+ const source=createImportSource({bytes:new TextEncoder().encode(`<html><body><h1>Synthetic library service ${actor}</h1><p>Office location โทรศัพท์ 073000000</p><p>Mon-Fri 08:00-17:00</p><p>Closed on official holidays</p></body></html>`),filename:'source.html',mimeType:'text/html',sourceUrl:url,acquiredFrom:'UPLOAD',fetchedAt:null});
+ const {job}=await createImportJob(actor,source,options),preview=await analyzeImportJob(actor,job.id,0,options),base=unfinishedReviewDraft();
+ const metadata={...base.metadata,title:'Synthetic official HTML source',familyCode:family,newFamily:{name:family,category:'TEST_ONLY'},departmentCode:'IT',documentType:'GUIDE',versionName:'test',versionStream:'CURRENT',scope:{...base.metadata.scope,audience:'ALL',studentType:'ALL'},authorityLevel:50,sourceUrl:url,sourcePageUrl:url,visibility:'PUBLIC' as const,storageMode:'RAG' as const};
+ const reviewBase={...base,schemaVersion:4,metadata,action:'NEW_FAMILY',attestations:{sourceAuthorityReviewed:true,extractionReviewed:true,applicabilityReviewed:true,sensitivityReviewed:true,versionReviewed:true},chunkPlan:null,structuredMapping:null,publicSourceReview:{temporalBasis:'CURRENT_REVIEWED',temporalReason:'Current factual office information; source gives no effective dates.',sensitivityAdjudications:[{category:'PHONE',basis:'INSTITUTIONAL_CONTACT',reason:'Reviewed official office landline only.'}]},warningDispositions:buildReviewWarnings(preview).map(w=>({warningKey:w.key,status:'FALSE_POSITIVE',reason:'Reviewed complete synthetic source and parser finding.'}))};
+ let saved=await saveImportReview(actor,job.id,{expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:0,draft:reviewDraftSchema.parse(reviewBase)},options);
+ const chunks=await getImportChunkPlan(actor,job.id,{expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:saved.reviewRevision},options);
+ saved=await saveImportReview(actor,job.id,{expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:saved.reviewRevision,draft:reviewDraftSchema.parse({...reviewBase,chunkPlan:{digest:chunks.plan.digest,chunkerVersion:chunks.plan.chunkerVersion}})},options);
+ const parent=await approveImport(actor,{id:job.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:saved.reviewRevision,confirmPublication:true},options);
+ const csv=(values:string[])=>values.map(value=>'"'+value.replaceAll('"','""')+'"').join(',');
+ const values=[preview.extraction.pages[0].text,preview.extraction.pages[1].text,'Office location',preview.extraction.pages.slice(2).map(p=>p.text).join('\n'),'073000000'];
+ const childSource=createImportSource({bytes:new TextEncoder().encode(csv(['name','description','location','opening_hours','phone'])+'\n'+csv(values)),filename:'reviewed-source-transcription.csv',mimeType:'text/csv',sourceUrl:url,acquiredFrom:'UPLOAD',fetchedAt:null});
+ const child=(await createImportJob(actor,childSource,options)).job,childPreview=await analyzeImportJob(actor,child.id,0,options),binding=await getImportStructuredSource(actor,child.id,options);
+ const fields=Object.fromEntries(['name','description','location','opening_hours','phone'].map((field,columnIndex)=>[field,{kind:'COLUMN',columnIndex,transform:'TEXT_V1',blank:'REJECT'}]));
+ Object.assign(fields,{service_code:{kind:'CONSTANT',value:'QA_LIBRARY',note:'Reviewer-assigned catalog label; not an official source-issued code.'},email:{kind:'CONSTANT',value:null,note:'No unobfuscated source email is known.'},url:{kind:'CONSTANT',value:url,note:'Exact URL of the separately retained official parent source.'}});
+ const mapping={version:1,registryVersion:'structured-v1',dataset:'university_services',source:{jobId:child.id,jobRevision:1,extractionRevision:1,sourceChecksum:binding.sourceChecksum,extractionDigest:binding.extractionDigest},tables:[{tableIndex:0,dataRanges:[{startRowIndex:1,endRowIndex:1}],excludedRanges:[{startRowIndex:0,endRowIndex:0,reason:'HEADER',note:'CSV header is not service data.'}],fields}],excludedTables:[]};
+ const mapped=await getImportStructuredPlan(actor,child.id,{expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:0,mapping},options);
+ const part=(index:number,text=preview.extraction.pages[index].text)=>{const page=preview.extraction.pages[index],location=preview.extraction.locations.pages[index];assert(location.kind==='HTML');return {location,start:page.text.indexOf(text),end:page.text.indexOf(text)+text.length};};
+ const manifest=serviceTranscriptionSchema.parse({kind:'REVIEWED_HTML_TO_CSV_V1',dataset:'university_services',reason:'Every CSV value reviewed against retained published HTML; derivative upload is not a fetched original.',parent:{documentId:parent.receipt.documentId,familyId:parent.receipt.familyId,documentRevision:0,jobId:job.id,jobRevision:1,extractionRevision:1,reviewRevision:parent.receipt.reviewRevision,sourceChecksum:source.checksum,sourceUrl:url,title:metadata.title},fields:[{field:'name',kind:'TEXT',parts:[part(0)]},{field:'description',kind:'TEXT',parts:[part(1)]},{field:'location',kind:'TEXT',parts:[part(1,values[2])]},{field:'opening_hours',kind:'TEXT',parts:[part(2),part(3)]},{field:'phone',kind:'TEXT',parts:[part(1,values[4])]},{field:'url',kind:'PARENT_URL'}]});
+ const childDraft=reviewDraftSchema.parse({...reviewBase,action:'ADD_ADDITIONAL',metadata:{...metadata,title:'Reviewed CSV transcription (synthetic)',familyCode:childFamily,newFamily:null,versionStream:'STRUCTURED_SERVICE',storageMode:'STRUCTURED',datasetType:'university_services'},chunkPlan:null,structuredMapping:{mapping:mapped.plan.mapping,acknowledgment:mapped.acknowledgment},publicSourceReview:{...reviewBase.publicSourceReview,transcription:manifest},warningDispositions:buildReviewWarnings(childPreview).map(w=>({warningKey:w.key,status:'FALSE_POSITIVE',reason:'Reviewed derivative and original source together.'}))});
+ const input={expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:0,draft:childDraft};
+ async function publish(){const savedChild=await saveImportReview(actor,child.id,input,options);const request={id:child.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:savedChild.reviewRevision,confirmPublication:true as const};return {published:await approveImport(actor,request,options),request};}
+ async function query(historical=false){const client=await pool.connect();try{await client.query('begin');return await discoverPublicStructured(client,{dataset:'university_services',scope:{...scope,familyCodes:[childFamily],historical,asOfDate:historical?'2026-10-28':null}},options.key);}finally{await client.query('rollback');client.release();}}
+ return {pool,actor,options,parent,child,childDraft,input,manifest,publish,query,childFamily,embeddingCalls:()=>embeddingCalls,scope};
+}
+test('reviewed service CSV publishes atomically with parent proof, current-only discovery and honest HTML citations',()=>fixture(async f=>{
+ const before=f.embeddingCalls(),{published,request}=await f.publish();assert.equal(f.embeddingCalls(),before);assert.equal(published.receipt.storageMode,'STRUCTURED');assert.equal((await approveImport(f.actor,request,f.options)).replayed,true);
+ const found=await f.query();assert.equal(found.status,'READY');if(found.status!=='READY')throw Error('FIXTURE');assert.equal(found.evidence.length,1);const row=found.evidence[0];assert.equal(row.reference.transcription?.parent.documentId,f.parent.receipt.documentId);
+ const reply=buildStructuredAnswer({answer:'Mon-Fri 08:00-17:00; closed on official holidays.',citationRowIds:[row.rowId]},found.evidence);assert(reply.messages.every(m=>m.type==='text'));const text=reply.messages.map(m=>m.type==='text'?m.text:'').join('\n');assert.match(text,/Synthetic official HTML source/);assert.doesNotMatch(text,/CSV|แถว 2/u);assert.match(text,/Closed on official holidays/i);
+ assert.equal((await f.query(true)).status,'EMPTY');const c=await f.pool.connect();try{await c.query('begin');const rag=await searchKnowledge(c,{scope:{...scope,familyCodes:[f.childFamily]},vector,fingerprint:LOCAL_EMBEDDING_FINGERPRINT,threshold:-1});assert(rag.some(row=>row.documentId===f.parent.receipt.documentId));assert(rag.every(row=>row.documentId!==published.receipt.documentId));}finally{await c.query('rollback');c.release();}
+}));
+test('parent revocation after preparation blocks approval and retains a private unpublished child',()=>fixture(async f=>{
+ const saved=await saveImportReview(f.actor,f.child.id,f.input,f.options);await f.pool.query("update public.documents set status='DRAFT',is_current=false where id=$1",[f.parent.receipt.documentId]);
+ await assert.rejects(approveImport(f.actor,{id:f.child.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:saved.reviewRevision,confirmPublication:true},f.options));assert.equal((await getImportPublication(f.actor,f.child.id,f.options)).receipt,null);
+}));
+test('revoked parent invalidates a published derived row instead of returning unsupported facts or an official empty result',()=>fixture(async f=>{
+ await f.publish();await f.pool.query("update public.documents set status='DRAFT',is_current=false where id=$1",[f.parent.receipt.documentId]);assert.equal((await f.query()).status,'CONTEXT_INCOMPLETE');
+}));
+test('review save refuses a forged parent checksum or an unproven copied field before appending a receipt',()=>fixture(async f=>{
+ const badChecksum=structuredClone(f.childDraft);assert(badChecksum.schemaVersion===4&&badChecksum.publicSourceReview.transcription);badChecksum.publicSourceReview.transcription.parent.sourceChecksum='f'.repeat(64);
+ await assert.rejects(saveImportReview(f.actor,f.child.id,{...f.input,draft:badChecksum},f.options));assert.equal((await getImportReview(f.actor,f.child.id,f.options)).saved,null);
+ const wrongValue=structuredClone(f.childDraft);assert(wrongValue.schemaVersion===4&&wrongValue.publicSourceReview.transcription);const phone=wrongValue.publicSourceReview.transcription.fields.find(field=>field.field==='phone');assert(phone?.kind==='TEXT');phone.parts[0].end--;
+ await assert.rejects(saveImportReview(f.actor,f.child.id,{...f.input,draft:wrongValue},f.options));assert.equal((await getImportReview(f.actor,f.child.id,f.options)).saved,null);
+}));
+test('a derived service cannot claim higher authority than its reviewed parent',()=>fixture(async f=>{
+ const elevated=structuredClone(f.childDraft);elevated.metadata.authorityLevel=51;await assert.rejects(saveImportReview(f.actor,f.child.id,{...f.input,draft:elevated},f.options));assert.equal((await getImportReview(f.actor,f.child.id,f.options)).saved,null);
+}));
+test('a later unpublished staging edit cannot replace or revoke the immutable approved parent extraction',()=>fixture(async f=>{
+ const originalName=f.childDraft.schemaVersion===4&&f.childDraft.structuredMapping?f.childDraft.structuredMapping.mapping.tables[0].fields.name:null;assert(originalName);
+ const changed=await editImportExtraction(f.actor,f.parent.receipt.jobId,f.parent.receipt.jobRevision,{pages:[{index:0,text:'UNPUBLISHED staging replacement'}],reason:'Synthetic later draft must not replace already approved source text.'},f.options);
+ await markImportFailed(f.actor,f.parent.receipt.jobId,changed.job.revision,'IMPORT_PARSE_INVALID',f.options);
+ await f.publish();const found=await f.query();assert(found.status==='READY');assert.match(String((found.evidence[0].payload as {name:string}).name),/^Synthetic library service/);assert.doesNotMatch(JSON.stringify(found.evidence),/UNPUBLISHED staging replacement/);
+}));
+async function removeApprovedNameLocation(f:Awaited<ReturnType<typeof setup>>){
+ const proof=f.manifest.fields.find(field=>field.field==='name');assert(proof?.kind==='TEXT');const block=proof.parts[0].location.blockStart;
+ const changed=await f.pool.query(`update public.knowledge_chunks set source_locations=(select jsonb_agg(case when location->>'kind'='HTML' and (location->>'blockStart')::integer<=$2 and (location->>'blockEnd')::integer>=$2 then jsonb_set(jsonb_set(location,'{blockStart}','999'::jsonb),'{blockEnd}','999'::jsonb) else location end) from jsonb_array_elements(source_locations) location) where document_id=$1 and exists(select 1 from jsonb_array_elements(source_locations) location where location->>'kind'='HTML' and (location->>'blockStart')::integer<=$2 and (location->>'blockEnd')::integer>=$2)`,[f.parent.receipt.documentId,block]);assert((changed.rowCount??0)>0);
+}
+test('current chunk coverage changes invalidate source-backed facts even while parent document and receipt remain current',()=>fixture(async f=>{
+ await f.publish();await removeApprovedNameLocation(f);assert.equal((await f.query()).status,'CONTEXT_INCOMPLETE');
+}));
+test('publication rechecks approved parent locations after outside-SQL preparation',()=>fixture(async f=>{
+ const saved=await saveImportReview(f.actor,f.child.id,f.input,f.options);
+ await assert.rejects(approveImport(f.actor,{id:f.child.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:saved.reviewRevision,confirmPublication:true},{...f.options,beforeCommit:()=>removeApprovedNameLocation(f)}));assert.equal((await getImportPublication(f.actor,f.child.id,f.options)).receipt,null);
+}));
+async function enqueueAnswer(f:Awaited<ReturnType<typeof setup>>){
+ await f.publish();const found=await f.query();assert(found.status==='READY');
+ const session=(await f.pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id,user='U'+randomUUID().replaceAll('-','');
+ await f.pool.query('insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)',[session,hashLineUserId(user,f.options.key),encryptValue(user,f.options.key)]);
+ const conversation=(await f.pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
+ const message=(await f.pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','Synthetic office hours question') returning id",[conversation])).rows[0].id;
+ const job=await transaction(client=>prepareAIJob(client,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},f.options.key),f.pool);assert(job);
+ const completed=await runAICycle(f.pool,f.options.key,{produce:async()=>({kind:'STRUCTURED_DISCOVERY',dataset:'university_services',scope:{...scope,familyCodes:[f.childFamily]},output:{answer:'Mon-Fri 08:00-17:00; closed on official holidays.',citationRowIds:[found.evidence[0].rowId]},evidence:found.evidence})});assert.equal(completed.completed,1);return job;
+}
+test('actual outbox holds parent family/document locks through LINE HTTP outside SQL',()=>fixture(async f=>{
+ const job=await enqueueAnswer(f);let calls=0,writer:Promise<{changed:boolean;code:string|null}>|undefined;
+ const result=await runOutboxCycle(f.pool,f.options.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{
+  calls++;assert.equal((await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and state='idle in transaction'",[f.pool.options.application_name])).rows[0].n,0,'LINE_HTTP_OUTSIDE_SQL');
+  for(const lock of [knowledgeFamilyLock(f.parent.receipt.familyId),knowledgeDocumentLock(f.parent.receipt.documentId)]){
+   const c=await f.pool.connect();try{const acquired=(await c.query('select pg_try_advisory_lock(hashtextextended($1,0)) acquired',[lock])).rows[0].acquired;if(acquired)await c.query('select pg_advisory_unlock(hashtextextended($1,0))',[lock]);assert.equal(acquired,false,'PARENT_SOURCE_LOCK_REQUIRED_THROUGH_HTTP');}finally{c.release();}
+  }
+  const mutation=await f.pool.connect(),pid=(await mutation.query('select pg_backend_pid() pid')).rows[0].pid;let changed=false,settled=false,retryCode:string|null=null;
+  writer=(async()=>{try{await mutation.query("update public.documents set status='DRAFT',is_current=false where id=$1",[f.parent.receipt.documentId]);changed=true;return {changed:true,code:null};}catch(error){retryCode=error&&typeof error==='object'&&'code'in error&&typeof error.code==='string'?error.code:'UNKNOWN';return {changed:false,code:retryCode};}finally{settled=true;mutation.release();}})();
+  let blocked=false;for(let n=0;n<100&&!settled;n++){blocked=(await f.pool.query("select exists(select 1 from pg_stat_activity where pid=$1 and wait_event='advisory' and cardinality(pg_blocking_pids(pid))>0) blocked",[pid])).rows[0].blocked;if(blocked)break;await new Promise(resolve=>setTimeout(resolve,10));}
+  assert.equal(changed,false);assert(blocked||settled&&retryCode==='40001','PARENT_RETIREMENT_MUST_WAIT_OR_RETRY_DURING_HTTP');return new Response(null,{status:200});
+ }});const mutation=writer?await writer:null;assert.equal(calls,1);assert.equal(result.sent,1);assert.equal(result.failed,0);assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',['ai-job:'+job])).rows[0].status,'SENT');
+ if(mutation&&!mutation.changed){assert.equal(mutation.code,'40001');await f.pool.query("update public.documents set status='DRAFT',is_current=false where id=$1",[f.parent.receipt.documentId]);}assert.equal((await f.query()).status,'CONTEXT_INCOMPLETE');
+}));
+test('actual outbox suppresses a source-backed result when its parent is revoked after AI finalization',()=>fixture(async f=>{
+ const job=await enqueueAnswer(f);await f.pool.query("update public.documents set status='DRAFT',is_current=false where id=$1",[f.parent.receipt.documentId]);let calls=0;
+ const result=await runOutboxCycle(f.pool,f.options.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{calls++;return new Response(null,{status:200});}});
+ assert.equal(calls,0);assert.equal(result.sent,0);assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',['ai-job:'+job])).rows[0].status,'SUPPRESSED');
+}));
+test('actual outbox suppresses a source-backed result after approved parent block coverage changes',()=>fixture(async f=>{
+ const job=await enqueueAnswer(f);await removeApprovedNameLocation(f);let calls=0;
+ await runOutboxCycle(f.pool,f.options.key,{accessTokens:{STUDENT:'synthetic-only',STAFF:'synthetic-only'},fetchImpl:async()=>{calls++;return new Response(null,{status:200});}});
+ assert.equal(calls,0);assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',['ai-job:'+job])).rows[0].status,'SUPPRESSED');
+}));

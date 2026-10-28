@@ -1,11 +1,14 @@
 import type {ImportReviewDraft} from './review-schema';
 import type {ImportPreview} from './import-extraction';
 import type {ReviewWarning} from './review-warnings';
+import {publicSourceModeAllowed} from './public-source-mode';
 
 /** Final publication policy, not analysis or an automatic claim that content is nonpersonal. */
 export function hasValidPublicTemporalReview(draft:Extract<ImportReviewDraft,{schemaVersion:4}>):boolean{
  const m=draft.metadata,r=draft.publicSourceReview;
- if(m.visibility!=='PUBLIC'||m.storageMode!=='RAG'||draft.structuredMapping!==null)return false;
+ if(m.visibility!=='PUBLIC'||!publicSourceModeAllowed(m,Boolean(r.transcription)))return false;
+ if(m.storageMode==='RAG'?draft.structuredMapping!==null:draft.structuredMapping===null||draft.structuredMapping.mapping.dataset!=='university_services'||r.temporalBasis!=='CURRENT_REVIEWED')return false;
+ if(m.storageMode!=='RAG'&&(m.academicYear!==null||m.scope.audience!=='ALL'||m.scope.studentType!=='ALL'||[m.scope.semester,m.scope.programCode,m.scope.curriculumCode,m.scope.cohort].some(value=>value!==null)))return false;
  if(r.temporalBasis==='DATED')return m.effectiveFrom!==null;
  const scopedNotice=m.documentType==='ANNOUNCEMENT'&&m.publishedAt!==null&&m.scope.cohort!==null&&m.scope.audience!==null&&m.scope.audience!=='ALL'&&m.scope.studentType!==null&&m.scope.studentType!=='ALL';
  return (['FORM','GUIDE','CALENDAR'].includes(m.documentType??'')||scopedNotice)&&(m.documentType!=='CALENDAR'||m.academicYear!==null)&&m.effectiveFrom===null&&m.effectiveTo===null&&
@@ -14,7 +17,7 @@ export function hasValidPublicTemporalReview(draft:Extract<ImportReviewDraft,{sc
 }
 
 export function reviewedPublicContent(preview:ImportPreview,draft:ImportReviewDraft,warnings:ReviewWarning[]):boolean{
- if(draft.schemaVersion!==4||draft.metadata.visibility!=='PUBLIC'||draft.metadata.storageMode!=='RAG'||draft.structuredMapping!==null)return false;
+ if(draft.schemaVersion!==4||!hasValidPublicTemporalReview(draft))return false;
  const categories=preview.analysis.sensitiveCategories,adjudications=draft.publicSourceReview.sensitivityAdjudications;
  if(categories.length===0||adjudications.length!==categories.length||new Set(categories).size!==categories.length)return false;
  if(!categories.every(category=>adjudications.some(a=>a.category===category&&Boolean(a.reason?.trim()))))return false;

@@ -1,6 +1,18 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-## 28 October 2026 — current ROOT-NATURAL-08 / DDGS session
+## 28 October 2026 — current ROOT-STR-CORPUS-01 session
+
+Canonical hidden runner restarted with the current structured/source and natural fallback code using `pnpm local:ai --web-search`. Offline CPU E5/384, four fresh worker check-ins, login200 and local/public signed-empty200 plus invalid401 for both OAs PASS. DEVELOPMENT has16 approvedPUBLIC documents:15 original RAG plus1 reviewed structured library-service derivative; university_services1/other6datasets0. Current3418unit/114ownedPG47migrations/type/changedlint/fullsourcebuild879matchinginputs PASS. No actual generation/search/conversation events or Hermes pilot were invoked by these startup checks.
+
+- Student: https://delaware-seats-terrorism-wilderness.trycloudflare.com/api/line/student/webhook
+- Staff: https://delaware-seats-terrorism-wilderness.trycloudflare.com/api/line/staff/webhook
+- Dashboard: http://127.0.0.1:3000/login
+- Sanitized startup stdout: `.superpowers/staging/root-str-runtime-20261028.stdout.log`; canonical run log is also printed by the runner.
+- Stop: `pnpm local:stop`. One-command restart: `pnpm local:ai --web-search`; temporary URLs change and both are printed again.
+
+When ready later, update both LINE Developers URLs above. Actual Gemini/LINE natural conversation/completeness, Hermes draft quality and Flow A–F remain user-deferred, not passed by webhook checks. Include a misspelled/general library-hours question without requiring the formal service name, weekday/weekend/holiday exceptions, a full Wi-Fi procedure, continuation beyond12 contexts, ambiguous named paging and HUMAN/Staff ownership. Other structured source/date/cohort gaps are recorded in corpus packets. No user action is required before independent authorized work continues.
+
+## Earlier 28 October — ROOT-NATURAL-08 / DDGS checkpoint (historical)
 
 Canonical hidden detached runner is READY at09:01Bangkok with current source-quality and DDGS code. OfflineCPU E5/384, four fresh worker check-ins, login200 and local/public signed-empty200 plus invalid401 for both OAs PASS. DEVELOPMENT47/75RLS,15approvedPUBLIC documents and one enabled generation model remain. These verification requests contain no conversation events; actual Gemini/LINE/Hermes quality and Flow A–F are still human-deferred.
 

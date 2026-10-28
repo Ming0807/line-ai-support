@@ -3,6 +3,7 @@ import {createKnowledgeProducer,type KnowledgeProducerOptions} from '../lib/know
 import {canonicalDigest} from '../lib/imports/structured-mapping-contract';
 import {buildStructuredAnswer} from '../lib/knowledge/structured-citations';
 import {buildServiceDiscoveryOutput} from '../lib/knowledge/service-discovery';
+import {buildRuleProof} from '../lib/knowledge/rule-proof';
 const uuid=(n:number)=>`bbbbbbbb-bbbb-4bbb-8bbb-${String(n).padStart(12,'0')}`,hash='a'.repeat(64);
 const scope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 const payload={academic_year:2569,semester:'ภาคเรียนตัวอย่าง',student_type:'ทุกกลุ่มทดสอบ',event_type:'TERM_OPEN',title:'เปิดภาคเรียน',start_date:'2026-06-15',end_date:null,description:'ข้อมูลทดสอบ'};
@@ -62,15 +63,26 @@ it('delivers a named service and its holiday qualification without waiting for a
  expect(text).toContain(payload.opening_hours);expect(text).toContain(payload.description);expect(text).toContain(payload.location);expect(text).toContain(payload.url);
  expect(result.evidence).toEqual([row]);expect(generate).toHaveBeenCalledTimes(1);
 });
-it.each(['ambiguous','too-many','cancelled'] as const)('does not bypass %s discovery guards or call completion',async mode=>{
+it.each(['READY_SERVICES','EMPTY_SERVICES','EMPTY_CALENDAR','EMPTY_FORMS'] as const)('continues grounded RAG after %s without demanding a formal name or treating a typed hint as proof of absence',async mode=>{
+ const libraryScope={...scope,familyCodes:['LIBRARY_GUIDE']},question='ห้องสมุดเปิดวันเสาร์กี่โมง',sourceUrl='https://library.yru.ac.th/contact',chunkId=uuid(20),documentId=uuid(21);
+ const row={...serviceRow(1,{name:'ศูนย์บรรณสารสนเทศ'}),familyCode:'LIBRARY_GUIDE'};
+ const source={chunkId,documentId,documentRevision:0,title:'คู่มือห้องสมุด',familyCode:'LIBRARY_GUIDE',academicYear:null,authorityLevel:50,pageNumber:null,sectionTitle:null,content:'ศูนย์บรรณสารสนเทศ เปิดวันเสาร์ 08.30-16.30 น. หยุดวันนักขัตฤกษ์',sourceUrl,similarity:0.9,sourceLocations:[{kind:'HTML' as const,sourceUrl,blockStart:55,blockEnd:61,headingPath:['ศูนย์บรรณสารสนเทศ'],tableIndex:null}],ruleProof:buildRuleProof({familyId:uuid(22),baseDocumentId:documentId,versionStream:'RAG',ruleRevision:'0',evaluationDate:'2026-10-28',members:[{documentId,revision:0}],effects:[]})};
+ const method=mode==='EMPTY_CALENDAR'?'DISCOVER_CALENDAR':mode==='EMPTY_FORMS'?'DISCOVER_FORM_PURPOSE':'DISCOVER_SERVICES';
+ const generate=vi.fn(async(input:{taskType:string})=>({output:input.taskType==='KNOWLEDGE_PLAN'?{scope:libraryScope,selection:{method,query:null,notApplicable:null}}:{answer:'ศูนย์บรรณสารสนเทศเปิดวันเสาร์ 08.30-16.30 น. หยุดวันนักขัตฤกษ์',citationChunkIds:[chunkId]},toolCalls:[],providerId:uuid(30),modelId:uuid(31),fallbackUsed:false}));
+ const embed=vi.fn(async()=>({vectors:[[1,0,0]],fingerprint:hash,dimensions:3,providerId:uuid(30),modelId:uuid(31),fallbackUsed:false})),search=vi.fn(async()=>[source]);
+ const result=await createKnowledgeProducer({compactPlanning:true,generate,publicFamilyCatalog:async()=>[{code:'LIBRARY_GUIDE',name:'ห้องสมุด',category:'GUIDE'}],discoverStructured:async()=>mode==='READY_SERVICES'?{status:'READY',evidence:[row]}:{status:'EMPTY'},structuredSearch:vi.fn(),embed,search} as unknown as KnowledgeProducerOptions)({jobId:uuid(10),sessionId:uuid(11),conversationId:uuid(12),messageId:uuid(13),revision:0,question,history:[]},new AbortController().signal);
+ expect(result.kind).toBe('ANSWER');expect(result).not.toHaveProperty('structuredMiss');expect(embed).toHaveBeenCalledWith(expect.objectContaining({input:[question]}));expect(search).toHaveBeenCalledWith(expect.objectContaining({scope:libraryScope}));expect(generate).toHaveBeenCalledTimes(2);
+});
+it.each(['ambiguous','too-many','cancelled','incomplete'] as const)('does not bypass %s discovery guards or call completion',async mode=>{
  const controller=new AbortController();
  const rows=mode==='too-many'?Array.from({length:6},(_,i)=>serviceRow(i+1)):[serviceRow(),serviceRow(2,{name:'บริการอื่น'})];
- const discoverStructured=vi.fn(async()=>{if(mode==='cancelled')controller.abort();return {status:'READY' as const,evidence:rows};});
+ const discoverStructured=vi.fn(async()=>{if(mode==='cancelled')controller.abort();return mode==='incomplete'?{status:'CONTEXT_INCOMPLETE' as const}:{status:'READY' as const,evidence:rows};}),embed=vi.fn();
  const generate=vi.fn(async()=>({output:{scope,selection:{method:'DISCOVER_SERVICES',query:null,notApplicable:null}},toolCalls:[]}));
- const promise=createKnowledgeProducer({compactPlanning:true,generate,discoverStructured,structuredSearch:vi.fn(),embed:vi.fn(),search:vi.fn()} as unknown as KnowledgeProducerOptions)(
+ const promise=createKnowledgeProducer({compactPlanning:true,generate,discoverStructured,structuredSearch:vi.fn(),embed,search:vi.fn()} as unknown as KnowledgeProducerOptions)(
   {jobId:uuid(10),sessionId:uuid(11),conversationId:uuid(12),messageId:uuid(13),revision:0,question:mode==='ambiguous'?'ห้องสมุดกับบริการอื่นเปิดเมื่อไร':'ห้องสมุดเปิดเมื่อไร',history:[]},controller.signal);
  if(mode==='cancelled')await expect(promise).rejects.toMatchObject({code:'CANCELLED'});else expect((await promise).kind).toBe('CLARIFY');
  expect(generate).toHaveBeenCalledTimes(1);
+ expect(embed).not.toHaveBeenCalled();
 });
 it('reroutes a grounded-but-incomplete calendar STRUCTURED plan to deterministic discovery instead of clarifying',async()=>{
  const yearScope={...scope,academicYear:2569};

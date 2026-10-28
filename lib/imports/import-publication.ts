@@ -14,6 +14,9 @@ import {createLocalE5EmbeddingProvider,type LocalE5EmbeddingProvider} from '../k
 import {embedLocatedChunkPlan,LocatedEmbeddingPreparationError} from '../knowledge/located-embedding-preparation';
 import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
 import {structuredInfrastructureReady} from '../knowledge/structured-readiness';
+import {validateServiceTranscriptionSource,readServiceTranscriptionParent} from './public-service-transcription-source';
+import {buildStructuredMappingPlan} from './structured-mapper';
+import {assertServiceTranscriptionLocations} from './public-service-transcription';
 const revision=z.number().int().min(1).max(999_999_999);
 export const publicationRequestSchema=z.object({id:z.uuid().transform(id=>id.toLowerCase()),expectedJobRevision:revision,expectedExtractionRevision:revision,expectedReviewRevision:revision,confirmPublication:z.literal(true)}).strict();
 type Request=z.infer<typeof publicationRequestSchema>;
@@ -93,17 +96,20 @@ async function prepare(actor:string,request:Request,checksum:string,documentId:s
    const currentOptions={...options,signal:controller.signal};
    const {preview,source,review}=await loadImportReviewSnapshot(actor,request.id,currentOptions);checkSignal(currentOptions);
    if(!review.saved||review.jobRevision!==request.expectedJobRevision||review.extractionRevision!==request.expectedExtractionRevision||review.reviewRevision!==request.expectedReviewRevision)throw new ImportStagingError('CONFLICT');
-   const mode=review.saved.draft.metadata.storageMode,isStructured=review.saved.draft.schemaVersion===3&&['STRUCTURED','BOTH'].includes(mode??'');
+   const mode=review.saved.draft.metadata.storageMode,isStructured=(review.saved.draft.schemaVersion===3||review.saved.draft.schemaVersion===4)&&['STRUCTURED','BOTH'].includes(mode??'');
    if(mode!==null&&mode!=='RAG'&&!isStructured)throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    if(isStructured&&!await withImportAdminTransaction(actor,currentOptions,c=>assertStructuredVerification(c,options)))throw new PublicationPolicyError('PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE');
    const provider=mode==='STRUCTURED'?null:options.provider??createLocalE5EmbeddingProvider();
    const plan=provider?await buildImportChunkPlan(source,preview,{...currentOptions,counter:provider,timeoutMs:Math.max(1,Math.floor(deadline-performance.now()))}):null;
    const checked=isStructured?validateStructuredPublicationReview(preview,review,plan,checksum):validatePublicationReview(preview,review,plan,checksum);
    let structured=null;
-   if(isStructured&&checked.draft.schemaVersion===3){
+   if(isStructured&&(checked.draft.schemaVersion===3||checked.draft.schemaVersion===4)){
     const mapping=checked.draft.structuredMapping!;
     try{structured=prepareStructuredPublication(source,preview.extraction,{jobId:request.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision},mapping.mapping,{documentId,documentRevision:0,acknowledgment:mapping.acknowledgment},options.key??process.env.ENCRYPTION_KEY??'');}
     catch{throw new PublicationPolicyError('PUBLICATION_PLAN_MISMATCH');}
+    if(checked.draft.schemaVersion===4&&checked.draft.publicSourceReview.transcription){
+     try{const parentPlan=buildStructuredMappingPlan(source,preview.extraction,{jobId:request.id,jobRevision:request.expectedJobRevision,extractionRevision:request.expectedExtractionRevision,reviewRevision:request.expectedReviewRevision},mapping.mapping);await validateServiceTranscriptionSource(actor,checked.draft.publicSourceReview.transcription,parentPlan,currentOptions);}catch{throw new PublicationPolicyError('PUBLICATION_PLAN_MISMATCH');}
+    }
    }
    const versions=await resolveImportReviewVersions(actor,request.id,review,{expectedJobRevision:request.expectedJobRevision,expectedExtractionRevision:request.expectedExtractionRevision,expectedReviewRevision:request.expectedReviewRevision},currentOptions);assertAction(checked.draft,versions);
    if(controller.signal.aborted)throw new ImportStagingError('CONFLICT');
@@ -132,13 +138,16 @@ async function finalize(actor:string,request:Request,prepared:Awaited<ReturnType
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeStructuredCatalogLock]);
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',['knowledge-family-code:'+m.familyCode]);
   let family=(await client.query<VersionFamily>('select id,code,name,category from public.document_families where code=$1',[m.familyCode])).rows[0]??null;
-  if(family){await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(family.id)]);await client.query('select id from public.document_families where id=$1 for update',[family.id]);}
-  const docLocks=[documentId,...(draft.target?[draft.target.documentId]:[])].sort();
+  const transcription=draft.schemaVersion===4?draft.publicSourceReview.transcription:null;
+  for(const id of [...new Set([...(family?[family.id]:[]),...(transcription?[transcription.parent.familyId]:[])])].sort())await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeFamilyLock(id)]);
+  if(family)await client.query('select id from public.document_families where id=$1 for update',[family.id]);
+  const docLocks=[documentId,...(draft.target?[draft.target.documentId]:[]),...(transcription?[transcription.parent.documentId]:[])].sort();
   for(const id of docLocks)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(id)]);
   if(draft.target)await client.query('select id from public.documents where id=$1 for update',[draft.target.documentId]);
   assertAction(draft,await familyChoices(client,draft,family));
   if(!family){family=(await client.query<VersionFamily>('insert into public.document_families(code,name,category,default_storage_mode) values($1,$2,$3,$4) returning id,code,name,category',[m.familyCode,m.newFamily!.name,m.newFamily!.category,m.storageMode])).rows[0];}
   const department=(await client.query('select id from public.departments where code=$1 and active',[m.departmentCode])).rows[0];if(!department)throw new ImportStagingError('CONFLICT');
+  if(transcription){const parent=await readServiceTranscriptionParent(client,transcription.parent,options.key??process.env.ENCRYPTION_KEY??'',true);assertServiceTranscriptionLocations(transcription,parent.approvedLocations);if(parent.departmentId!==department.id||(m.authorityLevel??101)>parent.authorityLevel)throw new ImportStagingError('CONFLICT');}
   if(draft.action==='REPLACE_CURRENT'){
    const changed=await client.query("update public.documents set status='SUPERSEDED',is_current=false,revision=revision+1,updated_at=clock_timestamp() where id=$1 and revision=$2",[draft.target!.documentId,draft.target!.revision]);if(changed.rowCount!==1)throw new ImportStagingError('CONFLICT');
   }
