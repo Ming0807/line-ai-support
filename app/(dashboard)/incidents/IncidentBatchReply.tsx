@@ -52,6 +52,8 @@ export type IncidentBatchRecovery = z.infer<typeof incidentBatchRecoverySchema>;
 export type PendingIncidentBatchConfirmation = z.infer<typeof pendingConfirmationSchema>;
 export type PendingIncidentBatchRetry = z.infer<typeof pendingRetrySchema>;
 
+type IncidentReplyMode = 'single' | 'common';
+
 const MAX_RECOVERY_LENGTH = 1_000_000;
 
 export function incidentBatchRecoveryKey(actorId: string | undefined, incidentId: string): string | null {
@@ -90,6 +92,7 @@ export function writeIncidentBatchRecovery(storage: Pick<Storage, 'setItem'>, ke
 type ReplyDraft = {
   ticketIds: string[];
   text: string;
+  mode: IncidentReplyMode;
   intervention: boolean;
   preview: IncidentReplyPreview | null;
   previewEpoch: number;
@@ -98,7 +101,9 @@ type ReplyDraft = {
 
 type ReplyDraftAction =
   | { type: 'TEXT_CHANGED'; text: string }
+  | { type: 'MODE_CHANGED'; mode: IncidentReplyMode }
   | { type: 'CASE_TOGGLED'; ticketId: string }
+  | { type: 'CASE_SELECTION_REPLACED'; ticketIds: string[] }
   | { type: 'INTERVENTION_CHANGED'; value: boolean }
   | { type: 'PREVIEW_STARTED'; epoch: number }
   | { type: 'PREVIEW_RECEIVED'; epoch: number; preview: IncidentReplyPreview }
@@ -108,19 +113,28 @@ type ReplyDraftAction =
   | { type: 'BATCH_ACCEPTED' };
 
 export const initialIncidentReplyDraft: ReplyDraft = {
-  ticketIds: [], text: '', intervention: false, preview: null, previewEpoch: 0, previewPending: false,
+  ticketIds: [], text: '', mode: 'common', intervention: false, preview: null, previewEpoch: 0, previewPending: false,
 };
 
 export function incidentReplyDraftReducer(state: ReplyDraft, action: ReplyDraftAction): ReplyDraft {
   switch (action.type) {
     case 'TEXT_CHANGED':
       return { ...state, text: action.text, preview: null, previewEpoch: state.previewEpoch + 1, previewPending: false };
+    case 'MODE_CHANGED':
+      return action.mode === state.mode ? state : {
+        ...state, mode: action.mode, preview: null, previewEpoch: state.previewEpoch + 1, previewPending: false,
+      };
     case 'CASE_TOGGLED': {
       const ticketIds = state.ticketIds.includes(action.ticketId)
         ? state.ticketIds.filter(ticketId => ticketId !== action.ticketId)
         : [...state.ticketIds, action.ticketId];
       return { ...state, ticketIds, preview: null, previewEpoch: state.previewEpoch + 1, previewPending: false };
     }
+    case 'CASE_SELECTION_REPLACED':
+      return {
+        ...state, ticketIds: [...new Set(action.ticketIds)], preview: null,
+        previewEpoch: state.previewEpoch + 1, previewPending: false,
+      };
     case 'INTERVENTION_CHANGED':
       return action.value === state.intervention ? state : {
         ...state, intervention: action.value, preview: null, previewEpoch: state.previewEpoch + 1, previewPending: false,
@@ -172,6 +186,30 @@ export function incidentReplySelectionIntervention(
   attested: boolean,
 ): boolean {
   return attested && ticketIds.some(ticketId => items.some(item => item.ticketId === ticketId && item.eligibility === 'INTERVENTION_REQUIRED'));
+}
+
+export function incidentBatchSelectAllEligible(
+  selectedTicketIds: readonly string[],
+  items: readonly IncidentReplyOption[],
+  canIntervene: boolean,
+  interventionAttested: boolean,
+  limit = 100,
+): string[] {
+  const selected = [...new Set(selectedTicketIds)];
+  const selectedSet = new Set(selected);
+  const boundedLimit = Math.max(0, Math.min(100, Math.floor(limit)));
+  for (const item of items) {
+    const eligible = item.eligibility === 'OWN_CASE'
+      || (item.eligibility === 'INTERVENTION_REQUIRED' && canIntervene && interventionAttested);
+    if (!eligible || selectedSet.has(item.ticketId) || selected.length >= boundedLimit) continue;
+    selected.push(item.ticketId);
+    selectedSet.add(item.ticketId);
+  }
+  return selected;
+}
+
+export function incidentBatchClearSelection(): string[] {
+  return [];
 }
 
 export function incidentBatchDeliveryLabel(status: IncidentBatchStatusList['batches'][number]['recipients'][number]['deliveryStatus']): string {
@@ -287,7 +325,8 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
   const latestDraftEpoch = useRef(0);
   const [latestDraftView, setLatestDraftView] = useState<LatestDraftView>({ phase: 'idle' });
   const transitionDraft = useCallback((action: ReplyDraftAction) => {
-    if (action.type === 'TEXT_CHANGED' || action.type === 'CASE_TOGGLED' || action.type === 'INTERVENTION_CHANGED'
+    if (action.type === 'TEXT_CHANGED' || action.type === 'MODE_CHANGED' || action.type === 'CASE_TOGGLED'
+      || action.type === 'CASE_SELECTION_REPLACED' || action.type === 'INTERVENTION_CHANGED'
       || action.type === 'RECIPIENTS_CHANGED' || action.type === 'BATCH_ACCEPTED') {
       latestDraftEpoch.current += 1;
     }
@@ -450,7 +489,8 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
     if (confirmPendingRef.current || recoveryRef.current.pendingConfirmation) return;
     const hadPreview = draftRef.current.preview !== null || draftRef.current.previewPending;
     transitionDraft(action);
-    if (action.type === 'TEXT_CHANGED' || action.type === 'CASE_TOGGLED' || action.type === 'INTERVENTION_CHANGED') {
+    if (action.type === 'TEXT_CHANGED' || action.type === 'MODE_CHANGED' || action.type === 'CASE_TOGGLED'
+      || action.type === 'CASE_SELECTION_REPLACED' || action.type === 'INTERVENTION_CHANGED') {
       setFeedback(hadPreview
         ? { kind: 'info', text: 'แก้ไขรายการแล้ว ตัวอย่างเดิมถูกยกเลิก กรุณาตรวจข้อความและผู้รับใหม่' }
         : null);
@@ -514,10 +554,18 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
   const visibleOptionIds = new Set(options?.items.map(item => item.ticketId) ?? []);
   const missingSelectedCount = draft.ticketIds.filter(ticketId => !visibleOptionIds.has(ticketId)).length;
   const optionsById = new Map((options?.items ?? []).map(item => [item.ticketId, item]));
+  const selectableCurrentCaseIds = (options?.items ?? [])
+    .filter(item => item.eligibility === 'OWN_CASE'
+      || (item.eligibility === 'INTERVENTION_REQUIRED' && options?.canIntervene && draft.intervention))
+    .map(item => item.ticketId);
+  const canAddEligibleCases = draft.ticketIds.length < (draft.mode === 'single' ? 1 : 100)
+    && selectableCurrentCaseIds.some(ticketId => !draft.ticketIds.includes(ticketId));
   const selectedCasesAreEligible = draft.ticketIds.length > 0 && draft.ticketIds.every(ticketId => {
     const item = optionsById.get(ticketId);
     return Boolean(item && (item.eligibility === 'OWN_CASE' || (item.eligibility === 'INTERVENTION_REQUIRED' && options?.canIntervene && draft.intervention)));
   });
+  const modeLimit = draft.mode === 'single' ? 1 : 100;
+  const selectedCasesFitMode = draft.ticketIds.length <= modeLimit;
   const selectedInterventionNeedsAttestation = !draft.intervention && draft.ticketIds.some(ticketId => optionsById.get(ticketId)?.eligibility === 'INTERVENTION_REQUIRED');
   const confirmLocked = confirmPhase !== 'idle' || persistencePhase === 'checking' || persistencePhase === 'error'
     || recovery.pendingConfirmation !== null;
@@ -526,7 +574,8 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
     const current = draftRef.current;
     if (current.previewPending || confirmPendingRef.current || recoveryRef.current.pendingConfirmation || confirmLocked
       || optionsPhase !== 'ready' || !options || !selectedCasesAreEligible
-      || current.ticketIds.length > 100 || current.text.trim() === '') return;
+      || current.ticketIds.length > 100 || (current.mode === 'single' && current.ticketIds.length !== 1)
+      || current.text.trim() === '') return;
     const requestId = crypto.randomUUID();
     const epoch = current.previewEpoch + 1;
     const ticketIds = [...current.ticketIds];
@@ -639,7 +688,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       transitionDraft({ type: 'BATCH_ACCEPTED' });
       setFeedback({
         kind: 'success',
-        text: `รับเข้าคิวแล้ว · ${result.caseCount} เคส · ${result.recipientCount} ผู้รับนิรนาม · ยังไม่ยืนยันผลการส่งหรือการอ่าน`,
+        text: `รับเข้าคิวแล้ว · ${result.caseCount} เคส · ${result.recipientCount} ช่องทางผู้รับนิรนามที่ไม่ซ้ำ · ยังไม่ยืนยันผลการส่งหรือการอ่าน`,
       });
       void loadStatuses();
     } catch {
@@ -736,21 +785,21 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
   const canPersistRecovery = Boolean(recoveryKey && persistencePhase === 'ready');
   const showComposition = Boolean(readyOptions && !recovery.pendingConfirmation
     && persistencePhase !== 'checking' && persistencePhase !== 'error');
-  const canReview = Boolean(readyOptions && selectedCasesAreEligible && missingSelectedCount === 0
+  const canReview = Boolean(readyOptions && selectedCasesAreEligible && selectedCasesFitMode && missingSelectedCount === 0
     && draft.text.trim().length > 0 && draft.text.length <= 4000 && !confirmLocked);
 
   return <section className="incident-panel incident-batch-panel" aria-labelledby="incident-batch-title">
     <div className="incident-section-heading incident-batch-heading">
       <div>
         <h2 id="incident-batch-title">ตอบกลับเคสที่เลือก</h2>
-        <p>ส่งข้อความเดียวถึงเฉพาะเคสที่คุณเลือกและตรวจทานแล้ว</p>
+        <p>เลือกตอบเคสเดียว หรือส่งข้อความร่วมให้หลายเคสที่เลือกและตรวจทานแล้ว</p>
       </div>
       <button type="button" className="incident-secondary-link incident-batch-refresh" onClick={refreshOptions} disabled={confirmLocked || optionsPhase === 'loading'}>
         {optionsPhase === 'loading' ? 'กำลังโหลดเคส…' : 'โหลดเคสล่าสุด'}
       </button>
     </div>
 
-    <p className="incident-batch-privacy-note">จำนวนผู้รับนับตามช่องทางนิรนาม ยังไม่ได้ยืนยันว่าเป็นคนละบุคคล เคสที่เข้ามาภายหลังจะไม่ถูกรวมในรายการที่ยืนยันแล้ว</p>
+    <p className="incident-batch-privacy-note">จำนวนช่องทางผู้รับนับแยกตามข้อมูลนิรนาม ไม่ได้ยืนยันว่าเป็นบุคคลคนละคน · เคสที่เข้ามาภายหลังจะไม่ถูกรวมในตัวอย่างที่ตรวจแล้ว</p>
 
     {persistencePhase === 'checking' && <p className="incident-batch-message" role="status">กำลังตรวจสอบคำขอเดิมในเซสชันก่อนเปิดฟอร์ม…</p>}
     {persistencePhase === 'error' && errorState(persistenceError || 'ตรวจสอบคำขอเดิมไม่ได้ จึงปิดการส่งรายการใหม่ไว้ก่อน')}
@@ -785,7 +834,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
     </section>}
     {recovery.pendingConfirmation && <section className="incident-batch-recovery" aria-labelledby={`incident-batch-recovery-${incidentId}`}>
       <h3 id={`incident-batch-recovery-${incidentId}`}>ตรวจผลคำยืนยันเดิม</h3>
-      <p>เก็บใบยืนยันเดิมไว้สำหรับ {recovery.pendingConfirmation.caseCount} เคส · {recovery.pendingConfirmation.recipientCount} ผู้รับนิรนาม ใช้ปุ่มด้านล่างเพื่อเรียกผลเดิมด้วยใบเดิม ระบบจะไม่สร้างคำขอใหม่</p>
+      <p>เก็บใบยืนยันเดิมไว้สำหรับ {recovery.pendingConfirmation.caseCount} เคส · {recovery.pendingConfirmation.recipientCount} ช่องทางผู้รับนิรนามที่ไม่ซ้ำ ใช้ปุ่มด้านล่างเพื่อเรียกผลเดิมด้วยใบเดิม ระบบจะไม่สร้างคำขอใหม่</p>
       <p className="incident-batch-help">ใบยืนยันมีอายุถึง {dateTimeLabel(recovery.pendingConfirmation.expiresAt)} · เบราว์เซอร์เก็บเฉพาะใบยืนยันแบบเข้ารหัสและจำนวน ไม่มีข้อความหรือข้อมูลผู้รายงาน</p>
       {confirmPhase === 'sending' && <p className="incident-batch-message" role="status">กำลังตรวจผลคำยืนยันเดิม…</p>}
       <button type="button" className="incident-primary-button" onClick={() => void confirmPreview()} disabled={confirmPhase === 'sending' || !canPersistRecovery}>
@@ -798,8 +847,8 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       <dl className="incident-batch-counts" aria-label="จำนวนตามข้อมูลล่าสุดที่คุณมีสิทธิ์ดู">
         <div><dt>เคสที่เชื่อมโยง</dt><dd>{readyOptions.workload.memberCases}</dd></div>
         <div><dt>เคสที่ยังทำงาน</dt><dd>{readyOptions.workload.activeCases}</dd></div>
-        <div><dt>ผู้รับนิรนามที่เชื่อมโยง</dt><dd>{readyOptions.workload.anonymousSessions}</dd></div>
-        <div><dt>ผู้รับนิรนามในเคสที่ยังทำงาน</dt><dd>{readyOptions.workload.activeAnonymousSessions}</dd></div>
+        <div><dt>ช่องทางนิรนามที่เชื่อมโยง (ไม่ซ้ำ)</dt><dd>{readyOptions.workload.anonymousSessions}</dd></div>
+        <div><dt>ช่องทางนิรนามในเคสที่ยังทำงาน (ไม่ซ้ำ)</dt><dd>{readyOptions.workload.activeAnonymousSessions}</dd></div>
         <div><dt>เคสที่ยังไม่มอบหมาย</dt><dd>{readyOptions.workload.unassignedCases}</dd></div>
         <div><dt>เจ้าหน้าที่ที่รับผิดชอบ</dt><dd>{readyOptions.workload.assignedStaff}</dd></div>
         <div><dt>ข้อความจากผู้ใช้ที่รอตอบ</dt><dd>{readyOptions.workload.pendingUserMessages}</dd></div>
@@ -810,15 +859,34 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
         <button type="button" className="incident-secondary-link" onClick={() => updateDraft({ type: 'RECIPIENTS_CHANGED' })} disabled={confirmLocked}>ล้างเคสเดิมและเริ่มเลือกใหม่</button>
       </div>}
 
+      <fieldset className="incident-batch-mode-fieldset" disabled={confirmLocked}>
+        <legend>รูปแบบการตอบ</legend>
+        <label><input type="radio" name={`incident-batch-mode-${incidentId}`} checked={draft.mode === 'single'} onChange={() => updateDraft({ type: 'MODE_CHANGED', mode: 'single' })} /> ตอบเคสเดียว</label>
+        <label><input type="radio" name={`incident-batch-mode-${incidentId}`} checked={draft.mode === 'common'} onChange={() => updateDraft({ type: 'MODE_CHANGED', mode: 'common' })} /> ส่งข้อความร่วมให้หลายเคส</label>
+        <p>{draft.mode === 'single' ? 'เลือกได้หนึ่งเคสต่อรายการ' : 'ส่งข้อความเดียวให้เคสที่เลือก โดยแต่ละช่องทางผู้รับจะได้รับข้อความของตนเอง'}</p>
+      </fieldset>
+
       <fieldset className="incident-batch-case-fieldset" disabled={confirmLocked}>
         <legend>เลือกเคสที่จะตอบกลับ</legend>
+        <p className="incident-batch-selection-guidance">หมวดเดียวกันไม่ได้แปลว่าเป็นเหตุการณ์เดียวกัน ตรวจเคสและผู้รายงานแต่ละรายการก่อนเลือก</p>
+        <div className="incident-batch-selection-controls">
+          <button type="button" className="incident-secondary-link" onClick={() => updateDraft({
+            type: 'CASE_SELECTION_REPLACED',
+            ticketIds: incidentBatchSelectAllEligible(draft.ticketIds, readyOptions.items, readyOptions.canIntervene, draft.intervention, modeLimit),
+          })} disabled={confirmLocked || !canAddEligibleCases}>
+            {draft.mode === 'single' ? 'เลือกเคสที่เข้าเกณฑ์หนึ่งรายการ' : 'เลือกเคสที่เข้าเกณฑ์ทั้งหมดจากรายการปัจจุบัน (สูงสุด 100)'}
+          </button>
+          <button type="button" className="incident-secondary-link" onClick={() => updateDraft({ type: 'CASE_SELECTION_REPLACED', ticketIds: incidentBatchClearSelection() })} disabled={confirmLocked || draft.ticketIds.length === 0}>
+            ล้างรายการที่เลือก
+          </button>
+        </div>
         {readyOptions.items.length === 0
           ? <p className="incident-batch-message">ยังไม่มีเคสที่แสดงได้จากข้อมูลล่าสุด</p>
           : <ul className="incident-batch-case-list">{readyOptions.items.map(item => {
             const checked = draft.ticketIds.includes(item.ticketId);
             const selectable = item.eligibility === 'OWN_CASE'
               || (item.eligibility === 'INTERVENTION_REQUIRED' && readyOptions.canIntervene && draft.intervention);
-            const disabled = confirmLocked || (!checked && (!selectable || draft.ticketIds.length >= 100));
+            const disabled = confirmLocked || (!checked && (!selectable || draft.ticketIds.length >= modeLimit));
             return <li key={item.ticketId}>
               <label className={`incident-batch-case${selectable || checked ? '' : ' incident-batch-case-disabled'}`}>
                 <input type="checkbox" checked={checked} disabled={disabled} onChange={() => updateDraft({ type: 'CASE_TOGGLED', ticketId: item.ticketId })} />
@@ -831,7 +899,8 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
             </li>;
           })}</ul>}
       </fieldset>
-      {draft.ticketIds.length >= 100 && <p className="incident-batch-help" role="status">เลือกได้สูงสุด 100 เคสต่อรายการ</p>}
+      {!selectedCasesFitMode && draft.mode === 'single' && <p className="incident-batch-warning" role="alert">มี {draft.ticketIds.length} เคสที่เลือกอยู่ โหมดตอบเคสเดียวรับได้หนึ่งเคส · ยกเลิกการเลือกส่วนเกินหรือเปลี่ยนเป็นส่งข้อความร่วม โดยรายการที่เลือกยังคงอยู่</p>}
+      {draft.mode === 'common' && draft.ticketIds.length >= 100 && <p className="incident-batch-help" role="status">เลือกได้สูงสุด 100 เคสต่อรายการ · เคสที่เข้ามาภายหลังต้องเลือกและตรวจใหม่เอง</p>}
 
       {readyOptions.canIntervene && interventionRequired.length > 0 && <label className="incident-batch-intervention">
         <input type="checkbox" checked={draft.intervention} disabled={confirmLocked} onChange={event => updateDraft({ type: 'INTERVENTION_CHANGED', value: event.target.checked })} />
@@ -840,7 +909,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       {selectedInterventionNeedsAttestation && <p className="incident-batch-warning" role="alert">เคสที่เลือกบางรายการต้องยืนยันการเข้าแทรกแซง หรือเอาเครื่องหมายเลือกออกก่อนสร้างตัวอย่าง</p>}
 
       <label className="incident-batch-text-label" htmlFor={`incident-batch-text-${incidentId}`}>
-        ข้อความร่วมสำหรับเคสที่เลือก
+        {draft.mode === 'single' ? 'ข้อความสำหรับเคสที่เลือก' : 'ข้อความร่วมสำหรับเคสที่เลือก'}
         <textarea
           id={`incident-batch-text-${incidentId}`} value={draft.text} maxLength={4000} rows={5} disabled={confirmLocked}
           aria-describedby={`incident-batch-text-help-${incidentId}`}
@@ -849,7 +918,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       </label>
       <div id={`incident-batch-text-help-${incidentId}`} className="incident-batch-help">
         <span>{draft.text.length} / 4,000 ตัวอักษร</span>
-        <span>ตรวจข้อความและข้อความที่จัดกลุ่มต่อผู้รับก่อนยืนยันทุกครั้ง</span>
+        <span>{draft.mode === 'single' ? 'ตัวอย่างจะแสดงข้อความสำหรับเคสนี้' : 'ตัวอย่างจะแสดงเคสและข้อความแยกตามช่องทางผู้รับ'}</span>
       </div>
 
       <div className="incident-batch-actions">
@@ -862,10 +931,10 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       {draft.preview && <section className="incident-batch-review" aria-labelledby={`incident-batch-review-${incidentId}`}>
         <div className="incident-batch-review-heading">
           <h3 id={`incident-batch-review-${incidentId}`}>ตรวจรายการก่อนเข้าคิว</h3>
-          <strong>{draft.preview.caseCount} เคส · {draft.preview.recipientCount} ผู้รับนิรนาม</strong>
+          <strong>{draft.preview.caseCount} เคส · {draft.preview.recipientCount} ช่องทางผู้รับนิรนามที่ไม่ซ้ำ</strong>
         </div>
         <p className="incident-batch-review-expiry">ตัวอย่างนี้ใช้ได้ถึง {dateTimeLabel(draft.preview.expiresAt)} · การยืนยันรับเข้าคิว ไม่ได้ยืนยันการส่งหรือการอ่าน</p>
-        <div className="incident-batch-common-text"><h4>ข้อความร่วม</h4><p>{draft.preview.commonText}</p></div>
+        <div className="incident-batch-common-text"><h4>{draft.mode === 'single' ? 'ข้อความสำหรับเคสที่เลือก' : 'ข้อความร่วม'}</h4><p>{draft.preview.commonText}</p></div>
         <ol className="incident-batch-packets">{draft.preview.deliveries.map(packet => <li key={packet.recipientCode}>
           <div className="incident-batch-packet-heading"><strong>{packet.recipientCode}</strong><span>{packet.cases.length} เคส</span></div>
           <ul className="incident-batch-packet-cases">{packet.cases.map(item => <li key={item.ticketId}><strong>{item.ticketCode}</strong><span>{item.reporterLabel}</span></li>)}</ul>
@@ -885,7 +954,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
         const operationKey = `${retry.batchId}:${retry.recipientCode}`;
         const operation = retryOperations[operationKey];
         return <li key={operationKey}>
-          <div><strong>ผู้รับนิรนาม {retry.recipientCode}</strong><span>คำขอลองส่งเดิม</span></div>
+          <div><strong>ช่องทางผู้รับนิรนาม {retry.recipientCode}</strong><span>คำขอลองส่งเดิม</span></div>
           {retryMessages[operationKey] && <p className="incident-batch-message" role="status">{retryMessages[operationKey]}</p>}
           <button type="button" className="incident-secondary-link" onClick={() => void retryRecipient(retry.batchId, retry.recipientCode)} disabled={!canPersistRecovery || Boolean(operation?.pending)}>
             {operation?.pending ? 'กำลังตรวจคำขอเดิม…' : 'ตรวจคำขอเดิมอีกครั้ง'}
@@ -907,7 +976,7 @@ export default function IncidentBatchReply({ incidentId, actorId }: { incidentId
       {statusPhase === 'ready' && statusList && statusList.batches.length > 0 && <ol className="incident-batch-list">{statusList.batches.map(batch => <li key={batch.batchId}>
         <div className="incident-batch-list-heading">
           <strong>รับเข้าคิวแล้ว</strong>
-          <span>{batch.caseCount} เคส · {batch.recipientCount} ผู้รับนิรนาม · {dateTimeLabel(batch.acceptedAt)}</span>
+          <span>{batch.caseCount} เคส · {batch.recipientCount} ช่องทางผู้รับนิรนามที่ไม่ซ้ำ · {dateTimeLabel(batch.acceptedAt)}</span>
         </div>
         <ul className="incident-batch-recipient-list">{batch.recipients.map(recipient => {
           const operationKey = `${batch.batchId}:${recipient.recipientCode}`;

@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {Pool} from 'pg';
+import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../database/pool';
 import {loadActor,authorizeScope,eligibleScopeSql,isSupervisor} from './authorization';
 import {ticketFiltersSchema,type TicketFilters,type TicketListItem,type TicketListResult,type TicketDetail} from '../../types/tickets';
@@ -35,13 +35,13 @@ export async function listTickets(staffId:string,filters:TicketFilters={},option
  },options.pool);
 }
 
-export async function getTicketDetail(staffId:string,id:string,options:{pool?:Pool}={}):Promise<TicketDetail|null> {
+export async function getTicketDetail(staffId:string,id:string,options:{pool?:Pool;client?:PoolClient;includeMessages?:boolean}={}):Promise<TicketDetail|null> {
  if(!z.uuid().safeParse(id).success)return null;
- return transaction(async client=>{
+ const read=async (client:PoolClient)=>{
   const actor=await loadActor(client,staffId);
   const row=(await client.query<TicketRow>(`${selectTicket} where t.id=$1 and private.can_access_scope(t.department_id,t.sensitive_level)`,[id])).rows[0];
   if(!row)return null;await authorizeScope(client,row.department_id,row.sensitive_level);
-  const messages=(await client.query(`select m.id,m.sender_type,m.content,m.created_at,s.display_name as staff_name from public.messages m left join public.staff_profiles s on s.id=m.sender_staff_id where m.ticket_id=$1 order by m.created_at,m.id`,[id])).rows.map(m=>({...m,created_at:m.created_at.toISOString()}));
+  const messages=options.includeMessages===false?[]:(await client.query(`select m.id,m.sender_type,m.content,m.created_at,s.display_name as staff_name from public.messages m left join public.staff_profiles s on s.id=m.sender_staff_id where m.ticket_id=$1 order by m.created_at,m.id`,[id])).rows.map(m=>({...m,created_at:m.created_at.toISOString()}));
   const history=(await client.query(`select h.id,h.action,h.from_status,h.to_status,h.created_at,s.display_name as actor_name,h.metadata from public.ticket_history h left join public.staff_profiles s on s.id=h.actor_id where h.ticket_id=$1 order by h.history_seq`,[id])).rows.map(h=>({id:h.id,action:h.action,from_status:h.from_status,to_status:h.to_status,created_at:h.created_at.toISOString(),actor_name:h.actor_name,...(typeof h.metadata?.reason==='string'?{reason:h.metadata.reason}:{})}));
   const assignees=(await client.query(`select s.id,s.display_name from public.staff_profiles s where ${eligibleScopeSql} order by s.display_name`,[row.department_id,row.sensitive_level])).rows;
   // A grouped delivery has one anchor; every selected case retains its own mapping.
@@ -58,5 +58,6 @@ export async function getTicketDetail(staffId:string,id:string,options:{pool?:Po
    reply:human&&manages&&allowed('STAFF_REPLY'),resolve:human&&manages&&allowed('RESOLVE'),close:human&&manages&&allowed('CLOSE'),
    reassign:human&&isSupervisor(actor)&&allowed('REASSIGN'),reopen:human&&isSupervisor(actor)&&allowed('REOPEN'),
   }};
- },options.pool);
+ };
+ return options.client?read(options.client):transaction(read,options.pool);
 }

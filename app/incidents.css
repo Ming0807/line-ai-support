@@ -63,8 +63,15 @@
 .incident-batch-counts > div { min-width: 0; padding: .45rem 0; }
 .incident-batch-counts dt { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
 .incident-batch-counts dd { margin: .15rem 0 0; color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.incident-batch-mode-fieldset { display: grid; gap: .5rem; min-width: 0; margin: 0; padding: .8rem .9rem; border: 1px solid var(--line); border-radius: .6rem; }
+.incident-batch-mode-fieldset legend { padding-inline: .25rem; font-weight: 700; }
+.incident-batch-mode-fieldset label { display: flex; align-items: flex-start; gap: .55rem; line-height: 1.5; cursor: pointer; }
+.incident-batch-mode-fieldset input { flex: 0 0 auto; width: 1.05rem; height: 1.05rem; margin: .2rem 0 0; accent-color: var(--focus); }
+.incident-batch-mode-fieldset p, .incident-batch-selection-guidance { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.5; }
 .incident-batch-case-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .incident-batch-case-fieldset legend { margin-bottom: .55rem; font-weight: 700; }
+.incident-batch-selection-guidance { margin-bottom: .6rem; }
+.incident-batch-selection-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .65rem; }
 .incident-batch-case-list, .incident-batch-recipient-list, .incident-batch-packet-cases { margin: 0; padding: 0; list-style: none; }
 .incident-batch-case-list > li, .incident-batch-recipient-list > li, .incident-batch-packets > li { min-width: 0; padding: .7rem .15rem; border-top: 1px solid var(--line); }
 .incident-batch-case { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .7rem; cursor: pointer; }
@@ -147,6 +154,8 @@
  .incident-pagination { align-items: flex-start; }
  .incident-batch-heading { align-items: stretch; flex-direction: column; }
  .incident-batch-refresh, .incident-batch-actions > .incident-primary-button, .incident-batch-review > .incident-primary-button { width: 100%; }
+ .incident-batch-selection-controls { align-items: stretch; flex-direction: column; }
+ .incident-batch-selection-controls > button { width: 100%; }
  .incident-batch-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
  .incident-batch-actions { align-items: stretch; flex-direction: column; }
  .incident-batch-draft-source, .incident-batch-previous-draft-actions { align-items: stretch; flex-direction: column; }

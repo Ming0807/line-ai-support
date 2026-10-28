@@ -1,4 +1,5 @@
 import type {Pool} from 'pg';
+import {flushInboxInvalidations} from '../chat/realtime';
 import {z} from 'zod';
 import {decryptValue,hashLineUserId,hashStaffLineUserId} from '../security/identity';
 import {deliverLine,type LineMessage} from '../line/delivery';
@@ -69,7 +70,9 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      identity=(await client.query(`select i.user_id_encrypted,i.user_hash from private.staff_line_identities i join public.staff_profiles s on s.id=i.staff_id and s.active
       where i.staff_id=$1 and i.active`,[job.recipient_staff_id])).rows[0];
     }else{
-     const ticket=(await client.query('select department_id,sensitive_level from public.tickets where id=$1',[job.ticket_id])).rows[0];
+     const ticket=(await client.query('select department_id,sensitive_level,assigned_staff_id,mode,status from public.tickets where id=$1',[job.ticket_id])).rows[0];
+     if(job.idempotency_key.startsWith('user-reply:')&&(!ticket||ticket.mode!=='HUMAN'||!['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)
+      ||ticket.assigned_staff_id!==null&&ticket.assigned_staff_id!==job.recipient_staff_id))suppress='STAFF_NOTICE_OWNER_CHANGED';
      if(ticket){
       identity=(await client.query(`select i.user_id_encrypted,i.user_hash from private.staff_line_identities i join public.staff_profiles s on s.id=i.staff_id where i.staff_id=$3 and i.active and ${eligibleScopeSql}`,[ticket.department_id,ticket.sensitive_level,job.recipient_staff_id])).rows[0];
      }
@@ -131,5 +134,6 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     [job.id,job.lease_token,permanent,job.attempt_limit??5]).catch(()=>console.error('OUTBOX_FAILURE_UPDATE_FAILED',{channel}));
   }
  }
+ await flushInboxInvalidations(pool);
  return result;
 }
