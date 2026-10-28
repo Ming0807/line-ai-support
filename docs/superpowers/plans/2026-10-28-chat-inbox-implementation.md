@@ -28,3 +28,12 @@ Requirements: CH023/028/031 conversation routing, CH026 ticket actions, CH054 St
 ## Acceptance and boundaries
 
 Replay Staff question→Student answer, multiple short answers, clearly new library topic, duplicate/redelivered/reordered events, two simultaneous assignees, two tabs, closure/reassignment/revocation, source failure, unread cursor, failed/unknown delivery, file access across cases and reviewed batch partial failure. Zero lost/duplicate/cross-recipient effects under controlled10/100/500load, record latency and queue metrics honestly. Actual LINE/Login configuration remains human setup after independent implementation. Do not claim V1 complete from component tests. No push.
+
+## 29October execution checkpoint and next owner
+
+- Root UI integration a2c0672 accepts OC60b6d06/47fbd4a/2951816 with repaired review findings; original report remains historical. Actual independent Luna high Standards/max Spec reviews, root fixes self-reviewed; further diagnostic delegation hit usage limit and root completed diagnosis.
+- Root d51e732 freezes Inbox API/cursor/read/private notes, migration48, invalidation and initial3paneUI/Incident selection.4ownedPG cases/48migrations/exactcleanup PASS; normal47 unchanged. Inbox10 +query24 +Incident4 component testsPASS; actual privateBroadcast/browser/manual operations pending.
+- OC-INBOX-04 owns only files and16tasks in docs/agents/OPENCODE_INBOX_WORKFLOWS_PROMPT.md. Root will not edit those UI paths until handback; keeps DB/auth/privacy/routing/LINE/media/worker/startup. Prepared unused D worktree reused at exactd51e732, original delivery branch preserved, no.env copy.
+- Root current working-source full3556unit/261files single-worker PASS, type/full lintPASS. Actual nextbase105focused/7filesPASS. Keep defaultTurbopack junction and secondaryWebpack HermesURL build limitations distinct; no build PASS from compilation only. Human-authorized root checkpoint push supersedes this plan's earlier blanket no-push sentence; delegated OpenCode remains local-only.
+
+29October final build: root main default pnpm build (Next16.3.8 Turbopack/originalconfig) EXIT0; fullroute generation includes Inbox, Staff apply/status/approval and chat APIs. Installed CLI confirms .next/dev isolation, no rootserver stop; pre-existing next-env restored byte-for-byte (SHA256 equality). Root working-source full3556unit/261files, type/full lint/buildPASS. Exact delegationd51e732 focused105PASS and worktree buildBLOCKED remain separate scope; no realOAuth/Realtime/LINE/model/FlowA-F acceptance or normalmigration48activation.
