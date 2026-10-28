@@ -7,7 +7,7 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-183; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-184; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน

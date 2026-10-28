@@ -84,7 +84,7 @@ export async function saveImportReview(actor:string,id:string,input:unknown,opti
    const plan=await prepareImportChunkPlan(actor,preview,options);
    if(plan.digest!==request.draft.chunkPlan.digest||plan.chunkerVersion!==request.draft.chunkPlan.chunkerVersion)throw new ImportStagingError('INVALID_REQUEST');
   }
-  if(request.draft.schemaVersion===3&&request.draft.structuredMapping!==null){
+  if((request.draft.schemaVersion===3||request.draft.schemaVersion===4)&&request.draft.structuredMapping!==null){
    const mapped=request.draft.structuredMapping,plan=await prepareImportStructuredPlan(actor,preview,request.expectedReviewRevision+1,mapped.mapping,options);
    if(plan.sourceChecksum!==snapshot.checksum)throw new ImportStagingError('CONFLICT');
    if(mapped.acknowledgment!==null){const ack=computeStructuredAcknowledgment(plan);

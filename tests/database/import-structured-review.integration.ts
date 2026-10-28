@@ -52,7 +52,7 @@ test('authorized preview before review preserves actual cells/source and mutates
  const before=await counts(f),snapshot=await getImportStructuredPlan(f.actor,f.job.id,f.query,{...f.config,beforeRead:async()=>{
   const sessions=(await f.pool.query("select count(*)::int n from pg_stat_activity where application_name=$1 and xact_start is not null and pid<>pg_backend_pid()",[f.pool.options.application_name])).rows[0].n;assert.equal(sessions,0,'PREPARATION_MUST_BE_OUTSIDE_SQL');
  }});
- assert.equal(snapshot.reviewRevision,0);assert.equal(snapshot.nextReviewRevision,1);assert.equal(snapshot.publicationAvailable,false);
+ assert.equal(snapshot.reviewRevision,0);assert.equal(snapshot.nextReviewRevision,1);assert.equal(snapshot.publicationAvailable,true);
  const payload=snapshot.plan.rows[0].payload;assert('code' in payload);assert.equal(payload.code,'0001');assert.equal(snapshot.plan.rows[0].fields[0].kind,'CELL');
  assert.deepEqual(await counts(f),before);assert.deepEqual(Buffer.from((await readImportOriginal(f.actor,f.job.id,f.config)).bytes),Buffer.from(f.original.bytes));
 }));
@@ -84,6 +84,21 @@ test('wrong source or acknowledgment and changed mapping cannot append a review'
  await assert.rejects(saveImportReview(f.actor,f.job.id,{...f.input,draft},f.config),{code:'INVALID_REQUEST'});
  await assert.rejects(getImportStructuredPlan(f.actor,f.job.id,{...f.query,mapping:{...f.mapping,source:{...f.mapping.source,sourceChecksum:'f'.repeat(64)}}},f.config),{code:'STRUCTURED_MAPPING_BINDING_MISMATCH'});
  assert.equal((await counts(f)).reviews,'0');
+}));
+test('schema4 structured drafts rederive source, mapping and acknowledgment before immutable save',()=>fixture(async f=>{
+ const snapshot=await getImportStructuredPlan(f.actor,f.job.id,f.query,f.config);
+ const draft=reviewDraftSchema.parse({...f.input.draft,schemaVersion:4,publicSourceReview:{temporalBasis:'DATED',temporalReason:null,sensitivityAdjudications:[]}});
+ assert(draft.schemaVersion===4&&draft.structuredMapping);
+ draft.structuredMapping.acknowledgment={...snapshot.acknowledgment,contentDigest:'f'.repeat(64)};
+ await assert.rejects(saveImportReview(f.actor,f.job.id,{...f.input,draft},f.config),{code:'INVALID_REQUEST'});
+ draft.structuredMapping.acknowledgment=snapshot.acknowledgment;
+ draft.structuredMapping.mapping.tables[0].fields.description={kind:'CONSTANT',value:'Changed after preview',note:'Reviewer changed the source mapping after acknowledgment'};
+ await assert.rejects(saveImportReview(f.actor,f.job.id,{...f.input,draft},f.config),{code:'INVALID_REQUEST'});
+ assert.equal((await counts(f)).reviews,'0');
+ const valid=reviewDraftSchema.parse({...f.input.draft,schemaVersion:4,publicSourceReview:{temporalBasis:'DATED',temporalReason:null,sensitivityAdjudications:[]}});
+ assert(valid.schemaVersion===4&&valid.structuredMapping);valid.structuredMapping.acknowledgment=snapshot.acknowledgment;
+ const saved=await saveImportReview(f.actor,f.job.id,{...f.input,draft:valid},f.config);
+ assert.equal(saved.saved?.draft.schemaVersion,4);assert.equal(saved.reviewRevision,1);
 }));
 test('legacy overwrite of review3 fails while explicit clear remains review3 and retains history',()=>fixture(async f=>{
  await saveImportReview(f.actor,f.job.id,f.input,f.config);
@@ -122,9 +137,9 @@ test('existing immutable checksum guard prevents original drift during preview/s
  const saved=await saveImportReview(f.actor,f.job.id,f.input,{...f.config,beforeCommit:attempt});assert.equal(saved.reviewRevision,1);
  assert.equal((await f.pool.query('select checksum from private.knowledge_import_jobs where id=$1',[f.job.id])).rows[0].checksum,f.original.checksum);
 }));
-test('schema3 publication fails explicitly before embedding and leaves all business data private',()=>fixture(async f=>{
+test('incomplete schema3 review fails before embedding and leaves all business data private',()=>fixture(async f=>{
  await saveImportReview(f.actor,f.job.id,f.input,f.config);const before=await counts(f);
- await assert.rejects(approveImport(f.actor,{id:f.job.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:1,confirmPublication:true},f.config),{code:'PUBLICATION_STRUCTURED_SCHEMA_UNAVAILABLE'});
+ await assert.rejects(approveImport(f.actor,{id:f.job.id,expectedJobRevision:1,expectedExtractionRevision:1,expectedReviewRevision:1,confirmPublication:true},f.config),{code:'PUBLICATION_REVIEW_INCOMPLETE'});
  assert.deepEqual(await counts(f),before);
 }));
 test('a review committed during real final job-lock wait invalidates prepared preview',()=>fixture(async f=>{
