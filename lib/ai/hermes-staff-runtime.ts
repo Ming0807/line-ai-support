@@ -110,7 +110,14 @@ function childEnvironment(base:NodeJS.ProcessEnv,launcher:Launcher,runHome:strin
   YRU_HERMES_TOOL_URL:bridge.toolUrl!,PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8'};
 }
 
-async function activateNativeRuntime(runtimeRoot:string,runHome:string,signal:AbortSignal):Promise<Launcher>{
+/** Dependency metadata belongs to the cached install; the agent still receives
+ * its separate private home from childEnvironment after activation. */
+export function hermesBootstrapEnvironment(runtimeRoot:string):NodeJS.ProcessEnv{
+ const owner=resolve(runtimeRoot);
+ return {...cleanEnvironment(),HERMES_HOME:owner,HERMES_DISABLE_LAZY_INSTALLS:'1',PYTHONPATH:join(owner,'hermes-agent'),PYTHONUTF8:'1'};
+}
+
+async function activateNativeRuntime(runtimeRoot:string,signal:AbortSignal):Promise<Launcher>{
  const pythonRoot=join(runtimeRoot,'python');
  const entries=await readdir(pythonRoot,{withFileTypes:true}).catch(()=>throwUnavailable());
  const candidates=entries.filter(entry=>entry.isDirectory()&&/^cpython-3\.14\.\d+-windows-x86_64-none$/u.test(entry.name));
@@ -118,7 +125,7 @@ async function activateNativeRuntime(runtimeRoot:string,runHome:string,signal:Ab
  const bootstrap=join(pythonRoot,candidates[0]!.name,'python.exe');
  const sourcePath=join(runtimeRoot,'hermes-agent');
  const pythonPath=resolve(process.cwd(),'scripts/ai/hermes-staff-driver.py');
- const safeEnvironment:NodeJS.ProcessEnv={...cleanEnvironment(),HERMES_HOME:runHome,PYTHONPATH:sourcePath,PYTHONUTF8:'1'};
+ const safeEnvironment=hermesBootstrapEnvironment(runtimeRoot);
  const activationProgram='import json; from pathlib import Path; from pm.environments import activation_environment, project_python; root=Path.cwd(); values=activation_environment(root); values["PYTHON"]=str(project_python(root)); print(json.dumps(values))';
  let activated:{stdout:string};
  try{
@@ -157,6 +164,9 @@ async function runRuntime(input:HermesStaffRuntimeInput,options:{runtimeRoot:str
   runRoot=resolve(options.runtimeRoot,'staff-runs');
   await mkdir(runRoot,{recursive:true,mode:0o700});
   runHome=await mkdtemp(join(runRoot,'run-'));
+  // The cached version defaults to deferred-tool discovery. This capability
+  // exposes exactly one direct tool, checked again by the Python driver.
+  await writeFile(join(runHome,'config.yaml'),'tools:\n  tool_search:\n    enabled: "off"\n',{encoding:'utf8',mode:0o600,flag:'wx'});
   const inputPath=join(runHome,'request.json');
   await writeFile(inputPath,JSON.stringify({question:parsedInput.data.question}),{encoding:'utf8',mode:0o600,flag:'wx'});
   const launcher=await options.resolveLauncher(runHome,controller.signal);
@@ -275,6 +285,6 @@ export function createHermesStaffRuntime(dependencies:HermesStaffRuntimeTestDepe
 /** Runs only the already-cached Hermes native runtime. It never installs or downloads dependencies. */
 export async function runHermesStaffRuntime(input:HermesStaffRuntimeInput):Promise<{draftText:string}>{
  const runtimeRoot=resolve(process.cwd(),'.superpowers/staging/hermes-runtime');
- return runRuntime(input,{runtimeRoot,resolveLauncher:(runHome,signal)=>activateNativeRuntime(runtimeRoot,runHome,signal),processTimeoutMs:150000,
+ return runRuntime(input,{runtimeRoot,resolveLauncher:(_runHome,signal)=>activateNativeRuntime(runtimeRoot,signal),processTimeoutMs:150000,
   appendDriverPath:true,stopOwnedTree:forceStopOwnedTree});
 }

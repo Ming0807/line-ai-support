@@ -738,3 +738,17 @@ it('rejects a historical classifier scope for an explicitly current year questio
  const result=await f.producer(snapshot({question:'ขอเกณฑ์ปัจจุบันสำหรับปีการศึกษา 2569'}),new AbortController().signal);
  expect(result).toMatchObject({kind:'CLARIFY'});expect(f.search).not.toHaveBeenCalled();
 });
+
+it('accepts a complete provider answer containing only the exact website in its cited reviewed source',async()=>{
+ const f=fixture(),url='http://passport.yru.ac.th',answer='เข้า '+url+' แล้วเลือก Register YRU WIFI และกรอก Mac Address 12 หลัก';
+ f.search.mockResolvedValue([{...evidence,content:'การลงทะเบียนอุปกรณ์ให้เข้า '+url+' แล้วกรอก Mac Address 12 หลัก'}]);
+ f.outputs.push(scope,{answer,citationChunkIds:[chunkId]});
+ const result=await f.producer(snapshot(),new AbortController().signal);
+ expect(result).toMatchObject({kind:'ANSWER',output:{answer,citationChunkIds:[chunkId]}});
+ expect(f.generate).toHaveBeenCalledTimes(2);
+});
+it('does not convert an invented website into an answer or retry it after source binding rejects it',async()=>{
+ const f=fixture();f.outputs.push(scope,{answer:'เข้า https://invented.yru.ac.th/login',citationChunkIds:[chunkId]});
+ const result=await f.producer(snapshot(),new AbortController().signal);
+ expect(result.kind).toBe('CLARIFY');expect(f.generate).toHaveBeenCalledTimes(2);
+});

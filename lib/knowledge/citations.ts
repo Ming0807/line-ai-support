@@ -7,8 +7,9 @@ import {ruleProofSchema,ruleProofsEqual} from './rule-proof';
 
 export const LINE_TEXT_PACKET_LIMIT_MESSAGE='คำตอบพร้อมแหล่งอ้างอิงยาวเกินขนาดที่ส่งครบใน LINE ได้ในครั้งเดียวครับ กรุณาแยกคำถามเป็นประเด็น หรือเลือกติดต่อเจ้าหน้าที่เพื่อให้ช่วยตรวจสอบครับ';
 
-export const ragAnswerSchema=z.object({answer:z.string().min(1).max(12000).refine(value=>value.trim().length>0)
- .refine(s=>!/(?:https?:\/\/|www\.)/i.test(s)),citationChunkIds:z.array(z.uuid()).min(1).max(5)
+// Transport shape is not link authority: buildCitedAnswer binds all proposed
+// links to the exact cited reviewed evidence before any answer can be delivered.
+export const ragAnswerSchema=z.object({answer:z.string().min(1).max(12000).refine(value=>value.trim().length>0),citationChunkIds:z.array(z.uuid()).min(1).max(5)
  .refine(ids=>new Set(ids).size===ids.length)}).strict();
 /** Completion-only abstention. Every actual ANSWER still uses the unchanged schema above. */
 export const ragCompletionSchema=z.strictObject({answer:ragAnswerSchema.shape.answer.nullable(),
@@ -27,13 +28,47 @@ export const citationEvidenceSchema=z.object({chunkId:z.uuid(),documentId:z.uuid
 function invalid():never{throw new Error('KNOWLEDGE_CITATION_INVALID');}
 function safeSourceUrl(source:string|null):string|null {
  if(source===null)return null;
- try{const url=new URL(source);if(url.protocol!=='https:'||url.username||url.password||url.port||/[\r\n]/.test(source))return invalid();return source;}
+ try{const url=new URL(source);if(url.protocol!=='https:'||!safeHttpLink(source,false))return invalid();return source;}
  catch{return invalid();}
+}
+function linkMatches(text:string):RegExpStringIterator<RegExpExecArray>{
+ return text.matchAll(/[a-z][a-z0-9+.-]*:(?=\S)[^\s<>"`]+|(?:www\.|\/\/)[^\s<>"`]+|(?<![\p{L}\p{N}_])(?:[\p{L}\p{N}][\p{L}\p{N}-]{0,62}\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})(?![\p{L}\p{N}-])(?:[/:?#][^\s<>"`]+)?/giu);
+}
+function proposedLinkTokens(text:string):string[]{
+ return [...linkMatches(text)]
+  .map(match=>match[0].replace(/[)\]},;.!?]+$/u,''));
+}
+function safeHttpLink(source:string,yruOnly:boolean):boolean{
+ try{
+  if(source.length>2000||!/^https?:\/\//iu.test(source))return false;
+  const url=new URL(source),authority=source.match(/^https?:\/\/([^/?#]+)/iu)?.[1];
+  if(!authority||/[:@\\]/u.test(authority)||url.username||url.password||url.port||
+   yruOnly&&!(url.hostname.toLowerCase()==='yru.ac.th'||url.hostname.toLowerCase().endsWith('.yru.ac.th')))return false;
+  let decoded=source;
+  for(let count=0;count<3;count++){
+   if(/[\u0000-\u001f\u007f]/u.test(decoded))return false;
+   const next=decodeURIComponent(decoded);if(next===decoded)break;decoded=next;
+  }
+  return decodeURIComponent(decoded)===decoded&&!/[\u0000-\u001f\u007f]/u.test(decoded);
+ }catch{return false;}
+}
+/** No model URL is fetched. Only a cited source can authorize its exact token. */
+function assertCitedLinks(answer:string,cited:KnowledgeEvidence[]):void{
+ const proposed=proposedLinkTokens(answer);if(proposed.length>20)return invalid();
+ if(JSON.stringify(proposed)!==JSON.stringify(proposedLinkTokens(answer.normalize('NFKC'))))return invalid();
+ for(const link of proposed){
+  const matched=cited.some(row=>{
+   if(row.sourceUrl===link)return safeSourceUrl(row.sourceUrl)!==null;
+   const bare=!/[:@\\]/u.test(link)&&!link.startsWith('//')&&safeHttpLink('https://'+link,true);
+   return (safeHttpLink(link,true)||bare)&&proposedLinkTokens(row.content).includes(link);
+  });
+  if(!matched)return invalid();
+ }
 }
 export function lineMessages(text:string):OutboundText[] {
  const messages:OutboundText[]=[];
  let current='';
- for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(text)){
+ const append=(segment:string)=>{
   if(segment.length>5000)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
   if(current.length+segment.length>5000){
    if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
@@ -41,7 +76,13 @@ export function lineMessages(text:string):OutboundText[] {
   }
   current+=segment;
   if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
+ };
+ const plain=(value:string)=>{for(const {segment} of new Intl.Segmenter('th',{granularity:'grapheme'}).segment(value))append(segment);};
+ let offset=0;
+ for(const match of linkMatches(text)){
+  plain(text.slice(offset,match.index));append(match[0]);offset=match.index+match[0].length;
  }
+ plain(text.slice(offset));
  if(current){
   if(messages.length>=5)throw new Error('LINE_TEXT_PACKET_TOO_LARGE');
   messages.push({type:'text',text:current});
@@ -66,6 +107,8 @@ export function buildCitedAnswer(input:unknown,available:KnowledgeEvidence[]):{
  if(!answer.success||available.length>12)return invalid();
  const evidence=new Map<string,KnowledgeEvidence>();
  for(const item of available){const parsed=citationEvidenceSchema.safeParse(item);if(!parsed.success||evidence.has(item.chunkId))return invalid();evidence.set(item.chunkId,parsed.data);}
+ const cited=answer.data.citationChunkIds.map(id=>{const row=evidence.get(id);if(!row)return invalid();return row;});
+ assertCitedLinks(answer.data.answer,cited);
  const citations=answer.data.citationChunkIds.map(id=>{
   const row=evidence.get(id);if(!row)return invalid();
   // Source URLs/page numbers are selected here, never supplied by model output.

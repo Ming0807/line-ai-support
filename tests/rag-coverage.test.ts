@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {normalizeRagCoverageCompletion,ragCoverageCompletionSchema} from '../lib/knowledge/rag-coverage';
+import {buildCitedAnswer} from '../lib/knowledge/citations';
 
 const firstChunkId='11111111-1111-4111-8111-111111111111';
 const secondChunkId='22222222-2222-4222-8222-222222222222';
@@ -62,17 +63,23 @@ describe('RAG coverage completion',()=>{
 
  it.each([
   {coverage:'FULL',answer:'   ',limitation:null,citationChunkIds:[firstChunkId]},
-  {coverage:'FULL',answer:'อ่านเพิ่มที่ https://invented.example/policy',limitation:null,citationChunkIds:[firstChunkId]},
-  {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'ดู https://invented.example/policy',citationChunkIds:[firstChunkId]},
-  {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'ดู www.invented.example/policy',citationChunkIds:[firstChunkId]},
   {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'ข้อจำกัด '.repeat(251),citationChunkIds:[firstChunkId]},
   {coverage:'FULL',answer:'มีข้อมูล',limitation:null,citationChunkIds:['not-a-uuid']},
   {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'มีข้อจำกัด',citationChunkIds:[firstChunkId,firstChunkId]},
   {coverage:'FULL',answer:'มีข้อมูล',limitation:null,citationChunkIds:[]},
   {coverage:'FULL',answer:'มีข้อมูล',limitation:null,citationChunkIds:[firstChunkId,secondChunkId,thirdChunkId,fourthChunkId,fifthChunkId,firstChunkId]},
-])('rejects blank answers, URL claims, malformed IDs, and citation counts outside 1–5',completion=>{
+])('rejects blank answers, malformed IDs, and citation counts outside 1–5',completion=>{
   expect(ragCoverageCompletionSchema.safeParse(completion).success).toBe(false);
   expect(()=>normalizeRagCoverageCompletion(completion)).toThrowError('RAG_COVERAGE_INVALID');
+ });
+
+ it.each([
+  {coverage:'FULL',answer:'อ่านเพิ่มที่ https://invented.example/policy',limitation:null,citationChunkIds:[firstChunkId]},
+  {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'ดู https://invented.example/policy',citationChunkIds:[firstChunkId]},
+  {coverage:'PARTIAL',answer:'มีข้อมูล',limitation:'ดู www.invented.example/policy',citationChunkIds:[firstChunkId]},
+ ])('rejects unreviewed links in either the answer or normalized coverage limitation at source binding',completion=>{
+  const value=normalizeRagCoverageCompletion(completion);
+  expect(()=>buildCitedAnswer(value,[{chunkId:firstChunkId,documentId:secondChunkId,documentRevision:1,title:'Reviewed source',familyCode:'TEST',academicYear:null,authorityLevel:50,pageNumber:null,sectionTitle:null,sourceUrl:'https://fixture.yru.ac.th/source',similarity:1,content:'No external URL approved.'}])).toThrow('KNOWLEDGE_CITATION_INVALID');
  });
 
  it('preserves a complete FULL answer at the source-answer limit',()=>{

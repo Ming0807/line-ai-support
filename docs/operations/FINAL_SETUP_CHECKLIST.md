@@ -1,5 +1,7 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+Latest human update28October2026 / DEC186: rootรับงานข้อมูลและactualGemini/Hermesqualityโดยใช้คำถามจำลอง/ข้อมูลสาธารณะและไม่ส่งLINEเอง. ข้อเลื่อนGemini/Hermesในcheckpointด้านล่างเป็นประวัติ; ผู้ใช้ยังตรวจประสบการณ์Student/StaffOAจริงและยืนยันFlowA–Fภายหลัง. Rootต้องเก็บผลcomponent/realmodel/nativeHermesแยกจากrealLINEและห้ามอ้างผ่านก่อนมีหลักฐาน. ไม่ต้องให้ผู้ใช้เป็นผู้ตัดสินความถูกต้องจากการเดา; rootเทียบคำตอบเต็มกับแหล่งอ้างอิงเอง.
+
 ## 28 October 2026 — current ROOT-STR-CORPUS-01 session
 
 Canonical hidden runner restarted with the current structured/source and natural fallback code using `pnpm local:ai --web-search`. Offline CPU E5/384, four fresh worker check-ins, login200 and local/public signed-empty200 plus invalid401 for both OAs PASS. DEVELOPMENT has16 approvedPUBLIC documents:15 original RAG plus1 reviewed structured library-service derivative; university_services1/other6datasets0. Current3418unit/114ownedPG47migrations/type/changedlint/fullsourcebuild879matchinginputs PASS. No actual generation/search/conversation events or Hermes pilot were invoked by these startup checks.

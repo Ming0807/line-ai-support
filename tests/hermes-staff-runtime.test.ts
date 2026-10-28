@@ -96,6 +96,14 @@ describe('Hermes staff native runtime',()=>{
   expect(await readdir(join(runtimeRoot,'staff-runs'))).toEqual([]);
  });
 
+ it('gives the child a fixed private profile which keeps its one knowledge tool direct instead of a discovery bridge',async()=>{
+  const x=makeRun('profile');await expect(x.run).resolves.toEqual({draftText:draft});
+  const profiles=(await readdir(testRoot)).filter(name=>name.startsWith('profile-'));
+  expect(profiles).toHaveLength(1);
+  expect(await readFile(join(testRoot,profiles[0]!),'utf8')).toBe('tools:\n  tool_search:\n    enabled: "off"\n');
+  expect(await readdir(join(runtimeRoot,'staff-runs'))).toEqual([]);
+ });
+
  it('fails closed when the child completes without using the tool',async()=>{
   const x=makeRun('no-tool');
   await expect(x.run).rejects.toThrow('HERMES_STAFF_UNAVAILABLE');

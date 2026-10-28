@@ -1,16 +1,18 @@
 # YRU AI Helpdesk — จุดเริ่มอ่าน
 
-อัปเดต 28 ตุลาคม 2026 โดย root หลังเผยแพร่ชุดเริ่มต้นในขอบเขตที่ตรวจทานได้. **V1 ยังไม่เสร็จและยังรอการตรวจรับจากผู้ใช้บน LINE จริง** ผู้ใช้สั่งหยุดทดสอบคำตอบ Gemini เพิ่มและจะทดสอบเองภายหลัง; ไม่เริ่ม profile ใหม่หรือเปลี่ยน provider/key/timeout จากการตรวจครั้งนี้
+อัปเดต 28 ตุลาคม 2026 โดย root หลังเผยแพร่ชุดเริ่มต้นในขอบเขตที่ตรวจทานได้. **V1 ยังไม่เสร็จและยังรอการตรวจรับบน LINE จริง** ล่าสุดผู้ใช้มอบงานข้อมูลและทดสอบคุณภาพGemini/Hermesให้rootทำเอง เหลือLINEจริงให้ผู้ใช้ตามDEC186. ไม่เริ่มprofileเลือกmodelใหม่หรือเปลี่ยนprovider/key/timeout.
 
 ## อ่านตามลำดับนี้
 
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-185; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-186; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+- Latest approved work DEC187: [CHAT/Inbox implementation](superpowers/plans/2026-10-28-chat-inbox-implementation.md). Dashboard-only Staff conversation; OA notifications/claim/open. Root implements routing/concurrency/DB/auth/media, Luna implements Inbox and Incident UI, OpenCode owns bounded [Staff onboarding UI](agents/OPENCODE_STAFF_ONBOARDING_PROMPT.md). Existing RAG/Hermes work stays retained; current scope is not accepted or V1 complete. Human explicitly requests checkpoint commit/push; unfinished agent paths are excluded from that checkpoint.
 
 - ROOT-STR-CORPUS-01 / DEC184–185: เผยแพร่ข้อมูลบริการห้องสมุดจริง1แถวจากCSVฉบับถอดที่ตรวจเทียบกับHTMLทางการ ผูกreceipt/ตำแหน่งต้นฉบับ/current coverageจนส่งคำตอบ.16approvedPUBLIC (15RAGเดิม+1structured),services1/อีก6datasets0; old15unchanged,receipt/replay/currentquery/historicalexclusionผ่าน.3418unit/252files,114ownedPG47migrations,type/changedlint/build879matchinginputsผ่าน. ถ้าtypedcatalogว่างหรือชื่อบริการไม่ตรงคำถาม ให้ค้นRAGจากคำถามเดิมต่อ. [แผน/หลักฐาน](superpowers/plans/2026-10-28-public-structured-service-corpus.md). Current runtimeในchecklist; actualGemini/LINE/Hermes/FlowA–Fยังเลื่อน. จำนวน0rowsในcheckpointด้านล่างเป็นประวัติ ไม่ใช่จำนวนปัจจุบัน. แหล่งปฏิทิน/แบบฟอร์ม/ค่าใช้จ่ายที่ยังมีช่องว่างยังไม่สร้างtypedrowsจากการเดา.
 

@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {writeFile} from 'node:fs/promises';
+import {writeFile,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -53,6 +53,7 @@ async function recordRunHome(){
   const credentials={OPENAI_API_KEY:!!process.env.OPENAI_API_KEY,OPENROUTER_API_KEY:!!process.env.OPENROUTER_API_KEY,
    ANTHROPIC_API_KEY:!!process.env.ANTHROPIC_API_KEY};
   await writeFile(join(trackingRoot,`provider-env-${process.pid}`),JSON.stringify(credentials),{mode:0o600});
+  if(mode==='profile')await writeFile(join(trackingRoot,`profile-${process.pid}`),await readFile(join(home,'config.yaml'),'utf8'),{mode:0o600});
  }
 }
 

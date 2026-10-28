@@ -12,8 +12,8 @@ describe('backend-owned source citations',()=>{
  it('keeps HTML references readable while retaining full private extraction coordinates and complete answer prose',()=>{
   const title='การเชื่อมต่อ YRU-WiFi';
   const location={kind:'HTML' as const,blockStart:21,blockEnd:23,sourceUrl:evidence.sourceUrl!,headingPath:[title],tableIndex:null};
-  const row={...evidence,title,pageNumber:null,sectionTitle:title,sourceLocations:[location]};
-  const answer='1. ลงทะเบียนที่ passport.yru.ac.th\n2. เลือก Phone MAC\n3. เชื่อมต่อ YRU-WiFi';
+  const row={...evidence,title,pageNumber:null,sectionTitle:title,sourceLocations:[location],content:'ลงทะเบียนที่ https://passport.yru.ac.th แล้วเลือก Phone MAC และเชื่อมต่อ YRU-WiFi'};
+  const answer='1. ลงทะเบียนที่ https://passport.yru.ac.th\n2. เลือก Phone MAC\n3. เชื่อมต่อ YRU-WiFi';
   const reply=buildCitedAnswer({answer,citationChunkIds:[row.chunkId]},[row]),text=reply.messages.map(message=>message.text).join('');
   expect(text.startsWith(answer+'\n\n')).toBe(true);expect(text.split(title).length-1).toBe(1);
   expect(text).not.toContain('HTML');expect(text).not.toContain('ช่วง 21');expect(text).toContain(evidence.sourceUrl);
