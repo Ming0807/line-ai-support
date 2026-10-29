@@ -125,8 +125,13 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    conversationId=(await client.query("insert into public.conversations(line_session_id,conversation_type) values($1,$2) returning id",[sessionId,decision.route==='ASK_CONTEXT'?'SUPPORT':'GENERAL'])).rows[0].id;
   }else conversationId=decision.conversationId;
   if(!conversationId)throw new Error('ROUTE_CONTEXT_MISSING');
-  const content=event.message.type==='text'?event.message.text:'[ไฟล์แนบ]';
-  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'TEXT',content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route}])).rows[0];
+  const mediaLabels={image:'[ไฟล์แนบ]',file:'[ไฟล์แนบ]',sticker:'[สติกเกอร์]',audio:'[ข้อความเสียง]',video:'[วิดีโอ]',location:'[ตำแหน่งที่ตั้ง]'};
+  const content=event.message.type==='text'?event.message.text:mediaLabels[event.message.type];
+  // A display representation of unsupported media is not a Student text question.
+  // Keep the durable original event; no media understanding/download is claimed.
+  const messageType=event.message.type==='text'?'TEXT':event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'SYSTEM';
+  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,
+   ...(event.message.type==='text'?{}:{source_message_type:event.message.type})}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
  }
  if(decision.route==='ASK_CONTEXT'){
