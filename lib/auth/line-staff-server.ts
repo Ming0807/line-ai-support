@@ -7,8 +7,8 @@ export async function getVerifiedStaffAuth():Promise<VerifiedStaffAuth|null> {
  const client=await createUserClient();
  const {data,error}=await client.auth.getUser();
  if(error){
-  if(error.status===undefined||error.status>=500)throw new StaffApplicationError('UNAVAILABLE');
-  return null;
+  if(error.name==='AuthSessionMissingError'&&error.status===400)return null;
+  throw new StaffApplicationError('UNAVAILABLE');
  }
  if(!data.user)return null;
  const auth=projectVerifiedLineStaffUser(data.user);

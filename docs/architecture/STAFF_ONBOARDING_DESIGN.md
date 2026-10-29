@@ -48,6 +48,8 @@ New binding FK checks precede application row locks; reload identity/status/revi
 
 ## Implementation milestones and acceptance
 
+Callback session fence: re-fetch the current Auth user BEFORE exchanging the code. Generic sign-in requires no current verified session; explicit link requires the original expected user. Reject a changed/missing linking session without exchange or signing out the newer account, and retain the post-exchange LINE/subject proof. This checks the session visible to the callback request, not global atomic ordering of every future response from other tabs. Auth verification errors such as rate limiting or denied requests are unavailable verification, never proof of an absent session; only the installed SDK's specific missing-session error establishes absence.
+
 1. Strict submit/decision/suspend/query schemas + server verified-identity projection; capture RED before implementation. Reject role/subject spoofing, duplicate provider identities and forged/unlinked input.
 2. Private additive schema and transactional service. Owned PG proves no Staff profile before approval, one concurrent submit/reviewer winner, immutable request retries, current department, no self privilege, no binding transfer, expired/unlinked identity denial, legacy inactive block, revocation and RLS.
 3. GET self context, POST submit, SUPER_ADMIN-only list/decision/suspend APIs. Same-origin bounded strict JSON writes, private/no-store, fresh authority, exact DTOs, safe fixed error codes. Anonymous/pending accounts cannot enumerate another applicant or access case APIs.

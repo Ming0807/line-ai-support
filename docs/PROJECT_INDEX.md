@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-189; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-191; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+29October final Root callback guards (DEC191):3662unit/273files, type/fullLint/defaultbuild PASS. Preserve a newer current Auth session before PKCE exchange; Auth rate limits/unclassified failures are unavailable verification, not anonymous authority. Actual compiled anonymous browser8HTTP/9viewports and normal51/84RLS unchanged-data check PASS. Real OAuth and authenticated acceptance remain pending; this is not V1 completion.
 
 29October fresh OC-INBOX-05 review: exact90db3d3 is NOT_MERGED after Root29focused/15mounted green plus3new mounted counterexamples and independent reviews. Use [OC-OPERATOR-06](agents/OPENCODE_OPERATOR_COMPLETION_PROMPT.md) for16 bounded frontend/Realtime/onboarding/Incident tasks. Root backend0968451 is committed/pushed; Root continues private media prerequisite work. Do not call old fixture success real backend integration.
 

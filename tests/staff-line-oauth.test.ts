@@ -131,13 +131,13 @@ it('rejects an OAuth redirect outside the fixed Supabase or LINE authorization e
 
 it('treats a missing Auth session as unauthenticated but Auth network failures as unavailable',async()=>{
   const sessionMissing=fixture();
-  sessionMissing.auth.getUser.mockResolvedValue({data:{user:null},error:{status:400}});
+  sessionMissing.auth.getUser.mockResolvedValue({data:{user:null},error:{name:'AuthSessionMissingError',status:400}});
   const signin=await beginLineLogin(req('/auth/line'),sessionMissing.deps);
   expect(signin.status).toBe(302);
   expect(sessionMissing.auth.signInWithOAuth).toHaveBeenCalled();
 
   const linkMissing=fixture();
-  linkMissing.auth.getUser.mockResolvedValue({data:{user:null},error:{status:400}});
+  linkMissing.auth.getUser.mockResolvedValue({data:{user:null},error:{name:'AuthSessionMissingError',status:400}});
   expect((await beginLineLogin(req('/auth/line?mode=link'),linkMissing.deps)).status).toBe(401);
   expect(linkMissing.auth.linkIdentity).not.toHaveBeenCalled();
 
@@ -153,7 +153,8 @@ it('consumes a valid callback cookie before code exchange and syncs only a fresh
   const begin=await beginLineLogin(req('/auth/line?next=%2Fstaff%2Fapply'),f.deps);
   expect(begin.status).toBe(302);
   f.auth.exchangeCodeForSession.mockImplementation(async()=>{expect(f.cookie).toBeUndefined();return {data:{},error:null};});
-  f.auth.getUser.mockResolvedValue({data:{user:linkedUser},error:null});
+  f.auth.getUser.mockResolvedValueOnce({data:{user:null},error:{name:'AuthSessionMissingError',status:400}})
+    .mockResolvedValueOnce({data:{user:linkedUser},error:null});
   const callback=await finishLineLogin(req('/auth/callback?code=oauth-code&sb_flow_id=pkce-flow-1'),f.deps);
   expect(f.order).toEqual(['write','clear']);
   expect(f.auth.exchangeCodeForSession).toHaveBeenCalledWith('oauth-code',{flowId:'pkce-flow-1'});
@@ -169,6 +170,55 @@ it('requires callback flow ids to match the PKCE flow returned at OAuth initiati
   expect(f.auth.exchangeCodeForSession).not.toHaveBeenCalled();
   expect(f.sync).not.toHaveBeenCalled();
   expect(response.headers.get('location')??'').not.toContain('wrong-flow');
+});
+
+it('does not exchange a sign-in callback if another Auth session appeared after OAuth began',async()=>{
+  const f=fixture();
+  await beginLineLogin(req('/auth/line'),f.deps);
+  f.auth.getUser.mockResolvedValue({data:{user:linkedUser},error:null});
+
+  const response=await finishLineLogin(req('/auth/callback?code=oauth-code&sb_flow_id=pkce-flow-1'),f.deps);
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({error:'IDENTITY_CHANGED'});
+  expect(f.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  expect(f.sync).not.toHaveBeenCalled();
+  expect(f.auth.signOut).not.toHaveBeenCalled();
+  expect(f.order).toEqual(['write','clear']);
+});
+
+it('preserves the existing account when explicit-link callback sees a different or missing Auth session',async()=>{
+  const otherUserId='91e74be8-857d-4e89-9915-05ce51daf8fc';
+  const otherUser={...linkedUser,id:otherUserId,identities:[{...linkedUser.identities[0],user_id:otherUserId}]};
+  for(const currentUser of [otherUser,null]) {
+    const f=fixture();
+    f.auth.getUser.mockResolvedValueOnce({data:{user:{id:userId,identities:[]}},error:null});
+    await beginLineLogin(req('/auth/line?mode=link&next=%2Fstaff%2Fapplication'),f.deps);
+    f.auth.getUser.mockResolvedValue({data:{user:currentUser},error:currentUser?null:{name:'AuthSessionMissingError',status:400}});
+
+    const response=await finishLineLogin(req('/auth/callback?code=oauth-code&sb_flow_id=pkce-flow-1'),f.deps);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({error:'IDENTITY_CHANGED'});
+    expect(f.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(f.sync).not.toHaveBeenCalled();
+    expect(f.auth.signOut).not.toHaveBeenCalled();
+    expect(f.order).toEqual(['write','clear']);
+  }
+});
+
+it('treats callback getUser authorization and generic client errors as unavailable without exchanging the code',async()=>{
+  for(const error of [{status:429},{status:403},{status:400,name:'AuthClientError'}]) {
+    const f=fixture();
+    f.cookie=createLineFlowCookie({mode:'signin',next:'/staff/apply',userId:null},key,nowValue);
+    f.auth.getUser.mockResolvedValue({data:{user:null},error});
+
+    const response=await finishLineLogin(req('/auth/callback?code=oauth-code'),f.deps);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({error:'UNAVAILABLE'});
+    expect(f.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(f.sync).not.toHaveBeenCalled();
+    expect(f.auth.signOut).not.toHaveBeenCalled();
+    expect(f.order).toEqual(['clear']);
+  }
 });
 
 it('consumes expired, missing-cookie, missing-code, duplicate and unexpected-parameter callbacks without exchanging a code',async()=>{
@@ -192,13 +242,15 @@ it('consumes expired, missing-cookie, missing-code, duplicate and unexpected-par
 it('requires a fresh linked LINE identity after exchange and signs out locally if link mode changes Auth subjects',async()=>{
   const missingIdentity=fixture();
   missingIdentity.cookie=createLineFlowCookie({mode:'signin',next:'/staff/apply',userId:null},key,nowValue);
-  missingIdentity.auth.getUser.mockResolvedValue({data:{user:{id:userId,identities:[]}},error:null});
+  missingIdentity.auth.getUser.mockResolvedValueOnce({data:{user:null},error:null})
+    .mockResolvedValueOnce({data:{user:{id:userId,identities:[]}},error:null});
   await finishLineLogin(req('/auth/callback?code=oauth-code'),missingIdentity.deps);
   expect(missingIdentity.sync).not.toHaveBeenCalled();
 
   const switched=fixture();
   switched.cookie=createLineFlowCookie({mode:'link',next:'/staff/application',userId},key,nowValue);
-  switched.auth.getUser.mockResolvedValue({data:{user:{...linkedUser,id:'91e74be8-857d-4e89-9915-05ce51daf8fc',identities:[{
+  switched.auth.getUser.mockResolvedValueOnce({data:{user:{id:userId,identities:[]}},error:null})
+    .mockResolvedValueOnce({data:{user:{...linkedUser,id:'91e74be8-857d-4e89-9915-05ce51daf8fc',identities:[{
     ...linkedUser.identities[0],user_id:'91e74be8-857d-4e89-9915-05ce51daf8fc',
   }]}},error:null});
   await finishLineLogin(req('/auth/callback?code=oauth-code'),switched.deps);

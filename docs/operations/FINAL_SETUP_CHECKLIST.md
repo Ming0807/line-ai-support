@@ -2,6 +2,8 @@
 
 ## 29October — Staff onboarding backend (DEC190)
 
+DEC191 final current-source technical evidence:3662unit/273files/type/fullLint/defaultbuild PASS; controlled pre-exchange session preservation and Auth429/403/generic400 fail-closed tests plus scoped max review. Compiled anonymous browser8HTTP/9viewports PASS and exactownedserver3764 stopped. This does not exercise real LINE OAuth or authenticated approval; all configuration items below remain pending.
+
 Root schema/API/PKCE implementation is present; normal DEVELOPMENT51/84RLS is verified, including unchanged existing Staff/binding/business/provider fingerprints. Owned16case tests prove controlled admission/concurrency/revocation; actual OAuth, authenticated browser review, actual OA, Realtime/reconnect/private media and FlowA–F remain pending. No fresh operational runner was started by migration/local:check; old trycloudflare URLs below remain historical.
 
 Final operator configuration, after implementation integration:

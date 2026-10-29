@@ -8,7 +8,7 @@ export interface StaffLineOAuthDependencies {
  config:{loginAvailable:boolean;sameProviderConfirmed:boolean;appBaseUrl:string;supabaseUrl:string;encryptionKey:string};
  now:()=>number;readCookie:()=>string|undefined;writeCookie:(value:string|null)=>void;
  client:()=>Promise<{auth:{
-  getUser:()=>Promise<{data:{user:unknown|null};error:{status?:number}|null}>;
+  getUser:()=>Promise<{data:{user:unknown|null};error:{status?:number;name?:string}|null}>;
   signInWithOAuth:(input:OAuthCredentials)=>Promise<OAuthResult>;
   linkIdentity:(input:OAuthCredentials)=>Promise<OAuthResult>;
   exchangeCodeForSession:(code:string,options?:{flowId:string})=>Promise<{data:unknown;error:unknown}>;
@@ -44,7 +44,8 @@ function safeError(error:unknown):Response {
 async function freshUser(auth:Awaited<ReturnType<StaffLineOAuthDependencies['client']>>['auth']):Promise<VerifiedStaffAuth|null> {
  const result=await auth.getUser();
  if(result.error){
-  if(result.error.status===undefined||result.error.status>=500)throw new StaffApplicationError('UNAVAILABLE');return null;
+  if(result.error.name==='AuthSessionMissingError'&&result.error.status===400)return null;
+  throw new StaffApplicationError('UNAVAILABLE');
  }
  if(!result.data.user)return null;
  const projected=projectVerifiedLineStaffUser(result.data.user);
@@ -82,6 +83,11 @@ export async function finishLineLogin(request:Request,deps:StaffLineOAuthDepende
  if(!code||!/^[A-Za-z0-9._~-]{1,2048}$/u.test(code)||(flowId!==null&&flowId!==flow.pkceFlowId))return failure('INVALID_REQUEST',400);
  try{
   const client=await deps.client();
+  // Another tab may have signed in after this OAuth flow began. Reject BEFORE
+  // PKCE exchange writes new SSR session cookies; preserve that current account.
+  const beforeExchange=await freshUser(client.auth);
+  if(flow.mode==='signin'?beforeExchange!==null:beforeExchange?.userId!==flow.userId)
+   return failure('IDENTITY_CHANGED',409);
   const exchanged=await client.auth.exchangeCodeForSession(code,flow.pkceFlowId?{flowId:flow.pkceFlowId}:undefined);
   if(exchanged.error)return failure('LINE_LOGIN_FAILED',400);
   const current=await freshUser(client.auth);
