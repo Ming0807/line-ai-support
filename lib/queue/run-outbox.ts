@@ -3,6 +3,9 @@ import {flushInboxInvalidations} from '../chat/realtime';
 import {z} from 'zod';
 import {decryptValue,hashLineUserId,hashStaffLineUserId} from '../security/identity';
 import {deliverLine,type LineMessage} from '../line/delivery';
+import {lineMessagesSchema} from '../line/message-schemas';
+import {recordLineDeliveryReceipt} from '../conversation/quoted-context';
+import {isLatestAIOutboxInput,hasUnroutedAIOutboxInput} from '../ai/input-watermark';
 import {eligibleScopeSql} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
 import {verifyAIOutboxEvidence,aiOutboxNeedsStructuredCatalog,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
@@ -13,7 +16,7 @@ import {loadStaffAlertDelivery,verifyStaffAlertDelivery,staffAlertReferences,sta
 
 export interface OutboxOptions {accessTokens?:{STUDENT:string;STAFF:string};fetchImpl?:typeof fetch}
 interface OutboxJob {id:string;idempotency_key:string;channel:'STUDENT'|'STAFF';lease_token:string;line_session_id:string|null;recipient_staff_id:string|null;recipient_user_id_encrypted:string|null;conversation_id:string|null;ticket_id:string|null;kind:string;expected_conversation_revision:number|null;payload_encrypted:string;delivery_mode:'REPLY'|'PUSH';reply_deadline_at:Date|null;line_retry_key:string;attempts:number;attempt_limit?:number;first_attempt_at:Date|null}
-const payloadSchema=z.object({messages:z.array(z.object({type:z.literal('text'),text:z.string().min(1).max(5000),quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action:z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().max(300),displayText:z.string().max(300).optional()}).strict()}).strict()).min(1).max(13)}).strict().optional()}).strict()).min(1).max(5),replyToken:z.string().min(1).max(512).optional(),selectionExpiresAt:z.iso.datetime().optional()}).strict();
+const payloadSchema=z.object({messages:lineMessagesSchema,replyToken:z.string().min(1).max(512).optional(),selectionExpiresAt:z.iso.datetime().optional()}).strict();
 
 /** Pool must be a dedicated session-mode pool, never a transaction-mode PgBouncer pool. */
 export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions={}):Promise<{claimed:number;sent:number;failed:number}> {
@@ -60,6 +63,8 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
      const allowed=(await client.query(`select c.id from public.conversations c where c.id=$1 and c.mode='AI' and c.revision=$2 and c.status in ('ACTIVE','WAITING')
       and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in ('CLOSED','CANCELLED'))`,[job.conversation_id,job.expected_conversation_revision])).rowCount===1;
      if(!allowed)suppress='HUMAN_OR_STALE_AI';
+     if(!suppress&&!await isLatestAIOutboxInput(client,{idempotencyKey:job.idempotency_key,sessionId:job.line_session_id,
+      conversationId:job.conversation_id}))suppress='STALE_AI_INPUT';
      if(!suppress&&!await verifyAIOutboxEvidence(client,{idempotencyKey:current.idempotency_key,
       conversationId:job.conversation_id,sessionId:job.line_session_id},key,locks))suppress='EVIDENCE_CHANGED';
     }
@@ -83,6 +88,12 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
     const recipientId=job.recipient_user_id_encrypted?decryptValue(job.recipient_user_id_encrypted,key):currentRecipient;
     if(recipientId!==currentRecipient){await client.query("update private.message_outbox set status='SUPPRESSED',last_error_code='RECIPIENT_CHANGED',lease_token=null,lease_until=null,completed_at=clock_timestamp() where id=$1 and lease_token=$2 and lease_until>clock_timestamp()",[job.id,job.lease_token]);continue;}
     if(identity!.user_hash!==(channel==='STUDENT'?hashLineUserId(recipientId,key):hashStaffLineUserId(recipientId,key)))throw new Error('RECIPIENT_IDENTITY_MISMATCH');
+    if(job.kind==='AI'&&await hasUnroutedAIOutboxInput(client,{idempotencyKey:job.idempotency_key,sessionId:job.line_session_id,conversationId:job.conversation_id})){
+     await client.query(`update private.message_outbox set status='PENDING',lease_token=null,lease_until=null,
+      available_at=clock_timestamp()+interval '250 milliseconds',last_error_code='WAITING_INPUT_ROUTING'
+      where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()`,[job.id,job.lease_token]);
+     continue;
+    }
     const now=new Date();
     const validToken=typeof payload.replyToken==='string'&&payload.replyToken.trim()===payload.replyToken;
     const remaining=job.reply_deadline_at?job.reply_deadline_at.getTime()-now.getTime():0;
@@ -111,6 +122,7 @@ export async function runOutboxCycle(pool:Pool,key:string,options:OutboxOptions=
       where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() returning id`,[job.id,job.lease_token,finalStatus,errorCode]);
      if(finished.rowCount!==1)throw new Error('STALE_OUTBOX_LEASE');
      await client.query('insert into private.delivery_attempts(outbox_id,http_status,request_id,error_code,accepted) values($1,$2,$3,$4,$5)',[job.id,delivery.httpStatus??null,delivery.requestId??null,errorCode,delivery.status==='SENT']);
+     if(channel==='STUDENT'&&delivery.status==='SENT'&&delivery.sentMessageIds)await recordLineDeliveryReceipt(client,job.id,delivery.sentMessageIds,key);
      await client.query('commit');
     }catch(error){await client.query('rollback');throw error;}
     if(delivery.status==='SENT')result.sent++;else result.failed++;

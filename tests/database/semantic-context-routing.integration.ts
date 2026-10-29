@@ -40,6 +40,95 @@ async function fixture(options:{second?:boolean;spam?:boolean;duplicate?:boolean
 }
 const applyInbox=(job:InboxJob,advice:Awaited<ReturnType<typeof classifyStudentInboxContext>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,routingAdvice:advice??undefined}),pool);
 
+async function createStaffActor(f:Awaited<ReturnType<typeof fixture>>):Promise<string>{
+ const staffId=randomUUID();
+ const department=(await pool.query('select department_id from public.tickets where id=$1',[f.ticket])).rows[0].department_id as string;
+ await pool.query('insert into auth.users(id) values($1)',[staffId]);
+ await pool.query("insert into public.staff_profiles(id,department_id,role,display_name,active) values($1,$2,'STAFF','Owned routing fixture',true)",[staffId,department]);
+ return staffId;
+}
+
+async function addDeliveredStaffReply(f:Awaited<ReturnType<typeof fixture>>,staffId:string,text:string):Promise<{messageId:string;outboxId:string}>{
+ const messageId=(await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,sender_staff_id,content) values($1,$2,'STAFF',$3,$4) returning id",[f.conversation,f.ticket,staffId,text])).rows[0].id as string;
+ const outboxId=await transaction(c=>enqueueOutbound(c,{idempotencyKey:`staff-reply:${f.ticket}:${messageId}`,channel:'STUDENT',kind:'STAFF',lineSessionId:f.session,conversationId:f.conversation,ticketId:f.ticket,messages:[{type:'text',text}]},key),pool);
+ assert(outboxId);
+ await pool.query("update private.message_outbox set status='SENT',completed_at=clock_timestamp() where id=$1",[outboxId]);
+ return {messageId,outboxId};
+}
+
+async function addDeliveredBatchStaffReply(f:Awaited<ReturnType<typeof fixture>>,staffId:string,text:string):Promise<{messageId:string;outboxId:string}>{
+ const messageId=(await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,sender_staff_id,content) values($1,$2,'STAFF',$3,$4) returning id",[f.conversation,f.ticket,staffId,text])).rows[0].id as string;
+ const ticket=(await pool.query('select ticket_no,department_id from public.tickets where id=$1',[f.ticket])).rows[0];
+ const incidentId=randomUUID(),batchId=randomUUID(),recipientId=randomUUID(),requestId=randomUUID();
+ const happenedAt=new Date();
+ const outboxId=await transaction(async c=>{
+  await c.query("insert into public.incidents(id,department_id,title,category,status,severity,sensitive_level,report_count,distinct_session_count,first_report_at,last_report_at) values($1,$2,'Owned routing batch','IT_NETWORK','INVESTIGATING','HIGH','GENERAL',2,2,$3,$3)",[incidentId,ticket.department_id,happenedAt]);
+  const outbox=await enqueueOutbound(c,{idempotencyKey:`incident-batch:${batchId}:R1`,channel:'STUDENT',kind:'BATCH',lineSessionId:f.session,conversationId:f.conversation,ticketId:f.ticket,messages:[{type:'text',text}]},key);
+  assert(outbox);
+  await c.query("update private.message_outbox set status='SENT',completed_at=clock_timestamp() where id=$1",[outbox]);
+  await c.query('insert into private.incident_reply_batches(id,incident_id,staff_id,request_id,request_hash,prepared_encrypted,case_count,recipient_count) values($1,$2,$3,$4,$5,$6,1,1)',[batchId,incidentId,staffId,requestId,'a'.repeat(64),encryptValue('owned routing batch fixture',key)]);
+  await c.query('insert into private.incident_reply_recipients(id,batch_id,recipient_code,line_session_id,outbox_id,packet_digest,case_count) values($1,$2,\'R1\',$3,$4,$5,1)',[recipientId,batchId,f.session,outbox,'b'.repeat(64)]);
+  await c.query('insert into private.incident_reply_cases(batch_id,ticket_id,recipient_id,conversation_id,ticket_code,reporter_label,staff_message_id,assignment_epoch) values($1,$2,$3,$4,$5,$6,$7,0)',[batchId,f.ticket,recipientId,f.conversation,ticket.ticket_no,'ANONYMIZED_ROUTING_FIXTURE',messageId]);
+  return outbox;
+ },pool);
+ return {messageId,outboxId};
+}
+
+test('the anonymized student identity answer follows a delivered Staff question into HUMAN with no AI job',async()=>{
+ const f=await fixture({question:'ชื่อ [REDACTED] รหัส [REDACTED]'}),staffId=await createStaffActor(f);
+ await addDeliveredStaffReply(f,staffId,'ขอชื่อรหัส นศ ด้วยครับ');
+ await pool.query("insert into public.messages(conversation_id,ticket_id,sender_type,sender_staff_id,content) values($1,$2,'STAFF',$3,'UNSENT_STAFF_DRAFT_DO_NOT_ROUTE')",[f.conversation,f.ticket,staffId]);
+ let deliveredContext:unknown,priorUsers:unknown;
+ const advice=await classifyStudentInboxContext(pool,f.job,key,async input=>{
+  const human=input.contexts.find(context=>context.mode==='HUMAN');assert(human);
+  deliveredContext=human.recentMessages;priorUsers=human.previousUserMessages;
+  return JSON.stringify(human.recentMessages).includes('ขอชื่อรหัส นศ ด้วยครับ')
+   ?{decision:'CONTINUE',candidateCode:human.code,confidence:.99}
+   :{decision:'NEW',candidateCode:null,confidence:.99};
+ });
+ await applyInbox(f.job,advice);
+ const actual={ticketId:(await pool.query('select ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0].ticket_id,
+  aiJobs:(await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n};
+ assert.deepEqual(actual,{ticketId:f.ticket,aiJobs:0},'STAFF_FOLLOWUP_MUST_STAY_IN_THE_HUMAN_TICKET_WITHOUT_CREATING_AN_AI_JOB');
+ assert.deepEqual(deliveredContext,[{role:'user',content:'ลงทะเบียนไม่ได้ครับ'},{role:'staff',content:'ขอชื่อรหัส นศ ด้วยครับ'}]);
+ assert.deepEqual(priorUsers,['ลงทะเบียนไม่ได้ครับ'],'STAFF_TEXT_IS_NOT_A_USER_MESSAGE');
+ assert.equal(JSON.stringify(deliveredContext).includes('UNSENT_STAFF_DRAFT_DO_NOT_ROUTE'),false,'UNSENT_STAFF_TEXT_MUST_NOT_ENTER_ROUTING_CONTEXT');
+});
+
+test('a delivered batch Staff reply is role-labelled context for its exact HUMAN case',async()=>{
+ const f=await fixture({question:'ชื่อ [REDACTED] รหัส [REDACTED]'}),staffId=await createStaffActor(f);
+ await addDeliveredBatchStaffReply(f,staffId,'ขอชื่อรหัส นศ ด้วยครับ');
+ let deliveredContext:unknown;
+ const advice=await classifyStudentInboxContext(pool,f.job,key,async input=>{
+  const human=input.contexts.find(context=>context.mode==='HUMAN');assert(human);deliveredContext=human.recentMessages;
+  return JSON.stringify(human.recentMessages).includes('ขอชื่อรหัส นศ ด้วยครับ')
+   ?{decision:'CONTINUE',candidateCode:human.code,confidence:.99}
+   :{decision:'NEW',candidateCode:null,confidence:.99};
+ });
+ await applyInbox(f.job,advice);
+ assert.deepEqual(deliveredContext,[{role:'user',content:'ลงทะเบียนไม่ได้ครับ'},{role:'staff',content:'ขอชื่อรหัส นศ ด้วยครับ'}]);
+ const actual={ticketId:(await pool.query('select ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0].ticket_id,
+  aiJobs:(await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n};
+ assert.deepEqual(actual,{ticketId:f.ticket,aiJobs:0},'BATCH_REPLY_MUST_BIND_TO_ITS_CASE_WITHOUT_CREATING_AN_AI_JOB');
+});
+
+test('a Staff delivery changing after classification invalidates the HUMAN continuation source',async()=>{
+ const f=await fixture({question:'ชื่อ [REDACTED] รหัส [REDACTED]'}),staffId=await createStaffActor(f);
+ const sent=await addDeliveredStaffReply(f,staffId,'ขอชื่อรหัส นศ ด้วยครับ');
+ let sawSentStaff=false;
+ const advice=await classifyStudentInboxContext(pool,f.job,key,async input=>{
+  sawSentStaff=JSON.stringify(input.contexts).includes('ขอชื่อรหัส นศ ด้วยครับ');
+  return {decision:'CONTINUE',candidateCode:input.contexts[0]!.code,confidence:.99};
+ });
+ assert(advice);
+ assert.equal(sawSentStaff,true,'CLASSIFICATION_MUST_BE_BOUND_TO_THE_SENT_STAFF_SOURCE');
+ await pool.query("update private.message_outbox set status='SUPPRESSED',completed_at=clock_timestamp() where id=$1",[sent.outboxId]);
+ await applyInbox(f.job,advice);
+ const routed=(await pool.query('select ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0];
+ assert.notEqual(routed.ticket_id,f.ticket,'STALE_SENT_STAFF_CONTEXT_MUST_NOT_AUTHORIZE_A_HUMAN_ROUTE');
+ assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
+});
+
 test('fifteen active contexts still classify and route the exact thirteenth AI context once',async()=>{
  const f=await fixture({second:true,question:'ขอรายละเอียดหัวข้อทดสอบสิบสาม'});
  const extra=(await pool.query("insert into public.conversations(line_session_id,topic) select $1,'หัวข้อทดสอบ '||n from generate_series(1,13) n returning id",[f.session])).rows;

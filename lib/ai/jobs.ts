@@ -13,6 +13,7 @@ import {webLeadsResultSchema} from '../knowledge/web-leads';
 import {conversationReplySchema} from './conversation-reply';
 import {formDirectoryResultSchema} from '../knowledge/form-directory';
 import {structuredDiscoveryResultSchema} from '../knowledge/structured-discovery';
+import {isLatestConversationInput} from './input-watermark';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
@@ -57,9 +58,13 @@ export async function prepareAIJob(client:DbClient,input:PrepareAIJob,key:string
  if(!context||context.sender_type!=='USER'||context.message_type!=='TEXT')throw new Error('AI_JOB_CONTEXT_INVALID');
  if(!context.active||context.mode!=='AI'||!['ACTIVE','WAITING'].includes(context.status))return null;
  if((await client.query("select id from public.tickets where conversation_id=$1 and mode='HUMAN' and status not in ('CLOSED','CANCELLED')",[input.conversationId])).rowCount)return null;
+ if(!await isLatestConversationInput(client,{sessionId:input.sessionId,conversationId:input.conversationId,messageId:input.messageId}))return null;
  const saved=(await client.query(`insert into private.ai_jobs(line_session_id,conversation_id,message_id,expected_conversation_revision,request_encrypted)
   values($1,$2,$3,$4,$5) on conflict(message_id) do nothing returning id`,[input.sessionId,input.conversationId,input.messageId,context.revision,
   encryptValue(JSON.stringify(request.data),key)])).rows[0];
+ if(saved)await client.query(`update private.ai_jobs older set status='SUPPRESSED',lease_token=null,lease_until=null,
+  completed_at=clock_timestamp(),last_error_code='CONTEXT_CHANGED' where older.conversation_id=$1 and older.status='PENDING'
+  and older.job_seq<(select job_seq from private.ai_jobs where id=$2)`,[input.conversationId,saved.id]);
  return saved?.id??(await client.query('select id from private.ai_jobs where message_id=$1',[input.messageId])).rows[0].id;
 }
 export async function claimAIJob(pool:Pool):Promise<AIJob|null>{return (await pool.query('select * from private.claim_ai_job()')).rows[0]??null;}

@@ -3,7 +3,8 @@ import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../database/pool';
 import {lockConversation,type DbClient} from '../tickets/authorization';
 import {staffChatAccessLock} from '../staff/line-case-context';
-import {enqueueOutbound,type OutboundText} from '../queue/outbox';
+import {enqueueOutbound} from '../queue/outbox';
+import type {LineMessage} from '../line/delivery';
 import {hashOpaqueToken} from '../conversation/quick-reply';
 import {staffAlertCatalogLock,staffAlertScopeSql,staffAlertIncidentReadable,staffAlertProof,
  type StaffAlertCase,type StaffAlertSource,type StaffAlertDelivery} from './staff-alert-delivery';
@@ -41,7 +42,7 @@ function newCase(ticket:Ticket|undefined,event:Event){return Boolean(live(ticket
  &&ticket!.assigned_staff_id===null&&ticket!.assignment_epoch===String(event.assignment_epoch));}
 function canonicalBase(value:string|undefined){
  try{if(!value||value.length>1000)throw Error();const u=new URL(value);
-  if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error();return u.origin;
+  if(!(u.protocol==='https:'||u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname))||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error();return u.origin;
  }catch{throw new Error('STAFF_ALERT_BASE_REQUIRED');}
 }
 async function captureCriticalIncidents(c:PoolClient){
@@ -119,14 +120,16 @@ export async function flushStaffAlerts(pool:Pool,key:string,options:{appBaseUrl?
   // Individual alerts can retain a private current incident for urgency proof; their text has no incident link.
   const purpose=critical?'CRITICAL_INCIDENT':'NEW_CASES',incidentId=grouped||currentIncident?.severity==='CRITICAL'?first.current_incident_id:null;
   const urgent=critical||currentIncident?.severity==='CRITICAL'||selected.some(t=>t.priority==='CRITICAL');
-  let messages:OutboundText[];
+  let messages:LineMessage[];
   if(grouped){messages=[{type:'text',text:(critical?'มีเหตุการณ์เร่งด่วนที่ต้องตรวจสอบ':'มีเคสใหม่ที่เกี่ยวข้องกับปัญหาเดียวกัน')
-   +(newCount?`\n${newCount} เคสใหม่รอเจ้าหน้าที่ตรวจสอบ`:'')+`\nเปิดเหตุการณ์และเลือกเคสใน Dashboard: ${base}/incidents/${incidentId}\nการแจ้งเตือนนี้ยังไม่รับเคสหรือเปลี่ยนเคสที่คุณกำลังคุย`}];
+   +(newCount?`\n${newCount} เคสใหม่รอเจ้าหน้าที่ตรวจสอบ`:'')+`\nเปิดเหตุการณ์และเลือกเคสใน Dashboard: ${base}/incidents/${incidentId}\nการแจ้งเตือนนี้ยังไม่ถือว่ารับเคส กรุณาเลือกเคสและสนทนาใน Dashboard`,
+   quickReply:{items:[{type:'action',action:{type:'uri',label:'เปิดเหตุการณ์',uri:`${base}/incidents/${incidentId}`}}]}}];
   }else{
    const t=selected[0],token=randomBytes(32).toString('base64url');
    await c.query("insert into private.staff_action_tokens(token_hash,staff_id,ticket_id,action,expected_revision,expires_at) values($1,$2,$3,'ACCEPT',$4,clock_timestamp()+interval '30 minutes')",[hashOpaqueToken(token,key,'staff-command'),first.staff_id,t.id,Number(t.revision)]);
-   messages=[{type:'text',text:t.sensitive_level==='GENERAL'?`มีงานใหม่ ${t.ticket_no} · ความสำคัญ ${t.priority}\nเปิดแดชบอร์ดเพื่อดูรายละเอียด: ${base}/tickets/${t.id}`:'มีงานที่ต้องตรวจสอบ กรุณาเข้าสู่แดชบอร์ดตามสิทธิ์ของคุณ',
-    quickReply:{items:[{type:'action',action:{type:'postback',label:'รับงาน',data:`yru:staff:accept:${token}`}}]}}];
+   messages=[{type:'text',text:t.sensitive_level==='GENERAL'?`มีงานใหม่ ${t.ticket_no} · ความสำคัญ ${t.priority}\nเปิดห้องแชตใน Dashboard เพื่อดูรายละเอียด`:'มีงานที่ต้องตรวจสอบ กรุณาเข้าสู่แดชบอร์ดตามสิทธิ์ของคุณ',
+    quickReply:{items:[{type:'action',action:{type:'postback',label:'รับงาน',data:`yru:staff:accept:${token}`}},
+     {type:'action',action:{type:'uri',label:'เปิดห้องแชต',uri:`${base}/inbox?ticket=${t.id}`}}]}}];
   }
   const sourceIds=eligible.map(e=>e.id).sort(),idempotencyKey='staff-alert:'+createHash('sha256').update(JSON.stringify(sourceIds)).digest('hex');
   const outboxId=await enqueueOutbound(c,{idempotencyKey,channel:'STAFF',kind,recipientStaffId:first.staff_id,ticketId:selected[0].id,messages,alertPriority:urgent?1:0},key);

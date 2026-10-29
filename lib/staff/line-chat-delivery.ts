@@ -10,14 +10,15 @@ export async function loadStaffChatDeliveryGuard(c:DbClient,outboxId:string):Pro
 }
 /** Called under the shared access and every selected conversation's session lock, outside SQL transactions. */
 export async function verifyStaffChatDelivery(c:DbClient,guard:StaffChatDeliveryGuard|null,job:{channel:string;kind:string;recipient_staff_id:string|null;line_session_id:string|null;ticket_id:string|null;conversation_id?:string|null},payload:{selectionExpiresAt?:string}={}):Promise<boolean>{
+ // DEC187: retire both directions of the old full-chat transport. Dashboard
+ // manual sends have a null LINE binding and retain their existing guards.
+ if(job.channel==='STAFF'&&job.kind==='CHAT')return false;
  if(!guard)return !['STAFF','CHAT','CONTROL','BATCH'].includes(job.kind);
  const manual=job.channel==='STUDENT'&&job.kind==='STAFF';
+ if(manual&&guard.binding_hash!==null)return false;
  if(manual&&(guard.purpose!=='CASE'||guard.cases.length!==1||guard.cases[0]!.ticket_id!==job.ticket_id
   ||guard.cases[0]!.conversation_id!==job.conversation_id))return false;
- if(manual&&guard.binding_hash!==null){
-  if(!payload.selectionExpiresAt||!Number.isFinite(Date.parse(payload.selectionExpiresAt)))return false;
-  if((await c.query('select $1::timestamptz>clock_timestamp() as fresh',[payload.selectionExpiresAt])).rows[0]?.fresh!==true)return false;
- }else if(payload.selectionExpiresAt!==undefined)return false;
+ if(payload.selectionExpiresAt!==undefined)return false;
  const staff=(await c.query(`select s.id,s.role from public.staff_profiles s where s.id=$1 and s.active and ($2::text is null or exists(
   select 1 from private.staff_line_identities i where i.staff_id=s.id and i.active and i.user_hash=$2))`,[guard.staff_id,guard.binding_hash])).rows[0];
  if(!staff)return false;

@@ -16,16 +16,18 @@ export function routingInferenceBudgetMs(remainingMs:unknown):number|null{
  const remaining=Number(remainingMs);if(!Number.isFinite(remaining))return null;
  const duration=Math.min(SEMANTIC_ROUTE_TIMEOUT_MS,remaining-7000);return duration>=1?duration:null;
 }
-export interface SemanticCandidate extends RouteCandidate {topic:string|null;summary:string|null;history:{id:string;content:string;createdAt:string;senderType?:'USER'|'AI'}[]}
+export interface SemanticCandidate extends RouteCandidate {topic:string|null;summary:string|null;history:{id:string;content:string;createdAt:string;senderType?:'USER'|'AI'|'STAFF'}[]}
 export function projectRoutingContext(candidates:SemanticCandidate[]){
  return candidates.map((candidate,index)=>({code:`C${index+1}`,mode:candidate.mode,
   topic:candidate.topic,summary:candidate.summary,
-  previousUserMessages:candidate.history.filter(message=>message.senderType!=='AI').slice(-2).map(message=>message.content),
-  recentMessages:candidate.history.slice(-8).map(message=>({role:message.senderType==='AI'?'assistant' as const:'user' as const,content:message.content}))}));
+  previousUserMessages:candidate.history.filter(message=>message.senderType===undefined||message.senderType==='USER').slice(-2).map(message=>message.content),
+  recentMessages:candidate.history.slice(-8).map(message=>({role:message.senderType==='AI'?'assistant' as const:message.senderType==='STAFF'?'staff' as const:'user' as const,content:message.content}))}));
 }
-const context=z.strictObject({code:candidateCode,mode:z.enum(['AI','HUMAN']),topic:z.string().max(20000).nullable(),summary:z.string().max(20000).nullable(),previousUserMessages:z.array(z.string().max(20000)).max(2),recentMessages:z.array(z.strictObject({role:z.enum(['user','assistant']),content:z.string().max(20000)})).max(8).optional()});
-export const semanticPromptSchema=z.strictObject({question:z.string().min(1).max(20000).refine(value=>value.trim().length>0&&new TextEncoder().encode(value).byteLength<=60000),contexts:z.array(context).max(SEMANTIC_CANDIDATE_LIMIT)})
- .refine(value=>new Set(value.contexts.map(c=>c.code)).size===value.contexts.length);
+const context=z.strictObject({code:candidateCode,mode:z.enum(['AI','HUMAN']),topic:z.string().max(20000).nullable(),summary:z.string().max(20000).nullable(),previousUserMessages:z.array(z.string().max(20000)).max(2),recentMessages:z.array(z.strictObject({role:z.enum(['user','assistant','staff']),content:z.string().max(20000)})).max(8).optional()});
+export const semanticPromptSchema=z.strictObject({question:z.string().min(1).max(20000).refine(value=>value.trim().length>0&&new TextEncoder().encode(value).byteLength<=60000),contexts:z.array(context).max(SEMANTIC_CANDIDATE_LIMIT),
+ quotedContext:z.strictObject({candidateCode,senderType:z.enum(['USER','AI','STAFF'])}).optional()})
+ .refine(value=>new Set(value.contexts.map(c=>c.code)).size===value.contexts.length&&
+  (!value.quotedContext||value.contexts.some(c=>c.code===value.quotedContext!.candidateCode)));
 export type SemanticPrompt=z.infer<typeof semanticPromptSchema>;
 export type SemanticClassifier=(input:SemanticPrompt,signal:AbortSignal)=>Promise<RoutingProposal|null>;
 export function resolveRoutingProposal(input:unknown,candidates:SemanticCandidate[]):{newTopic:boolean;selectedConversationId?:string;confidence:number}|null{

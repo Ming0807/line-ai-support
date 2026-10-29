@@ -114,7 +114,7 @@ it('connects the service through a real owned child and authenticated loopback u
   calls++;expect(request.taskType).toBe('HERMES_STAFF_DRAFT');expect(request.ticketId).toBe(ticket);
   expect(request.messages.map(m=>m.role)).toEqual(['system','user']);
   expect(request.messages[1].content).toContain('คำถามจริงจากผู้แจ้ง');
-  const output=request.responseSchema.parse(calls===1?{tool:{name:'search_yru_knowledge',query:'คำค้นจริง'}}:{reply:'ร่างที่ได้ผ่าน bridge จริง'});
+  const output=request.responseSchema.parse({decision:calls===1?{tool:{name:'search_yru_knowledge',query:'คำค้นจริง'}}:{reply:'ร่างที่ได้ผ่าน bridge จริง'}});
   return {output,toolCalls:[],providerId:actor,modelId:ticket,fallbackUsed:false};
  };
  try{

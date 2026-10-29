@@ -82,7 +82,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  }
  const requestedNew=event.type==='message'&&!typedChoice&&await readExplicitNewTopic(client,sessionId);
  if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
- const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice):null;
+ const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice,key):null;
  const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
  const decisionStart=Date.now();
  const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
@@ -157,7 +157,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   return null;
  }
  if(pendingMessageId&&(event.type==='postback'||typedChoice)){
-  await client.query("update public.messages set conversation_id=$2,metadata=$4::jsonb where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId,{routing_status:'ROUTED',routing_route:decision.route}]);
+  await client.query("update public.messages set conversation_id=$2,metadata=$4::jsonb where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId,{routing_status:'ROUTED',routing_route:decision.route,routing_input_event_id:eventId}]);
  }
  const current=await loadCandidates(client,sessionId);
  const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:options.aiEnabled?undefined:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);

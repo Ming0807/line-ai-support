@@ -1,5 +1,11 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+## 29October — CHAT component checkpoint, activation still pending
+
+Current Root source has3604unit/266files, type/full lint/defaultTurbopackbuild PASS and separate owned-PG50-migration quote/current-turn/support/legacy-assistant/Staff-alert checks. These do not activate the normal database or replace its workers. Normal schema remains47 until the guarded48–50 apply and fresh canonical startup are verified. Keep earlier temporary URLs as historical until that startup. No human configuration is needed before Root continues independent work.
+
+OC-INBOX-04 remains unmerged because independent reviewers reproduced wrong-ticket lifecycle retry and retained private snapshots after denial; OC-INBOX-05 rework prompt is prepared. LINE Login/approval backend, recipient-authorized private media, real Supabase Broadcast/reconnect, full10/100/500 Student concurrency and actual OA/FlowA–F remain open. Staff OA is intended for notifications/claim/open Dashboard; manual Student conversation belongs in Dashboard. A real native Hermes draft is still unqualified; controlled runtime/tool proofs and HTTP200 alone are insufficient.
+
 Latest human update28October2026 / DEC186: rootรับงานข้อมูลและactualGemini/Hermesqualityโดยใช้คำถามจำลอง/ข้อมูลสาธารณะและไม่ส่งLINEเอง. ข้อเลื่อนGemini/Hermesในcheckpointด้านล่างเป็นประวัติ; ผู้ใช้ยังตรวจประสบการณ์Student/StaffOAจริงและยืนยันFlowA–Fภายหลัง. Rootต้องเก็บผลcomponent/realmodel/nativeHermesแยกจากrealLINEและห้ามอ้างผ่านก่อนมีหลักฐาน. ไม่ต้องให้ผู้ใช้เป็นผู้ตัดสินความถูกต้องจากการเดา; rootเทียบคำตอบเต็มกับแหล่งอ้างอิงเอง.
 
 ## 28 October 2026 — current ROOT-STR-CORPUS-01 session

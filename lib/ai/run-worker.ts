@@ -1,4 +1,6 @@
 import type {Pool,PoolClient} from 'pg';
+import {isLatestConversationInput} from './input-watermark';
+import {AI_LONG_INPUT_MESSAGE} from './input-limits';
 import {structuredReferenceSources} from '../knowledge/structured-row-reference';
 import {transaction} from '../database/pool';
 import {lockConversation} from '../tickets/authorization';
@@ -23,6 +25,7 @@ import {verifyConversationReply,conversationReplyMessages} from './conversation-
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
  history:{role:'user'|'assistant';content:string}[];
+ collectedInputTooLarge?:boolean;
  /** Set only from the server's persisted AI_EXISTING route for this message. */
  continuesOwnedConversation?:boolean;
  support?:SupportStateSnapshot;
@@ -34,11 +37,12 @@ export interface AIWorkerOptions {
  supportEnabled?:boolean;
 }
 export async function eligibleAIJob(client:PoolClient,job:AIJob):Promise<boolean>{
- return (await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
+ const authorized=(await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
   join public.messages m on m.id=$4 and m.conversation_id=c.id and m.sender_type='USER' and m.message_type='TEXT'
   where c.id=$1 and c.line_session_id=$2 and c.revision=$3 and c.mode='AI' and c.status in ('ACTIVE','WAITING') and s.active
    and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in ('CLOSED','CANCELLED'))`,
  [job.conversation_id,job.line_session_id,job.expected_conversation_revision,job.message_id])).rowCount===1;
+ return authorized&&await isLatestConversationInput(client,{sessionId:job.line_session_id,conversationId:job.conversation_id,messageId:job.message_id});
 }
 async function finish(client:PoolClient,job:AIJob,status:'DONE'|'SUPPRESSED',code:'CONTEXT_CHANGED'|'EVIDENCE_CHANGED'|null=null){
  const result=await client.query(`update private.ai_jobs set status=$3,lease_token=null,lease_until=null,completed_at=clock_timestamp(),last_error_code=$4
@@ -55,6 +59,7 @@ async function snapshot(pool:Pool,job:AIJob,key:string,options:AIWorkerOptions):
  },pool);
 }
 async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promise<AIResult>{
+ if(snapshot.collectedInputTooLarge)return {kind:'CLARIFY',text:AI_LONG_INPUT_MESSAGE};
  const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
  const timeout=new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('AI_JOB_DEADLINE'));},90_000);});
  try{return await Promise.race([Promise.resolve().then(()=>options.produce(snapshot,controller.signal)),timeout]);}

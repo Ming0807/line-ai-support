@@ -25,7 +25,7 @@ async function fixture(){
  const job=await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},key),pool);
  return {key,session,conversation,message,job};
 }
-test('a prior reply accepted after the next question cannot strand that next owned answer',async()=>{
+test('an obsolete unsent reply is suppressed without stranding the next unchanged owned answer',async()=>{
  const f=await fixture();
  assert.equal((await runAICycle(pool,f.key,{produce:async snapshot=>createConversationReply(snapshot,'คำตอบแรก')!})).completed,1);
  const next=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','คำถามถัดไป') returning id",[f.conversation])).rows[0].id;
@@ -37,7 +37,7 @@ test('a prior reply accepted after the next question cannot strand that next own
   sent.push(...JSON.parse(String(init?.body)).messages.map((message:{text:string})=>message.text));return new Response(null,{status:200});
  }};
  await runOutboxCycle(pool,f.key,options);await runOutboxCycle(pool,f.key,options);
- assert.deepEqual(sent,['คำตอบแรก','คำตอบถัดไป'],'LATE_PRIOR_DELIVERY_MUST_NOT_DROP_THE_LATEST_UNCHANGED_ANSWER');
+ assert.deepEqual(sent,['คำตอบถัดไป'],'OBSOLETE_UNSENT_REPLY_MUST_NOT_DROP_THE_LATEST_UNCHANGED_ANSWER');
  assert(nextJob);assert.equal((await pool.query("select status from private.message_outbox where idempotency_key=$1",['ai-job:'+nextJob])).rows[0].status,'SENT');
 });
 test('general answer stores complete packets once, no support outcomes, and reaches controlled LINE',async()=>{

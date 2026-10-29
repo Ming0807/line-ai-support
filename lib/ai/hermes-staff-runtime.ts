@@ -166,7 +166,7 @@ async function runRuntime(input:HermesStaffRuntimeInput,options:{runtimeRoot:str
   runHome=await mkdtemp(join(runRoot,'run-'));
   // The cached version defaults to deferred-tool discovery. This capability
   // exposes exactly one direct tool, checked again by the Python driver.
-  await writeFile(join(runHome,'config.yaml'),'tools:\n  tool_search:\n    enabled: "off"\n',{encoding:'utf8',mode:0o600,flag:'wx'});
+  await writeFile(join(runHome,'config.yaml'),'model:\n  streaming: false\ntools:\n  tool_search:\n    enabled: "off"\n',{encoding:'utf8',mode:0o600,flag:'wx'});
   const inputPath=join(runHome,'request.json');
   await writeFile(inputPath,JSON.stringify({question:parsedInput.data.question}),{encoding:'utf8',mode:0o600,flag:'wx'});
   const launcher=await options.resolveLauncher(runHome,controller.signal);

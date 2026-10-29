@@ -3,7 +3,7 @@ import { z } from 'zod';
 const source=z.object({type:z.literal('user'),userId:z.string().regex(/^U[A-Za-z0-9]+$/).max(128)});
 const messageId=z.string().min(1).max(256);
 const message=z.discriminatedUnion('type',[
- z.object({type:z.literal('text'),id:messageId,text:z.string().min(1).max(20_000)}),
+ z.object({type:z.literal('text'),id:messageId,text:z.string().min(1).max(20_000),quotedMessageId:messageId.optional()}),
  z.object({type:z.enum(['image','file','video','audio','location','sticker']),id:messageId}),
 ]);
 

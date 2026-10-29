@@ -8,6 +8,7 @@ import {parsePublicFamilyCatalog,familySelectionIsKnown,type PublicFamilyCatalog
 import {knowledgeScopeSchema,type KnowledgeSearchRequest} from './retrieval';
 import type {KnowledgeEvidence,KnowledgeScope} from './types';
 import {z} from 'zod';
+import {AI_LONG_INPUT_MESSAGE} from '../ai/input-limits';
 import {structuredQuerySchema,validateStructuredQuery,assessStructuredQuery,type StructuredQuery} from './structured-query';
 import {structuredAnswerSchema,validateStructuredEvidenceList,buildStructuredAnswer,structuredPromptEvidence} from './structured-citations';
 import type {StructuredSearchRequest,StructuredSearchResult} from './structured-search';
@@ -74,7 +75,7 @@ const EMBEDDING_TIMEOUT_MS=15_000;
 const SEARCH_TIMEOUT_MS=8_000;
 const ANSWER_TIMEOUT_MS=25_000;
 const MAX_QUERY_BYTES=6000;
-const LONG_INPUT_HANDOFF='ได้รับข้อความครบแล้วครับ แต่รายละเอียดเกินขนาดที่ AI วิเคราะห์ได้ในครั้งเดียว กรุณาแยกคำถามเป็นประเด็น หรือเลือกติดต่อเจ้าหน้าที่เพื่อให้ตรวจสอบข้อความทั้งหมดครับ';
+const LONG_INPUT_HANDOFF=AI_LONG_INPUT_MESSAGE;
 const PROVIDER_HANDOFF='ขออภัย ตอนนี้ระบบยังตรวจสอบเอกสารอ้างอิงเพื่อยืนยันคำตอบไม่ได้ กรุณาติดต่อเจ้าหน้าที่มหาวิทยาลัยเพื่อขอข้อมูลที่ถูกต้องครับ';
 const NO_EVIDENCE_HANDOFF='ตอนนี้ยังไม่พบเอกสารทางการที่ยืนยันคำตอบได้ รบกวนระบุชื่อเรื่องหรือประกาศทางการที่ต้องการตรวจสอบ หรือให้เจ้าหน้าที่มหาวิทยาลัยช่วยตรวจสอบครับ';
 const SCOPE_CLARIFICATION='เพื่อค้นข้อมูลให้ตรงกรณี กรุณาระบุประเภทนักศึกษา หลักสูตรหรือสาขา และรุ่นปี (cohort) ที่เกี่ยวข้องเพิ่มเติมครับ';

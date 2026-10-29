@@ -47,7 +47,10 @@ def loopback_url(value, expected_path):
     return value
 
 
-def search_knowledge(query):
+def search_knowledge(arguments, **_context):
+    if not isinstance(arguments, dict) or set(arguments) != {"query"}:
+        raise ValueError("TOOL_QUERY_INVALID")
+    query = arguments["query"]
     if not isinstance(query, str) or not query.strip() or len(query) > 400:
         raise ValueError("TOOL_QUERY_INVALID")
     token = os.environ["YRU_HERMES_BRIDGE_TOKEN"]

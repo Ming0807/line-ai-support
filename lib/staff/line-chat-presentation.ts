@@ -1,4 +1,4 @@
-import type { LineMessage } from '../line/delivery';
+import type { OutboundText } from '../queue/outbox';
 
 export interface StaffChatButton {
   label: string;
@@ -27,7 +27,7 @@ function validButton(button: StaffChatButton): boolean {
     && button.data.length <= 300;
 }
 
-function makeMessage(text: string, buttons: readonly StaffChatButton[] = []): LineMessage {
+function makeMessage(text: string, buttons: readonly StaffChatButton[] = []): OutboundText {
   if (typeof text !== 'string' || text.length < 1 || text.length > MAX_TEXT
     || !Array.isArray(buttons) || buttons.length > MAX_BUTTONS || buttons.some((button) => !validButton(button))) {
     throw new Error(INVALID_INPUT);
@@ -68,7 +68,7 @@ export function parseStaffChatControl(text: string): 'MY_CASES' | 'DEPARTMENT_QU
   return null;
 }
 
-export function staffChatMessage(text: string, buttons: readonly StaffChatButton[] = []): LineMessage {
+export function staffChatMessage(text: string, buttons: readonly StaffChatButton[] = []): OutboundText {
   return makeMessage(text, buttons);
 }
 
@@ -78,7 +78,7 @@ export function formatStaffQueue(input: {
   page: number;
   rows: readonly StaffQueueRow[];
   buttons: readonly StaffChatButton[];
-}): LineMessage[] {
+}): OutboundText[] {
   requireText(input?.title, 80);
   requireCount(input.total, true);
   requireCount(input.page, false);
@@ -132,7 +132,7 @@ export function formatStaffCase(input: {
   messages: readonly { text: string }[];
   hasOlder: boolean;
   buttons: readonly StaffChatButton[];
-}): LineMessage[] {
+}): OutboundText[] {
   requireText(input?.code, 100);
   if (!Array.isArray(input.messages) || typeof input.hasOlder !== 'boolean' || !Array.isArray(input.buttons)) {
     throw new Error(INVALID_INPUT);
@@ -169,6 +169,6 @@ export function formatStaffCase(input: {
   return result;
 }
 
-export function formatStaffReceipt(input: { text: string; buttons: readonly StaffChatButton[] }): LineMessage[] {
+export function formatStaffReceipt(input: { text: string; buttons: readonly StaffChatButton[] }): OutboundText[] {
   return [makeMessage(input.text, input.buttons)];
 }

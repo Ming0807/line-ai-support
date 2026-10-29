@@ -7,6 +7,8 @@ import {encryptValue,decryptValue} from '../security/identity';
 import {decodeAIResult,lockedAIJob,type AIJob} from './jobs';
 import {buildCitedAnswer} from '../knowledge/citations';
 import {buildStructuredAnswer} from '../knowledge/structured-citations';
+import {readConversationInput} from './conversation-input';
+import {isLatestConversationInput} from './input-watermark';
 import {projectSupportInput,interpretSupportProposal,supportProposalSchema,type SupportInput,type SupportSensitivity,type InterpretedSupport} from './support-contracts';
 const contextSchema=z.strictObject({sessionId:z.uuid(),conversationId:z.uuid(),messageId:z.uuid(),revision:z.number().int().nonnegative()});
 export type SupportContext=z.infer<typeof contextSchema>;
@@ -77,16 +79,15 @@ export async function loadSupportSnapshot(client:DbClient,value:SupportContext,k
   where c.id=$1 and c.line_session_id=$2 and c.revision=$4 and c.mode='AI' and c.status in('ACTIVE','WAITING')
   and not exists(select 1 from public.tickets t where t.conversation_id=c.id and t.mode='HUMAN' and t.status not in('CLOSED','CANCELLED'))`,[context.conversationId,context.sessionId,context.messageId,context.revision])).rowCount===1;
  if(!allowed)return null;
- const messages=(await client.query(`select id,content,created_at from public.messages where conversation_id=$1 and sender_type='USER' and message_type='TEXT'
-  and metadata->>'routing_status' is distinct from 'PENDING' and metadata->>'routing_status' is distinct from 'ROUTE_CONTROL' order by created_at desc,id desc limit 9`,[context.conversationId])).rows;
- if(messages[0]?.id!==context.messageId)return null;
+ if(!await isLatestConversationInput(client,context))return null;
+ const source=await readConversationInput(client,context.conversationId,context.messageId);if(!source)return null;
  const departments=(await client.query('select id,code,name_th from public.departments where active order by code,id for share')).rows;
  const state=(await client.query('select * from private.ai_support_state where conversation_id=$1',[context.conversationId])).rows[0];
  if(state&&!stateEnvelope(state,key))return null;
  const minimum=z.enum(['GENERAL','SENSITIVE','RESTRICTED']).safeParse(state?.sensitive_level??'GENERAL');if(!minimum.success)return null;
- let input:SupportInput;try{input=projectSupportInput({question:messages[0].content,history:messages.slice(1).reverse().map(m=>({role:'user',content:m.content})),
+ let input:SupportInput;try{input=projectSupportInput({question:source.question,history:source.history.filter(m=>m.role==='user'),
   deliveredGuidance:state?.guidance_outbox_id?await guidanceMatches(client,state.guidance_outbox_id,context,key,{mustBeSent:true}):false},departments.map(d=>({code:d.code,name:d.name_th})));}catch{return null;}
- return {context,input,minimumSensitivity:minimum.data,sourceDigest:digest({sessionId:context.sessionId,conversationId:context.conversationId,messages:messages.map(m=>({id:m.id,content:m.content,createdAt:m.created_at.toISOString()}))}),
+ return {context,input,minimumSensitivity:minimum.data,sourceDigest:digest({sessionId:context.sessionId,conversationId:context.conversationId,source:source.source}),
   directoryDigest:digest(departments.map(d=>({id:d.id,code:d.code,name:d.name_th})))};
 }
 /** Only a root-owned finalization may call this; it grants no action/transition/delivery authority. */

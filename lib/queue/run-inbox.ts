@@ -5,6 +5,7 @@ import type {StudentProcessingOptions} from '../conversation/student-processing'
 import {classifyStudentInboxContext} from '../conversation/semantic-routing';
 import {recordRoutingObservation,type RoutingDecisionObservation} from '../conversation/routing-telemetry';
 import type {SemanticClassifier} from '../conversation/semantic-routing-contracts';
+import {flushDegradedInputNotices} from '../conversation/input-windows';
 
 /** Service one job per fixed channel so a busy Student lane cannot starve Staff. */
 export async function runInboxCycle(pool:Pool,key:string,options:StudentProcessingOptions&{classify?:SemanticClassifier;classifyForJob?:(job:InboxJob)=>SemanticClassifier}={}):Promise<{claimed:number;completed:number;failed:number}> {
@@ -37,5 +38,6 @@ export async function runInboxCycle(pool:Pool,key:string,options:StudentProcessi
    [job.id,job.lease_token]).catch(()=>{console.error('INBOX_RETRY_UPDATE_FAILED',{channel});});
   }
  }
+ await flushDegradedInputNotices(pool,key);
  return result;
 }

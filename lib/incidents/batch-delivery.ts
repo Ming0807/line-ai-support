@@ -1,5 +1,5 @@
 import type {DbClient} from '../tickets/authorization';
-import type {OutboundText} from '../queue/outbox';
+import type {LineMessage} from '../line/delivery';
 import {hashOpaqueToken} from '../conversation/quick-reply';
 import type {StaffChatDeliveryGuard} from '../staff/line-chat-delivery';
 
@@ -9,7 +9,7 @@ export interface IncidentBatchDelivery {
  cases:{ticket_id:string;assignment_epoch:string;staff_message_id:string;conversation_id:string;current_conversation_id:string;line_session_id:string;ticket_code:string;current_ticket_code:string}[];
 }
 
-export function incidentBatchPacketDigest(messages:OutboundText[],key:string):string{
+export function incidentBatchPacketDigest(messages:LineMessage[],key:string):string{
  return hashOpaqueToken(JSON.stringify({messages}),key,'incident-batch-packet-v1');
 }
 /** Immutable mappings can be loaded before acquiring every mapped conversation lock. */
@@ -24,7 +24,7 @@ export async function loadIncidentBatchDelivery(c:DbClient,outboxId:string):Prom
 /** Called under Staff access and all mapped conversation locks. No mapping or packet substitution is accepted. */
 export async function verifyIncidentBatchDelivery(c:DbClient,batch:IncidentBatchDelivery|null,guard:StaffChatDeliveryGuard|null,
  job:{channel:string;kind:string;line_session_id:string|null;conversation_id:string|null;ticket_id:string|null;delivery_mode:string;idempotency_key:string},
- payload:{messages:OutboundText[];replyToken?:string},key:string):Promise<boolean>{
+ payload:{messages:LineMessage[];replyToken?:string},key:string):Promise<boolean>{
  if(!batch||!guard||job.kind!=='BATCH'||job.channel!=='STUDENT'||job.delivery_mode!=='PUSH'||payload.replyToken!==undefined||
   job.line_session_id!==batch.line_session_id||job.idempotency_key!==`incident-batch:${batch.batch_id}:${batch.recipient_code}`||
   guard.staff_id!==batch.staff_id||guard.purpose!=='CASE'||batch.cases.length!==batch.case_count||guard.cases.length!==batch.case_count||

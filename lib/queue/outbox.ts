@@ -2,12 +2,13 @@ import type {DbClient} from '../tickets/authorization';
 import {encryptValue} from '../security/identity';
 import {lockConversation} from '../tickets/authorization';
 import {validateOutboxTarget} from './outbox-target';
+import type {LineMessage} from '../line/delivery';
 
 export interface OutboundText {type:'text';text:string;quickReply?:{items:{type:'action';action:{type:'postback';label:string;data:string;displayText?:string}}[]}}
 export interface EnqueueMessage {
  idempotencyKey:string;channel:'STUDENT'|'STAFF';kind:'AI'|'STAFF'|'SYSTEM'|'NOTIFICATION'|'CONTROL'|'CHAT'|'BATCH'|'ALERT'|'DIGEST';
  lineSessionId?:string;recipientStaffId?:string;conversationId?:string;ticketId?:string;
- conversationRevision?:number;replyToken?:string;receivedAt?:Date;messages:OutboundText[];
+ conversationRevision?:number;replyToken?:string;receivedAt?:Date;messages:LineMessage[];
  alertPriority?:0|1;
  /** Server-derived original LINE selection deadline; never forwarded to LINE. */
  selectionExpiresAt?:string;

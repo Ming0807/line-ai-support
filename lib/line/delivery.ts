@@ -1,31 +1,9 @@
-import { z } from 'zod';
+import {lineMessagesSchema,type LineMessage} from './message-schemas';
+import {readSentMessageIds} from './sent-message-receipts';
+export type {LineMessage} from './message-schemas';
 
 export type LineChannel = 'STUDENT' | 'STAFF';
 export type DeliveryMode = 'REPLY' | 'PUSH';
-
-const postbackActionSchema = z.strictObject({
-  type: z.literal('postback'),
-  label: z.string().min(1).max(20),
-  data: z.string().min(1).max(300),
-  displayText: z.string().max(300).optional(),
-});
-
-const quickReplySchema = z.strictObject({
-  items: z.array(z.strictObject({
-    type: z.literal('action'),
-    action: postbackActionSchema,
-  })).min(1).max(13),
-});
-
-const lineTextMessageSchema = z.strictObject({
-  type: z.literal('text'),
-  text: z.string().min(1).max(5000),
-  quickReply: quickReplySchema.optional(),
-});
-
-const messagesSchema = z.array(lineTextMessageSchema).min(1).max(5);
-
-export type LineMessage = z.infer<typeof lineTextMessageSchema>;
 
 /** Prior network attempts only; the caller persists the upcoming attempt before fetch. */
 export interface DeliveryInput {
@@ -65,7 +43,7 @@ export type DeliveryErrorCode =
   | 'UNEXPECTED_HTTP_STATUS';
 
 export type DeliveryResult =
-  | { status: 'SENT'; mode: DeliveryMode; httpStatus: number; requestId?: string }
+  | { status: 'SENT'; mode: DeliveryMode; httpStatus: number; requestId?: string; sentMessageIds?:string[] }
   | { status: 'RETRY'; mode: 'PUSH'; httpStatus?: number; requestId?: string; errorCode: 'PUSH_RETRYABLE' | 'PUSH_NETWORK_ERROR' | 'PUSH_TIMEOUT' }
   | { status: 'DEAD'; mode: DeliveryMode; httpStatus?: number; requestId?: string; errorCode: DeliveryErrorCode }
   | { status: 'UNKNOWN'; mode: 'REPLY'; httpStatus?: number; requestId?: string; errorCode: 'REPLY_ALREADY_ATTEMPTED' | 'REPLY_OUTCOME_UNKNOWN' };
@@ -119,7 +97,7 @@ export async function deliverLine(input: DeliveryInput, options: DeliveryOptions
   if (input.firstAttemptAt !== null && !isValidDate(input.firstAttemptAt)) return dead(mode, 'INVALID_ATTEMPT_STATE');
   if (input.replyDeadlineAt !== null && !isValidDate(input.replyDeadlineAt)) return dead(mode, 'INVALID_REPLY_DEADLINE');
 
-  const validatedMessages = messagesSchema.safeParse(input.messages);
+  const validatedMessages = lineMessagesSchema.safeParse(input.messages);
   if (!validatedMessages.success) return dead(mode, 'INVALID_MESSAGES');
 
   if (mode === 'REPLY') {
@@ -176,6 +154,7 @@ export async function deliverLine(input: DeliveryInput, options: DeliveryOptions
       redirect: 'error',
     });
   } catch {
+    clearTimeout(timer);
     if (effectiveMode === 'REPLY') {
       return { status: 'UNKNOWN', mode: 'REPLY', errorCode: 'REPLY_OUTCOME_UNKNOWN' };
     }
@@ -184,16 +163,17 @@ export async function deliverLine(input: DeliveryInput, options: DeliveryOptions
       mode: 'PUSH',
       errorCode: timedOut ? 'PUSH_TIMEOUT' : 'PUSH_NETWORK_ERROR',
     };
-  } finally {
-    clearTimeout(timer);
   }
 
+  try{
   const id = requestId(response.headers, response.status === 409);
   if (response.status >= 200 && response.status < 300) {
-    return { status: 'SENT', mode: effectiveMode, httpStatus: response.status, ...(id ? { requestId: id } : {}) };
+    const sentMessageIds=await readSentMessageIds(response,input.messages.length,controller.signal);
+    return { status: 'SENT', mode: effectiveMode, httpStatus: response.status, ...(id ? { requestId: id } : {}),...(sentMessageIds?{sentMessageIds}:{}) };
   }
   if (effectiveMode === 'PUSH' && response.status === 409) {
-    return { status: 'SENT', mode: 'PUSH', httpStatus: response.status, ...(id ? { requestId: id } : {}) };
+    const sentMessageIds=await readSentMessageIds(response,input.messages.length,controller.signal);
+    return { status: 'SENT', mode: 'PUSH', httpStatus: response.status, ...(id ? { requestId: id } : {}),...(sentMessageIds?{sentMessageIds}:{}) };
   }
   if (effectiveMode === 'PUSH' && (response.status === 408 || response.status === 429 || response.status >= 500)) {
     return {
@@ -220,4 +200,5 @@ export async function deliverLine(input: DeliveryInput, options: DeliveryOptions
     return { status: 'DEAD', mode: effectiveMode, httpStatus: response.status, ...(id ? { requestId: id } : {}), errorCode: 'LINE_REJECTED' };
   }
   return { status: 'DEAD', mode: effectiveMode, httpStatus: response.status, ...(id ? { requestId: id } : {}), errorCode: 'UNEXPECTED_HTTP_STATUS' };
+  }finally{clearTimeout(timer);}
 }

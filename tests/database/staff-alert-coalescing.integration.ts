@@ -71,6 +71,7 @@ test('due source without completed semantic grouping releases an individual aler
  await debounce(0);const f=await fixture(1);await f.notify();assert.equal((await flushStaffAlerts(pool,key,{appBaseUrl})).released,1);
  const row=(await pool.query('select * from private.message_outbox where recipient_staff_id=$1',[f.staff])).rows[0];assert.equal(row.kind,'ALERT');
  const body=JSON.parse(decryptValue(row.payload_encrypted,key));assert(body.messages[0].quickReply.items[0].action.data.startsWith('yru:staff:accept:'));
+ assert.deepEqual(body.messages[0].quickReply.items[1]?.action,{type:'uri',label:'เปิดห้องแชต',uri:`${appBaseUrl}/inbox?ticket=${f.tickets[0].id}`});
  assert.equal((await pool.query("select count(*)::int n from private.staff_action_tokens where staff_id=$1 and expires_at>clock_timestamp()+interval '29 minutes'",[f.staff])).rows[0].n,1);
 });
 test('the oldest deadline admits a staggered later member without waiting for its own deadline',async()=>{
