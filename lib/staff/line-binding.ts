@@ -78,7 +78,7 @@ export async function consumeStaffBinding(c:DbClient,text:string,userId:string,k
  // Inactive identities still reserve their original owner; no automatic account transfer.
  if((await c.query('select staff_id from private.staff_line_identities where user_hash=$1 and staff_id<>$2',[userHash,found.staff_id])).rowCount)return 'BINDING_UNAVAILABLE';
  await c.query(`insert into private.staff_line_identities(staff_id,user_hash,user_id_encrypted,active) values($1,$2,$3,true)
-  on conflict(staff_id) do update set user_hash=excluded.user_hash,user_id_encrypted=excluded.user_id_encrypted,active=true`,[found.staff_id,userHash,encryptValue(userId,key)]);
+  on conflict(staff_id) do update set user_hash=excluded.user_hash,user_id_encrypted=excluded.user_id_encrypted,active=true,auth_identity_id=null`,[found.staff_id,userHash,encryptValue(userId,key)]);
  const used=await c.query(`update private.staff_binding_challenges set consumed_at=clock_timestamp(),consumed_user_hash=$2
   where token_hash=$1 and consumed_at is null and invalidated_at is null and expires_at>clock_timestamp()`,[hash,userHash]);
  if(used.rowCount!==1)throw new Error('STALE_BINDING_CHALLENGE');

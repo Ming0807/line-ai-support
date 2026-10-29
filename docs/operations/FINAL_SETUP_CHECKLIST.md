@@ -1,6 +1,21 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
-## 29October — CHAT component checkpoint, activation still pending
+## 29October — Staff onboarding backend (DEC190)
+
+Root schema/API/PKCE implementation is present; normal DEVELOPMENT51/84RLS is verified, including unchanged existing Staff/binding/business/provider fingerprints. Owned16case tests prove controlled admission/concurrency/revocation; actual OAuth, authenticated browser review, actual OA, Realtime/reconnect/private media and FlowA–F remain pending. No fresh operational runner was started by migration/local:check; old trycloudflare URLs below remain historical.
+
+Final operator configuration, after implementation integration:
+
+1. Create a **LINE Login** channel under the **same LINE Provider** as the Staff Messaging API channel. They have different channel secrets. Login proves LINE ownership; Super Admin approval supplies employment/department/role.
+2. In hosted Supabase Auth, add the custom OAuth2 provider identifier `line-staff` (SDK uses `custom:line-staff`). Copy the **callback URL displayed by Supabase** into LINE Login's callback setting. Set LINE authorization `https://access.line.me/oauth2/v2.1/authorize`, token `https://api.line.me/oauth2/v2.1/token`, userinfo `https://api.line.me/oauth2/v2.1/userinfo`, scopes `openid profile`, subject mapping `sub`, email optional and PKCE. Store Login client ID/secret in Supabase, not app public variables. Do not request email for automatic account matching.
+3. Enable **Manual identity linking** in Supabase Auth. Add the exact current app origin `/auth/callback` to Supabase Redirect URLs. Existing password users must sign in first and choose explicit LINE linking; do not register a duplicate account by matching names or staff codes.
+4. Only after confirming those settings, set local server-only `LINE_STAFF_LOGIN_ENABLED=true` and `LINE_STAFF_SAME_PROVIDER_CONFIRMED=true`, then restart the normal one-command runner. Missing flags keep LINE entry unavailable; existing email login/recovery and challenge OA binding remain.
+5. Staff OA greeting can link to the current public `/staff/apply`. An application supplies name/personnel code/requested department; Super Admin opens `/staff-applications`, verifies employment and chooses final department before approval. Test rejection, approval, duplicate click, suspension and stale-browser denial. New approvals grant base STAFF only.
+6. `pnpm local:test` still prints both signed Student/Staff webhook URLs. Startup also prints Inbox/approval/application links and the LINE callback only when enabled. A new temporary tunnel changes the app callback allowlist and greeting URL; the Supabase callback copied to LINE remains its configured provider URL. Staff manual replies belong in Dashboard Inbox.
+
+Platform references: [Supabase custom OAuth](https://supabase.com/docs/guides/auth/custom-oauth-providers), [identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking), [LINE Login](https://developers.line.biz/en/reference/line-login/). These are pending configuration instructions, not evidence that hosted provider/login is already enabled.
+
+## 29October — CHAT component checkpoint (normal50 activated; historical scope)
 
 Current Root checkpoint4b0b41d is pushed to the feature branch, with3604unit/266files, type/full lint/defaultTurbopackbuild PASS. Final current-turn9 owned-PG/50migrations includes the two-client append/seal fix; quote5/support7/legacyassistant8/Staffalert49 have separate exact-owned proofs. Guarded normal DEVELOPMENT apply48–50 verified50migrations/82RLStables/9departments, unchanged documents/provider+model registry/web-search ledger and empty pending queues. local:check passes with16PUBLIC/1generationmodel and no provider/LINE calls; no fresh runtime has started. Earlier temporary URLs remain historical until startup. No human configuration is needed before Root continues independent work.
 

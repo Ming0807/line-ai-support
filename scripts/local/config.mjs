@@ -88,7 +88,7 @@ export function readyMessages(port,publicUrl,hermesStatus='SKIPPED',hermesPhase=
  if(options.staffTest){
   messages.push('Staff workflow pilot: natural assistant OFF; legacy support AI remains enabled; not V1 acceptance');
   messages.push('Hermes: not run in staff pilot; retrieval comparison is separate');
-  messages.push('Test: bind Staff account in Settings; request staff on Student OA; claim, open case, reply, switch case and close');
+  messages.push('Test: bind Staff account in Settings; request staff on Student OA; claim and open Dashboard Inbox; reply, switch case and close in Dashboard only');
  }else{
   if(options.assistantPreview)messages.push(...assistantPreviewMessages());
   messages.push(hermesReadiness(hermesStatus,hermesPhase));

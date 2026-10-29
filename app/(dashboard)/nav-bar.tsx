@@ -153,6 +153,10 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href:'/staff-applications',label:'อนุมัติบุคลากร',superAdminOnly:true,
+    icon:(<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m1-11 2 2 3-4"/></svg>),
+  },
+  {
     href: '/settings',
     label: 'การตั้งค่า',
     icon: (

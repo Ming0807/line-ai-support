@@ -12,6 +12,8 @@
 
 ## สถานะปัจจุบัน
 
+29October / DEC190: [Staff onboarding backend/LINE PKCE design](architecture/STAFF_ONBOARDING_DESIGN.md) implemented; normal DEVELOPMENT51/84RLS activated without changing existing business/provider/Staff data. Owned16case admission/approval/relink/unlink proof; real hosted LINE Login/channel setup and authenticated acceptance remain pending. Existing email login remains available. Root continues independent backend; OpenCode uses the [OC-INBOX-05 prompt](agents/OPENCODE_INBOX_HARDENING_PROMPT.md), not an assumed merged UI delivery.
+
 29October: Root chat continuity/quote/burst/notification-only components pass the scoped technical gates in the current board; normal DEVELOPMENT50 is activated; fresh runtime, Staff Login/media and actual acceptance remain open. OC-INBOX-04 is **not merged** after two independent reviews found P1 defects. [OC-INBOX-05 hardening prompt](agents/OPENCODE_INBOX_HARDENING_PROMPT.md) owns delegated frontend rework; Root continues backend. Do not treat green helper tests or a viewport tooling probe as application/real LINE acceptance.
 
 - Latest approved work DEC187: [CHAT/Inbox implementation](superpowers/plans/2026-10-28-chat-inbox-implementation.md). Dashboard-only Staff conversation; OA notifications/claim/open. Root implements routing/concurrency/DB/auth/media, Luna implements Inbox and Incident UI, OpenCode owns bounded [Staff onboarding UI](agents/OPENCODE_STAFF_ONBOARDING_PROMPT.md). Existing RAG/Hermes work stays retained; current scope is not accepted or V1 complete. Human explicitly requests checkpoint commit/push; unfinished agent paths are excluded from that checkpoint.

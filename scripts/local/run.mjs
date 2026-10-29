@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 import {databaseConnection} from '../../lib/database/connection.ts';
 import {structuredInfrastructureReady} from '../../lib/knowledge/structured-readiness.ts';
+import {readStaffLineConfig} from '../../lib/auth/line-staff-config.ts';
 import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth,REVISION} from './config.mjs';
 import {forceStopOwnedTree} from './process-tree.mjs';
 import {parsePilotStatusLine} from '../ai/hermes-pilot-status.mjs';
@@ -262,6 +263,11 @@ async function main(){
  state={...state,status:'READY',assistantMode:options.assistantPreview?'NATURAL_PREVIEW':sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'NATURAL':'LEGACY',
   localUrl:`http://127.0.0.1:${options.port}`,publicUrl:options.tunnel?sessionEnv.APP_BASE_URL:null};persist();
  for(const message of readyMessages(options.port,options.tunnel?sessionEnv.APP_BASE_URL:null,hermesStatus,hermesPhase,options))log('READY',message);
+ const staffLogin=readStaffLineConfig(sessionEnv);
+ log('READY',`Staff Inbox: http://127.0.0.1:${options.port}/inbox; approvals (Super Admin): http://127.0.0.1:${options.port}/staff-applications`);
+ log('READY',`Staff application: ${sessionEnv.APP_BASE_URL}/staff/apply`);
+ log('READY',staffLogin.loginAvailable?`LINE Login callback: ${sessionEnv.APP_BASE_URL}/auth/callback (must be allowed in Supabase Auth)`:
+  'Supplementary LINE Login: not configured; existing email login and explicit OA binding remain available');
  log('READY',options.webSearch?'Durable + AI enabled for this session; .env unchanged; web source leads configured, subject to runtime checks':'Durable + AI enabled for this session; .env unchanged; web search remains off');
  log('READY',sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'Natural assistant: enabled; Hermes remains an isolated pilot':'Natural assistant: not activated; legacy support pipeline is running');
  log('READY','Manual tests: docs/operations/LOCAL_TEST.md; login accounts: .superpowers/staging/dev-staff-credentials.json');

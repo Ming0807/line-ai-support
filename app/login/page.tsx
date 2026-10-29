@@ -1,5 +1,8 @@
 import { LoginForm } from './login-form';
 import { safeRedirectTarget } from '@/lib/auth/redirect';
+import {readStaffLineConfig} from '@/lib/auth/line-staff-config';
+import {LineLoginEntry} from './line-login-entry';
+import '@/app/staff-onboarding.css';
 
 type LoginPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,6 +22,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {denied && <p className="notice" role="status">บัญชีนี้ยังไม่มีสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ</p>}
         {params.error === 'signout_failed' && <p className="notice" role="alert">ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ</p>}
         <LoginForm nextPath={safeRedirectTarget(requestedNext)} />
+        {readStaffLineConfig().loginAvailable&&<LineLoginEntry />}
       </section>
     </main>
   );
