@@ -12,6 +12,8 @@
 
 ## สถานะปัจจุบัน
 
+29October fresh OC-INBOX-05 review: exact90db3d3 is NOT_MERGED after Root29focused/15mounted green plus3new mounted counterexamples and independent reviews. Use [OC-OPERATOR-06](agents/OPENCODE_OPERATOR_COMPLETION_PROMPT.md) for16 bounded frontend/Realtime/onboarding/Incident tasks. Root backend0968451 is committed/pushed; Root continues private media prerequisite work. Do not call old fixture success real backend integration.
+
 29October / DEC190: [Staff onboarding backend/LINE PKCE design](architecture/STAFF_ONBOARDING_DESIGN.md) implemented; normal DEVELOPMENT51/84RLS activated without changing existing business/provider/Staff data. Owned16case admission/approval/relink/unlink proof; real hosted LINE Login/channel setup and authenticated acceptance remain pending. Existing email login remains available. Root continues independent backend; OpenCode uses the [OC-INBOX-05 prompt](agents/OPENCODE_INBOX_HARDENING_PROMPT.md), not an assumed merged UI delivery.
 
 29October: Root chat continuity/quote/burst/notification-only components pass the scoped technical gates in the current board; normal DEVELOPMENT50 is activated; fresh runtime, Staff Login/media and actual acceptance remain open. OC-INBOX-04 is **not merged** after two independent reviews found P1 defects. [OC-INBOX-05 hardening prompt](agents/OPENCODE_INBOX_HARDENING_PROMPT.md) owns delegated frontend rework; Root continues backend. Do not treat green helper tests or a viewport tooling probe as application/real LINE acceptance.
