@@ -18,7 +18,7 @@
     "hermes:copilot": "node --import tsx scripts/ai/hermes-copilot-pilot.ts --copilot",
     "qa:prescreen": "node --import tsx scripts/qa/qa-pre-screener.ts",
     "qa:knowledge-gaps": "node --import tsx scripts/qa/knowledge-gap-miner.ts",
-    "build": "next build",
+    "build": "next build && node scripts/security/check-hermes-traces.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

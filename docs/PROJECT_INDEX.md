@@ -12,6 +12,8 @@
 
 ## สถานะปัจจุบัน
 
+30October ROOT-HERMES-TRACE-01: Next build excludes the separately provisioned local Hermes runtime from the Staff copilot output trace. The copilot trace dropped from70,049 to222 files, with0 runtime references across99 server traces; the Python driver remains traced and the on-disk cache remains present. Build and46 scoped Hermes tests passed. Turbopack still scans the cached directory and emits the pre-exclusion69,827-file warning; no runtime/model acceptance is implied.
+
 30October in progress: [private chat media design](architecture/CHAT_MEDIA_DESIGN.md) adds an isolated incoming image/PDF worker, current Staff scope checks and unsend revocation. Owned52-migration PostgreSQL13/13 replay and cleanup passed; development migration52/86 RLS and private Storage verified; `local:check` passed. Full unit3692/279 passed before HTTP identity-encoding correction; targeted13, typecheck, scoped lint and build passed after. Build warns that Hermes runtime tracing matches69,827 files. Live LINE/Staff acceptance, outbound Student files and Staff uploads remain open. LINE Login configuration remains deferred by the human.
 
 29October final Root callback guards (DEC191):3662unit/273files, type/fullLint/defaultbuild PASS. Preserve a newer current Auth session before PKCE exchange; Auth rate limits/unclassified failures are unavailable verification, not anonymous authority. Actual compiled anonymous browser8HTTP/9viewports and normal51/84RLS unchanged-data check PASS. Real OAuth and authenticated acceptance remain pending; this is not V1 completion.
