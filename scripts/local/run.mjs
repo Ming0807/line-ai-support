@@ -13,6 +13,7 @@ import pg from 'pg';
 import {databaseConnection} from '../../lib/database/connection.ts';
 import {structuredInfrastructureReady} from '../../lib/knowledge/structured-readiness.ts';
 import {readStaffLineConfig} from '../../lib/auth/line-staff-config.ts';
+import {verifyChatMediaStorage} from '../../lib/chat/media-storage.ts';
 import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth,REVISION} from './config.mjs';
 import {forceStopOwnedTree} from './process-tree.mjs';
 import {parsePilotStatusLine} from '../ai/hermes-pilot-status.mjs';
@@ -67,7 +68,7 @@ function shutdown(code=0){
  stopping=true;process.exitCode=code;state.status='STOPPING';persist();
  stopPromise=(async()=>{
   log('LOCAL','Stopping only services created by this session; waiting for workers to close');
-  for(const name of ['TUNNEL','HERMES','INBOX','INCIDENT','AI','OUTBOX','WEB','E5']){
+  for(const name of ['TUNNEL','HERMES','INBOX','INCIDENT','AI','OUTBOX','MEDIA','WEB','E5']){
    const child=children.get(name);if(!child||!active(child))continue;
    if(name==='HERMES'){
     try{await forceStopOwnedTree(child);}catch{log('HERMES','Exact process-tree stop failed; retrying within the bounded shutdown window');}
@@ -142,7 +143,7 @@ async function workerObservations(since){
  const pool=new pg.Pool({...databaseConnection(sessionEnv.DIRECT_URL),max:1});
  try{
   const rows=(await pool.query('select worker from private.worker_observations where observed_at>=$1',[since])).rows;
-  return ['INBOX','AI','OUTBOX','INCIDENT'].every(name=>rows.some(row=>row.worker===name));
+  return ['INBOX','AI','OUTBOX','INCIDENT','MEDIA'].every(name=>rows.some(row=>row.worker===name));
  }finally{await pool.end();}
 }
 async function runHermesPilot(){
@@ -226,8 +227,10 @@ async function main(){
  sessionEnv=buildSessionEnvironment(process.env,service,`http://127.0.0.1:${options.port}`,options.port,options);
  const python=join(root,'services/embedding/.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
  if(!existsSync(python))throw new Error('LOCAL_EMBEDDING_PYTHON_MISSING');
- phase='CACHE';checkCache(service);phase='DATABASE';await databaseCheck(sessionEnv);phase='START';
- if(options.mode==='check'){log('CHECK','PASS: configuration/cache/development database; no services or provider/LINE calls started');return;}
+ phase='CACHE';checkCache(service);phase='DATABASE';await databaseCheck(sessionEnv);
+ phase='MEDIA_STORAGE';await verifyChatMediaStorage({url:sessionEnv.SUPABASE_URL,secretKey:sessionEnv.SUPABASE_SECRET_KEY});
+ log('CHECK','Private chat media storage settings verified');phase='START';
+ if(options.mode==='check'){log('CHECK','PASS: configuration/cache/development database/private media storage; no services or provider/LINE calls started');return;}
  if(!await portAvailable(options.port))throw new Error('LOCAL_WEB_PORT_IN_USE');
  const cloudflared=options.tunnel?findCloudflared():undefined;
  await acquire();log('LOCAL',`Logs: ${relative(root,logFile)}; stop: pnpm local:stop or Ctrl+C`);
@@ -254,8 +257,8 @@ async function main(){
  log('WEB','Login and both signed empty-event webhooks PASS; invalid signatures rejected');
  const clockPool=new pg.Pool({...databaseConnection(sessionEnv.DIRECT_URL),max:1});let startedAt;
  try{startedAt=(await clockPool.query('select clock_timestamp() observed_at')).rows[0].observed_at;}finally{await clockPool.end();}
- for(const name of ['INBOX','AI','OUTBOX','INCIDENT'])launch(name,process.execPath,['--import','tsx',entry,name],sessionEnv,true);
- await waitFor('WORKERS',()=>workerObservations(startedAt),30_000);log('CHECK','All four worker check-ins observed after startup; processes are running');
+ for(const name of ['INBOX','AI','OUTBOX','INCIDENT','MEDIA'])launch(name,process.execPath,['--import','tsx',entry,name],sessionEnv,true);
+ await waitFor('WORKERS',()=>workerObservations(startedAt),30_000);log('CHECK','All five worker check-ins observed after startup; processes are running');
  if(options.tunnel){await waitFor('PUBLIC_WEB',()=>smokeWeb(sessionEnv.APP_BASE_URL,sessionEnv),90_000);log('TUNNEL','Public signed verification requests PASS');}
  let hermesStatus='SKIPPED',hermesPhase='CONFIGURATION';
  if(options.hermesCheck){log('HERMES','Running isolated two-turn synthetic FREE_ONLY pilot; responses are suppressed');

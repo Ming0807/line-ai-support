@@ -1,0 +1,43 @@
+# CHAT-MEDIA-01 — private incoming image/PDF attachments
+
+29October2026 Root execution design under the human-approved CHAT plan/DEC187, CH023/028/054/055/056. LINE Login configuration remains explicitly deferred by the human. Preserve anonymous Student identity, Dashboard-only Staff chat, verified raw-body webhooks and the existing browser ChatAttachment DTO. OpenCode owns its current frontend worktree; Root changes no delegated UI files.
+
+## Decision and scope
+
+Use the existing Supabase private Storage + encrypted metadata + PostgreSQL lease queue, with a dedicated Node MEDIA worker so file downloads do not block Student/Staff inbox fairness. DB bytea would bloat the application DB and transactions; a new S3/Redis service adds infrastructure without a requirement. A separate chat bucket/purpose avoids sharing knowledge publication/original-artifact authority.
+
+This slice receives Student IMAGE and FILE(PDF) messages and exposes authorized Staff download links through the existing Inbox attachment slot. It does not infer image/PDF contents, add vision/model calls or public URLs. Unsupported kinds retain the prior SYSTEM presentation guard. Private outbound files remain a separate next slice: an expiring bearer link alone cannot prove the browser is the intended LINE recipient; do not silently treat it as recipient authentication or add a Student profile.
+
+Current official sources checked29October: [LINE receive/get-content](https://developers.line.biz/en/docs/messaging-api/receiving-messages/#get-user-sent-content-with-webhook), [Messaging API](https://developers.line.biz/en/reference/messaging-api/#get-content), [Supabase access control](https://supabase.com/docs/guides/storage/security/access-control). LINE content is fetched by message ID at api-data.line.me, authenticated with Student channel token; content can expire. Do not fetch event-supplied external URLs or assume retention duration. No actual LINE content calls are needed for controlled verification.
+
+## Data and invariants
+
+Add private.chat_attachments (one per USER message): UUID id, unique message_id FK, source_event_id FK, immutable encrypted source metadata, original kind, PENDING/PROCESSING/READY/FAILED, attempts<=3/next_retry_at/lease token+expiry, confirmed MIME/bytes/SHA256/object UUID, timestamps and fixed error code. Private RLS, no browser grants/policies; index every FK/claim path. Browser projects id/name/MIME/size/status/downloadUrl only. Unknown size is0; unavailable/PENDING/FAILED downloadUrl is null. The raw original filename remains in the encrypted source webhook; normalized display filename is separately encrypted and never determines MIME, authorization or object path.
+
+Register inside existing durable verified message processing, after the actual USER message insert. Re-read encrypted source event to recover bounded file metadata without widening the shared LINE event contract. Validate source channel/message id/type/Student identity against the current message/session. Replay cannot register a second job. Malformed metadata is an explicit FAILED record or safe fallback label, never a silently dropped message. Existing raw HMAC-before-JSON and encrypted original event remain.
+
+Claim one eligible/expired PROCESSING row using FOR UPDATE SKIP LOCKED; issue a fresh UUID lease, max3 attempts,90second lease. Network fetch/upload occurs only after commit/release. Fixed byte cap10MiB, timeout15seconds per external operation; inspect signature and declared MIME, decode JPEG/PNG with Sharp limited to16M pixels/10 seconds, and structurally inspect PDF in an isolated bounded child (10 seconds, 256MiB JS heap, at most1000 pages). Encrypted or invalid PDFs fail. These checks are not malware scanning or vision. Fetch only the canonical LINE content URL; reject redirects, bad status, unknown encoding, oversized declared/streamed body and empty/mismatched content. 404/expired/invalid/unsupported are terminal; transient errors use bounded exponential backoff. A worker crash after final attempt must become FAILED, not a stuck PROCESSING row.
+
+For a verified Student unsend event, record a private purpose-keyed hash tombstone and revoke matching attachments without creating a Student session. This covers unsend arriving before the original event. Pending leases are cancelled; previously READY objects remain private but cannot be displayed or downloaded, and status changes invalidate Inbox. This slice handles file access on unsend; it does not claim text-unsend handling. Bytes already delivered cannot be recalled.
+
+Use private bucket chat-attachments, application-encrypted binary envelopes with HKDF purpose chat-attachment:v1/AES256GCM. AAD binds attachment/message/source-event/object UUID, MIME, exact size and SHA. Path is attachmentId/leaseToken.yruc; no filename/LINE identity in the path. Each attempt uses its own object so an expired worker cannot overwrite a later winner. Upload is no-upsert; uncertain uploads may leave at most the bounded attempt objects private. No automatic original/history deletion or unproven cleanup claim. Explicit provision inspects existing bucket settings and never rewrites them; actual setup happens through a guarded development action after owned tests.
+
+Finalize READY only under the same live lease and fresh source ownership checks. Persist the exact winning object/ref; late leases cannot publish metadata. Permanent failure remains visible; source messages survive. Trigger existing per-Staff private invalidation when status changes for an assigned ticket; pending unassigned messages obtain current attachment state when routed/read. Broadcast contains invalidation only, no file names/content.
+
+## Staff read boundary
+
+GET /api/chat/tickets/[ticketId]/attachments/[attachmentId] uses existing verified Staff subject, active profile/department/sensitivity and current message/ticket/conversation ownership. Buffer at most10MiB+envelope overhead outside SQL, decrypt and verify exact reference/SHA, then recheck current authorization/source/reference before constructing the response. No DB connection/transaction spans storage HTTP. Deny wrong-case/nonexistent/revoked scope without bytes; late revocation after the final authorization boundary cannot recall bytes already in flight.
+
+Use private,no-store/nosniff, safe encoded Content-Disposition attachment, restrictive CSP and no public storage redirects. Serve PDF as a download, not unsandboxed active content on the app origin. Preserve complete file bytes; no silent truncation. Range/HEAD/unrecognized query are not used to bypass the same permission boundary. Existing readThread adds attachments for only its selected message window without N+1 queries and without changing DTO shape.
+
+## Owned files and execution
+
+Root: lib/chat/media-{binary,line,storage,repository,worker,access,api}.ts, lib/conversation/student-processing.ts, lib/chat/service.ts, scoped attachment route, additive migration, scripts/media-worker.ts, startup/worker observation configuration, guarded storage provision and project coverage docs. No OpenCode UI/controller edits.
+
+1. Pure binary/ref/network adapters: test-first controlled bytes, MIME mismatch, bounds, timeout/redirect/token nonlogging, encryption tamper/wrong source. Luna high owns tests/chat-media-binary.test.ts and tests/chat-media-line.test.ts; Root owns implementation.
+2. Private schema/registration/lease/CAS: Luna max owns tests/database/chat-media.integration.ts plus ignored exact-owned runner; Root owns migration/services. Capture missing schema/behavior RED before code. Replay all current migrations in unique owner-marked local DB, exact cleanup.
+3. Storage + worker + current-source finalization: mock adapters verify network outside SQL, expired workers/retries/crash/failure/source divergence. API retrieval tests check wrong-case/revoked permission/late revocation/tamper and intact bytes; no real OA/model calls.
+4. Connect Inbox DTO and a dedicated MEDIA worker to the existing one-command runner; add observational worker code/constraint/readiness. Preserve both printed webhook URLs and graceful exact-owned shutdown; provider/AI services unchanged.
+5. Root integration review, focused/type/lint/full unit/defaultbuild, bounded owned PG, credential/diff checks, guarded normal migration/bucket readiness preserving existing data. Human real LINE media/Staff browser acceptance remains separate; LINE Login can be configured later.
+
+Outbound Staff upload/Student recipient-authenticated links, media OCR/vision and arbitrary file formats are still pending approved-plan work, not represented as completed by this inbound slice.

@@ -7,6 +7,7 @@ import {decryptValue,encryptValue} from '../security/identity';
 import {readChatInputSchema,noteChatInputSchema,type InboxQuery,type ThreadQuery} from './contracts';
 import type {InboxListResult,InboxThreadResult,ChatMessage,ChatNote} from '../../types/inbox';
 import type {TicketListItem} from '../../types/tickets';
+import {chatMediaForMessages} from './media-repository';
 
 type Options={pool?:Pool;key?:string};
 const seq=(value:unknown)=>{const n=Number(value);if(!Number.isSafeInteger(n)||n<0)throw new Error('INBOX_SEQUENCE_INVALID');return n;};
@@ -87,6 +88,8 @@ export async function readThread(staffId:string,ticketId:string,query:Partial<Th
   const noteRows=(await c.query(`select n.id,n.content_encrypted,n.created_at,s.display_name from private.inbox_notes n join public.staff_profiles s on s.id=n.staff_id
    where n.ticket_id=$1 order by n.created_at,n.id limit 100`,[ticketId])).rows;
   const key=options.key??process.env.ENCRYPTION_KEY;
+  const attachments=await chatMediaForMessages(c,ticketId,messages.map(message=>message.id),key);
+  for(const message of messages)message.attachments=attachments.get(message.id)??[];
   const notes:ChatNote[]=noteRows.map(r=>{if(!key)throw new Error('ENCRYPTION_NOT_CONFIGURED');return {id:r.id,text:decryptValue(r.content_encrypted,key),staffName:r.display_name,createdAt:stamp(r.created_at)};});
   return {detail,messages,notes,latestSequence,readThroughSequence,hasMore,nextBefore:hasMore?messages[0]?.sequence??null:null};
  },pool);

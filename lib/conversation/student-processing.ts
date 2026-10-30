@@ -16,6 +16,7 @@ import {loadSupportActionState} from '../ai/support-state';
 import {confirmSupportSolved} from '../ai/support-actions';
 import {consumeTypedSupportConfirmation,isTypedSupportConfirmation} from './support-confirmation';
 import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
+import {registerStudentChatAttachment} from '../chat/media-repository';
 
 export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;
  routingObservation?:(observation:RoutingDecisionObservation)=>void}
@@ -133,6 +134,7 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,
    ...(event.message.type==='text'?{}:{source_message_type:event.message.type})}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
+  if(event.message.type==='image'||event.message.type==='file')await registerStudentChatAttachment(client,{messageId:stored.id,sourceEventId:eventId},key);
  }
  if(decision.route==='ASK_CONTEXT'){
   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:contextChoiceOptions(candidates)},key);

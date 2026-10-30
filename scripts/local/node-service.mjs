@@ -15,7 +15,7 @@ export function installShutdownBridge(target=process){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const service=process.argv[2];
- const entries={INBOX:'scripts/worker.ts',AI:'scripts/ai-worker.ts',OUTBOX:'scripts/outbox-worker.ts',INCIDENT:'scripts/incident-worker.ts'};
+ const entries={INBOX:'scripts/worker.ts',AI:'scripts/ai-worker.ts',OUTBOX:'scripts/outbox-worker.ts',INCIDENT:'scripts/incident-worker.ts',MEDIA:'scripts/media-worker.ts'};
  installShutdownBridge();
  try{
   if(service==='WEB'){

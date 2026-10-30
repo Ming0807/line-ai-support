@@ -11,6 +11,7 @@ export const userEventSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('message'),source,message,replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
  z.object({type:z.literal('follow'),source,replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
  z.object({type:z.literal('unfollow'),source}),
+ z.object({type:z.literal('unsend'),source,unsend:z.object({messageId})}),
  z.object({type:z.literal('postback'),source,postback:z.object({data:z.string().min(1).max(1024)}),replyToken:z.string().min(1).max(512).optional(),timestamp:z.number().int().nonnegative().optional()}),
 ]);
 export type DirectUserEvent=z.infer<typeof userEventSchema>;

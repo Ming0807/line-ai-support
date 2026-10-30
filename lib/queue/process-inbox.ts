@@ -5,6 +5,7 @@ import { decryptValue, encryptValue, hashLineUserId } from '../security/identity
 import { processStudentContent,type StudentProcessingOptions } from '../conversation/student-processing';
 import {processStaffNoticeEvent} from '../staff/line-notifications';
 import { consumeStaffBinding } from '../staff/line-binding';
+import {revokeStudentChatAttachment} from '../chat/media-repository';
 export interface InboxJob { id:string; channel:'STUDENT'|'STAFF'; lease_token:string; payload_encrypted:string; user_hash:string|null; attempts:number; }
 
 /** Caller owns the transaction. Every effect rolls back if the lease cannot be completed. */
@@ -23,6 +24,8 @@ export async function processInboxEvent(client:Pick<PoolClient,'query'>,job:Inbo
     errorCode=await consumeStaffBinding(client,event.message.text,event.source.userId,key);
     if(!errorCode)errorCode=await processStaffNoticeEvent(client,job,event,key,true);
    }else errorCode=await processStaffNoticeEvent(client,job,event,key);
+  } else if(event.type==='unsend') {
+   await revokeStudentChatAttachment(client,{userHash:hash,lineMessageId:event.unsend.messageId,eventId:job.id},key);
   } else {
   await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:${job.channel}:${hash}`]);
   let session=(await client.query('select line_session_id from private.line_identities where user_hash=$1',[hash])).rows[0];

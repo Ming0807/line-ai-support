@@ -1,6 +1,6 @@
 import type {Pool} from 'pg';
 
-export const workerObservationCodes=['INBOX','OUTBOX','AI','INCIDENT'] as const;
+export const workerObservationCodes=['INBOX','OUTBOX','AI','INCIDENT','MEDIA'] as const;
 export type WorkerObservationCode=typeof workerObservationCodes[number];
 export interface WorkerObserverOptions {now?:()=>number}
 
