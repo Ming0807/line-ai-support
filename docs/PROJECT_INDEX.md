@@ -7,7 +7,7 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-191; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-195; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
@@ -67,7 +67,7 @@
 | งาน | เอกสารหลัก |
 | --- | --- |
 | Product / UI | [PRODUCT](../PRODUCT.md), [DESIGN](../DESIGN.md) |
-| LINE/context/Staff | [Context routing](architecture/AI_CONTEXT_ROUTING_DESIGN.md), [Staff binding](architecture/STAFF_LINE_BINDING_DESIGN.md) |
+| LINE/context/Staff | [Context routing](architecture/AI_CONTEXT_ROUTING_DESIGN.md), [Staff binding](architecture/STAFF_LINE_BINDING_DESIGN.md), [LINE conversation flow V2 (proposed)](architecture/LINE_CONVERSATION_FLOW_V2_DESIGN.md) |
 | AI / support / acceptance | [Support workflow](architecture/AI_SUPPORT_WORKFLOW_DESIGN.md), [support state](architecture/AI_SUPPORT_STATE_DESIGN.md), [continuation plan](superpowers/plans/2026-10-14-v1-completion-handoff.md), [current quality experiment](superpowers/plans/2026-10-20-evidence-first-mixed.md) |
 | Provider/model/order/FREE_ONLY | [Provider design](architecture/AI_PROVIDER_DESIGN.md) |
 | RAG / Import / Structured | [Import design](architecture/KNOWLEDGE_IMPORT_DESIGN.md), [structured schema](architecture/STRUCTURED_SCHEMA_DESIGN.md), [embedding service](architecture/EMBEDDING_SERVICE_DESIGN.md) |
