@@ -1,5 +1,13 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+## ต้องทำก่อน 24 พฤศจิกายน 2026, 12:08 น. (เวลากรุงเทพฯ)
+
+การรับรองบัญชีฟรีของ Gemini (FREE_ONLY attestation) ใช้ได้ถึงวันและเวลาข้างต้น ตอนนี้ระบบเปิดใช้โมเดลสร้างคำตอบอยู่ตัวเดียว คือ `gemini-3.5-flash-lite` และไม่มีโมเดลสำรองที่ผ่านการทดสอบแล้ว ถ้าการรับรองหมดอายุ ระบบจะบล็อก AI ฝั่งนักศึกษาทั้งหมด
+
+1. เข้าบัญชี Google AI Studio ด้วยตัวเองและตรวจว่ายังเป็น free tier และยังไม่ได้เปิด billing ทั้งหมดนี้คุณต้องยืนยันเอง root ยืนยันแทนไม่ได้
+2. ถ้ายังเป็นไปตามนั้น ให้ต่ออายุอีก 30 วันด้วยคำสั่ง `pnpm exec tsx scripts/ai/renew-gemini-free-grant.ts` คำสั่งนี้บันทึกการรับรองในนาม SUPER_ADMIN ที่ยังใช้งานอยู่และเก็บ audit `AI_FREE_ACCOUNT_CONFIRMED` ไว้
+3. ถ้าบัญชีเปลี่ยนเป็นแบบเสียเงินแล้ว ห้ามต่ออายุ และแจ้ง root เพื่อวางแผนเรื่อง provider ใหม่
+
 ## 29October — Staff onboarding backend (DEC190)
 
 DEC191 final current-source technical evidence:3662unit/273files/type/fullLint/defaultbuild PASS; controlled pre-exchange session preservation and Auth429/403/generic400 fail-closed tests plus scoped max review. Compiled anonymous browser8HTTP/9viewports PASS and exactownedserver3764 stopped. This does not exercise real LINE OAuth or authenticated approval; all configuration items below remain pending.
@@ -167,3 +175,4 @@ For later Staff Copilot manual acceptance: run existing `pnpm local:ai` (no sepa
 30October CHAT-MEDIA-01: local:check verified development52 migrations/86 RLS and private chat Storage. Runner now checks Storage and launches a fifth MEDIA worker, but a complete running session with five live check-ins and real LINE media has not been tested. Do not rely on historical four-worker startup evidence for this version. Human LINE Login configuration and real OA/Staff media testing remain deferred. Outbound Student file access and Staff upload require further implementation.
 30October ROOT-HERMES-TRACE-01: Staff copilot's separately provisioned native Windows Hermes runtime is excluded from build output traces; the Python driver remains included. A host using the optional feature must provision its compatible runtime independently. Default build checks traces but still emits the pre-exclusion large-directory warning. No live Hermes inference was run.
 30October CHAT-MEDIA-02A/02B: Student LINE token verification and scoped session primitives are gated off by default and have no viewer route. Do not enable `LINE_STUDENT_MEDIA_VIEWER_ENABLED` until the full recipient-bound viewer/upload workflow is implemented and same-provider Student Login/LIFF is configured. Actual OAuth/LINE/browser acceptance remains pending.
+30October CHAT-MEDIA-02C: development53/87RLS and local:check pass. Staff outbound records are metadata-only and not yet exposed for upload or sending. Before actual use complete encrypted Storage orchestration, expired-lease recovery, confirmation/outbox and Student LIFF viewer, then configure LINE and test real end-to-end behavior.

@@ -12,6 +12,8 @@
 
 ## สถานะปัจจุบัน
 
+30October CHAT-MEDIA-02C: private Staff outbound draft/lease and current case/recipient authority checks implemented; owned53 migration PG13/13, full3721 unit/284 files, type/scopedlint/build PASS. Development53/87RLS activated without changes to prior data, `local:check` PASS. This is metadata only, not a Staff upload or Student viewer; expiry recovery after a worker crash remains open. [Design](architecture/CHAT_MEDIA_DESIGN.md).
+
 30October CHAT-MEDIA-02A/02B: server-only configured LINE identity verification and attachment-bound five-minute maximum encrypted session primitives implemented and independently reviewed; no Student viewer route or Staff upload exists yet. Controlled 25 tests cover these primitives and synthetic Incident geometry. Full3718/283 unit run passed before the final server-key error-classification fix; affected focused tests, typecheck/scoped lint and production build passed afterward. Actual LINE/Login, authenticated viewer and E5 semantic quality remain open.
 
 30October ROOT-HERMES-TRACE-01: Next build excludes the separately provisioned local Hermes runtime from the Staff copilot output trace. The copilot trace dropped from70,049 to222 files, with0 runtime references across99 server traces; the Python driver remains traced and the on-disk cache remains present. Build and46 scoped Hermes tests passed. Turbopack still scans the cached directory and emits the pre-exclusion69,827-file warning; no runtime/model acceptance is implied.
@@ -71,7 +73,7 @@
 | RAG / Import / Structured | [Import design](architecture/KNOWLEDGE_IMPORT_DESIGN.md), [structured schema](architecture/STRUCTURED_SCHEMA_DESIGN.md), [embedding service](architecture/EMBEDDING_SERVICE_DESIGN.md) |
 | Local one-command run | [Local test instructions](operations/LOCAL_TEST.md), [preview plan/evidence](superpowers/plans/2026-10-20-local-ai-preview.md) |
 | Deferred human configuration/test | [Final setup checklist](operations/FINAL_SETUP_CHECKLIST.md) |
-| แผนต่อยอดหลัง V1 | [Post-V1 roadmap](tasks/POST_V1_ROADMAP.md) — 4 เฟส + critical path + คำเตือน attestation หมดอายุ 28 ต.ค. |
+| แผนต่อยอดหลัง V1 | [Post-V1 roadmap](tasks/POST_V1_ROADMAP.md) — 4 เฟส + critical path + attestation Gemini ปัจจุบันหมดอายุ 24 พ.ย. 2026 12:08 น. |
 | Corpus files | [Catalog](../documents/yru/CATALOG.md), [completeness](../documents/yru/COMPLETENESS.md), [starter review](../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md) |
 | Delegation and evidence | [Working protocol](agents/WORKING_PROTOCOL.md) |
 
