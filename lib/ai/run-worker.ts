@@ -6,7 +6,7 @@ import {transaction} from '../database/pool';
 import {lockConversation} from '../tickets/authorization';
 import {decryptValue,encryptValue} from '../security/identity';
 import {enqueueOutbound,type OutboundText} from '../queue/outbox';
-import {searchKnowledge} from '../knowledge/retrieval';
+import {freshAnswerEvidence} from '../knowledge/section-expansion';
 import {buildCitedAnswer,evidenceStillMatches,LINE_TEXT_PACKET_LIMIT_MESSAGE,lineMessages} from '../knowledge/citations';
 import {ruleContextsStillMatch} from '../knowledge/rule-proof';
 import {knowledgeFamilyLock,knowledgeDocumentLock,knowledgeStructuredCatalogLock} from '../knowledge/delivery-fence';
@@ -14,13 +14,17 @@ import {searchStructured,discoverPublicForms,discoverPublicStructured} from '../
 import {buildFormDirectory} from '../knowledge/form-directory';
 import {buildStructuredAnswer,structuredEvidenceStillMatches} from '../knowledge/structured-citations';
 import {claimAIJob,lockedAIJob,saveAIResult,decodeAIResult,requiresStructuredCatalog,aiRequestSchema,type AIJob,type AIResult} from './jobs';
-import {startLineLoading} from '../line/loading';
+import {startLineLoading,type LineLoadingSeconds} from '../line/loading';
 import {loadSupportSnapshot,loadSupportActionState,saveSupportState,type SupportStateSnapshot} from './support-state';
 import {createSupportActions} from './support-actions';
 import {interpretSupportProposal} from './support-contracts';
 import {readAIKnowledgeSnapshot} from './knowledge-snapshot';
 import {verifyWebLeads,buildWebLeadReply} from '../knowledge/web-leads';
 import {verifyConversationReply,conversationReplyMessages} from './conversation-reply';
+import {createChoices} from '../conversation/quick-reply';
+import {loadCandidates,candidateSnapshot} from '../conversation/context-resolver';
+import {shortAnswerText,SHOW_FULL_LABEL,type ShortAnswerSource} from '../line/answer-presentation';
+import {isTurnFailureText} from './turn-flow-v2';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
@@ -33,7 +37,8 @@ export interface AISnapshot {
 }
 export interface AIWorkerOptions {
  produce(snapshot:AISnapshot,signal:AbortSignal):Promise<AIResult>;
- loading?:{accessToken?:string;fetchImpl?:typeof fetch};
+ /** seconds: one best-effort animation (DEC-057, never refreshed); LINE hides it when the reply arrives. */
+ loading?:{accessToken?:string;fetchImpl?:typeof fetch;seconds?:LineLoadingSeconds};
  supportEnabled?:boolean;
 }
 export async function eligibleAIJob(client:PoolClient,job:AIJob):Promise<boolean>{
@@ -83,7 +88,7 @@ async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOption
    if(age<0||age>18_500)return null;
    return decryptValue(identity.user_id_encrypted,key);
   },pool);
-  if(recipient)await startLineLoading({recipientId:recipient,loadingSeconds:20},{...options.loading,timeoutMs:1000});
+  if(recipient)await startLineLoading({recipientId:recipient,loadingSeconds:options.loading.seconds??20},{accessToken:options.loading.accessToken,fetchImpl:options.loading.fetchImpl,timeoutMs:1000});
  }catch{
   // A decorative side effect cannot turn generation into a failed/retried job.
   console.warn('LINE_LOADING_UNAVAILABLE');
@@ -157,7 +162,7 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
     const ids=[...new Set(result.evidence.map(e=>e.documentId))].sort();
     for(const id of ids)await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[knowledgeDocumentLock(id)]);
     await client.query('select id from public.documents where id=any($1::uuid[]) order by id for share',[ids]);
-    const fresh=await searchKnowledge(client,{scope:result.scope,vector:result.queryVector,fingerprint:result.fingerprint,limit:12});
+    const fresh=await freshAnswerEvidence(client,result);
     if(!ruleContextsStillMatch(result.evidence,fresh)||!evidenceStillMatches(cited,fresh))throw new Error('EVIDENCE_CHANGED');
     const answer=buildCitedAnswer(result.output,result.evidence);messages=answer.messages;citations=answer.citations;
    }catch(error){
@@ -170,13 +175,30 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    try{messages=lineMessages(`${envelope.general.text}\n\n${messages.map(message=>message.text).join('')}`);}
    catch{messages=[{type:'text',text:LINE_TEXT_PACKET_LIMIT_MESSAGE}];code='LINE_TEXT_PACKET_TOO_LARGE';citations=[];}
   }
+  // CONV-V2-05: only V2 results (section-expanded answers, exact V2 failure texts) get these one-use choices,
+  // and only when no other choice is already offered on this reply. Both are re-validated when pressed.
+  let presentation:'SHORT_FIRST'|undefined;
+  if(!request.quickReply&&!('support' in result&&result.support)){
+   const offer=async(choice:{label:string;value:Record<string,string>})=>createChoices(client,{sessionId:job.line_session_id,
+    snapshot:candidateSnapshot(await loadCandidates(client,job.line_session_id)),choices:[choice]},key);
+   if(code===null&&envelope.kind==='ANSWER'&&envelope.sectionExpanded===true){
+    const short=shortAnswerText(envelope.output.answer,citations as ShortAnswerSource[]);
+    if(short){
+     const quickReply=await offer({label:SHOW_FULL_LABEL,value:{action:'SHOW_FULL',jobId:job.id,conversationId:job.conversation_id}});
+     messages=lineMessages(short);messages[messages.length-1]={...messages[messages.length-1],quickReply};presentation='SHORT_FIRST';
+    }
+   }else if(envelope.kind==='CLARIFY'&&isTurnFailureText(envelope.text)){
+    const quickReply=await offer({label:'คุยกับเจ้าหน้าที่',value:{action:'CONTACT',conversationId:job.conversation_id}});
+    messages[messages.length-1]={...messages[messages.length-1],quickReply};
+   }
+  }
   if(request.quickReply&& !('support' in result&&result.support))messages[messages.length-1]={...messages[messages.length-1],quickReply:request.quickReply};
   const outbox=await enqueueOutbound(client,{idempotencyKey:`ai-job:${job.id}`,kind:'AI',channel:'STUDENT',lineSessionId:job.line_session_id,
    conversationId:job.conversation_id,conversationRevision:job.expected_conversation_revision,replyToken:request.replyToken,
    receivedAt:new Date(request.receivedAt),messages},key);
   if(!outbox){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata)
-   values($1,'AI','TEXT',$2,$3)`,[job.conversation_id,messages.map(m=>m.text).join(envelope.kind==='MIXED'||result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER'||result.kind==='STRUCTURED_DISCOVERY'||result.kind==='FORM_DIRECTORY'||result.kind==='CONVERSATION'?'':'\n'),{ai_job_id:job.id,citations,...(result.kind==='CONVERSATION'?{answer_basis:result.basis}:envelope.kind==='MIXED'?{answer_basis:'MIXED'}:{})}]);
+   values($1,'AI','TEXT',$2,$3)`,[job.conversation_id,messages.map(m=>m.text).join(envelope.kind==='MIXED'||result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER'||result.kind==='STRUCTURED_DISCOVERY'||result.kind==='FORM_DIRECTORY'||result.kind==='CONVERSATION'?'':'\n'),{ai_job_id:job.id,citations,...(presentation?{presentation}:{}),...(result.kind==='CONVERSATION'?{answer_basis:result.basis}:envelope.kind==='MIXED'?{answer_basis:'MIXED'}:{})}]);
   if('support' in result&&result.support&&support){
    const verifiedGuidance=code===null&&(result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER');
    await saveSupportState(client,current,support,result.support.proposal,key,verifiedGuidance?{guidanceOutboxId:outbox}:{});

@@ -138,6 +138,15 @@ describe('local command and output boundaries',()=>{
   const output=readyMessages(3000,'https://example.trycloudflare.com','SKIPPED','CONFIGURATION',{assistantPreview:true,webSearch:true}).join('\n');
   expect(output).toContain('Web search configured');expect(output).toContain('source leads');expect(output).toContain('runtime checks');expect(output).not.toContain('verified provider');
  });
+ it('accepts conversation flow V2 only with the natural preview and labels it unqualified',()=>{
+  expect(parseArguments(['--assistant-preview','--flow-v2'])).toMatchObject({assistantPreview:true,flowV2:true});
+  for(const args of [['--flow-v2'],['--staff-test','--flow-v2'],['--flow-v2','--check'],['--assistant-preview','--flow-v2','--flow-v2']])
+   expect(()=>parseArguments(args)).toThrow('LOCAL_ARGUMENTS_INVALID');
+  expect(buildSessionEnvironment(env,embedding,'http://127.0.0.1:3000',3000,{assistantPreview:true,flowV2:true}).YRU_CONVERSATION_FLOW_V2).toBe('true');
+  expect(buildSessionEnvironment(env,embedding,'http://127.0.0.1:3000',3000,{assistantPreview:true}).YRU_CONVERSATION_FLOW_V2).toBe('false');
+  const output=readyMessages(3000,null,'SKIPPED','CONFIGURATION',{assistantPreview:true,flowV2:true}).join('\n');
+  expect(output).toContain('Conversation flow V2: ON');expect(output).toContain('NOT_QUALIFIED');
+ });
  it('accepts explicit natural preview, optional isolated Hermes and refuses conflicting modes/duplicates',()=>{
   expect(parseArguments(['--assistant-preview'])).toMatchObject({mode:'start',assistantPreview:true,hermesCheck:false});
   expect(parseArguments(['--assistant-preview','--no-tunnel','--port','3001','--hermes-check']))

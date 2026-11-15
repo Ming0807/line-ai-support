@@ -7,19 +7,20 @@ const loopbacks=new Set(['127.0.0.1','localhost','[::1]']);
 const pgOptions=new Set(['pgbouncer','ssl','sslmode','sslcert','sslkey','sslrootcert','uselibpqcompat']);
 const fail=code=>{throw new Error(code);};
 export function parseArguments(args){
- let mode='start',port=3000,tunnel=true,hermesCheck=false,staffTest=false,assistantPreview=false,webSearch=false;const seen=new Set();
+ let mode='start',port=3000,tunnel=true,hermesCheck=false,staffTest=false,assistantPreview=false,webSearch=false,flowV2=false;const seen=new Set();
  for(let i=0;i<args.length;i++){
-  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port','--hermes-check','--staff-test','--assistant-preview','--web-search'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
+  const arg=args[i];if(!['--check','--stop','--no-tunnel','--port','--hermes-check','--staff-test','--assistant-preview','--web-search','--flow-v2'].includes(arg)||seen.has(arg))fail('LOCAL_ARGUMENTS_INVALID');seen.add(arg);
   if(arg==='--check'||arg==='--stop'){if(mode!=='start')fail('LOCAL_ARGUMENTS_INVALID');mode=arg.slice(2);}
   if(arg==='--no-tunnel')tunnel=false;
   if(arg==='--hermes-check')hermesCheck=true;
   if(arg==='--staff-test')staffTest=true;
   if(arg==='--assistant-preview')assistantPreview=true;
   if(arg==='--web-search')webSearch=true;
+  if(arg==='--flow-v2')flowV2=true;
   if(arg==='--port'){const raw=args[++i];if(!/^[1-9]\d{0,4}$/.test(raw??'')||Number(raw)>65535)fail('LOCAL_ARGUMENTS_INVALID');port=Number(raw);}
  }
- if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview||webSearch)||staffTest&&(hermesCheck||assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
- return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{}),...(webSearch?{webSearch:true}:{})};
+ if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview||webSearch)||staffTest&&(hermesCheck||assistantPreview)||flowV2&&(mode!=='start'||!assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
+ return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{}),...(webSearch?{webSearch:true}:{}),...(flowV2?{flowV2:true}:{})};
 }
 function validateWebSearch(env){
  if(env.DDGS_ENABLED==='true'&&typeof env.DDGS_PYTHON_PATH==='string'&&env.DDGS_PYTHON_PATH.length<=2048&&isAbsolute(env.DDGS_PYTHON_PATH))return;
@@ -64,7 +65,7 @@ export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
  return {...env,...service,EMBEDDING_HOST:host,EMBEDDING_PORT:embeddingPort,EMBEDDING_MODEL:MODEL,EMBEDDING_MODEL_REVISION:REVISION,EMBEDDING_DIMENSION:'384',
   EMBEDDING_API_URL:endpoint.origin,APP_BASE_URL:base.origin,LINE_WEBHOOK_MODE:'durable',YRU_AI_ENABLED:'true',YRU_WEB_SEARCH_ENABLED:options.webSearch===true?'true':'false',
   HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',
-  ...(options.staffTest?{YRU_ASSISTANT_ENABLED:'false'}:options.assistantPreview?{YRU_ASSISTANT_ENABLED:'true'}:{})};
+  ...(options.staffTest?{YRU_ASSISTANT_ENABLED:'false'}:options.assistantPreview?{YRU_ASSISTANT_ENABLED:'true',YRU_CONVERSATION_FLOW_V2:options.flowV2===true?'true':'false'}:{})};
 }
 export function validateEmbeddingHealth(value){return value?.status==='ok'&&value.model===MODEL&&value.revision===REVISION&&value.dimension===384;}
 const hermesPhases=new Set(['CONFIGURATION','PRIVATE_HOME','DATABASE_CONNECT','DATABASE_READY','BRIDGE_START','BRIDGE_READY','HERMES_RUNTIME_CONFIG','INTERPRETER_DISCOVERY','INTERPRETER_ACTIVATION','INTERPRETER_READY','AGENT_RUNNING','BEFORE_IMPORT','AFTER_IMPORT','AGENT_INIT','AGENT_READY','TURN_1_START','TURN_1_DONE','TURN_2_START','TURN_2_DONE','AGENT_EXITED','COMPLETE']);
@@ -91,6 +92,7 @@ export function readyMessages(port,publicUrl,hermesStatus='SKIPPED',hermesPhase=
   messages.push('Test: bind Staff account in Settings; request staff on Student OA; claim and open Dashboard Inbox; reply, switch case and close in Dashboard only');
  }else{
   if(options.assistantPreview)messages.push(...assistantPreviewMessages());
+  if(options.flowV2)messages.push('Conversation flow V2: ON (DEC-195); 1-2 model calls per answer; NOT_QUALIFIED until compared on the frozen 30 cases');
   messages.push(hermesReadiness(hermesStatus,hermesPhase));
  }
  return messages;

@@ -17,6 +17,7 @@ import {confirmSupportSolved} from '../ai/support-actions';
 import {consumeTypedSupportConfirmation,isTypedSupportConfirmation} from './support-confirmation';
 import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
 import {registerStudentChatAttachment} from '../chat/media-repository';
+import {fullAnswerForChoice} from './show-full-answer';
 
 export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;
  routingObservation?:(observation:RoutingDecisionObservation)=>void}
@@ -73,6 +74,16 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    }
    const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:source.id,choices:contextChoiceOptions(candidates,page)},key);
    await respond(contextChoiceText('เลือกชื่อเรื่องที่ต้องการต่อครับ หรือพิมพ์คำถามเพิ่มเติมได้เลย',candidates,page),quickReply);return null;
+  }
+  if(choice.action==='SHOW_FULL'){
+   // CONV-V2-05: complete text of an already delivered short answer; re-fenced, no model call.
+   const full=await fullAnswerForChoice(client,{sessionId,choice,candidates},key);
+   const outbox=full.status==='READY'?await enqueueOutbound(client,{idempotencyKey:`student-response:${eventId}`,kind:'AI',channel:'STUDENT',
+    lineSessionId:sessionId,conversationId:full.conversationId,conversationRevision:full.conversationRevision,replyToken,receivedAt,messages:full.messages},key):null;
+   if(full.status!=='READY'||!outbox){await respond('ข้อมูลนี้เปลี่ยนแล้วหรือหมดอายุครับ กรุณาส่งคำถามอีกครั้ง');return 'INVALID_CHOICE';}
+   await client.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata) values($1,'AI','TEXT',$2,$3)`,
+    [full.conversationId,full.messages.map(message=>message.text).join(''),{ai_job_id:full.jobId,citations:full.citations,presentation:'FULL_ON_REQUEST'}]);
+   return null;
   }
   selected=choice.conversationId;newTopic=choice.action==='NEW';
   if(newTopic)await clearExplicitHumanFocus(client,sessionId);

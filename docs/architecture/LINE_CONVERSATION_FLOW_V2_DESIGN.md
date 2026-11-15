@@ -1,8 +1,21 @@
 # CONV-V2 — LINE conversation flow ที่เร็วขึ้นและตอบครบขึ้น
 
-สถานะ: **PROPOSED (design only)** — 15 พฤศจิกายน 2026 โดย root ตามคำขอของผู้ใช้ "Write the design" หลังการวิเคราะห์ว่า flow ปัจจุบันดีพอไหมสำหรับการสนทนาใน LINE. เอกสารนี้ยังไม่มีโค้ด ไม่มีผลทดสอบ และยังไม่เปลี่ยนพฤติกรรมของระบบ. Decision: [DEC-195](../decisions/DECISION_LOG.md).
+สถานะ: **IN PROGRESS — 01–05 implemented behind a default-off flag; 00, 06 and 07 pending** — 15 พฤศจิกายน 2026 โดย root ตามคำขอของผู้ใช้ "Write the design" หลังการวิเคราะห์ว่า flow ปัจจุบันดีพอไหมสำหรับการสนทนาใน LINE. เอกสารนี้ยังไม่มีโค้ด ไม่มีผลทดสอบ และยังไม่เปลี่ยนพฤติกรรมของระบบ. Decision: [DEC-195](../decisions/DECISION_LOG.md).
 
 เกี่ยวข้องกับ: CH006, CH021–CH024, CH029, CH031–CH034, CH058–CH059, CH069, USR-AI-AUTONOMY, USR-WEB ใน [requirements matrix](../requirements/V1_REQUIREMENTS_MATRIX.md). ต่อยอดจาก [support workflow](AI_SUPPORT_WORKFLOW_DESIGN.md) (AI-AGENT-01) และ [context routing](AI_CONTEXT_ROUTING_DESIGN.md).
+
+## สถานะการทำ (15 พฤศจิกายน 2026)
+
+ทำแล้ว CONV-V2-01 ถึง 04 อยู่หลัง flag `YRU_CONVERSATION_FLOW_V2` (ค่าเริ่มต้นปิด) และ `pnpm local:ai --flow-v2`:
+
+- **ปรับจาก design เดิมในรอบนี้:** call 1 ใช้ decision contract เดิม (`assistant-decision.ts`) ที่ผ่าน 29/30 โดยไม่เปลี่ยน prompt หรือ schema และไม่ให้ model กรอก scope. ลดจำนวนครั้งเรียกตรงขั้นหลัง LOOKUP แทน: คำถามทางการที่ไม่ระบุปี วันที่ รุ่น หลักสูตร หรือประเภทนักศึกษา (`requiresScopePlanning` ใช้ตัวตรวจ scope เดิม) จะค้นด้วย default scope แบบ current และ backend-only แล้วตามด้วย compose หนึ่งครั้ง. คำถามที่ต้องการ scope, ผลค้นว่าง/กำกวม/ผิดพลาด หรือ compose ตอบว่าไม่มีหลักฐาน จะไปทางเดิมทั้งหมด (`createKnowledgeProducer`). การให้ call 1 กรอก scope ยังเป็นทางเลือกต่อไป ถ้าการวัดชี้ว่าคุ้ม
+- ไฟล์: `lib/knowledge/scope-validation.ts`, `lib/knowledge/section-expansion.ts`, `lib/knowledge/section-answer.ts`, `lib/ai/turn-flow-v2.ts`, tool `search_knowledge_sections`, การเชื่อมใน `lib/knowledge/configured.ts`
+- ผลลัพธ์ ANSWER ที่ขยาย section มี `sectionExpanded: true` ทั้ง finalizer (`run-worker.ts`) และ delivery fence ใช้ `freshAnswerEvidence` เพื่อขยายซ้ำแบบเดียวกันก่อนตรวจ. ถ้าไม่มี flag พฤติกรรมเดิมไม่เปลี่ยน
+- หลักฐาน: typecheck, full lint, unit 3748 tests / 286 files และ build ผ่าน. owned-PG `tests/database/section-expansion.integration.ts` เขียนแล้วแต่ **NOT_RUN** เพราะ Docker ไม่ได้เปิด. ยังไม่มีการเรียก model จริง
+- CONV-V2-05 ทำแล้ว (15 พ.ย.): คำตอบ V2 ที่ยาวเกิน 900 ตัวอักษรส่ง bubble แรกเป็นบรรทัดต้นของคำตอบที่ผ่านการตรวจแล้ว (ไม่เกิน 600 ตัวอักษร) พร้อมบอกว่ามีขั้นตอนหรือเงื่อนไขเพิ่มเติม ชื่อแหล่ง และปุ่ม "ดูขั้นตอนทั้งหมด" (`lib/line/answer-presentation.ts`). ปุ่มเป็น owned one-use choice ที่เก็บเฉพาะ job ID เมื่อกด `lib/conversation/show-full-answer.ts` อ่านผลที่บันทึกไว้ ตรวจ evidence ใหม่ภายใต้ lock เดิม แล้วส่งผ่าน AI outbox fence โดยไม่เรียก model. ข้อความล้มเหลวแบบ V2 มีปุ่ม "คุยกับเจ้าหน้าที่" ซึ่งใช้ CONTACT เดิม (เลือกหน่วยงานก่อนสร้าง ticket)
+- **ปรับจาก design รอบนี้:** ไม่ต่อ loading แบบวนซ้ำ เพราะ DEC-057 กำหนดให้เรียก loading ครั้งเดียวแบบ best-effort จึงให้ V2 ขอ animation 40 วินาทีครั้งเดียวแทน 20 (LINE ซ่อนเองเมื่อคำตอบมาถึง). ยังไม่มีปุ่ม "ลองใหม่" เพราะ quick reply ของระบบรองรับเฉพาะ postback และการส่งคำถามเดิมซ้ำต้องมี contract แยก. Flex Message ยังเลื่อนไว้ตามเดิม
+- หลักฐาน 05: unit 3760 tests / 288 files, typecheck, full lint และ build ผ่าน. owned-PG บนฐานข้อมูลชั่วคราว 53 migrations ผ่านทั้งหมดผ่าน `scripts/database/run-owned-test.ts`: section expansion 3/3 และ short-first/show-all 4/4 (ส่งแบบสั้น, กดดูทั้งหมดครั้งเดียว, กดซ้ำถูกปฏิเสธ, source เปลี่ยนถูกปฏิเสธ, staff takeover ไม่ส่ง, ปุ่มคุยกับเจ้าหน้าที่) และ cleanup ผ่าน. runner นี้ต้อง grant `references` บน `auth.identities` ให้ `postgres` เหมือน hosted Supabase. ฐาน local `postgres` เดิมยังค้างที่ 41 migrations จึงไม่ได้ใช้
+- ยังไม่ทำ: 00 baseline และ 06 การเปรียบเทียบ ซึ่งต้องได้งบ model จากผู้ใช้ และ 07 การทดสอบบน OA จริง
 
 ## 1. ปัญหาที่ต้องแก้
 

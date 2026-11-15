@@ -18,7 +18,11 @@ import {screenMixedRepair} from '../ai/mixed-repair';
 import {createAssistantOrchestrator} from '../ai/assistant-orchestrator';
 import {createScopedAssistantDecision} from '../ai/scoped-assistant-decision';
 import {createEvidenceFirstMixedComposer} from '../ai/evidence-first-mixed';
-import {createKnowledgeProducer,type KnowledgeProducerOptions,type KnowledgeValidationDiagnostic} from './answer-producer';
+import {createKnowledgeProducer,bounded,validEmbedding,type KnowledgeProducerOptions,type KnowledgeValidationDiagnostic} from './answer-producer';
+import {createTurnFlowV2,type SectionSearchResult} from '../ai/turn-flow-v2';
+import {createSectionComposer} from './section-answer';
+import type {KnowledgeScope} from './types';
+import {z} from 'zod';
 import {createDurableTurnBudget,ASSISTANT_TURN_ATTEMPT_LIMIT} from '../ai/durable-turn-budget';
 import {createConversationReply,generalReplyEvidenceReason,type GeneralEvidenceReason} from '../ai/conversation-reply';
 import {lookupPlanSchema,decodeLookupSelection} from './lookup-plan';
@@ -100,12 +104,16 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
  scopeFirst?:boolean;
  /** Evaluation-only joint scope/composition; retains all downstream admission guards. */
  scopedSinglePass?:boolean;
+ /** CONV-V2 (DEC-195): decision call, backend section search and one compose call. Off until measured acceptance. */
+ conversationFlowV2?:boolean;
  /** Prospective partial-evidence completion contract, opt-in until actual acceptance. */
  ragCoverage?:boolean;
  /** In-process observer for guarded synthetic evaluation only; normal workers leave this unset. */
  onAssistantGenerationDiagnostic?:DiagnosticObserver}={}):AIWorkerOptions['produce']{
  if(options.scopeFirst&&options.evidenceFirstMixed)throw new Error('ASSISTANT_CANDIDATES_INCOMPATIBLE');
  if(options.scopedSinglePass&&!options.scopeFirst)throw new Error('ASSISTANT_SINGLE_PASS_REQUIRES_SCOPE');
+ if(options.conversationFlowV2&&(options.assistantEnabled!==true||options.scopeFirst||options.evidenceFirstMixed||options.scopedSinglePass))
+  throw new Error('CONVERSATION_FLOW_V2_INCOMPATIBLE');
  const store=createAIStore(pool);
  const generation=createProviderRegistry(options),embedding=createLocalE5EmbeddingProvider(options);
  const priceReader=createPriceReader(options);
@@ -125,7 +133,7 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
   },
   webFallback:createStudentWebFallback(pool,key,snapshot),
   generate:async input=>{
-   const turnBudget=budgets?(['KNOWLEDGE_ANSWER','KNOWLEDGE_EXACT_ANSWER','SUPPORT_INTENT','ASSISTANT_GENERAL_COMPOSE'].includes(input.taskType)?budgets.completion:
+   const turnBudget=budgets?(['KNOWLEDGE_ANSWER','KNOWLEDGE_EXACT_ANSWER','SUPPORT_INTENT','ASSISTANT_GENERAL_COMPOSE','TURN_COMPOSE'].includes(input.taskType)?budgets.completion:
     ['KNOWLEDGE_PLAN','KNOWLEDGE_PLAN_REPAIR','KNOWLEDGE_WEB_PLAN'].includes(input.taskType)?budgets.plan:budgets.decision):undefined;
    try{
     const result=await generate(input,{store,key,adapters:generation,priceReader,...(turnBudget?{turnBudget}:{})});
@@ -184,6 +192,14 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
   },
  };
  const support=createSupportProducer(bound);
+ const context={lineSessionId:snapshot.sessionId,conversationId:snapshot.conversationId,conversationRevision:snapshot.revision};
+ if(options.conversationFlowV2===true)return createTurnFlowV2({
+  decide:createAssistantDecision({generate:input=>bound.generate({...input,reasoningMode:'OFF_IF_SUPPORTED'})}),
+  searchSections:(scope,queries,abort)=>searchSections(pool,bound,context,snapshot.question,scope,queries,abort),
+  compose:createSectionComposer({generate:bound.generate}),
+  fullLookup:(current,abort,hint)=>createKnowledgeProducer(hint===undefined?bound:{...bound,retrievalHint:hint})(current,abort),
+  handoff:(current,abort,reason)=>createSupportProducer(bound,{handoffReason:reason})(current,abort),
+ })(snapshot,signal);
  return (options.assistantEnabled===true?createAssistantOrchestrator({repairRejectedGeneral:!options.scopeFirst,decide:(options.scopeFirst?createScopedAssistantDecision:createAssistantDecision)({
   // The Gateway keeps provider defaults unless fresh metadata explicitly permits
   // optional reasoning. Grounded planning/completion still use bound.generate directly.
@@ -194,4 +210,31 @@ export function createConfiguredKnowledgeProducer(pool:Pool,key:string,options:{
   lookup:(context,abort,retrievalHint)=>createKnowledgeProducer(retrievalHint===undefined?bound:{...bound,retrievalHint})(context,abort),
   handoff:(context,abort,reason)=>createSupportProducer(bound,{handoffReason:reason})(context,abort)}):support)(snapshot,signal);
  };
+}
+
+const sectionSearchResultSchema=z.discriminatedUnion('status',[
+ z.strictObject({status:z.literal('READY'),evidence:citationEvidenceSchema.array().max(12),incompleteSections:z.number().int().nonnegative()}),
+ z.strictObject({status:z.literal('SCOPE_AMBIGUOUS')}),
+]);
+
+/** CONV-V2 backend-only search: embed each query in turn, stop at the first non-empty eligible result. */
+async function searchSections(pool:Pool,bound:KnowledgeProducerOptions,context:{lineSessionId:string;conversationId:string;conversationRevision:number},
+ question:string,scope:KnowledgeScope,queries:string[],signal:AbortSignal):Promise<SectionSearchResult>{
+ for(const query of queries){
+  let embedded;
+  try{
+   embedded=await bounded(stageSignal=>bound.embed({input:[query],requestType:'EMBEDDING_QUERY',conversationId:context.conversationId,timeoutMs:15_000,signal:stageSignal}),15_000,signal);
+  }catch(error){if(signal.aborted)throw error;return {status:'FAILED'};}
+  if(!validEmbedding(embedded))return {status:'FAILED'};
+  const vector=embedded.vectors[0]!,registry=createKnowledgeToolRegistry(pool,{vector,fingerprint:embedded.fingerprint});
+  let raw:unknown;
+  try{
+   raw=await bounded(()=>registry.execute({name:'search_knowledge_sections',arguments:{query:question,scope}},context,['search_knowledge_sections']),8_000,signal);
+  }catch(error){if(signal.aborted)throw error;return {status:'FAILED'};}
+  const parsed=sectionSearchResultSchema.safeParse(raw);
+  if(!parsed.success)return {status:'FAILED'};
+  if(parsed.data.status==='SCOPE_AMBIGUOUS')return {status:'SCOPE_AMBIGUOUS'};
+  if(parsed.data.evidence.length>0)return {status:'READY',evidence:parsed.data.evidence,incompleteSections:parsed.data.incompleteSections,queryVector:vector,fingerprint:embedded.fingerprint};
+ }
+ return {status:'EMPTY'};
 }

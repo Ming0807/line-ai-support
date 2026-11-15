@@ -2,7 +2,7 @@ import type {PoolClient} from 'pg';
 import {structuredReferenceSources} from './structured-row-reference';
 import {z} from 'zod';
 import {decodeAIResult,requiresStructuredCatalog,type AIJob} from '../ai/jobs';
-import {searchKnowledge} from './retrieval';
+import {freshAnswerEvidence} from './section-expansion';
 import {evidenceStillMatches} from './citations';
 import {ruleContextsStillMatch} from './rule-proof';
 import {searchStructured,discoverPublicForms,discoverPublicStructured} from './structured-search';
@@ -94,7 +94,7 @@ export async function verifyAIOutboxEvidence(client:PoolClient,input:OutboxEvide
   if(result.structuredMiss&&(await searchStructured(client,{query:result.structuredMiss,scope:result.scope},key)).status!=='EMPTY'){
    await client.query('commit');return false;
   }
-  const fresh=await searchKnowledge(client,{scope:result.scope,vector:result.queryVector,fingerprint:result.fingerprint,limit:12});
+  const fresh=await freshAnswerEvidence(client,result);
   const allowed=ruleContextsStillMatch(result.evidence,fresh)&&evidenceStillMatches(cited,fresh);await client.query('commit');return allowed;
  }catch(error){
   await client.query('rollback');

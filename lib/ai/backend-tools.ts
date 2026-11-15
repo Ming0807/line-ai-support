@@ -10,6 +10,7 @@ import {userEventSchema} from '../line/events';
 import {decryptValue,encryptValue,hashLineUserId} from '../security/identity';
 import {confirmationChoiceHash} from '../conversation/support-confirmation';
 import {searchKnowledge,knowledgeScopeSchema} from '../knowledge/retrieval';
+import {expandSameSection} from '../knowledge/section-expansion';
 import {structuredQuerySchema} from '../knowledge/structured-query';
 import {searchStructured,discoverPublicForms,discoverPublicStructured,type StructuredSearchRequest} from '../knowledge/structured-search';
 import {structuredDiscoveryRequestSchema} from '../knowledge/structured-discovery';
@@ -65,6 +66,16 @@ export function createKnowledgeToolRegistry(pool:Pool,options:KnowledgeToolOptio
    catch(error){if(error instanceof Error&&error.message==='KNOWLEDGE_SCOPE_AMBIGUOUS')return {status:'SCOPE_AMBIGUOUS' as const};throw error;}
   }),
    'Search reviewed official public knowledge in the requested scope. The backend owns embeddings and eligibility filters.')
+  .register('search_knowledge_sections',z.object({query,scope:knowledgeScopeSchema}).strict(),(args,context)=>withContext(context,async client=>{
+   if(!options.vector||!options.fingerprint)throw new Error('KNOWLEDGE_EMBEDDING_REQUIRED');
+   let selected;
+   try{selected=await searchKnowledge(client,{scope:args.scope,vector:options.vector,fingerprint:options.fingerprint,limit:12});}
+   catch(error){if(error instanceof Error&&error.message==='KNOWLEDGE_SCOPE_AMBIGUOUS')return {status:'SCOPE_AMBIGUOUS' as const};throw error;}
+   // CONV-V2-02: same transaction, same eligibility; adds only whole contiguous sections of selected documents.
+   const expanded=await expandSameSection(client,selected,{vector:options.vector,fingerprint:options.fingerprint});
+   return {status:'READY' as const,evidence:expanded.evidence,incompleteSections:expanded.incompleteSections};
+  }),
+   'Search reviewed official public knowledge and return each matched procedure section complete and in document order when it fits.')
   .register('route_department',z.object({departmentCode}).strict(),(args,context)=>withContext(context,async client=>{
    const department=await resolveDepartment(client,args.departmentCode);return {code:args.departmentCode,name:department.name_th};
   }),'Resolve an active university department. This recommendation cannot create or change a ticket.')

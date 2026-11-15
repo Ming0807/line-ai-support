@@ -24,7 +24,9 @@ const knowledgeResultSchema=z.discriminatedUnion('kind',[
  webLeadsResultSchema.safeExtend({support:supportMetadataSchema.optional()}),
  z.object({kind:z.literal('CLARIFY'),text:z.string().min(1).max(2000),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('ANSWER'),output:ragAnswerSchema,scope:knowledgeScopeSchema,evidence:z.array(citationEvidenceSchema).min(1).max(12),
-  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),structuredMiss:structuredQuerySchema.optional(),support:supportMetadataSchema.optional()}).strict(),
+  queryVector:z.array(z.number().finite()).min(1).max(4096).refine(v=>v.some(n=>n!==0)),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),structuredMiss:structuredQuerySchema.optional(),
+  /** CONV-V2-02: evidence includes whole same-section chunks; every recheck must repeat the same expansion. */
+  sectionExpanded:z.literal(true).optional(),support:supportMetadataSchema.optional()}).strict(),
  z.object({kind:z.literal('STRUCTURED_ANSWER'),output:structuredAnswerSchema,scope:knowledgeScopeSchema,query:structuredQuerySchema,evidence:structuredEvidenceListSchema,support:supportMetadataSchema.optional()}).strict()
   .refine(value=>Buffer.byteLength(JSON.stringify(value),'utf8')<=128*1024),
 ]);

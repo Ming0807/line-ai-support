@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge version lookup and fixed family data verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/knowledge-locations.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Knowledge source location verification failed' }
+    pnpm exec tsx scripts/database/run-owned-test.ts tests/database/section-expansion.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Same-section evidence expansion verification failed' }
+    pnpm exec tsx scripts/database/run-owned-test.ts tests/database/short-first-answer.integration.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Short-first answer and show-all choice verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-chunk-plan.integration.ts
     if ($LASTEXITCODE -ne 0) { throw 'Private located chunk plan verification failed' }
     pnpm exec tsx --test --test-concurrency=1 tests/database/import-publication.integration.ts
