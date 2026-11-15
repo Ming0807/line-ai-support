@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {readServerEnv} from '../config/env';
 import {CHAT_MEDIA_MAX_BYTES,ChatMediaError,chatMediaRefSchema,type ChatMediaRef,type ChatMediaStorage} from './media-binary';
 import {chatMediaInterruptible,readChatMediaBody} from './media-line';
+import {staffOutboundObjectPath,type StaffOutboundRef} from './staff-outbound-binary';
 
 export const CHAT_MEDIA_BUCKET='chat-attachments';
 type Config={url?:string;secretKey?:string;fetch?:typeof globalThis.fetch};
@@ -59,6 +60,27 @@ export function createChatMediaStorage(options:Config={}):ChatMediaStorage {
   },
   async get(ref,signal){
    const path=pathFor(ref);return operation(config,path,ref.byteLength+33,async client=>{
+    await verifyBucket(client);const {data,error}=await client.storage.from(CHAT_MEDIA_BUCKET).download(path);
+    if(error||!data||data.size!==ref.byteLength+33)throw new ChatMediaError('UNAVAILABLE');return new Uint8Array(await data.arrayBuffer());
+   },signal);
+  },
+ };
+}
+/** CHAT-MEDIA-02E: Staff outbound envelopes share the private bucket under their own UUID-only prefix. */
+export interface StaffOutboundStorage {put(ref:StaffOutboundRef,envelope:Uint8Array):Promise<void>;get(ref:StaffOutboundRef,signal?:AbortSignal):Promise<Uint8Array>}
+export function createStaffOutboundStorage(options:Config={}):StaffOutboundStorage {
+ const config=configuration(options);
+ return {
+  async put(ref,envelope){
+   const path=staffOutboundObjectPath(ref);if(!(envelope instanceof Uint8Array)||envelope.length!==ref.byteLength+33)throw new ChatMediaError('INVALID_ATTACHMENT');
+   await operation(config,path,envelope.length,async client=>{
+    await verifyBucket(client);
+    const {error}=await client.storage.from(CHAT_MEDIA_BUCKET).upload(path,envelope,{contentType:'application/octet-stream',cacheControl:'0',upsert:false});
+    if(error)throw new ChatMediaError('UNAVAILABLE');
+   });
+  },
+  async get(ref,signal){
+   const path=staffOutboundObjectPath(ref);return operation(config,path,ref.byteLength+33,async client=>{
     await verifyBucket(client);const {data,error}=await client.storage.from(CHAT_MEDIA_BUCKET).download(path);
     if(error||!data||data.size!==ref.byteLength+33)throw new ChatMediaError('UNAVAILABLE');return new Uint8Array(await data.arrayBuffer());
    },signal);

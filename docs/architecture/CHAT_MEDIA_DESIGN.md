@@ -81,3 +81,47 @@ Finalization that detects changed authority retires the still-matching **live** 
 Identical request replay is idempotent only while the original case revision, assignment, recipient and current Staff authority still match; a stale replay intentionally conflicts and requires renewed human review. Preserve the private object and design an explicit re-review/rebind workflow so an intervening message need not force a Staff member to choose the file again; no automatic retargeting is allowed. A proven metadata digest mismatch becomes `FAILED/SOURCE_INTEGRITY`. Decryption failure alone stays retryable because a temporarily misconfigured encryption key must not irreversibly discard a draft.
 
 30October 02C evidence: Root source/type/scoped lint, focused contract3 and full3721 unit/284 files, default build PASS with existing Hermes pre-exclusion warning. Actual Luna high authored 13 owned-Postgres cases; Root independently reran 53-migration replay13/13 with exact owner cleanup. Actual Luna max identified stale status and DB state/lease loopholes, Root fixed them; final max read-only review found no blocking issue (same-attempt lease may be shortened only by privileged server role). Guarded normal development53/87 RLS and `local:check` PASS with existing document/provider/model/search/staff/binding digests unchanged. These are metadata/lease tests only: the fake finish assumes Storage was already verified. No private upload orchestration, file confirmation, viewer, real LINE/LIFF or browser acceptance is implied.
+
+### CHAT-MEDIA-02D — recovery of crashed Staff uploads (implemented 15 November 2026)
+
+A crash between `beginStaffOutboundUpload` and `finishStaffOutboundUpload` used to leave a draft `UPLOADING` with an expired lease until the same request was replayed, which never happens if the browser also lost the request. Additive migration 54 (`20261115143000_staff_outbound_recovery.sql`) adds the failure code `UPLOAD_INTERRUPTED`, a partial index on live `UPLOADING` leases and one guard rule: only an **expired** attempt may be reported as interrupted, and it keeps its attempt count and object ID.
+
+`reconcileStaffOutboundUploads` (`lib/chat/staff-outbound-recovery.ts`) retires drafts whose lease expired more than a grace period ago (default 600 seconds, allowed 60–86,400; at most 1–1,000 rows per call, default 100). An exhausted third attempt becomes `ATTEMPT_LIMIT`; any other becomes `UPLOAD_INTERRUPTED`. It uses `FOR UPDATE SKIP LOCKED`, so it never blocks a reservation or finalization of the same row, and it is idempotent. It changes status only: no Storage call, no object deletion, no lease extension or reclaim. The private object reference stays on the row for a later audited retention policy. During the grace period, the same request can still reclaim its lease as before. After reconciliation, replaying the request returns the honest `FAILED` state, and the old worker cannot finalize.
+
+The MEDIA worker runs the sweep once a minute and logs only counts (`staff_outbound_reconciled`). A sweep failure, for example on a database that does not have migration 54 yet, is logged as `staff_outbound_reconcile_failed` and does not stop inbound media processing. The module does not import `server-only` because workers run as plain Node; the draft service keeps that guard.
+
+Evidence: owned PostgreSQL through `scripts/database/run-owned-test.ts --seed` on a fresh 54-migration database. The outbound suite is 16/16 (13 existing plus 3 new: grace boundary, live lease untouched, object retained, honest replay, stale finish loses, idempotent sweep, ATTEMPT_LIMIT, READY untouched, DB guard on a live lease, bounded options). RED was 13 pass and 3 fail before implementation. The shared runner now accepts `--seed` and runs tests with the `react-server` condition, and section expansion (3/3) and short-first (4/4) still pass. Migration 54 was applied to hosted development on 15 November with data fingerprints unchanged, and `local:check` passes. Staff visibility of interrupted drafts belongs to the upload API/UI slice.
+
+### CHAT-MEDIA-02E — Staff upload API for private drafts (implemented 15 November 2026, flag off)
+
+`POST /api/chat/tickets/[id]/outbound-attachments` exists only when `CHAT_STAFF_OUTBOUND_UPLOAD_ENABLED=true`; otherwise it answers 404. The checks run in this order: same-origin check, authenticated Staff, UUID ticket, no query string. The raw request body is the file. Required headers:
+- `Content-Type`: `application/pdf`, `image/jpeg` or `image/png`
+- `Content-Length`: at most 10 MiB
+- `X-Yru-Request-Id`: UUID
+- `X-Yru-Ticket-Revision`
+- `X-Yru-File-Name`: percent-encoded UTF-8
+- `X-Yru-Content-SHA256`
+
+Custom headers force a CORS preflight, so a cross-site form cannot forge the request.
+
+**Truncation guard:** `proxy.ts` matches this path. The installed Next documentation (`proxyClientMaxBodySize`) says the proxy buffers at most 10 MB and silently truncates a larger body without failing the request. The handler therefore rejects any body whose length differs from `Content-Length`, and the orchestrator rejects any digest that differs from the declared SHA-256. A cut-off file can never become a draft. Raising the proxy limit was not needed, because the product limit is already 10 MiB.
+
+**Orchestration** (`lib/chat/staff-outbound-upload.ts`, all effects injected):
+1. Verify the bytes before any reservation, using the existing inbound validators: signature/type match with no octet-stream fallback, the Sharp image decode, or the isolated PDF structural check.
+2. Reserve with `beginStaffOutboundUpload` (02C locks and authority).
+3. Seal with a separate HKDF purpose `staff-outbound-attachment:v1`, whose AAD binds attachment, object, ticket, MIME, size and SHA. The envelope is written outside SQL with no upsert to the existing private bucket under `staff-outbound/<attachmentId>/<objectId>.yruc`.
+4. Finalize with `finishStaffOutboundUpload`.
+
+A replayed READY or FAILED request returns that state without writing. A Storage failure calls `releaseStaffOutboundLease`, which only shortens the caller's own live lease (the one change the DB guard allows within an attempt), so the same request can reclaim a new attempt at once. A false finalization is reported as `STALE_LEASE` and never as READY.
+
+Responses are no-store JSON:
+- 201 `{attachmentId,status:'READY'}`
+- 409 `DRAFT_FAILED`, `STALE_LEASE` or `CONFLICT`
+- 400 `INVALID_REQUEST`, `INVALID_ATTACHMENT` or `UNSUPPORTED_TYPE`
+- 413 `TOO_LARGE`
+- 404 `NOT_FOUND`
+- 503 `UNAVAILABLE`, with no internal details
+
+READY is still only a private draft. No message, outbox row, LINE call or Student access exists yet. Confirmation/outbox (02F) and the recipient-verified Student viewer (02G) come next, and the composer UI belongs to the delegated Inbox owner.
+
+Evidence: RED first (three new unit files failed to load). Unit tests: envelope/storage 5, orchestrator 6 (verify→reserve→put→finish order, truncation/digest rejection before reservation, type mismatch, READY/FAILED replay without writes, release on Storage failure, STALE_LEASE) and API 6 (flag, origin, auth, header table, query, oversize, Content-Length mismatch, error mapping without leaks), plus the existing storage/media API suites. Owned PostgreSQL 18/18 on 54 migrations adds release-only-own-lease and a full real-DB orchestration: Storage fails, then the retry reclaims attempt 2, only the winning object exists, the bytes decrypt exactly, and the replay stores nothing new. No real Storage, LINE or browser call was made.

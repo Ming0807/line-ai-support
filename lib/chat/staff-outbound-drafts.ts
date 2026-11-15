@@ -103,3 +103,14 @@ export async function finishStaffOutboundUpload(pool:Pool,input:{staffId:string;
   [input.attachmentId,input.staffId,input.ticketId,input.leaseToken]);return false;
  }
 }
+/**
+ * CHAT-MEDIA-02E: after a failed Storage write the uploader expires its OWN still-live lease, so the
+ * same request can reclaim a new attempt at once instead of waiting 90 seconds. Shortening is the
+ * only lease change the DB guard allows within an attempt; another or reclaimed lease is untouched.
+ */
+export async function releaseStaffOutboundLease(pool:Pool,input:{attachmentId:string;leaseToken:string}):Promise<boolean>{
+ const parsed=z.strictObject({attachmentId:z.uuid(),leaseToken:z.uuid()}).safeParse(input);if(!parsed.success)return false;
+ const result=await pool.query(`update private.staff_outbound_attachments set lease_until=clock_timestamp()
+  where id=$1 and status='UPLOADING' and lease_token=$2 and lease_until>clock_timestamp()`,[input.attachmentId,input.leaseToken]);
+ return result.rowCount===1;
+}

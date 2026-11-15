@@ -3,10 +3,15 @@ import {after,test} from 'node:test';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 import {encryptValue,hashLineUserId} from '../../lib/security/identity';
-import {beginStaffOutboundUpload,finishStaffOutboundUpload} from '../../lib/chat/staff-outbound-drafts';
+import {beginStaffOutboundUpload,finishStaffOutboundUpload,releaseStaffOutboundLease} from '../../lib/chat/staff-outbound-drafts';
+import {uploadStaffOutboundAttachment} from '../../lib/chat/staff-outbound-upload';
+import {openStaffOutbound,staffOutboundObjectPath,type StaffOutboundRef} from '../../lib/chat/staff-outbound-binary';
+import {createHash} from 'node:crypto';
+import {reconcileStaffOutboundUploads} from '../../lib/chat/staff-outbound-recovery';
 
-const database=process.env.YRU_OUTBOUND_DRAFTS_DATABASE;
-assert.match(database??'',/^yru_outbound_drafts_[a-f0-9]{12}$/u,'tests require the fixed isolated owned database');
+// scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE; the older dedicated runner name stays accepted.
+const database=process.env.YRU_OWNED_DATABASE??process.env.YRU_OUTBOUND_DRAFTS_DATABASE;
+assert.match(database??'',/^yru_(?:owned|outbound_drafts)_[a-f0-9]{12}$/u,'tests require the fixed isolated owned database');
 const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${database}`,max:8,connectionTimeoutMillis:2_000,idleTimeoutMillis:1_000});
 const key=randomBytes(32).toString('base64');
 const checksum='a'.repeat(64);
@@ -226,4 +231,97 @@ test('retrying a draft with its old revision conflicts after the case revision c
  assert.equal(reservation.status,'UPLOADING');
  await pool.query('update public.tickets set revision=revision+1 where id=$1',[f.ticketId]);
  await assert.rejects(beginStaffOutboundUpload(pool,input,key),'a stale request revision cannot replay against changed case state');
+});
+
+// CHAT-MEDIA-02D: a crash between reservation and finalization must not leave a draft UPLOADING forever.
+async function ageLease(attachmentId:string,seconds:number):Promise<void>{
+ await pool.query(`update private.staff_outbound_attachments set lease_until=clock_timestamp()-make_interval(secs=>$2) where id=$1`,[attachmentId,seconds]);
+}
+
+test('reconciliation retires crashed uploads after the grace period and keeps the private object reference',async()=>{
+ const f=await makeCase(),input=request(f),crashed=await beginStaffOutboundUpload(pool,input,key);
+ assert.equal(crashed.status,'UPLOADING');if(crashed.status!=='UPLOADING')return;
+ const recent=await beginStaffOutboundUpload(pool,request(f),key),live=await beginStaffOutboundUpload(pool,request(f),key);
+ assert.equal(recent.status,'UPLOADING');assert.equal(live.status,'UPLOADING');if(recent.status!=='UPLOADING'||live.status!=='UPLOADING')return;
+ await ageLease(crashed.attachmentId,601);await ageLease(recent.attachmentId,30);
+ const result=await reconcileStaffOutboundUploads(pool,{graceSeconds:600});
+ assert.ok(result.interrupted.includes(crashed.attachmentId),'a lease expired beyond the grace period is retired');
+ assert.equal(result.interrupted.includes(recent.attachmentId),false,'a recently expired lease stays retryable by its own request');
+ assert.equal(result.interrupted.includes(live.attachmentId),false,'a live upload is never touched');
+ const row=await draftRow(crashed.attachmentId);
+ assert.equal(row.status,'FAILED');assert.equal(row.failure_code,'UPLOAD_INTERRUPTED');
+ assert.equal(row.lease_token,null);assert.equal(row.lease_until,null);
+ assert.equal(row.object_id,crashed.objectId,'the attempt object reference is retained for audit; nothing is deleted');
+ assert.equal(row.attempts,1);
+ assert.equal((await draftRow(recent.attachmentId)).status,'UPLOADING');assert.equal((await draftRow(live.attachmentId)).status,'UPLOADING');
+ assert.deepEqual(await beginStaffOutboundUpload(pool,input,key),{status:'FAILED',attachmentId:crashed.attachmentId},
+  'replaying the crashed request reports the honest terminal state instead of a new lease');
+ assert.equal(await finishStaffOutboundUpload(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId:crashed.attachmentId,leaseToken:crashed.leaseToken},key),false,
+  'the crashed worker cannot finalize after reconciliation');
+ const again=await reconcileStaffOutboundUploads(pool,{graceSeconds:600});
+ assert.equal(again.interrupted.includes(crashed.attachmentId),false,'reconciliation is idempotent');
+});
+
+test('reconciliation marks an exhausted third attempt as ATTEMPT_LIMIT and leaves terminal drafts unchanged',async()=>{
+ const f=await makeCase(),input=request(f);let current=await beginStaffOutboundUpload(pool,input,key);
+ assert.equal(current.status,'UPLOADING');if(current.status!=='UPLOADING')return;
+ for(let attempt=1;attempt<3;attempt++){await expireLease(current.attachmentId);current=await beginStaffOutboundUpload(pool,input,key);
+  assert.equal(current.status,'UPLOADING');if(current.status!=='UPLOADING')return;}
+ await ageLease(current.attachmentId,601);
+ const ready=await beginStaffOutboundUpload(pool,request(f),key);
+ assert.equal(ready.status,'UPLOADING');if(ready.status!=='UPLOADING')return;
+ assert.equal(await finishStaffOutboundUpload(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId:ready.attachmentId,leaseToken:ready.leaseToken},key),true);
+ const before=await draftRow(ready.attachmentId);
+ const result=await reconcileStaffOutboundUploads(pool,{graceSeconds:600});
+ assert.ok(result.attemptLimit.includes(current.attachmentId));assert.equal(result.interrupted.includes(current.attachmentId),false);
+ const exhausted=await draftRow(current.attachmentId);
+ assert.equal(exhausted.status,'FAILED');assert.equal(exhausted.failure_code,'ATTEMPT_LIMIT');assert.equal(exhausted.attempts,3);
+ assert.deepEqual(await draftRow(ready.attachmentId),before,'READY drafts are never rewritten by reconciliation');
+});
+
+test('database guard rejects UPLOAD_INTERRUPTED while the lease is still live and bounds the sweep input',async()=>{
+ const f=await makeCase(),live=await beginStaffOutboundUpload(pool,request(f),key);
+ assert.equal(live.status,'UPLOADING');if(live.status!=='UPLOADING')return;
+ await assert.rejects(pool.query(`update private.staff_outbound_attachments set status='FAILED',failure_code='UPLOAD_INTERRUPTED',lease_token=null,lease_until=null where id=$1`,[live.attachmentId]),
+  /STAFF_OUTBOUND_ATTEMPT_INVALID/u,'only an expired lease can be reported as interrupted');
+ for(const options of [{graceSeconds:-1},{graceSeconds:59},{graceSeconds:1.5},{limit:0},{limit:1001}])
+  await assert.rejects(reconcileStaffOutboundUploads(pool,options),/INVALID_RECONCILE_OPTIONS/u);
+});
+
+// CHAT-MEDIA-02E: lease release after a Storage failure and the full upload orchestration on real PostgreSQL.
+test('an uploader can expire only its own live lease so the same request reclaims a new attempt at once',async()=>{
+ const f=await makeCase(),input=request(f),first=await beginStaffOutboundUpload(pool,input,key);
+ assert.equal(first.status,'UPLOADING');if(first.status!=='UPLOADING')return;
+ assert.equal(await releaseStaffOutboundLease(pool,{attachmentId:first.attachmentId,leaseToken:randomUUID()}),false,'a foreign token changes nothing');
+ assert.equal((await draftRow(first.attachmentId)).lease_token,first.leaseToken);
+ assert.equal(await releaseStaffOutboundLease(pool,{attachmentId:first.attachmentId,leaseToken:first.leaseToken}),true);
+ assert.equal(await releaseStaffOutboundLease(pool,{attachmentId:first.attachmentId,leaseToken:first.leaseToken}),false,'release is not repeatable');
+ const second=await beginStaffOutboundUpload(pool,input,key);
+ assert.equal(second.status,'UPLOADING');if(second.status!=='UPLOADING')return;
+ assert.notEqual(second.objectId,first.objectId);assert.equal((await draftRow(second.attachmentId)).attempts,2);
+ assert.equal(await releaseStaffOutboundLease(pool,{attachmentId:second.attachmentId,leaseToken:first.leaseToken}),false,'the old attempt cannot expire the new lease');
+ assert.equal(await finishStaffOutboundUpload(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId:second.attachmentId,leaseToken:second.leaseToken},key),true);
+ assert.equal(await releaseStaffOutboundLease(pool,{attachmentId:second.attachmentId,leaseToken:second.leaseToken}),false,'a READY draft has no lease to release');
+});
+
+test('the upload orchestrator stores the sealed object outside SQL, retries after a Storage failure and finalizes READY',async()=>{
+ const f=await makeCase(),bytes=new TextEncoder().encode('%PDF-1.7\nowned orchestrator fixture\n%%EOF\n');
+ const digest=createHash('sha256').update(bytes).digest('hex'),stored=new Map<string,Uint8Array>();let failNext=true;
+ const deps={key,verifyPdf:async()=>undefined,verifyImage:async()=>undefined,
+  begin:(value:Parameters<typeof beginStaffOutboundUpload>[1])=>beginStaffOutboundUpload(pool,value,key),
+  finish:(value:Parameters<typeof finishStaffOutboundUpload>[1])=>finishStaffOutboundUpload(pool,value,key),
+  release:(value:{attachmentId:string;leaseToken:string})=>releaseStaffOutboundLease(pool,value),
+  storage:{async put(ref:StaffOutboundRef,envelope:Uint8Array){if(failNext){failNext=false;throw new Error('storage down');}stored.set(staffOutboundObjectPath(ref),envelope);},
+   async get(ref:StaffOutboundRef){const value=stored.get(staffOutboundObjectPath(ref));if(!value)throw new Error('missing');return value;}}};
+ const upload={staffId:f.staffId,ticketId:f.ticketId,requestId:randomUUID(),revision:f.revision,name:'คู่มือ.pdf',contentType:'application/pdf',declaredChecksum:digest,bytes};
+ await assert.rejects(uploadStaffOutboundAttachment(deps,upload),/UNAVAILABLE/u,'a Storage failure is reported, never READY');
+ const result=await uploadStaffOutboundAttachment(deps,upload);
+ assert.equal(result.status,'READY');
+ const row=await draftRow(result.attachmentId);
+ assert.equal(row.status,'READY');assert.equal(row.attempts,2,'the released lease was reclaimed immediately by the same request');
+ const ref:StaffOutboundRef={attachmentId:result.attachmentId,objectId:row.object_id as string,ticketId:f.ticketId,mimeType:'application/pdf',byteLength:bytes.length,checksum:digest};
+ assert.deepEqual([...stored.keys()],[staffOutboundObjectPath(ref)],'only the winning attempt object exists');
+ assert.deepEqual(Array.from(openStaffOutbound(stored.get(staffOutboundObjectPath(ref))!,ref,key)),Array.from(bytes));
+ assert.deepEqual(await uploadStaffOutboundAttachment(deps,upload),{status:'READY',attachmentId:result.attachmentId},'replay is idempotent and stores nothing new');
+ assert.equal(stored.size,1);
 });

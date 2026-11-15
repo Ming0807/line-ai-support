@@ -73,7 +73,7 @@
 | RAG / Import / Structured | [Import design](architecture/KNOWLEDGE_IMPORT_DESIGN.md), [structured schema](architecture/STRUCTURED_SCHEMA_DESIGN.md), [embedding service](architecture/EMBEDDING_SERVICE_DESIGN.md) |
 | Local one-command run | [Local test instructions](operations/LOCAL_TEST.md), [preview plan/evidence](superpowers/plans/2026-10-20-local-ai-preview.md) |
 | Deferred human configuration/test | [Final setup checklist](operations/FINAL_SETUP_CHECKLIST.md) |
-| แผนต่อยอดหลัง V1 | [Post-V1 roadmap](tasks/POST_V1_ROADMAP.md) — 4 เฟส + critical path + attestation Gemini ปัจจุบันหมดอายุ 24 พ.ย. 2026 12:08 น. |
+| แผนต่อยอดหลัง V1 | [Post-V1 roadmap](tasks/POST_V1_ROADMAP.md) — 4 เฟส + critical path + attestation Gemini ปัจจุบันหมดอายุ 15 ธ.ค. 2026 21:02 น. (ต่ออายุแล้ว 15 พ.ย.) |
 | Corpus files | [Catalog](../documents/yru/CATALOG.md), [completeness](../documents/yru/COMPLETENESS.md), [starter review](../documents/yru/import-pack-2026-10-13/technical-review-2026-10-15.md) |
 | Delegation and evidence | [Working protocol](agents/WORKING_PROTOCOL.md) |
 

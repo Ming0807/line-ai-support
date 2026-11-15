@@ -11,10 +11,14 @@ import {fileURLToPath} from 'node:url';
  * The test reads the database name from YRU_OWNED_DATABASE. No existing database is changed.
  *
  *   pnpm exec tsx scripts/database/run-owned-test.ts tests/database/section-expansion.integration.ts
+ *
+ * Pass --seed to apply supabase/seed.sql (reference departments) after the migrations.
  */
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 assert.equal(resolve(process.cwd()), root, 'WORKSPACE_ROOT_REQUIRED');
-const testFile = process.argv[2] ?? '';
+const args = process.argv.slice(2);
+const seed = args.includes('--seed');
+const testFile = args.find(arg => !arg.startsWith('--')) ?? '';
 const relativeTest = relative(root, resolve(root, testFile)).replaceAll('\\', '/');
 assert.match(relativeTest, /^tests\/database\/[a-z0-9-]+\.integration\.ts$/u, 'OWNED_TEST_FILE_REQUIRED');
 
@@ -41,16 +45,24 @@ try {
   stage = 'bootstrap';
   sql(database, 'supabase_admin', auth);
   sql(database, 'supabase_admin', `create schema extensions; create extension vector with schema extensions;
-  grant usage on schema auth,extensions to postgres,anon,authenticated,service_role; grant references on auth.users,auth.identities to postgres;`);
+  grant usage on schema auth,extensions to postgres,anon,authenticated,service_role; grant references on auth.users,auth.identities to postgres;
+  -- Disposable database only: fixtures create their own Auth users for Staff profiles.
+  grant select,insert,update,delete on auth.users,auth.identities to postgres;`);
   const migrations = (await readdir(resolve(root, 'supabase/migrations'))).filter(name => /^\d{14}_[a-z0-9_]+\.sql$/u.test(name)).sort();
   assert(migrations.length > 0, 'APPLICATION_MIGRATIONS_REQUIRED');
   for (const name of migrations) {
     stage = `migration:${name}`;
     sql(database, 'postgres', `begin;set local statement_timeout='10s';\n${await readFile(resolve(root, 'supabase/migrations', name), 'utf8')}\ncommit;`);
   }
+  if (seed) {
+    stage = 'seed';
+    sql(database, 'postgres', `begin;set local statement_timeout='10s';
+${await readFile(resolve(root, 'supabase/seed.sql'), 'utf8')}
+commit;`);
+  }
   stage = 'test';
-  console.log(JSON.stringify({stage: 'owned_database_ready', migrations: migrations.length, test: relativeTest}));
-  const run = spawnSync('pnpm', ['exec', 'tsx', '--test', '--test-concurrency=1', relativeTest],
+  console.log(JSON.stringify({stage: 'owned_database_ready', migrations: migrations.length, seeded: seed, test: relativeTest}));
+  const run = spawnSync('pnpm', ['exec', 'tsx', '--conditions=react-server', '--test', '--test-concurrency=1', relativeTest],
     {cwd: root, env: {...process.env, YRU_OWNED_DATABASE: database}, stdio: 'inherit', shell: process.platform === 'win32'});
   if (run.status !== 0) process.exitCode = 1;
 } catch (error) {
