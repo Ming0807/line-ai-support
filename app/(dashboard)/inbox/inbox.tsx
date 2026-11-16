@@ -179,7 +179,7 @@ export default function Inbox({ actorId, initialParams }: Props) {
   const ops = useChatThreadOps({ actorId, ticketId: activeId, draftsStore, onThreadAccessLost });
   const {
     thread, loading, error: threadError, hasStaleResponse, catchUpBefore, historyLoading,
-    busy, notice, drafts: threadDrafts, attempts,
+    busy, notice, drafts: threadDrafts, attempts, outbound,
     refresh, paneRef, sentinelRef,
     onDraftChange, applyAssistantDraft, loadEarlier, loadCatchUp,
     onSubmitReply, onSubmitNote,
@@ -377,6 +377,7 @@ export default function Inbox({ actorId, initialParams }: Props) {
                       applyAssistantDraft(actorId, current, thread.detail.ticket.revision, text);
                     },
                   }}
+                  outbound={outbound}
                   paneRef={paneRef}
                   sentinelRef={sentinelRef}
                 />

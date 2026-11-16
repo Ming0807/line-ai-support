@@ -402,3 +402,276 @@
   .ticket-copilot-heading { flex-direction: column; align-items: stretch; }
   .ticket-copilot-heading .ticket-button, .ticket-copilot-result > .ticket-button { width: 100%; }
 }
+
+/* OC-08 chat composer outbound attachment, private draft card & confirmation dialogs */
+.inbox-reply-form .inbox-attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-top: .5rem;
+  padding: .48rem .65rem;
+  border: 1px dashed #d6d3cc;
+  border-radius: .6rem;
+  background: #fcfbf9;
+}
+.inbox-reply-form .inbox-attach-label {
+  margin: 0;
+  color: #55596d;
+  font-size: .72rem;
+  font-weight: 650;
+  text-align: left;
+}
+.ticket-page .inbox-attach-input,
+.inbox-attach-input {
+  width: auto;
+  max-width: 100%;
+  min-height: auto;
+  padding: .2rem 0;
+  border: 0;
+  background: transparent;
+  color: #363849;
+  font-size: .72rem;
+  cursor: pointer;
+}
+.inbox-attach-input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.inbox-attach-input::file-selector-button {
+  margin-right: .55rem;
+  padding: .38rem .72rem;
+  border: 1px solid #d6d3cc;
+  border-radius: .5rem;
+  background: #ffffff;
+  color: #171827;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.inbox-attach-input:hover:not(:disabled)::file-selector-button {
+  background: #f5f3ef;
+}
+.inbox-outbound-upload-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-top: .5rem;
+  padding: .55rem .7rem;
+  border: 1px solid #e6e3dd;
+  border-radius: .6rem;
+  background: #faf9f6;
+  color: #363849;
+  font-size: .74rem;
+  overflow-wrap: anywhere;
+}
+.inbox-outbound-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+.inbox-draft-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .65rem;
+  margin-top: .55rem;
+  padding: .72rem .8rem;
+  border: 1px solid #f0d7b5;
+  border-radius: .7rem;
+  background: #fffaf0;
+  color: #171827;
+}
+.inbox-draft-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+.inbox-draft-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: .22rem;
+  min-width: 0;
+  font-size: .74rem;
+}
+.inbox-draft-card-meta strong {
+  color: #171827;
+  overflow-wrap: anywhere;
+}
+.inbox-draft-card-meta > span {
+  color: #55596d;
+  font-size: .7rem;
+}
+.inbox-draft-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: .14rem .48rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e !important;
+  font-weight: 700;
+}
+.inbox-draft-warning {
+  margin: .15rem 0 0;
+  color: #78350f;
+  font-size: .68rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.inbox-draft-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  align-items: center;
+}
+.inbox-outbound-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: .45rem;
+  background: #fae9e6;
+  color: #bc5248;
+  font-size: .62rem;
+  font-weight: 800;
+}
+.inbox-outbound-attachment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-top: .55rem;
+  padding: .58rem .68rem;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: .6rem;
+  background: rgba(255, 255, 255, .94);
+  color: #171827;
+  font-size: .74rem;
+}
+.inbox-outbound-attachment-info {
+  display: flex;
+  flex: 1 1 11rem;
+  flex-direction: column;
+  gap: .16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inbox-outbound-attachment-info small {
+  color: #65697b;
+  font-size: .66rem;
+}
+.inbox-outbound-access {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: .12rem;
+  padding: .14rem .46rem;
+  border-radius: 999px;
+  font-size: .65rem;
+  font-weight: 700;
+}
+.inbox-outbound-access-pending { background: #fef3c7; color: #92400e; }
+.inbox-outbound-access-available { background: #e5f5ef; color: #166534; }
+.inbox-outbound-access-expired { background: #f1f5f9; color: #475569; }
+.inbox-outbound-access-revoked { background: #fee2e2; color: #991b1b; }
+.inbox-outbound-access-failed { background: #fee2e2; color: #991b1b; }
+.inbox-outbound-revoke-btn {
+  flex: 0 0 auto;
+  font-size: .68rem;
+  padding: .4rem .62rem;
+}
+.inbox-outbound-dialog {
+  width: min(92vw, 29rem);
+  padding: 1.15rem 1.2rem;
+  border: 1px solid #e6e3dd;
+  border-radius: .95rem;
+  background: #ffffff;
+  color: #171827;
+  box-shadow: 0 20px 50px rgba(20, 22, 34, .22);
+}
+.inbox-outbound-dialog::backdrop {
+  background: rgba(20, 22, 34, .46);
+}
+.inbox-outbound-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+.inbox-outbound-dialog-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.inbox-outbound-dialog-close {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #e6e3dd;
+  border-radius: .5rem;
+  background: #ffffff;
+  color: #171827;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.inbox-outbound-dialog-meta {
+  display: grid;
+  gap: .45rem;
+  margin: 0 0 .8rem;
+  padding: .72rem .8rem;
+  border: 1px solid #eeece8;
+  border-radius: .65rem;
+  background: #fcfbf9;
+  font-size: .8rem;
+}
+.inbox-outbound-dialog-meta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.inbox-outbound-dialog-meta dt {
+  color: #65697b;
+  flex: 0 0 auto;
+}
+.inbox-outbound-dialog-meta dd {
+  margin: 0;
+  color: #171827;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.inbox-outbound-dialog-note {
+  margin: 0 0 .85rem;
+  color: #45485a;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.inbox-outbound-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .55rem;
+  margin-top: .5rem;
+}
+@media (max-width: 36rem) {
+  .inbox-draft-card { flex-direction: column; }
+  .inbox-draft-card-actions { width: 100%; }
+  .inbox-outbound-dialog-meta > div { flex-direction: column; gap: .15rem; }
+  .inbox-outbound-dialog-meta dd { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbox-outbound-dialog,
+  .inbox-outbound-dialog *,
+  .inbox-attach-input::file-selector-button {
+    transition-duration: .01ms !important;
+  }
+}

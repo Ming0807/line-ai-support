@@ -75,6 +75,7 @@ export default function ChatThreadLive({ actorId, ticketId, initialThread }: Pro
           onSubmitReply={(event: FormEvent<HTMLFormElement>) => ops.onSubmitReply(event)}
           onSubmitNote={(event: FormEvent<HTMLFormElement>) => ops.onSubmitNote(event)}
           assist={assist}
+          outbound={ops.outbound}
           paneRef={ops.paneRef as RefObject<HTMLDivElement | null>}
           sentinelRef={ops.sentinelRef as RefObject<HTMLLIElement | null>}
         />

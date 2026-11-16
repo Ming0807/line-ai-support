@@ -614,7 +614,30 @@ const FETCH_SHIM = `
 // compact summary instead of growing unbounded evidence files).
 const CAPS = {requests: 250, bodyBytes: 16384, console: 120};
 const shim = {routes: [], requests: [], pending: new Map(), seq: 0, buffer: [], configured: false, capped: {requests: null, bodyEntries: 0}};
+const digestPromises = new Map();
 function parseRequestId(raw) { try { const body = JSON.parse(raw); return typeof body?.requestId === 'string' ? body.requestId : null; } catch { return null; } }
+function normalizeHeaders(rawHeaders) {
+  const out = {};
+  if (!rawHeaders) return out;
+  try {
+    const headers = new Headers(rawHeaders);
+    headers.forEach((value, key) => { out[key.toLowerCase()] = value; });
+  } catch {
+    if (typeof rawHeaders === 'object') {
+      for (const [key, value] of Object.entries(rawHeaders)) {
+        if (value !== undefined) out[String(key).toLowerCase()] = String(value);
+      }
+    }
+  }
+  return out;
+}
+function toBinaryBytes(rawBody) {
+  if (rawBody instanceof ArrayBuffer) return new Uint8Array(rawBody.slice(0));
+  if (ArrayBuffer.isView(rawBody)) {
+    return new Uint8Array(rawBody.buffer.slice(rawBody.byteOffset, rawBody.byteOffset + rawBody.byteLength));
+  }
+  return null;
+}
 function respondWith(status, body, contentType) {
   // OC-OPERATOR-06 (H1): object bodies must reach the app as REAL HTTP JSON.
   // String(body) produced '[object Object]' for scripted/deferred object bodies,
@@ -626,9 +649,34 @@ function respondWith(status, body, contentType) {
 function record(input, init) {
   const url = typeof input === 'string' ? input : (input && input.url) || String(input);
   const method = (init && init.method || 'GET').toUpperCase();
+  const headers = normalizeHeaders((init && init.headers) || (typeof input === 'object' && input && input.headers) || null);
   const rawBody = (init && init.body) || null;
-  const entryRecord = {seq: ++shim.seq, at: new Date().toISOString(), url, method, body: rawBody,
-    requestId: parseRequestId(typeof rawBody === 'string' ? rawBody : null)};
+  const binaryBytes = toBinaryBytes(rawBody);
+  const seq = ++shim.seq;
+  const entryRecord = {
+    seq,
+    at: new Date().toISOString(),
+    url,
+    method,
+    headers,
+    credentials: (init && init.credentials) || null,
+    cache: (init && init.cache) || null,
+    body: binaryBytes ? null : rawBody,
+    isBinaryBody: binaryBytes !== null,
+    bodyLength: binaryBytes ? binaryBytes.byteLength : (typeof rawBody === 'string' ? rawBody.length : 0),
+    bodySha256: null,
+    requestId: parseRequestId(typeof rawBody === 'string' ? rawBody : null) ?? headers['x-yru-request-id'] ?? null,
+  };
+  if (binaryBytes && globalThis.crypto?.subtle?.digest) {
+    const p = globalThis.crypto.subtle.digest('SHA-256', binaryBytes).then(buf => {
+      entryRecord.bodySha256 = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }).catch(() => {
+      entryRecord.bodySha256 = null;
+    }).finally(() => {
+      digestPromises.delete(seq);
+    });
+    digestPromises.set(seq, p);
+  }
   if (shim.capped.requests !== null) {
     shim.capped.dropped += 1;
   } else if (shim.requests.length >= CAPS.requests) {
@@ -645,17 +693,23 @@ function record(input, init) {
   }
   return entryRecord;
 }
-async function respond(record) {
-  const route = shim.routes.find(candidate => candidate.method === record.method && candidate.match.test(record.url));
+async function respond(entryRecord) {
+  const pendingDigest = digestPromises.get(entryRecord.seq);
+  if (pendingDigest) await pendingDigest;
+  const route = shim.routes.find(candidate => candidate.method === entryRecord.method && candidate.match.test(entryRecord.url));
   if (!route) return respondWith(500, JSON.stringify({error: 'FIXTURE_NO_HANDLER'}), 'application/json');
   route.count += 1;
+  if (route.mode === 'network-error') {
+    throw new TypeError('Failed to fetch');
+  }
   if (route.mode === 'defer') {
     const key = route.key + '#' + route.count;
-    return new Promise(resolve => { shim.pending.set(key, resolve); });
+    return new Promise((resolve, reject) => { shim.pending.set(key, {resolve, reject}); });
   }
   if (route.mode === 'scripted') {
     const next = (route.queue || []).shift();
     if (!next) return respondWith(route.afterEmpty ?? 500, JSON.stringify({error: 'FIXTURE_SCRIPT_EMPTY'}), 'application/json');
+    if (next.networkError) throw new TypeError('Failed to fetch');
     return respondWith(next.status, next.body, next.contentType);
   }
   return respondWith(route.status ?? 200, route.body ?? JSON.stringify({}), route.contentType);
@@ -665,7 +719,7 @@ async function respond(record) {
 window.fetch = function fixtureFetch(input, init) {
   const entryRecord = record(input, init);
   if (!shim.configured) {
-    return new Promise(resolve => { shim.buffer.push({record: entryRecord, resolve}); });
+    return new Promise((resolve, reject) => { shim.buffer.push({record: entryRecord, resolve, reject}); });
   }
   return respond(entryRecord);
 };
@@ -673,7 +727,12 @@ shim.setRoutes = list => {
   shim.routes = (list || []).map(route => Object.assign({}, route, {match: new RegExp(route.pattern), count: route.count || 0}));
   shim.configured = true;
   const held = shim.buffer.splice(0);
-  for (const item of held) { Promise.resolve(respond(item.record)).then(item.resolve).catch(cause => item.resolve(respondWith(500, JSON.stringify({error: 'FIXTURE_HOLD_REPLAY_FAILED', cause: String(cause)}), 'application/json'))); }
+  for (const item of held) {
+    Promise.resolve(respond(item.record)).then(item.resolve).catch(cause => {
+      if (cause instanceof TypeError) item.reject(cause);
+      else item.resolve(respondWith(500, JSON.stringify({error: 'FIXTURE_HOLD_REPLAY_FAILED', cause: String(cause)}), 'application/json'));
+    });
+  }
 };
 shim.requestsSnapshot = () => JSON.parse(JSON.stringify(shim.requests));
 shim.capsSnapshot = () => JSON.parse(JSON.stringify({limits: CAPS, capped: shim.capped}));
@@ -681,10 +740,11 @@ shim.routeCounts = () => shim.routes.map(route => ({pattern: route.pattern, meth
 shim.deferredKeys = () => Array.from(shim.pending.keys());
 shim.resolveDeferred = (key, answer) => {
   const target = Array.from(shim.pending.keys()).find(candidate => candidate === key || candidate.startsWith(key + '#'));
-  if (!target || !shim.pending.has(target)) return {found: false, keys: Object.keys(shim.pending)};
-  const resolve = shim.pending.get(target);
+  if (!target || !shim.pending.has(target)) return {found: false, keys: Array.from(shim.pending.keys())};
+  const handler = shim.pending.get(target);
   shim.pending.delete(target);
-  resolve(respondWith(answer.status, answer.body, answer.contentType));
+  if (answer && answer.networkError) handler.reject(new TypeError('Failed to fetch'));
+  else handler.resolve(respondWith(answer.status, answer.body, answer.contentType));
   return {found: true, key: target};
 };
 window.__shim = shim;

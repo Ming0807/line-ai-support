@@ -33,10 +33,86 @@ import {
   type ThreadMergeSource,
   type ThreadSpan,
 } from './chat-thread-state';
+import {
+  OUTBOUND_MAX_BYTES,
+  buildOutboundConfirmBody,
+  buildOutboundUploadHeaders,
+  canShowOutboundAttachControl,
+  computeSha256Hex,
+  extractSafeErrorCode,
+  mapOutboundConfirmError,
+  mapOutboundRevokeError,
+  mapOutboundUploadError,
+  parseOutboundConfirmResult,
+  parseOutboundRevokeResult,
+  parseOutboundUploadResult,
+  readOutboundAttachment,
+  readOutboundFilesEnabled,
+  validateOutboundFileMeta,
+  type OutboundAttachmentMimeType,
+  type OutboundAttachmentView,
+} from './chat-outbound-state';
 import { clearActorActionAttempts, clearTicketActionAttempts } from './ticket-action-workspace';
 
 export type ChatThreadNotice = { text: string; kind: 'success' | 'error' };
 export type ChatThreadAssist = { available: boolean; revision: number; onDraft: (text: string) => void };
+export type OutboundBusyKind = 'upload' | 'confirm' | 'revoke';
+export type OutboundUploadState = {
+  requestId: string;
+  fileName: string;
+  mimeType: OutboundAttachmentMimeType;
+  size: number;
+  sha256: string;
+  revision: number;
+  phase: 'hashing' | 'uploading' | 'retryable-error' | 'needs-reselect-error';
+  errorText: string | null;
+};
+export type OutboundReadyDraft = {
+  attachmentId: string;
+  name: string;
+  mimeType: OutboundAttachmentMimeType;
+  size: number;
+  uploadedRevision: number;
+};
+export type OutboundConfirmAttempt = {
+  attachmentId: string;
+  requestId: string;
+  revision: number;
+  ticketNo: string;
+  phase: 'submitting' | 'uncertain';
+  errorText: string | null;
+};
+export type OutboundRevokeState = {
+  attachmentId: string;
+  attachmentName: string;
+  phase: 'confirming' | 'submitting' | 'error';
+  errorText: string | null;
+};
+export type OutboundRoomState = {
+  upload: OutboundUploadState | null;
+  readyDraft: OutboundReadyDraft | null;
+  confirmDialogOpen: boolean;
+  confirmAttempt: OutboundConfirmAttempt | null;
+  revokeState: OutboundRevokeState | null;
+};
+export type ChatThreadOutboundOps = {
+  busy: OutboundBusyKind | null;
+  upload: OutboundUploadState | null;
+  readyDraft: OutboundReadyDraft | null;
+  confirmDialogOpen: boolean;
+  confirmAttempt: OutboundConfirmAttempt | null;
+  revokeState: OutboundRevokeState | null;
+  onSelectFile: (file: File) => void;
+  onRetryUpload: () => void;
+  onDismissUploadError: () => void;
+  onRemoveDraft: () => void;
+  onOpenConfirmDialog: () => void;
+  onCloseConfirmDialog: () => void;
+  onConfirmSend: () => void;
+  onOpenRevokeDialog: (attachment: OutboundAttachmentView) => void;
+  onCloseRevokeDialog: () => void;
+  onConfirmRevoke: () => void;
+};
 export type DraftStore = {
   read(actorId: string, ticketId: string, kind: DraftKind): string;
   write(actorId: string, ticketId: string, kind: DraftKind, text: string): void;
@@ -205,6 +281,51 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
   const [noticeMap, setNoticeMap] = useState<Record<string, ChatThreadNotice>>({});
   const [attempts, setAttempts] = useState<Record<string, PendingWrite>>({});
 
+  // OC-08 per-(actor, ticket) outbound attachment store + active-room-only File handle ref.
+  const outboundRoomsRef = useRef<Record<string, OutboundRoomState>>({});
+  const [outboundRooms, setOutboundRooms] = useState<Record<string, OutboundRoomState>>({});
+  const outboundBusyRef = useRef<Record<string, OutboundBusyKind>>({});
+  const [outboundBusyMap, setOutboundBusyMap] = useState<Record<string, OutboundBusyKind>>({});
+  const outboundBusyLeaseRef = useRef<Record<string, symbol>>({});
+  const retryFileRef = useRef<{ ticketId: string; requestId: string; file: File } | null>(null);
+
+  const outboundKey = useCallback((ownerId: string, roomId: string) => `${ownerId}:${roomId}`, []);
+
+  const updateOutboundRoom = useCallback((
+    ownerId: string,
+    roomId: string,
+    updater: (current: OutboundRoomState) => OutboundRoomState,
+  ) => {
+    const key = outboundKey(ownerId, roomId);
+    const current = outboundRoomsRef.current[key] ?? {
+      upload: null,
+      readyDraft: null,
+      confirmDialogOpen: false,
+      confirmAttempt: null,
+      revokeState: null,
+    };
+    const nextState = updater(current);
+    const next = { ...outboundRoomsRef.current };
+    const isEmpty = !nextState.upload
+      && !nextState.readyDraft
+      && !nextState.confirmDialogOpen
+      && !nextState.confirmAttempt
+      && !nextState.revokeState;
+    if (isEmpty) delete next[key];
+    else next[key] = nextState;
+    outboundRoomsRef.current = next;
+    setOutboundRooms(next);
+  }, [outboundKey]);
+
+  const setRoomOutboundBusy = useCallback((roomId: string, kind: OutboundBusyKind | null) => {
+    const next = { ...outboundBusyRef.current };
+    if (kind) next[roomId] = kind;
+    else if (next[roomId]) delete next[roomId];
+    else return;
+    outboundBusyRef.current = next;
+    setOutboundBusyMap(next);
+  }, []);
+
   const setRoomBusy = useCallback((roomId: string, kind: DraftKind | null) => {
     const next = { ...busyMapRef.current };
     if (kind) next[roomId] = kind;
@@ -274,9 +395,22 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
       empties: nextCoverage.empties,
     };
     recordsRef.current.set(id, nextRecord);
+    if (source === 'refresh') {
+      const roomKey = outboundKey(actorId, id);
+      const roomOutbound = outboundRoomsRef.current[roomKey];
+      const existingDraft = roomOutbound?.readyDraft;
+      if (existingDraft && merged.messages.some(message => readOutboundAttachment(message)?.id === existingDraft.attachmentId)) {
+        updateOutboundRoom(actorId, id, current => ({
+          ...current,
+          readyDraft: null,
+          confirmDialogOpen: false,
+          confirmAttempt: null,
+        }));
+      }
+    }
     revealRecord(id, nextRecord);
     return nextRecord;
-  }, [revealRecord]);
+  }, [actorId, outboundKey, revealRecord, updateOutboundRoom]);
 
   // Server-provided first paint (detail route) and later RSC refreshes merge
   // into the record by revision epoch (D4): a router.refresh() after a lifecycle
@@ -331,6 +465,20 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
     }
     if (busyMapRef.current[id]) setRoomBusy(id, null);
     if (noticeMapRef.current[id]) setRoomNotice(id, null);
+    if (retryFileRef.current?.ticketId === id) retryFileRef.current = null;
+    if (outboundBusyLeaseRef.current[id]) {
+      const leases = { ...outboundBusyLeaseRef.current };
+      delete leases[id];
+      outboundBusyLeaseRef.current = leases;
+    }
+    if (outboundBusyRef.current[id]) setRoomOutboundBusy(id, null);
+    const roomKey = outboundKey(actorId, id);
+    if (outboundRoomsRef.current[roomKey]) {
+      const next = { ...outboundRoomsRef.current };
+      delete next[roomKey];
+      outboundRoomsRef.current = next;
+      setOutboundRooms(next);
+    }
     if (activeRef.current === id) {
       queueMicrotask(() => {
         if (activeRef.current !== id) return;
@@ -339,7 +487,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
         setLoading(false);
       });
     }
-  }, [actorId, draftsStore, setRoomBusy, setRoomNotice]);
+  }, [actorId, draftsStore, outboundKey, setRoomBusy, setRoomNotice, setRoomOutboundBusy]);
 
   /** CX1 whole-actor authority reset: every retained record, cursor, seed and
    * attempt of the mounted actor dies, drafts erase, the fence generation
@@ -354,6 +502,12 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
     setAttempts({});
     draftsStore.eraseActorDrafts?.(actorId);
     clearActorActionAttempts(actorId);
+    retryFileRef.current = null;
+    outboundRoomsRef.current = {};
+    setOutboundRooms({});
+    outboundBusyRef.current = {};
+    setOutboundBusyMap({});
+    outboundBusyLeaseRef.current = {};
     setHistoryBusy(() => new Set());
     pendingScrollRef.current = null;
     busyMapRef.current = {};
@@ -377,7 +531,11 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
       onThreadAccessLost?.(401, id);
       return;
     }
+    const wasActive = activeRef.current === id;
     eraseTicketOwner(id);
+    if (wasActive && !onThreadAccessLost) {
+      setThreadError('ไม่พบรายการนี้หรือสิทธิ์ของคุณเปลี่ยนไป');
+    }
     onThreadAccessLost?.(status, id);
   }, [eraseTicketOwner, onThreadAccessLost, revokeActorAuthority]);
 
@@ -431,6 +589,28 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
   // mount already received server truth for the ticket (detail route initialThread).
   // React state updates run after the microtask boundary so a same-tick selection change cannot cascade.
   useEffect(() => {
+    // Byte hygiene: never retain File handles across room switches.
+    retryFileRef.current = null;
+    const activeKey = ticketId ? outboundKey(actorId, ticketId) : '';
+    let changed = false;
+    const updatedRooms = { ...outboundRoomsRef.current };
+    for (const [key, room] of Object.entries(outboundRoomsRef.current)) {
+      if (room.upload?.phase === 'retryable-error' && key !== activeKey) {
+        updatedRooms[key] = {
+          ...room,
+          upload: {
+            ...room.upload,
+            phase: 'needs-reselect-error',
+            errorText: 'การอัปโหลดก่อนหน้ายังไม่สำเร็จ (ไม่เก็บไฟล์ค้างเมื่อเปลี่ยนห้อง) · กรุณาเลือกไฟล์ใหม่อีกครั้ง',
+          },
+        };
+        changed = true;
+      }
+    }
+    if (changed) {
+      outboundRoomsRef.current = updatedRooms;
+      queueMicrotask(() => { setOutboundRooms(updatedRooms); });
+    }
     if (!ticketId) {
       activeRef.current = null;
       fenceRef.current?.select(actorId, null);
@@ -467,7 +647,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
         if (activeRef.current === target) setLoading(false);
       });
     });
-  }, [ticketId, actorId, fetchThread, revealRecord]);
+  }, [ticketId, actorId, fetchThread, outboundKey, revealRecord]);
 
   const refresh = useCallback(() => {
     const id = activeRef.current;
@@ -495,7 +675,10 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
   // OP06-02 teardown: lifecycle attempts are module-global per actor — this
   // mount's authority dies with the hook, so the actor's attempt workspace is
   // erased exactly once on unmount (logout, room unmount, navigation).
-  useEffect(() => () => clearActorActionAttempts(actorId), [actorId]);
+  useEffect(() => () => {
+    retryFileRef.current = null;
+    clearActorActionAttempts(actorId);
+  }, [actorId]);
 
   useLayoutEffect(() => {
     const anchor = pendingScrollRef.current;
@@ -590,7 +773,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
     // late response — issued here but answered after a room switch — is
     // discarded entirely: no record write, no error text, no busy flip.
     // OP06-05: the busy gate is THIS room's write, never another room's.
-    if (busyMapRef.current[id] !== undefined) return;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
     const fence = fenceRef.current!;
     const token = fence.begin(actorId, id);
     beginHistoryBusy(id);
@@ -631,7 +814,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
     if (!id || !record || historyBusy.has(id)) return;
     if (firstCatchUpBeforeSpans(record.spans, record.empties) === null) return;
     // OP06-05: the busy gate is THIS room's write, never another room's.
-    if (busyMapRef.current[id] !== undefined) return;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
     // Same request epoch fence as loadEarlier: crossed-room transitions kill
     // the whole catch-up run, including every remaining loop iteration.
     const fence = fenceRef.current!;
@@ -701,7 +884,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
   const submitMessage = useCallback(async (kind: DraftKind, id: string, text: string, fields: Record<string, string | number>) => {
     // OP06-05: one write in flight PER ROOM. Another room's pending write never
     // blocks this gate and never flips this room's notice/busy.
-    if (busyMapRef.current[id] !== undefined) return;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
     if (!text.trim()) return;
     const limit = COMPOSER_LIMITS[kind];
     if (text.trim().length > limit) {
@@ -849,6 +1032,565 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
     void submitMessage('note', id, value, { text: value.trim() });
   }, [actorId, draftsStore, submitMessage, ticketId]);
 
+  const executeOutboundUpload = useCallback(async (params: {
+    id: string;
+    file: File;
+    requestId: string;
+    fileName: string;
+    mimeType: OutboundAttachmentMimeType;
+    size: number;
+    revision: number;
+    knownSha256?: string;
+    isRetry: boolean;
+  }) => {
+    const { id, file, requestId, fileName, mimeType, size, revision, knownSha256, isRetry } = params;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
+    const ownerActorId = actorId;
+    const roomKey = outboundKey(ownerActorId, id);
+    const leaseEpoch = authorityEpochRef.current;
+    const leaseToken = Symbol('outbound-upload');
+    outboundBusyLeaseRef.current = { ...outboundBusyLeaseRef.current, [id]: leaseToken };
+    setRoomOutboundBusy(id, 'upload');
+    setRoomNotice(id, null);
+    retryFileRef.current = { ticketId: id, requestId, file };
+
+    const isLeaseCurrent = () =>
+      authorityEpochRef.current === leaseEpoch
+      && actorId === ownerActorId
+      && outboundRoomsRef.current[roomKey]?.upload?.requestId === requestId;
+
+    updateOutboundRoom(ownerActorId, id, current => ({
+      ...current,
+      readyDraft: isRetry ? current.readyDraft : null,
+      confirmDialogOpen: false,
+      confirmAttempt: isRetry ? current.confirmAttempt : null,
+      upload: {
+        requestId,
+        fileName,
+        mimeType,
+        size,
+        sha256: knownSha256 ?? '',
+        revision,
+        phase: isRetry ? 'uploading' : 'hashing',
+        errorText: null,
+      },
+    }));
+
+    let buffer: ArrayBuffer | null = null;
+    try {
+      buffer = await file.arrayBuffer();
+      const actualSize = buffer.byteLength;
+      if (actualSize < 1 || actualSize > OUTBOUND_MAX_BYTES) {
+        buffer = null;
+        if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+        if (isLeaseCurrent()) {
+          const message = actualSize > OUTBOUND_MAX_BYTES
+            ? 'ไฟล์มีขนาดเกิน 10 MiB (10,485,760 ไบต์) กรุณาเลือกไฟล์ที่เล็กกว่า'
+            : 'ขนาดไฟล์ไม่อยู่ในช่วง 1 ไบต์ ถึง 10 MiB';
+          updateOutboundRoom(ownerActorId, id, current => ({ ...current, upload: null }));
+          setRoomNotice(id, { kind: 'error', text: message });
+        }
+        return;
+      }
+      const sha256 = await computeSha256Hex(buffer);
+      if (isRetry && knownSha256 && sha256 !== knownSha256) {
+        buffer = null;
+        if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+        if (isLeaseCurrent()) {
+          updateOutboundRoom(ownerActorId, id, current => ({ ...current, upload: null }));
+          setRoomNotice(id, { kind: 'error', text: 'เนื้อหาไฟล์มีการเปลี่ยนแปลง · กรุณาเลือกไฟล์ใหม่อีกครั้ง' });
+        }
+        return;
+      }
+      // If user navigated to another room before HTTP upload started, drop bytes immediately.
+      if (!isLeaseCurrent() || activeRef.current !== id || retryFileRef.current?.requestId !== requestId) {
+        buffer = null;
+        if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+        if (isLeaseCurrent()) {
+          updateOutboundRoom(ownerActorId, id, current => ({ ...current, upload: null }));
+        }
+        return;
+      }
+      updateOutboundRoom(ownerActorId, id, current => ({
+        ...current,
+        upload: current.upload ? { ...current.upload, sha256, phase: 'uploading', errorText: null } : null,
+      }));
+
+      let response: Response;
+      try {
+        response = await fetch(`/api/chat/tickets/${encodeURIComponent(id)}/outbound-attachments`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: buildOutboundUploadHeaders({
+            contentType: mimeType,
+            requestId,
+            revision,
+            fileName,
+            sha256,
+          }),
+          body: buffer,
+        });
+      } finally {
+        // Release raw file byte buffer reference immediately once fetch completes or throws.
+        buffer = null;
+      }
+
+      if (!isLeaseCurrent()) return;
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isLeaseCurrent()) return;
+
+      if (response.status === 401) {
+        if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+        handleThreadAccessDenial(401, id);
+        return;
+      }
+
+      if (response.ok) {
+        const parsed = parseOutboundUploadResult(payload);
+        if (parsed) {
+          if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+          updateOutboundRoom(ownerActorId, id, current => ({
+            ...current,
+            upload: null,
+            readyDraft: {
+              attachmentId: parsed.attachmentId,
+              name: fileName,
+              mimeType,
+              size,
+              uploadedRevision: revision,
+            },
+            confirmDialogOpen: false,
+            confirmAttempt: null,
+          }));
+          setRoomNotice(id, { kind: 'success', text: 'อัปโหลดร่างไฟล์แล้ว · ยังไม่ได้ส่งถึงนักศึกษา' });
+          return;
+        }
+      }
+
+      const errorCode = extractSafeErrorCode(payload);
+      const mapped = mapOutboundUploadError(response.ok ? 503 : response.status, errorCode);
+      if (mapped.accessLossStatus !== null) {
+        if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+        handleThreadAccessDenial(mapped.accessLossStatus, id);
+        return;
+      }
+      if (mapped.retryableSameRequest) {
+        const canRetryInRoom = activeRef.current === id
+          && retryFileRef.current?.ticketId === id
+          && retryFileRef.current?.requestId === requestId;
+        updateOutboundRoom(ownerActorId, id, current => ({
+          ...current,
+          upload: current.upload
+            ? {
+              ...current.upload,
+              phase: canRetryInRoom ? 'retryable-error' : 'needs-reselect-error',
+              errorText: canRetryInRoom
+                ? mapped.message
+                : 'การอัปโหลดยังไม่สำเร็จ (ไม่เก็บไฟล์ค้างเมื่อเปลี่ยนห้อง) · กรุณาเลือกไฟล์ใหม่อีกครั้ง',
+            }
+            : null,
+        }));
+        setRoomNotice(id, { kind: 'error', text: mapped.message });
+        return;
+      }
+      if (retryFileRef.current?.requestId === requestId) retryFileRef.current = null;
+      updateOutboundRoom(ownerActorId, id, current => ({ ...current, upload: null }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+      if (mapped.refreshThread) notifyThreadListeners(id);
+    } catch {
+      buffer = null;
+      if (!isLeaseCurrent()) return;
+      const mapped = mapOutboundUploadError('network', null);
+      const canRetryInRoom = activeRef.current === id
+        && retryFileRef.current?.ticketId === id
+        && retryFileRef.current?.requestId === requestId;
+      updateOutboundRoom(ownerActorId, id, current => ({
+        ...current,
+        upload: current.upload
+          ? {
+            ...current.upload,
+            phase: canRetryInRoom ? 'retryable-error' : 'needs-reselect-error',
+            errorText: canRetryInRoom
+              ? mapped.message
+              : 'การอัปโหลดยังไม่สำเร็จ (ไม่เก็บไฟล์ค้างเมื่อเปลี่ยนห้อง) · กรุณาเลือกไฟล์ใหม่อีกครั้ง',
+          }
+          : null,
+      }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+    } finally {
+      buffer = null;
+      if (outboundBusyLeaseRef.current[id] === leaseToken) {
+        const leases = { ...outboundBusyLeaseRef.current };
+        delete leases[id];
+        outboundBusyLeaseRef.current = leases;
+        setRoomOutboundBusy(id, null);
+      }
+    }
+  }, [actorId, handleThreadAccessDenial, outboundKey, setRoomNotice, setRoomOutboundBusy, updateOutboundRoom]);
+
+  const onSelectOutboundFile = useCallback((file: File) => {
+    const id = activeRef.current;
+    const record = id ? recordsRef.current.get(id) : undefined;
+    if (!id || !record) return;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
+    if (!canShowOutboundAttachControl({
+      outboundFiles: { enabled: readOutboundFilesEnabled(record.result) },
+      canReply: record.result.detail.permissions.reply,
+      ticketMode: record.result.detail.ticket.mode,
+      composerKind: 'reply',
+    })) return;
+    const validation = validateOutboundFileMeta({ name: file.name, type: file.type, size: file.size });
+    if (!validation.ok) {
+      setRoomNotice(id, { kind: 'error', text: validation.message });
+      return;
+    }
+    const cryptoApi = globalThis.crypto;
+    if (typeof cryptoApi?.randomUUID !== 'function' || typeof cryptoApi?.subtle?.digest !== 'function') {
+      setRoomNotice(id, { kind: 'error', text: 'เบราว์เซอร์ไม่รองรับการสร้างคำขอหรือตรวจแฮชไฟล์อย่างปลอดภัย' });
+      return;
+    }
+    const requestId = cryptoApi.randomUUID();
+    void executeOutboundUpload({
+      id,
+      file,
+      requestId,
+      fileName: validation.name,
+      mimeType: validation.mimeType,
+      size: validation.size,
+      revision: record.result.detail.ticket.revision,
+      isRetry: false,
+    });
+  }, [executeOutboundUpload, setRoomNotice]);
+
+  const onRetryOutboundUpload = useCallback(() => {
+    const id = activeRef.current;
+    if (!id) return;
+    const room = outboundRoomsRef.current[outboundKey(actorId, id)];
+    const pending = room?.upload;
+    const retry = retryFileRef.current;
+    if (!pending || pending.phase !== 'retryable-error' || !retry || retry.ticketId !== id || retry.requestId !== pending.requestId) {
+      return;
+    }
+    void executeOutboundUpload({
+      id,
+      file: retry.file,
+      requestId: pending.requestId,
+      fileName: pending.fileName,
+      mimeType: pending.mimeType,
+      size: pending.size,
+      revision: pending.revision,
+      knownSha256: pending.sha256,
+      isRetry: true,
+    });
+  }, [actorId, executeOutboundUpload, outboundKey]);
+
+  const onDismissOutboundUploadError = useCallback(() => {
+    const id = activeRef.current;
+    if (!id) return;
+    if (retryFileRef.current?.ticketId === id) retryFileRef.current = null;
+    updateOutboundRoom(actorId, id, current => ({ ...current, upload: null }));
+  }, [actorId, updateOutboundRoom]);
+
+  const onRemoveOutboundDraft = useCallback(() => {
+    const id = activeRef.current;
+    if (!id || outboundBusyRef.current[id] !== undefined) return;
+    if (retryFileRef.current?.ticketId === id) retryFileRef.current = null;
+    updateOutboundRoom(actorId, id, current => ({
+      ...current,
+      readyDraft: null,
+      confirmDialogOpen: false,
+      confirmAttempt: null,
+    }));
+    setRoomNotice(id, {
+      kind: 'success',
+      text: 'นำร่างไฟล์ออกจากหน้าจอแล้ว · ไฟล์ร่างยังคงเก็บแบบส่วนตัวในระบบและไม่ได้ส่งถึงนักศึกษา',
+    });
+  }, [actorId, setRoomNotice, updateOutboundRoom]);
+
+  const onOpenOutboundConfirmDialog = useCallback(() => {
+    const id = activeRef.current;
+    const record = id ? recordsRef.current.get(id) : undefined;
+    if (!id || !record) return;
+    const room = outboundRoomsRef.current[outboundKey(actorId, id)];
+    if (!room?.readyDraft) return;
+    if (!canShowOutboundAttachControl({
+      outboundFiles: { enabled: readOutboundFilesEnabled(record.result) },
+      canReply: record.result.detail.permissions.reply,
+      ticketMode: record.result.detail.ticket.mode,
+      composerKind: 'reply',
+    })) return;
+    updateOutboundRoom(actorId, id, current => ({ ...current, confirmDialogOpen: true }));
+  }, [actorId, outboundKey, updateOutboundRoom]);
+
+  const onCloseOutboundConfirmDialog = useCallback(() => {
+    const id = activeRef.current;
+    if (!id || outboundBusyRef.current[id] === 'confirm') return;
+    updateOutboundRoom(actorId, id, current => ({ ...current, confirmDialogOpen: false }));
+  }, [actorId, updateOutboundRoom]);
+
+  const onConfirmOutboundSend = useCallback(async () => {
+    const id = activeRef.current;
+    const record = id ? recordsRef.current.get(id) : undefined;
+    if (!id || !record) return;
+    if (busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
+    const ownerActorId = actorId;
+    const roomKey = outboundKey(ownerActorId, id);
+    const room = outboundRoomsRef.current[roomKey];
+    const draft = room?.readyDraft;
+    if (!draft) return;
+    if (!canShowOutboundAttachControl({
+      outboundFiles: { enabled: readOutboundFilesEnabled(record.result) },
+      canReply: record.result.detail.permissions.reply,
+      ticketMode: record.result.detail.ticket.mode,
+      composerKind: 'reply',
+    })) return;
+
+    const existingAttempt = room.confirmAttempt && room.confirmAttempt.attachmentId === draft.attachmentId
+      ? room.confirmAttempt
+      : null;
+    const cryptoApi = globalThis.crypto;
+    if (!existingAttempt && typeof cryptoApi?.randomUUID !== 'function') {
+      setRoomNotice(id, { kind: 'error', text: 'เบราว์เซอร์ไม่รองรับการสร้างรหัสยืนยันคำขอ' });
+      return;
+    }
+    const requestId = existingAttempt ? existingAttempt.requestId : cryptoApi.randomUUID();
+    const revision = existingAttempt ? existingAttempt.revision : record.result.detail.ticket.revision;
+    const ticketNo = existingAttempt ? existingAttempt.ticketNo : record.result.detail.ticket.ticket_no;
+
+    const leaseEpoch = authorityEpochRef.current;
+    const leaseToken = Symbol('outbound-confirm');
+    outboundBusyLeaseRef.current = { ...outboundBusyLeaseRef.current, [id]: leaseToken };
+    setRoomOutboundBusy(id, 'confirm');
+    setRoomNotice(id, null);
+
+    updateOutboundRoom(ownerActorId, id, current => ({
+      ...current,
+      confirmDialogOpen: false,
+      confirmAttempt: {
+        attachmentId: draft.attachmentId,
+        requestId,
+        revision,
+        ticketNo,
+        phase: 'submitting',
+        errorText: null,
+      },
+    }));
+
+    const isLeaseCurrent = () =>
+      authorityEpochRef.current === leaseEpoch
+      && actorId === ownerActorId
+      && outboundRoomsRef.current[roomKey]?.confirmAttempt?.requestId === requestId;
+
+    try {
+      const response = await fetch(
+        `/api/chat/tickets/${encodeURIComponent(id)}/outbound-attachments/${encodeURIComponent(draft.attachmentId)}/confirm`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildOutboundConfirmBody({ requestId, revision, ticketNo })),
+        },
+      );
+      if (!isLeaseCurrent()) return;
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isLeaseCurrent()) return;
+
+      if (response.status === 401) {
+        handleThreadAccessDenial(401, id);
+        return;
+      }
+
+      if (response.ok) {
+        const parsed = parseOutboundConfirmResult(payload, draft.attachmentId);
+        if (parsed) {
+          updateOutboundRoom(ownerActorId, id, current => ({
+            ...current,
+            readyDraft: null,
+            confirmDialogOpen: false,
+            confirmAttempt: null,
+          }));
+          const latestRecord = recordsRef.current.get(id);
+          if (latestRecord && latestRecord.epoch === authorityEpochRef.current) {
+            const nextRevision = Math.max(latestRecord.result.detail.ticket.revision, parsed.revision);
+            const updated: ThreadRecord = {
+              ...latestRecord,
+              result: {
+                ...latestRecord.result,
+                detail: {
+                  ...latestRecord.result.detail,
+                  ticket: {
+                    ...latestRecord.result.detail.ticket,
+                    revision: nextRevision,
+                    status: parsed.status,
+                  },
+                },
+              },
+            };
+            recordsRef.current.set(id, updated);
+            revealRecord(id, updated);
+          }
+          setRoomNotice(id, { kind: 'success', text: 'ยืนยันส่งไฟล์เข้าคิวแล้ว · รอข้อความและสถานะการส่งจากระบบ' });
+          notifyThreadListeners(id);
+          return;
+        }
+      }
+
+      const errorCode = extractSafeErrorCode(payload);
+      const mapped = mapOutboundConfirmError(response.ok ? 503 : response.status, errorCode);
+      if (mapped.accessLossStatus !== null) {
+        handleThreadAccessDenial(mapped.accessLossStatus, id);
+        return;
+      }
+      if (mapped.retryableSameRequest) {
+        updateOutboundRoom(ownerActorId, id, current => ({
+          ...current,
+          confirmAttempt: current.confirmAttempt
+            ? { ...current.confirmAttempt, phase: 'uncertain', errorText: mapped.message }
+            : null,
+        }));
+        setRoomNotice(id, { kind: 'error', text: mapped.message });
+        return;
+      }
+      // 409 CONFLICT / INVALID_ACTION or definitive 4xx: clear attempt, close dialog for human re-review, keep READY draft.
+      updateOutboundRoom(ownerActorId, id, current => ({
+        ...current,
+        confirmDialogOpen: false,
+        confirmAttempt: null,
+      }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+      if (mapped.refreshThread) notifyThreadListeners(id);
+    } catch {
+      if (!isLeaseCurrent()) return;
+      const mapped = mapOutboundConfirmError('network', null);
+      updateOutboundRoom(ownerActorId, id, current => ({
+        ...current,
+        confirmAttempt: current.confirmAttempt
+          ? { ...current.confirmAttempt, phase: 'uncertain', errorText: mapped.message }
+          : null,
+      }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+    } finally {
+      if (outboundBusyLeaseRef.current[id] === leaseToken) {
+        const leases = { ...outboundBusyLeaseRef.current };
+        delete leases[id];
+        outboundBusyLeaseRef.current = leases;
+        setRoomOutboundBusy(id, null);
+      }
+    }
+  }, [actorId, handleThreadAccessDenial, outboundKey, revealRecord, setRoomNotice, setRoomOutboundBusy, updateOutboundRoom]);
+
+  const onOpenOutboundRevokeDialog = useCallback((attachment: OutboundAttachmentView) => {
+    const id = activeRef.current;
+    if (!id || !attachment.canRevoke) return;
+    if (outboundBusyRef.current[id] !== undefined) return;
+    updateOutboundRoom(actorId, id, current => ({
+      ...current,
+      revokeState: {
+        attachmentId: attachment.id,
+        attachmentName: attachment.name,
+        phase: 'confirming',
+        errorText: null,
+      },
+    }));
+  }, [actorId, updateOutboundRoom]);
+
+  const onCloseOutboundRevokeDialog = useCallback(() => {
+    const id = activeRef.current;
+    if (!id || outboundBusyRef.current[id] === 'revoke') return;
+    updateOutboundRoom(actorId, id, current => ({ ...current, revokeState: null }));
+  }, [actorId, updateOutboundRoom]);
+
+  const onConfirmOutboundRevoke = useCallback(async () => {
+    const id = activeRef.current;
+    if (!id || busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined) return;
+    const ownerActorId = actorId;
+    const roomKey = outboundKey(ownerActorId, id);
+    const revokeState = outboundRoomsRef.current[roomKey]?.revokeState;
+    if (!revokeState) return;
+    const targetAttachmentId = revokeState.attachmentId;
+
+    const leaseEpoch = authorityEpochRef.current;
+    const leaseToken = Symbol('outbound-revoke');
+    outboundBusyLeaseRef.current = { ...outboundBusyLeaseRef.current, [id]: leaseToken };
+    setRoomOutboundBusy(id, 'revoke');
+    setRoomNotice(id, null);
+    updateOutboundRoom(ownerActorId, id, current => ({
+      ...current,
+      revokeState: current.revokeState ? { ...current.revokeState, phase: 'submitting', errorText: null } : null,
+    }));
+
+    const isLeaseCurrent = () =>
+      authorityEpochRef.current === leaseEpoch
+      && actorId === ownerActorId
+      && outboundRoomsRef.current[roomKey]?.revokeState?.attachmentId === targetAttachmentId;
+
+    try {
+      const response = await fetch(
+        `/api/chat/tickets/${encodeURIComponent(id)}/outbound-attachments/${encodeURIComponent(targetAttachmentId)}/revoke`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        },
+      );
+      if (!isLeaseCurrent()) return;
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isLeaseCurrent()) return;
+
+      if (response.status === 401) {
+        handleThreadAccessDenial(401, id);
+        return;
+      }
+
+      if (response.ok && parseOutboundRevokeResult(payload, targetAttachmentId)) {
+        updateOutboundRoom(ownerActorId, id, current => ({ ...current, revokeState: null }));
+        setRoomNotice(id, {
+          kind: 'success',
+          text: 'ถอนสิทธิ์การเปิดไฟล์แล้ว · ข้อความใน LINE ยังคงอยู่ แต่ลิงก์จะเปิดไม่ได้อีกต่อไป',
+        });
+        notifyThreadListeners(id);
+        return;
+      }
+
+      const errorCode = extractSafeErrorCode(payload);
+      const mapped = mapOutboundRevokeError(response.ok ? 503 : response.status, errorCode);
+      if (mapped.accessLossStatus !== null) {
+        handleThreadAccessDenial(mapped.accessLossStatus, id);
+        return;
+      }
+      if (mapped.retryable) {
+        updateOutboundRoom(ownerActorId, id, current => ({
+          ...current,
+          revokeState: current.revokeState ? { ...current.revokeState, phase: 'error', errorText: mapped.message } : null,
+        }));
+        setRoomNotice(id, { kind: 'error', text: mapped.message });
+        return;
+      }
+      updateOutboundRoom(ownerActorId, id, current => ({ ...current, revokeState: null }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+      if (mapped.refreshThread) notifyThreadListeners(id);
+    } catch {
+      if (!isLeaseCurrent()) return;
+      const mapped = mapOutboundRevokeError('network', null);
+      updateOutboundRoom(ownerActorId, id, current => ({
+        ...current,
+        revokeState: current.revokeState ? { ...current.revokeState, phase: 'error', errorText: mapped.message } : null,
+      }));
+      setRoomNotice(id, { kind: 'error', text: mapped.message });
+    } finally {
+      if (outboundBusyLeaseRef.current[id] === leaseToken) {
+        const leases = { ...outboundBusyLeaseRef.current };
+        delete leases[id];
+        outboundBusyLeaseRef.current = leases;
+        setRoomOutboundBusy(id, null);
+      }
+    }
+  }, [actorId, handleThreadAccessDenial, outboundKey, setRoomNotice, setRoomOutboundBusy, updateOutboundRoom]);
+
   const applyAssistantDraft = useCallback((sourceActorId: string, sourceTicketId: string, sourceRevision: number, draftText: string) => {
     const id = activeRef.current;
     const selected = id ? recordsRef.current.get(id) : undefined;
@@ -858,7 +1600,7 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
       currentTicketId: id, sourceTicketId,
       currentRevision: selected.result.detail.ticket.revision, sourceRevision,
       canReply: selected.result.detail.permissions.reply,
-      busy: busyMapRef.current[id] !== undefined,
+      busy: busyMapRef.current[id] !== undefined || outboundBusyRef.current[id] !== undefined,
       draftText,
       currentReply: draftsStore.read(actorId, id, 'reply'),
     });
@@ -878,10 +1620,29 @@ export function useChatThreadOps({ actorId, ticketId, initialThread = null, draf
   const historyLoading = ticketId !== null && historyBusy.has(ticketId);
   const busy = ticketId ? busyMap[ticketId] ?? null : null;
   const notice = ticketId ? noticeMap[ticketId] ?? null : null;
+  const activeOutbound = ticketId ? outboundRooms[outboundKey(actorId, ticketId)] : undefined;
+  const outbound: ChatThreadOutboundOps = {
+    busy: ticketId ? outboundBusyMap[ticketId] ?? null : null,
+    upload: activeOutbound?.upload ?? null,
+    readyDraft: activeOutbound?.readyDraft ?? null,
+    confirmDialogOpen: activeOutbound?.confirmDialogOpen ?? false,
+    confirmAttempt: activeOutbound?.confirmAttempt ?? null,
+    revokeState: activeOutbound?.revokeState ?? null,
+    onSelectFile: onSelectOutboundFile,
+    onRetryUpload: onRetryOutboundUpload,
+    onDismissUploadError: onDismissOutboundUploadError,
+    onRemoveDraft: onRemoveOutboundDraft,
+    onOpenConfirmDialog: onOpenOutboundConfirmDialog,
+    onCloseConfirmDialog: onCloseOutboundConfirmDialog,
+    onConfirmSend: () => { void onConfirmOutboundSend(); },
+    onOpenRevokeDialog: onOpenOutboundRevokeDialog,
+    onCloseRevokeDialog: onCloseOutboundRevokeDialog,
+    onConfirmRevoke: () => { void onConfirmOutboundRevoke(); },
+  };
 
   return {
     thread, loading, error, hasStaleResponse, catchUpBefore, historyLoading,
-    busy, notice, drafts, attempts: attemptsView, refresh,
+    busy, notice, drafts, attempts: attemptsView, refresh, outbound,
     revokeAuthority: revokeActorAuthority,
     paneRef, sentinelRef,
     onDraftChange, onSubmitReply, onSubmitNote, applyAssistantDraft, loadEarlier, loadCatchUp,

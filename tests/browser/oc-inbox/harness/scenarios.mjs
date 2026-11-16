@@ -8,6 +8,7 @@
  * evidence (network log/console snapshots). No assertion inspects source text.
  */
 
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -1718,7 +1719,622 @@ const S27 = {
   },
 };
 
-export const scenarios = [S01, S02, S03, S04, S05, S06, S07, S08, S09, S10, S11, S12, S13, S14, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27];
+/* ---------------------------------------------------------------------- */
+/* OC-08 Outbound File Attach / Confirm / Revoke Scenarios (S28 - S35)     */
+/* ---------------------------------------------------------------------- */
+
+const attachUuidA = '11111111-1111-4111-8111-111111111111';
+const attachUuidB = '22222222-2222-4222-8222-222222222222';
+const attId1 = '77777777-7777-4777-8777-777777777771';
+const attId2 = '77777777-7777-4777-8777-777777777772';
+const msgUuid1 = '88888888-8888-4888-8888-888888888881';
+const msgUuid2 = '88888888-8888-4888-8888-888888888882';
+const msgUuid3 = '88888888-8888-4888-8888-888888888883';
+const msgUuid4 = '88888888-8888-4888-8888-888888888884';
+const msgUuid5 = '88888888-8888-4888-8888-888888888885';
+
+function attachTicketItem(id, suffix, summary, revision, status = 'STAFF_HANDLING', mode = 'HUMAN') {
+  return {
+    ...ticketItem(id, suffix, summary, revision, status, mode),
+    ticket_no: `YRU-2026000${suffix}`,
+  };
+}
+
+function attachThread(item, options = {}) {
+  const base = threadFor(item, options);
+  if (Object.hasOwn(options, 'outboundFiles')) {
+    base.outboundFiles = options.outboundFiles;
+  }
+  if (Array.isArray(options.customMessages)) {
+    base.messages = options.customMessages;
+    base.latestSequence = options.customMessages[options.customMessages.length - 1]?.sequence ?? base.latestSequence;
+  }
+  return base;
+}
+
+const ATTACH_LIST_BODY = json({
+  tickets: [
+    attachTicketItem(attachUuidA, 1, 'คำร้องแนบไฟล์ กรณี A', 5, 'STAFF_HANDLING', 'HUMAN'),
+    attachTicketItem(attachUuidB, 2, 'คำร้องแนบไฟล์ กรณี B', 8, 'STAFF_HANDLING', 'HUMAN'),
+  ],
+  unreadCounts: {},
+  departments: [],
+  assignees: [],
+  categories: [],
+  pagination: {page: 1, pageSize: 50, total: 2, totalPages: 1, hasNext: false, hasPrevious: false},
+});
+
+const S28 = {
+  id: 'S28-outbound-attach-visibility',
+  title: 'OC08: ปุ่มแนบไฟล์ซ่อนเมื่อ outboundFiles ไม่มี/false, ไม่มีสิทธิ์ reply, โหมด AI หรือภายในโหมดบันทึกภายใน',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'scripted', queue: [
+        {status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ไม่มี outboundFiles', 5)))},
+        {status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'outboundFiles=false', 5), {outboundFiles: {enabled: false}}))},
+        {status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ไม่มีสิทธิ์ reply', 5), {outboundFiles: {enabled: true}, perms: {accept: false, reply: false, resolve: false, close: false, reassign: false, reopen: false}}))},
+        {status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'โหมด AI', 5, 'AI_HANDLING', 'AI'), {outboundFiles: {enabled: true}, perms: {accept: true, reply: true, resolve: false, close: false, reassign: false, reopen: false}}))},
+        {status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'อนุญาตครบ', 5, 'STAFF_HANDLING', 'HUMAN'), {outboundFiles: {enabled: true}, perms: {accept: false, reply: true, resolve: true, close: false, reassign: false, reopen: false}}))},
+      ]},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-message').length >= 3, null, {timeout: 8000, polling: 30});
+
+    check(await page.locator('[data-testid="outbound-file-input"]').count() === 0, 'ไม่มี outboundFiles ต้องซ่อนปุ่มแนบไฟล์', null);
+
+    // Trigger invalidation refresh to pull next scripted thread snapshots.
+    await page.evaluate(() => window.__supabaseFixture.channel('staff:staff-fixture-a:inbox').fireInvalidate());
+    await page.waitForFunction(() => document.body.innerText.includes('outboundFiles=false'), null, {timeout: 8000, polling: 30});
+    check(await page.locator('[data-testid="outbound-file-input"]').count() === 0, 'outboundFiles.enabled:false ต้องซ่อนปุ่มแนบไฟล์', null);
+
+    await page.evaluate(() => window.__supabaseFixture.channel('staff:staff-fixture-a:inbox').fireInvalidate());
+    await page.waitForFunction(() => document.body.innerText.includes('ไม่มีสิทธิ์ reply'), null, {timeout: 8000, polling: 30});
+    check(await page.locator('[data-testid="outbound-file-input"]').count() === 0, 'permissions.reply:false ต้องซ่อนปุ่มแนบไฟล์', null);
+
+    await page.evaluate(() => window.__supabaseFixture.channel('staff:staff-fixture-a:inbox').fireInvalidate());
+    await page.waitForFunction(() => document.body.innerText.includes('โหมด AI'), null, {timeout: 8000, polling: 30});
+    check(await page.locator('[data-testid="outbound-file-input"]').count() === 0, 'mode:AI ต้องซ่อนปุ่มแนบไฟล์', null);
+
+    await page.evaluate(() => window.__supabaseFixture.channel('staff:staff-fixture-a:inbox').fireInvalidate());
+    await page.waitForFunction(() => document.body.innerText.includes('อนุญาตครบ'), null, {timeout: 8000, polling: 30});
+    const inReplyCount = await page.locator('[data-testid="chat-reply-composer"] [data-testid="outbound-file-input"]').count();
+    const labelProbe = await page.evaluate(() => {
+      const input = document.querySelector('[data-testid="outbound-file-input"]');
+      const label = document.querySelector('label[for="chat-outbound-file"]');
+      if (input instanceof HTMLElement) input.focus();
+      return {
+        hasThaiLabel: Boolean(label && label.textContent && label.textContent.includes('แนบไฟล์')),
+        focusable: document.activeElement === input,
+      };
+    });
+    await page.locator('[data-testid="chat-note-composer"] summary').click();
+    const inNoteCount = await page.locator('[data-testid="chat-note-composer"] [data-testid="outbound-file-input"]').count();
+    check(inReplyCount === 1 && labelProbe.hasThaiLabel && labelProbe.focusable, 'โหมดตอบนักศึกษาที่เปิดสิทธิ์ครบต้องแสดง input[type=file] ที่มี label ไทยและโฟกัสคีย์บอร์ดได้', {inReplyCount, labelProbe});
+    check(inNoteCount === 0, 'โหมดบันทึกภายในต้องไม่มี input[type=file] หรือปุ่มแนบไฟล์', inNoteCount);
+  },
+};
+
+const S29 = {
+  id: 'S29-outbound-upload-headers-draft-card',
+  title: 'OC08: อัปโหลด 201 ส่ง raw body + headers ครบ + SHA-256 ตรง, แสดงการ์ดร่าง (ไม่มี confirm อัตโนมัติ) และนำออกจาก UI ได้',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    const fileBytes = Buffer.from('%PDF-1.4\n%YRU outbound attachment fixture bytes\n%%EOF\n', 'utf8');
+    const expectedSha = createHash('sha256').update(fileBytes).digest('hex');
+    const fileName = 'คู่มือ การแนบ.pdf';
+
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'อัปโหลดร่าง A', 5), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'respond', status: 201, body: json({attachmentId: attId1, status: 'READY'})},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: fileName,
+      mimeType: 'application/pdf',
+      buffer: fileBytes,
+    });
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') !== null, null, {timeout: 8000, polling: 30});
+    await waitForCommitBarrier(page);
+
+    const uploads = await postRequests(page, `/outbound-attachments$`);
+    const confirms = await postRequests(page, `/confirm$`);
+    check(uploads.length === 1, 'อัปโหลดสำเร็จยิง 1 POST', uploads.length);
+    check(confirms.length === 0, 'ห้ามยิง confirm อัตโนมัติหลัง upload 201', confirms.length);
+
+    const req = uploads[0];
+    check(req.credentials === 'same-origin' && req.cache === 'no-store', 'ใช้ credentials:same-origin และ cache:no-store', {credentials: req.credentials, cache: req.cache});
+    check(req.isBinaryBody === true && req.bodyLength === fileBytes.length, 'body เป็น raw bytes ไม่ใช่ multipart', {isBinaryBody: req.isBinaryBody, bodyLength: req.bodyLength});
+    check(req.headers['content-type'] === 'application/pdf', 'Content-Type ตรงตามไฟล์', req.headers);
+    check(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers['x-yru-request-id'] || ''), 'X-Yru-Request-Id เป็น UUID', req.headers['x-yru-request-id']);
+    check(req.headers['x-yru-ticket-revision'] === '5', 'X-Yru-Ticket-Revision ตรง revision ปัจจุบัน', req.headers['x-yru-ticket-revision']);
+    check(req.headers['x-yru-file-name'] === encodeURIComponent(fileName), 'X-Yru-File-Name เข้ารหัส encodeURIComponent(file.name)', req.headers['x-yru-file-name']);
+    check(req.headers['x-yru-content-sha256'] === expectedSha && req.bodySha256 === expectedSha, 'X-Yru-Content-SHA256 ตรงกับ SHA-256 ของ bytes จริง', {header: req.headers['x-yru-content-sha256'], body: req.bodySha256, expectedSha});
+    check(!Object.hasOwn(req.headers, 'content-length'), 'ไม่ตั้ง Content-Length เอง', Object.keys(req.headers));
+
+    const cardText = await page.locator('[data-testid="outbound-draft-card"]').innerText();
+    check(cardText.includes(fileName) && cardText.includes('PDF') && cardText.includes('ยังไม่ได้ส่งถึงนักศึกษา'), 'การ์ดร่างแสดงชื่อไฟล์ ชนิด และข้อความ ยังไม่ได้ส่งถึงนักศึกษา', cardText);
+    check(cardText.includes('ส่งให้นักศึกษา') && cardText.includes('นำออก') && cardText.includes('โหลดหน้าใหม่'), 'การ์ดร่างมีปุ่ม ส่งให้นักศึกษา/นำออก และคำเตือน reload', cardText);
+
+    await page.locator('[data-testid="outbound-draft-remove"]').click();
+    await waitForCommitBarrier(page);
+    const cardLeft = await page.locator('[data-testid="outbound-draft-card"]').count();
+    const afterRemoveText = await page.evaluate(() => document.body.innerText);
+    check(cardLeft === 0 && afterRemoveText.includes('เก็บแบบส่วนตัว'), 'กดนำออกลบการ์ดออกจาก UI และแจ้งว่าร่างยังเก็บแบบส่วนตัวในระบบ', {cardLeft});
+  },
+};
+
+const S30 = {
+  id: 'S30-outbound-client-validation',
+  title: 'OC08: ชนิดไฟล์ผิด ขนาด 0 หรือเกิน 10 MiB (10,485,761) ถูกปฏิเสธก่อนมี request',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ตรวจไฟล์ฝั่ง client', 5), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'respond', status: 201, body: json({attachmentId: attId1, status: 'READY'})},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'note.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('not-allowed'),
+    });
+    await waitForCommitBarrier(page);
+    const badTypeText = await page.evaluate(() => document.body.innerText);
+    check(badTypeText.includes('PDF') && badTypeText.includes('JPEG') && badTypeText.includes('PNG'), 'แสดงข้อความปฏิเสธชนิดไฟล์ไม่รองรับ', badTypeText.slice(0, 300));
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'empty.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.alloc(0),
+    });
+    await waitForCommitBarrier(page);
+    const emptyText = await page.evaluate(() => document.body.innerText);
+    check(emptyText.includes('0 ไบต์') || emptyText.includes('ว่าง'), 'แสดงข้อความปฏิเสธไฟล์ว่าง 0 ไบต์', emptyText.slice(0, 300));
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'huge.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.alloc(10_485_761, 0x41),
+    });
+    await waitForCommitBarrier(page);
+    const bigText = await page.evaluate(() => document.body.innerText);
+    check(bigText.includes('10 MiB'), 'แสดงข้อความปฏิเสธไฟล์เกิน 10 MiB', bigText.slice(0, 300));
+
+    const uploads = await postRequests(page, `/outbound-attachments$`);
+    check(uploads.length === 0, 'ต้องไม่ยิง HTTP upload request เมื่อไม่ผ่าน validation ฝั่ง client', uploads);
+  },
+};
+
+const S31 = {
+  id: 'S31-outbound-network-retry-request-id',
+  title: 'OC08: network error แล้ว retry ใช้ requestId เดิมทั้ง upload และ confirm; เลือกไฟล์ใหม่ได้ requestId ใหม่',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ลองส่งซ้ำไฟล์', 5), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'scripted', queue: [
+        {networkError: true},
+        {status: 201, body: json({attachmentId: attId1, status: 'READY'})},
+        {status: 201, body: json({attachmentId: attId2, status: 'READY'})},
+      ]},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId2}/confirm$`, method: 'POST', mode: 'scripted', queue: [
+        {networkError: true},
+        {status: 200, body: json({attachmentId: attId2, messageId: msgUuid1, status: 'WAITING_USER', revision: 6})},
+      ]},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'first.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    });
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-upload-retry"]') !== null, null, {timeout: 8000, polling: 30});
+    await waitForCommitBarrier(page);
+    const uploadsAfterNetErr = await postRequests(page, `/outbound-attachments$`);
+    check(uploadsAfterNetErr.length === 1, 'network error ห้าม auto-retry เอง', uploadsAfterNetErr.length);
+
+    await page.locator('[data-testid="outbound-upload-retry"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') !== null, null, {timeout: 8000, polling: 30});
+    const uploadsAfterRetry = await postRequests(page, `/outbound-attachments$`);
+    check(uploadsAfterRetry.length === 2, 'กด retry ยิงอัปโหลดซ้ำ 1 ครั้ง', uploadsAfterRetry.length);
+    const reqId1 = uploadsAfterRetry[0].headers['x-yru-request-id'];
+    const reqIdRetry = uploadsAfterRetry[1].headers['x-yru-request-id'];
+    check(reqId1 && reqId1 === reqIdRetry, 'upload retry ใช้ X-Yru-Request-Id เดิม', {reqId1, reqIdRetry});
+
+    // Pick a new file -> must mint a new requestId.
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'second.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from([255, 216, 255, 224, 0, 16]),
+    });
+    await page.waitForFunction(() => (document.querySelector('[data-testid="outbound-draft-card"]')?.textContent || '').includes('second.jpg'), null, {timeout: 8000, polling: 30});
+    const uploadsAfterNew = await postRequests(page, `/outbound-attachments$`);
+    const reqId2 = uploadsAfterNew[2].headers['x-yru-request-id'];
+    check(reqId2 && reqId2 !== reqId1, 'เลือกไฟล์ใหม่ต้องใช้ X-Yru-Request-Id ใหม่', {reqId1, reqId2});
+
+    // Open confirm dialog, trigger network error, then retry confirm via inline retry button.
+    await page.locator('[data-testid="outbound-draft-confirm-open"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-submit"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-retry"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-retry"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') === null, null, {timeout: 8000, polling: 30});
+
+    const confirms = await postRequests(page, `/confirm$`);
+    check(confirms.length === 2, 'confirm retry ยิงซ้ำหลังกดเองเท่านั้น', confirms.length);
+    const cBody1 = JSON.parse(confirms[0].body);
+    const cBody2 = JSON.parse(confirms[1].body);
+    check(Object.keys(cBody1).sort().join(',') === 'requestId,revision,ticketNo', 'confirm JSON มีเฉพาะ 3 keys ตามสัญญา', Object.keys(cBody1));
+    check(cBody1.requestId === cBody2.requestId && JSON.stringify(cBody1) === JSON.stringify(cBody2), 'confirm retry ใช้ requestId และ payload เดิมทุกประการ', {cBody1, cBody2});
+  },
+};
+
+const S32 = {
+  id: 'S32-outbound-confirm-409-rereview',
+  title: 'OC08: confirm ได้ 409 CONFLICT → refetch อัตโนมัติ, ไม่มี confirm ที่สองจนกว่าคนกดยืนยันใหม่',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    const initialA = attachThread(attachTicketItem(attachUuidA, 1, 'กรณี 409 re-review', 5), {outboundFiles: {enabled: true}});
+    const updatedA = attachThread(attachTicketItem(attachUuidA, 1, 'กรณี 409 re-review', 6), {
+      outboundFiles: {enabled: true},
+      customMessages: [
+        ...initialA.messages,
+        {id: 'm-intervene', sequence: 4, senderType: 'USER', staffName: null, content: 'ข้อความแทรกจากนักศึกษา', createdAt: '2026-10-28T01:20:00.000Z', deliveryStatus: null, attachments: []},
+      ],
+    });
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'scripted', queue: [
+        {status: 200, body: json(initialA)},
+        {status: 200, body: json(updatedA)},
+        {status: 200, body: json(updatedA)},
+      ]},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'respond', status: 201, body: json({attachmentId: attId1, status: 'READY'})},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId1}/confirm$`, method: 'POST', mode: 'scripted', queue: [
+        {status: 409, body: json({error: 'CONFLICT'})},
+        {status: 200, body: json({attachmentId: attId1, messageId: msgUuid1, status: 'WAITING_USER', revision: 7})},
+      ]},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 4})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'form.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+    });
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-draft-confirm-open"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-submit"]').click();
+
+    await page.waitForFunction(() => document.body.innerText.includes('ข้อความแทรกจากนักศึกษา'), null, {timeout: 8000, polling: 30});
+    await waitForCommitBarrier(page);
+
+    const confirmsAfter409 = await postRequests(page, `/confirm$`);
+    check(confirmsAfter409.length === 1, 'หลัง 409 CONFLICT ห้ามยิง confirm อัตโนมัติด้วย revision ใหม่', confirmsAfter409.length);
+    const draftKept = await page.locator('[data-testid="outbound-draft-card"]').count();
+    check(draftKept === 1, 'การ์ดร่าง READY ต้องยังอยู่เพื่อให้เจ้าหน้าที่กดยืนยันใหม่หลังตรวจข้อความแทรก', draftKept);
+    const dialogClosed = await page.locator('[data-testid="outbound-confirm-dialog"][open]').count();
+    check(dialogClosed === 0, 'dialog ปิดให้เจ้าหน้าที่เห็นข้อความล่าสุดก่อนกดยืนยันอีกครั้ง', dialogClosed);
+
+    // Human manually clicks confirm again -> uses revision 6 and new requestId.
+    await page.locator('[data-testid="outbound-draft-confirm-open"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-submit"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') === null, null, {timeout: 8000, polling: 30});
+
+    const confirmsFinal = await postRequests(page, `/confirm$`);
+    check(confirmsFinal.length === 2, 'กดยืนยันใหม่เองหลังตรวจทานจึงส่งคำขอที่สอง', confirmsFinal.length);
+    const body1 = JSON.parse(confirmsFinal[0].body);
+    const body2 = JSON.parse(confirmsFinal[1].body);
+    check(body1.revision === 5 && body2.revision === 6 && body1.requestId !== body2.requestId, 'คำขอที่สองใช้ revision 6 ล่าสุดและ requestId ใหม่', {body1, body2});
+  },
+};
+
+const S33 = {
+  id: 'S33-outbound-confirm-200-revision-no-fake',
+  title: 'OC08: confirm 200 ลบการ์ดร่าง, ไม่สร้างข้อความปลอมก่อน refetch, อัปเดต revision ให้ reply ถัดไปใช้ทันที',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    const initialA = attachThread(attachTicketItem(attachUuidA, 1, 'อัปเดต revision หลังส่งไฟล์', 5), {outboundFiles: {enabled: true}});
+    const afterConfirmA = attachThread(attachTicketItem(attachUuidA, 1, 'อัปเดต revision หลังส่งไฟล์', 6, 'WAITING_USER', 'HUMAN'), {
+      outboundFiles: {enabled: true},
+      customMessages: [
+        ...initialA.messages,
+        {
+          id: msgUuid1,
+          sequence: 4,
+          senderType: 'STAFF',
+          staffName: 'เจ้าหน้าที่ Fixtures',
+          content: 'ส่งไฟล์เอกสาร: https://liff.line.me/1234567890-abc?attachment=' + attId1,
+          createdAt: '2026-10-28T01:25:00.000Z',
+          deliveryStatus: 'PENDING',
+          attachments: [],
+          outboundAttachment: {
+            id: attId1,
+            name: 'ใบรับรอง.pdf',
+            mimeType: 'application/pdf',
+            size: 2048,
+            studentAccess: 'WAITING_DELIVERY',
+            canRevoke: true,
+          },
+        },
+      ],
+    });
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'scripted', queue: [
+        {status: 200, body: json(initialA)},
+      ]},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'respond', status: 201, body: json({attachmentId: attId1, status: 'READY'})},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId1}/confirm$`, method: 'POST', mode: 'respond', status: 200, body: json({attachmentId: attId1, messageId: msgUuid1, status: 'WAITING_USER', revision: 6})},
+      {pattern: `^/api/tickets/${attachUuidA}/reply$`, method: 'POST', mode: 'respond', status: 200, body: json({id: attachUuidA, status: 'WAITING_USER', revision: 7})},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'ใบรับรอง.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+    });
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') !== null, null, {timeout: 8000, polling: 30});
+
+    // Defer the thread GET refetch triggered on confirm 200 so we can inspect BEFORE refetch lands!
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'defer', key: 'refetch-after-confirm'},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId1}/confirm$`, method: 'POST', mode: 'respond', status: 200, body: json({attachmentId: attId1, messageId: msgUuid1, status: 'WAITING_USER', revision: 6})},
+      {pattern: `^/api/tickets/${attachUuidA}/reply$`, method: 'POST', mode: 'respond', status: 200, body: json({id: attachUuidA, status: 'WAITING_USER', revision: 7})},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+
+    await page.locator('[data-testid="outbound-draft-confirm-open"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-submit"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') === null, null, {timeout: 8000, polling: 30});
+    await waitForCommitBarrier(page);
+
+    const msgCountBeforeRefetch = await page.locator('.inbox-message').count();
+    check(msgCountBeforeRefetch === 3, 'ก่อน refetch กลับมา ห้ามสร้างข้อความปลอมในบทสนทนา', msgCountBeforeRefetch);
+
+    // Send a text reply immediately before refetch lands -> must carry revision 6!
+    await page.locator('#chat-reply').fill('ข้อความติดตามหลังส่งไฟล์');
+    await page.locator('.inbox-reply-form button[type="submit"]').click();
+    await page.waitForFunction(() => document.body.innerText.includes('บันทึกคำตอบแล้ว'), null, {timeout: 8000, polling: 30});
+    const replies = await postRequests(page, '/reply$');
+    check(replies.length === 1 && JSON.parse(replies[0].body).revision === 6, 'การตอบถัดไปใช้ revision 6 ที่ได้จาก confirm ทันที', replies);
+
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(afterConfirmA)},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 4})},
+    ]);
+    await page.evaluate(body => {
+      const keys = window.__shim.deferredKeys().filter(k => k.startsWith('refetch-after-confirm'));
+      for (const k of keys) window.__shim.resolveDeferred(k, {status: 200, body});
+    }, json(afterConfirmA));
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-message').length === 4, null, {timeout: 8000, polling: 30});
+    const attachText = await page.locator('[data-testid="outbound-message-attachment"]').innerText();
+    check(attachText.includes('ใบรับรอง.pdf') && attachText.includes('รอส่งถึง LINE'), 'หลัง refetch แสดงข้อความจริงพร้อมชื่อไฟล์และสถานะ รอส่งถึง LINE', attachText);
+  },
+};
+
+const S34 = {
+  id: 'S34-outbound-revoke-and-student-access',
+  title: 'OC08: สถานะ studentAccess 5 แบบ, dialog ถอนสิทธิ์, ยิง POST .../revoke {}, refetch แล้วปุ่มหายเมื่อ canRevoke:false',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    const messagesWithStates = [
+      {id: msgUuid1, sequence: 1, senderType: 'STAFF', staffName: 'เจ้าหน้าที่เอ', content: 'ลิงก์ 1', createdAt: '2026-10-28T01:01:00.000Z', deliveryStatus: 'PENDING', attachments: [], outboundAttachment: {id: attId1, name: 'รอส่ง.pdf', mimeType: 'application/pdf', size: 1024, studentAccess: 'WAITING_DELIVERY', canRevoke: true}},
+      {id: msgUuid2, sequence: 2, senderType: 'STAFF', staffName: 'เจ้าหน้าที่เอ', content: 'ลิงก์ 2', createdAt: '2026-10-28T01:02:00.000Z', deliveryStatus: 'SENT', attachments: [], outboundAttachment: {id: attId2, name: 'เปิดได้.png', mimeType: 'image/png', size: 2048, studentAccess: 'AVAILABLE', canRevoke: true}},
+      {id: msgUuid3, sequence: 3, senderType: 'STAFF', staffName: 'เจ้าหน้าที่เอ', content: 'ลิงก์ 3', createdAt: '2026-10-28T01:03:00.000Z', deliveryStatus: 'SENT', attachments: [], outboundAttachment: {id: '77777777-7777-4777-8777-777777777773', name: 'หมดอายุ.pdf', mimeType: 'application/pdf', size: 3072, studentAccess: 'EXPIRED', canRevoke: false}},
+      {id: msgUuid4, sequence: 4, senderType: 'STAFF', staffName: 'เจ้าหน้าที่เอ', content: 'ลิงก์ 4', createdAt: '2026-10-28T01:04:00.000Z', deliveryStatus: 'SENT', attachments: [], outboundAttachment: {id: '77777777-7777-4777-8777-777777777774', name: 'ถอนแล้ว.jpg', mimeType: 'image/jpeg', size: 4096, studentAccess: 'REVOKED', canRevoke: false}},
+      {id: msgUuid5, sequence: 5, senderType: 'STAFF', staffName: 'เจ้าหน้าที่เอ', content: 'ลิงก์ 5', createdAt: '2026-10-28T01:05:00.000Z', deliveryStatus: 'DEAD', attachments: [], outboundAttachment: {id: '77777777-7777-4777-8777-777777777775', name: 'ไม่สำเร็จ.pdf', mimeType: 'application/pdf', size: 5120, studentAccess: 'NOT_DELIVERED', canRevoke: false}},
+    ];
+    const beforeThread = attachThread(attachTicketItem(attachUuidA, 1, 'จัดการสิทธิ์เปิดไฟล์', 5, 'CLOSED', 'HUMAN'), {
+      perms: {accept: false, reply: false, resolve: false, close: false, reassign: false, reopen: false},
+      customMessages: messagesWithStates,
+      readThrough: 5,
+    });
+    const afterRevokeThread = attachThread(attachTicketItem(attachUuidA, 1, 'จัดการสิทธิ์เปิดไฟล์', 5, 'CLOSED', 'HUMAN'), {
+      perms: {accept: false, reply: false, resolve: false, close: false, reassign: false, reopen: false},
+      customMessages: messagesWithStates.map(m => m.id === msgUuid2
+        ? {...m, outboundAttachment: {...m.outboundAttachment, studentAccess: 'REVOKED', canRevoke: false}}
+        : m),
+      readThrough: 5,
+    });
+
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'scripted', queue: [
+        {status: 200, body: json(beforeThread)},
+        {status: 200, body: json(afterRevokeThread)},
+      ]},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId2}/revoke$`, method: 'POST', mode: 'respond', status: 200, body: json({attachmentId: attId2, revoked: true})},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 5})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="outbound-message-attachment"]').length === 5, null, {timeout: 8000, polling: 30});
+
+    const threadText = await page.locator('.inbox-messages').innerText();
+    check(
+      threadText.includes('รอส่งถึง LINE') && threadText.includes('นักศึกษาเปิดได้') && threadText.includes('หมดเวลาเปิด (30 วัน)') && threadText.includes('ถอนสิทธิ์แล้ว') && threadText.includes('ส่งไม่สำเร็จ'),
+      'แสดงสถานะภาษาไทยตาม studentAccess ครบทั้ง 5 สถานะ',
+      threadText,
+    );
+    const revokeBtnsBefore = await page.locator('[data-testid="outbound-revoke-open"]').count();
+    check(revokeBtnsBefore === 2, 'ปุ่ม ถอนสิทธิ์เปิดไฟล์ แสดงเฉพาะข้อความที่ canRevoke:true แม้เคสปิดแล้ว', revokeBtnsBefore);
+
+    await page.locator('[data-testid="outbound-revoke-open"]').nth(1).click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-revoke-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    const dialogText = await page.locator('[data-testid="outbound-revoke-dialog"]').innerText();
+    check(dialogText.includes('เปิดได้.png') && dialogText.includes('ข้อความ') && dialogText.includes('LINE') && dialogText.includes('ลิงก์'), 'dialog ถอนสิทธิ์บอกชัดว่าข้อความใน LINE ยังอยู่แต่ลิงก์เปิดไม่ได้', dialogText);
+
+    await page.locator('[data-testid="outbound-revoke-submit"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="outbound-revoke-open"]').length === 1, null, {timeout: 8000, polling: 30});
+
+    const revokes = await postRequests(page, `/outbound-attachments/${attId2}/revoke$`);
+    check(revokes.length === 1 && revokes[0].body === '{}', 'ยิง POST .../revoke ด้วย body {}', revokes);
+    const gets = await page.evaluate(id => window.__shim.requestsSnapshot().filter(r => r.method === 'GET' && r.url.includes(id)), attachUuidA);
+    check(gets.length >= 2, 'หลัง revoke 200 ต้อง refetch thread จริงแทนการเดาสถานะ', gets.length);
+  },
+};
+
+const S35 = {
+  id: 'S35-outbound-cross-room-isolation-and-401',
+  title: 'OC08: ห้อง A อัปโหลด/confirm ค้างแล้วสลับไปห้อง B — ผลของ A ไม่โผล่ใน B และ 401 ระหว่างค้างล้างทั้ง actor',
+  viewport: {width: 1440, height: 900},
+  async run(page, port, check) {
+    await page.goto(`${BASE}:${port}/fixture/inbox`);
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'respond', status: 200, body: ATTACH_LIST_BODY},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ห้อง A ค้าง', 5), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidB}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidB, 2, 'ห้อง B อิสระ', 8), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments$`, method: 'POST', mode: 'defer', key: 'upload-a'},
+      {pattern: `^/api/chat/tickets/${attachUuidA}/outbound-attachments/${attId1}/confirm$`, method: 'POST', mode: 'defer', key: 'confirm-a'},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+
+    // Part 1: Upload hangs in A -> switch to B -> resolve A with 201 READY.
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'room-a-secret.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+    });
+    await page.waitForFunction(() => window.__shim.deferredKeys().includes('upload-a#1'), null, {timeout: 8000, polling: 30});
+
+    await clickRow(page, 1);
+    await page.waitForFunction(() => document.body.innerText.includes('ห้อง B อิสระ'), null, {timeout: 8000, polling: 30});
+    await page.locator('#chat-reply').fill('DRAFT_ROOM_B_SAFE');
+
+    await page.evaluate(() => window.__shim.resolveDeferred('upload-a#1', {status: 201, body: {attachmentId: '77777777-7777-4777-8777-777777777771', status: 'READY'}}));
+    await waitForCommitBarrier(page);
+
+    const inBAfterUploadA = await page.evaluate(() => ({
+      draftCardCount: document.querySelectorAll('[data-testid="outbound-draft-card"]').length,
+      text: document.body.innerText,
+      replyDisabled: (document.querySelector('.inbox-reply-form button[type="submit"]') || {}).disabled ?? null,
+    }));
+    check(inBAfterUploadA.draftCardCount === 0 && !inBAfterUploadA.text.includes('room-a-secret.pdf'), 'ผล 201 อัปโหลดของ A ห้ามโผล่ในห้อง B', {draftCardCount: inBAfterUploadA.draftCardCount});
+    check(inBAfterUploadA.replyDisabled === false, 'อัปโหลด/สถานะของห้อง A ห้ามล็อกปุ่มตอบของห้อง B', inBAfterUploadA.replyDisabled);
+
+    // Switch back to A -> A owns its READY draft -> start confirm in A (deferred) -> switch to B -> resolve 200 (must not leak to B).
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-draft-card"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-draft-confirm-open"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-confirm-dialog"][open]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-confirm-submit"]').click();
+    await page.waitForFunction(() => window.__shim.deferredKeys().includes('confirm-a#1'), null, {timeout: 8000, polling: 30});
+
+    await clickRow(page, 1);
+    await page.waitForFunction(() => document.body.innerText.includes('ห้อง B อิสระ'), null, {timeout: 8000, polling: 30});
+    const bConfirmDialog = await page.locator('[data-testid="outbound-confirm-dialog"][open]').count();
+    check(bConfirmDialog === 0, 'dialog ยืนยันของ A ห้ามตามไปเปิดในห้อง B', bConfirmDialog);
+
+    await page.evaluate(() => window.__shim.resolveDeferred('confirm-a#1', {status: 200, body: {attachmentId: '77777777-7777-4777-8777-777777777771', messageId: '88888888-8888-4888-8888-888888888881', status: 'WAITING_USER', revision: 6}}));
+    await waitForCommitBarrier(page);
+    const inBAfterConfirmA = await page.evaluate(() => ({
+      text: document.body.innerText,
+      replyValue: (document.querySelector('#chat-reply') || {}).value ?? null,
+    }));
+    check(!inBAfterConfirmA.text.includes('ยืนยันส่งไฟล์เข้าคิวแล้ว') && inBAfterConfirmA.replyValue === 'DRAFT_ROOM_B_SAFE', 'ผล 200 confirm ของ A ห้ามโผล่ใน B หรือทับร่างของ B', inBAfterConfirmA.replyValue);
+
+    // Check 403 room-scoped erasure on Room A while Room B is open: Room B stays intact.
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'room-a-403.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+    });
+    await page.waitForFunction(() => window.__shim.deferredKeys().includes('upload-a#2'), null, {timeout: 8000, polling: 30});
+    await clickRow(page, 1);
+    await page.waitForFunction(() => document.body.innerText.includes('ห้อง B อิสระ'), null, {timeout: 8000, polling: 30});
+    await page.evaluate(() => window.__shim.resolveDeferred('upload-a#2', {status: 403, body: {error: 'INVALID_ORIGIN'}}));
+    await waitForCommitBarrier(page);
+    const bAfterA403 = await page.evaluate(() => ({
+      urlSearch: window.location.search,
+      replyValue: (document.querySelector('#chat-reply') || {}).value ?? null,
+    }));
+    check(bAfterA403.urlSearch.includes(attachUuidB) && bAfterA403.replyValue === 'DRAFT_ROOM_B_SAFE', '403 จากงานค้างของ A ต้องไม่ปิดหรือล้างห้อง B', bAfterA403);
+
+    // Start another upload in A (deferred) -> switch to B -> resolve 401 -> must reset whole actor immediately!
+    await clickRow(page, 0);
+    await page.waitForFunction(() => document.querySelector('[data-testid="outbound-file-input"]') !== null, null, {timeout: 8000, polling: 30});
+    await page.locator('[data-testid="outbound-file-input"]').setInputFiles({
+      name: 'room-a-401.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+    });
+    await page.waitForFunction(() => window.__shim.deferredKeys().includes('upload-a#3'), null, {timeout: 8000, polling: 30});
+    await clickRow(page, 1);
+    await page.waitForFunction(() => document.body.innerText.includes('ห้อง B อิสระ'), null, {timeout: 8000, polling: 30});
+
+    await configure(page, [
+      {pattern: '^/api/chat/inbox', method: 'GET', mode: 'defer', key: 'list-hang-401'},
+      {pattern: `^/api/chat/tickets/${attachUuidA}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidA, 1, 'ห้อง A ค้าง', 6), {outboundFiles: {enabled: true}}))},
+      {pattern: `^/api/chat/tickets/${attachUuidB}`, method: 'GET', mode: 'respond', status: 200, body: json(attachThread(attachTicketItem(attachUuidB, 2, 'ห้อง B อิสระ', 8), {outboundFiles: {enabled: true}}))},
+      {pattern: '/api/chat/tickets/.*/read$', method: 'POST', mode: 'respond', status: 200, body: json({readThroughSequence: 3})},
+    ]);
+    await page.evaluate(() => window.__shim.resolveDeferred('upload-a#3', {status: 401, body: {error: 'UNAUTHENTICATED'}}));
+    await page.waitForFunction(() => window.__shim.deferredKeys().some(k => k.startsWith('list-hang-401')), null, {timeout: 8000, polling: 30});
+    await waitForCommitBarrier(page);
+
+    const after401 = await page.evaluate(() => ({
+      rows: document.querySelectorAll('.inbox-ticket-row').length,
+      messages: document.querySelectorAll('.inbox-message').length,
+      draftCard: document.querySelectorAll('[data-testid="outbound-draft-card"]').length,
+      replyValue: (document.querySelector('#chat-reply') || {}).value ?? null,
+    }));
+    check(after401.rows === 0 && after401.messages === 0 && after401.draftCard === 0 && (after401.replyValue === null || after401.replyValue === ''), '401 จากงานค้างของ A ขณะอยู่ห้อง B ต้อง reset ทั้ง actor ทันที', after401);
+
+    // Even if list later recovers 200, B's old typed draft must remain erased.
+    await page.evaluate(body => window.__shim.resolveDeferred('list-hang-401#1', {status: 200, body}), ATTACH_LIST_BODY);
+    await page.waitForFunction(() => document.querySelectorAll('.inbox-ticket-row').length === 2, null, {timeout: 8000, polling: 30});
+    await clickRow(page, 1);
+    await page.waitForFunction(() => document.body.innerText.includes('ห้อง B อิสระ'), null, {timeout: 8000, polling: 30});
+    const bDraftAfter401 = await page.locator('#chat-reply').inputValue();
+    check(bDraftAfter401 === '', 'หลัง 401 และเปิดห้อง B ใหม่ ร่างของ B ต้องถูกล้างถาวร', bDraftAfter401);
+  },
+};
+
+export const scenarios = [S01, S02, S03, S04, S05, S06, S07, S08, S09, S10, S11, S12, S13, S14, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31, S32, S33, S34, S35];
 
 /**
  * Shared support surface for the browser-proofs runner (run-proofs.mjs): the
