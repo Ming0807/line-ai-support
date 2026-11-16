@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-207; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-209; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+16 November 2026 (DEC-209): direction changed to [natural chat without required buttons](architecture/NATURAL_CHAT_DESIGN.md) — AI picks the topic and hands over to Staff itself. Not implemented yet; case table lists what is done.
 
 16 November 2026 (DEC-205–207): CHAT-MEDIA-02H thread fields and the merged OC-08 Inbox file UI (flags off); [CONV-REAL](architecture/LINE_CHAT_REALISM_PLAN.md) adaptive input window (migration 57, on hosted development), unanswered input carried into the next turn and a fixed greeting reply; [LINE-style eval](reports/CONV_EVAL_LINE_01_REPORT.md) 41/41 with a fake provider; `pnpm local:test` / `pnpm local:ai` starts optional OCR. V1 is not complete: real LINE/OA and Flow A–F acceptance remain.
 
