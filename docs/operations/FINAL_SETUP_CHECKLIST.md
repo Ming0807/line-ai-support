@@ -1,5 +1,13 @@
 # สิ่งที่ผู้ใช้ต้องทำตอนส่งมอบทดสอบจริง
 
+## Public URL ถาวร (เจ้าของตั้งค่าแล้ว 16 พ.ย. 2026, DEC-200)
+
+- Cloudflare Named Tunnel เป็น Windows Service `cloudflared` (Automatic) ผูก `https://botserveryru.dpdns.org` → `http://127.0.0.1:3000`
+- Webhook ใน LINE Developers ตั้งถาวรแล้ว: Student `https://botserveryru.dpdns.org/api/line/student/webhook`, Staff `https://botserveryru.dpdns.org/api/line/staff/webhook` เจ้าของรายงานว่ากด Verify ได้ 200 OK ทั้งสองตัว (Root ไม่ได้เห็นหน้าจอ LINE Developers เอง)
+- Root ตรวจ 16 พ.ย.: service Running, `GET https://botserveryru.dpdns.org/login` ได้ 502 ตอนไม่มีแอปรัน (tunnel เชื่อมแล้ว รอ origin) และ `pnpm local:check` อ่านโดเมนถาวรได้ ยังไม่ได้รัน `pnpm local:ai` ผ่านโดเมนนี้ ซึ่งจะยิง signed webhook ทดสอบผ่านโดเมนจริง
+- รายการ Quick Tunnel `*.trycloudflare.com` ด้านล่างเป็นประวัติ ไม่ต้องอัปเดต webhook ทุกครั้งที่รันอีกแล้ว
+- ถ้าเปิด LINE Login ของเจ้าหน้าที่ ต้องอนุญาต `https://botserveryru.dpdns.org/auth/callback` ใน Supabase Auth และ LINE Login channel
+
 ## ต้องทำก่อน 15 ธันวาคม 2026, 21:02 น. (เวลากรุงเทพฯ)
 
 การรับรองบัญชีฟรีของ Gemini (FREE_ONLY attestation) ใช้ได้ถึงวันและเวลาข้างต้น ตอนนี้ระบบเปิดใช้โมเดลสร้างคำตอบอยู่ตัวเดียว คือ `gemini-3.5-flash-lite` และไม่มีโมเดลสำรองที่ผ่านการทดสอบแล้ว ถ้าการรับรองหมดอายุ ระบบจะบล็อก AI ฝั่งนักศึกษาทั้งหมด

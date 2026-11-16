@@ -14,7 +14,7 @@ import {databaseConnection} from '../../lib/database/connection.ts';
 import {structuredInfrastructureReady} from '../../lib/knowledge/structured-readiness.ts';
 import {readStaffLineConfig} from '../../lib/auth/line-staff-config.ts';
 import {verifyChatMediaStorage} from '../../lib/chat/media-storage.ts';
-import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth,REVISION} from './config.mjs';
+import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,resolvePublicBase,validateEmbeddingHealth,REVISION} from './config.mjs';
 import {forceStopOwnedTree} from './process-tree.mjs';
 import {parsePilotStatusLine} from '../ai/hermes-pilot-status.mjs';
 
@@ -225,14 +225,15 @@ async function main(){
  const serviceKeys=new Set(['EMBEDDING_MODEL','EMBEDDING_DIMENSION','EMBEDDING_MODEL_REVISION','EMBEDDING_MODEL_CACHE_DIR','EMBEDDING_API_KEY','EMBEDDING_HOST','EMBEDDING_PORT']);
  if(Object.keys(service).some(key=>!serviceKeys.has(key)))throw new Error('LOCAL_EMBEDDING_CONFIG_INVALID');
  sessionEnv=buildSessionEnvironment(process.env,service,`http://127.0.0.1:${options.port}`,options.port,options);
+ const publicBase=resolvePublicBase(process.env,options);
  const python=join(root,'services/embedding/.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
  if(!existsSync(python))throw new Error('LOCAL_EMBEDDING_PYTHON_MISSING');
  phase='CACHE';checkCache(service);phase='DATABASE';await databaseCheck(sessionEnv);
  phase='MEDIA_STORAGE';await verifyChatMediaStorage({url:sessionEnv.SUPABASE_URL,secretKey:sessionEnv.SUPABASE_SECRET_KEY});
  log('CHECK','Private chat media storage settings verified');phase='START';
- if(options.mode==='check'){log('CHECK','PASS: configuration/cache/development database/private media storage; no services or provider/LINE calls started');return;}
+ if(options.mode==='check'){log('CHECK',publicBase.kind==='named'?`Public base: permanent named tunnel ${publicBase.url} (not contacted by --check)`:'Public base: quick tunnel at start (or none with --no-tunnel)');log('CHECK','PASS: configuration/cache/development database/private media storage; no services or provider/LINE calls started');return;}
  if(!await portAvailable(options.port))throw new Error('LOCAL_WEB_PORT_IN_USE');
- const cloudflared=options.tunnel?findCloudflared():undefined;
+ const cloudflared=publicBase.kind==='quick'?findCloudflared():undefined;
  await acquire();log('LOCAL',`Logs: ${relative(root,logFile)}; stop: pnpm local:stop or Ctrl+C`);
  if(options.assistantPreview)for(const message of assistantPreviewMessages())log('PREVIEW',message);
  let embeddingReady=false;try{embeddingReady=await checkEmbedding(sessionEnv);}catch{/* A missing service is started below. */}
@@ -243,14 +244,18 @@ async function main(){
   await waitFor('E5',()=>checkEmbedding(sessionEnv),120_000,()=>log('E5','Still loading cached offline CPU multilingual-e5-small / 384'));
   log('E5','Ready: offline CPU multilingual-e5-small / 384');
  }
- if(options.tunnel){
+ if(publicBase.kind==='quick'){
   let tunnelUrl;
   launch('TUNNEL',cloudflared,['tunnel','--url',`http://127.0.0.1:${options.port}`,'--no-autoupdate'],sessionEnv,false,line=>{
    const found=line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/);if(found)tunnelUrl=found[0];
   });
   const url=await waitFor('TUNNEL',()=>tunnelUrl,60_000);
   sessionEnv=buildSessionEnvironment(process.env,service,url,options.port,options);
- }
+ }else if(publicBase.kind==='named'){
+  sessionEnv=buildSessionEnvironment(process.env,service,publicBase.url,options.port,options);
+  log('TUNNEL','Using the permanent named tunnel from APP_BASE_URL; cloudflared is not started by this session');
+ }else if(publicBase.namedConfigured)log('LOCAL','Local only: the permanent named tunnel service may still forward real LINE webhooks to this port');
+ const publicUrl=publicBase.kind==='none'?null:sessionEnv.APP_BASE_URL;
  const entry=join(root,'scripts/local/node-service.mjs');
  launch('WEB',process.execPath,['--import','tsx',entry,'WEB',String(options.port)],sessionEnv,true);
  await waitFor('WEB',()=>smokeWeb(`http://127.0.0.1:${options.port}`,sessionEnv),120_000);
@@ -259,13 +264,13 @@ async function main(){
  try{startedAt=(await clockPool.query('select clock_timestamp() observed_at')).rows[0].observed_at;}finally{await clockPool.end();}
  for(const name of ['INBOX','AI','OUTBOX','INCIDENT','MEDIA'])launch(name,process.execPath,['--import','tsx',entry,name],sessionEnv,true);
  await waitFor('WORKERS',()=>workerObservations(startedAt),30_000);log('CHECK','All five worker check-ins observed after startup; processes are running');
- if(options.tunnel){await waitFor('PUBLIC_WEB',()=>smokeWeb(sessionEnv.APP_BASE_URL,sessionEnv),90_000);log('TUNNEL','Public signed verification requests PASS');}
+ if(publicUrl){await waitFor('PUBLIC_WEB',()=>smokeWeb(publicUrl,sessionEnv),90_000);log('TUNNEL','Public signed verification requests PASS');}
  let hermesStatus='SKIPPED',hermesPhase='CONFIGURATION';
  if(options.hermesCheck){log('HERMES','Running isolated two-turn synthetic FREE_ONLY pilot; responses are suppressed');
   const result=await runHermesPilot();hermesStatus=result.status;hermesPhase=result.phase;log('HERMES',hermesReadiness(result.status,result.phase));if(stopping)throw new Error('LOCAL_STOPPING');}
  state={...state,status:'READY',assistantMode:options.assistantPreview?'NATURAL_PREVIEW':sessionEnv.YRU_ASSISTANT_ENABLED==='true'?'NATURAL':'LEGACY',
-  localUrl:`http://127.0.0.1:${options.port}`,publicUrl:options.tunnel?sessionEnv.APP_BASE_URL:null};persist();
- for(const message of readyMessages(options.port,options.tunnel?sessionEnv.APP_BASE_URL:null,hermesStatus,hermesPhase,options))log('READY',message);
+  localUrl:`http://127.0.0.1:${options.port}`,publicUrl};persist();
+ for(const message of readyMessages(options.port,publicUrl,hermesStatus,hermesPhase,{...options,publicBase:publicBase.kind,namedConfigured:publicBase.namedConfigured===true}))log('READY',message);
  const staffLogin=readStaffLineConfig(sessionEnv);
  log('READY',`Staff Inbox: http://127.0.0.1:${options.port}/inbox; approvals (Super Admin): http://127.0.0.1:${options.port}/staff-applications`);
  log('READY',`Staff application: ${sessionEnv.APP_BASE_URL}/staff/apply`);

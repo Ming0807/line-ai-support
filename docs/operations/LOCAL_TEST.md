@@ -51,6 +51,17 @@ Workers จะจบรอบและปิด connection ก่อน ตั�
 pnpm local:check
 ```
 
+## Public URL ถาวร (Cloudflare Named Tunnel, DEC-200)
+
+ตั้งแต่ 16 พ.ย. 2026 เครื่องนี้มี Windows Service `cloudflared` (เริ่มอัตโนมัติ) ผูก `https://botserveryru.dpdns.org` → `http://127.0.0.1:3000` และใน `.env` ตั้ง `APP_BASE_URL=https://botserveryru.dpdns.org`
+
+- `pnpm local:ai` / `pnpm local:test` จะใช้โดเมนนี้เป็น public URL **โดยไม่เปิด cloudflared ซ้อน** และยังยิง signed webhook ว่างผ่านโดเมนจริงเพื่อยืนยันว่า tunnel ทำงาน ถ้า service หยุดอยู่จะได้ `PUBLIC_WEB` timeout
+- Webhook URL ไม่เปลี่ยนอีกต่อไป: Student `https://botserveryru.dpdns.org/api/line/student/webhook`, Staff `https://botserveryru.dpdns.org/api/line/staff/webhook`
+- โดเมนถาวรต้องใช้พอร์ต 3000 (`LOCAL_NAMED_TUNNEL_PORT_MISMATCH` ถ้าใส่ `--port` อื่นโดยไม่มี `--no-tunnel`) และต้องเป็น https origin ล้วน ไม่มี path, query หรือ credential (`LOCAL_PUBLIC_BASE_URL_INVALID`) ค่า `*.trycloudflare.com` เก่าใน `.env` จะถูกปฏิเสธ
+- **ข้อควรระวัง:** service ส่งต่อทุก request ไปที่พอร์ต 3000 ตลอดเวลา แม้รันด้วย `--no-tunnel` หรือรัน `next dev` เอง LINE ก็ยังส่ง webhook จริงเข้ามาได้ ตัวรันจะเตือนเรื่องนี้ ถ้าไม่ต้องการรับข้อความจริงให้หยุด service หรือใช้พอร์ตอื่น
+- LINE Login ของเจ้าหน้าที่ใช้ callback `https://botserveryru.dpdns.org/auth/callback` ให้เริ่ม login จากโดเมนนี้ ส่วน email login ผ่าน `http://127.0.0.1:3000/login` ใช้ได้ตามเดิม
+- ถ้าตั้ง `APP_BASE_URL` กลับเป็น `http://localhost:3000` ตัวรันจะกลับไปใช้ Quick Tunnel แบบเดิม
+
 ทดสอบ Dashboard อย่างเดียวโดยไม่สร้าง public tunnel:
 
 ```powershell
@@ -107,6 +118,8 @@ Get-Content -LiteralPath $localLog.FullName -Tail 80 -Wait
 | `LOCAL_DEVELOPMENT_REQUIRED` / target mismatch | เลือก development ตาม `.env` เดิม ไม่ชี้ production |
 | `LOCAL_EMBEDDING_…` | ตรวจ service `.env`, virtualenv/cache เดิม, model/revision/384 และ key ตรงกัน; ไม่มี automatic download |
 | `LOCAL_MIGRATION_HISTORY_MISMATCH` / `LOCAL_STRUCTURED_NOT_READY` | ตรวจประวัติฐาน development ตาม runbook; ตัวรันไม่ apply/reset ฐานอัตโนมัติ |
+| `LOCAL_PUBLIC_BASE_URL_INVALID` / `LOCAL_NAMED_TUNNEL_PORT_MISMATCH` | ตรวจ `APP_BASE_URL` ใน `.env` ว่าเป็น `https://botserveryru.dpdns.org` ล้วน และใช้พอร์ต 3000 |
+| `PUBLIC_WEB` timeout ขณะใช้โดเมนถาวร | ตรวจว่า Windows Service `cloudflared` ยัง Running และ Public Hostname ยังชี้ `http://127.0.0.1:3000` |
 | `LOCAL_CLOUDFLARED_MISSING` / tunnel timeout | ตรวจ cloudflared ใน PATH/เครือข่าย หรือใช้ `--no-tunnel` สำหรับ Dashboard |
 | `LOCAL_FREE_ONLY_REQUIRED` | ปิด provider ที่อนุญาต paid แล้วใช้ FREE_ONLY ใน Providers สำหรับรอบทดสอบนี้ |
 

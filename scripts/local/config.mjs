@@ -22,6 +22,26 @@ export function parseArguments(args){
  if(mode!=='start'&&(seen.has('--no-tunnel')||seen.has('--port')||hermesCheck||staffTest||assistantPreview||webSearch)||staffTest&&(hermesCheck||assistantPreview)||flowV2&&(mode!=='start'||!assistantPreview))fail('LOCAL_ARGUMENTS_INVALID');
  return {mode,port,tunnel,hermesCheck,...(staffTest?{staffTest:true}:{}),...(assistantPreview?{assistantPreview:true}:{}),...(webSearch?{webSearch:true}:{}),...(flowV2?{flowV2:true}:{})};
 }
+const namedHost=/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+/** Origin of a permanent named-tunnel public base, or null when the value is not one. */
+export function namedPublicOrigin(value){
+ let url;try{url=new URL(String(value??'').trim());}catch{return null;}
+ const host=url.hostname;
+ if(url.protocol!=='https:'||url.username||url.password||url.port||url.pathname!=='/'||url.search||url.hash)return null;
+ if(!namedHost.test(host)||host==='localhost'||host.endsWith('.localhost')||host.endsWith('.trycloudflare.com'))return null;
+ return url.origin;
+}
+/** DEC-200: a permanent Cloudflare named tunnel (Windows service) replaces the per-session quick tunnel. */
+export function resolvePublicBase(env,options){
+ const raw=String(env.APP_BASE_URL??'').trim();
+ let local=!raw;
+ if(!local){try{const url=new URL(raw);local=url.protocol==='http:'&&loopbacks.has(url.hostname);}catch{local=false;}}
+ if(local)return options.tunnel?{kind:'quick'}:{kind:'none',namedConfigured:false};
+ const origin=namedPublicOrigin(raw);if(!origin)fail('LOCAL_PUBLIC_BASE_URL_INVALID');
+ if(!options.tunnel)return {kind:'none',namedConfigured:true};
+ if(options.port!==3000)fail('LOCAL_NAMED_TUNNEL_PORT_MISMATCH');
+ return {kind:'named',url:origin};
+}
 function validateWebSearch(env){
  if(env.DDGS_ENABLED==='true'&&typeof env.DDGS_PYTHON_PATH==='string'&&env.DDGS_PYTHON_PATH.length<=2048&&isAbsolute(env.DDGS_PYTHON_PATH))return;
  const key=env.TAVILY_API_KEY,stamp=env.TAVILY_FREE_ATTESTED_AT;
@@ -61,7 +81,7 @@ export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
  if((env.EMBEDDING_API_KEY??'')!==serviceKey|| (serviceKey&& (serviceKey.length<16||serviceKey.length>512||/\s/.test(serviceKey))))fail('LOCAL_EMBEDDING_AUTH_MISMATCH');
  for(const [name,value] of [['EMBEDDING_MODEL',MODEL],['EMBEDDING_MODEL_REVISION',REVISION],['EMBEDDING_DIMENSION','384']])if(env[name]&&env[name]!==value)fail('LOCAL_EMBEDDING_CONFIG_INVALID');
  const base=new URL(baseUrl);
- if(base.username||base.password||base.search||base.hash||base.pathname!=='/'||!(base.protocol==='https:'&&/^[a-z0-9-]+\.trycloudflare\.com$/.test(base.hostname)||base.protocol==='http:'&&base.hostname==='127.0.0.1'&&base.port===String(port)))fail('LOCAL_BASE_URL_INVALID');
+ if(base.username||base.password||base.search||base.hash||base.pathname!=='/'||!(base.protocol==='https:'&&/^[a-z0-9-]+\.trycloudflare\.com$/.test(base.hostname)||namedPublicOrigin(baseUrl)===base.origin||base.protocol==='http:'&&base.hostname==='127.0.0.1'&&base.port===String(port)))fail('LOCAL_BASE_URL_INVALID');
  return {...env,...service,EMBEDDING_HOST:host,EMBEDDING_PORT:embeddingPort,EMBEDDING_MODEL:MODEL,EMBEDDING_MODEL_REVISION:REVISION,EMBEDDING_DIMENSION:'384',
   EMBEDDING_API_URL:endpoint.origin,APP_BASE_URL:base.origin,LINE_WEBHOOK_MODE:'durable',YRU_AI_ENABLED:'true',YRU_WEB_SEARCH_ENABLED:options.webSearch===true?'true':'false',
   HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',
@@ -86,6 +106,8 @@ export function readyMessages(port,publicUrl,hermesStatus='SKIPPED',hermesPhase=
   messages.push(`Student webhook: ${publicUrl}/api/line/student/webhook`);
   messages.push(`Staff webhook: ${publicUrl}/api/line/staff/webhook`);
  }
+ if(publicUrl&&options.publicBase==='named')messages.push('Permanent named tunnel: webhook URLs are stable; this session did not start cloudflared');
+ if(!publicUrl&&options.namedConfigured)messages.push('Local only (--no-tunnel): the permanent named tunnel service may still forward real LINE webhooks to this port');
  if(options.staffTest){
   messages.push('Staff workflow pilot: natural assistant OFF; legacy support AI remains enabled; not V1 acceptance');
   messages.push('Hermes: not run in staff pilot; retrieval comparison is separate');

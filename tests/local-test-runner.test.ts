@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {spawn,type ChildProcess} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,validateEmbeddingHealth} from '../scripts/local/config.mjs';
+import {buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,resolvePublicBase,validateEmbeddingHealth} from '../scripts/local/config.mjs';
 import {forceStopOwnedTree} from '../scripts/local/process-tree.mjs';
 
 const env={YRU_DEPLOYMENT_ENV:'development',DEV_SUPABASE_PROJECT_REF:'abcdefghijklmnopqrst',
@@ -204,5 +204,47 @@ describe('local command and output boundaries',()=>{
   const line=`${env.LINE_STUDENT_CHANNEL_SECRET} ${env.ENCRYPTION_KEY} postgresql://someone:password@db.example:5432/postgres Authorization: Bearer unknown-bearer-value {"replyToken":"unknown-reply-value"}`;
   const actual=redactLine(line,env);for(const value of [env.LINE_STUDENT_CHANNEL_SECRET,env.ENCRYPTION_KEY,'someone','password','unknown-bearer-value','unknown-reply-value'])expect(actual).not.toContain(value);
   expect(redactLine('https://example.trycloudflare.com/api/line/student/webhook',env)).toContain('https://example.trycloudflare.com');
+ });
+});
+
+describe('permanent named tunnel public base (Cloudflare Windows service)',()=>{
+ const named='https://botserveryru.dpdns.org';
+ it('uses a configured https APP_BASE_URL as the public base without starting a quick tunnel',()=>{
+  expect(resolvePublicBase({APP_BASE_URL:named},{tunnel:true,port:3000})).toEqual({kind:'named',url:named});
+  expect(resolvePublicBase({APP_BASE_URL:named+'/'},{tunnel:true,port:3000})).toEqual({kind:'named',url:named});
+  expect(resolvePublicBase({APP_BASE_URL:'https://BotServerYRU.dpdns.org'},{tunnel:true,port:3000})).toEqual({kind:'named',url:named});
+ });
+ it('keeps the quick tunnel when APP_BASE_URL is local or absent, and no public base with --no-tunnel',()=>{
+  for(const value of [undefined,'','http://localhost:3000','http://127.0.0.1:3000'])
+   expect(resolvePublicBase({APP_BASE_URL:value},{tunnel:true,port:3000})).toEqual({kind:'quick'});
+  expect(resolvePublicBase({APP_BASE_URL:named},{tunnel:false,port:3000})).toEqual({kind:'none',namedConfigured:true});
+  expect(resolvePublicBase({APP_BASE_URL:'http://localhost:3000'},{tunnel:false,port:3001})).toEqual({kind:'none',namedConfigured:false});
+ });
+ it.each([
+  named+'/api',named+'?x=1',named+'#h','https://user:pw@botserveryru.dpdns.org','http://botserveryru.dpdns.org',
+  'https://botserveryru.dpdns.org:8443','https://203.0.113.7','https://[2001:db8::1]','https://localhost','https://intranet',
+  'https://stale-words.trycloudflare.com','ftp://botserveryru.dpdns.org','not a url',
+ ])('refuses an unsafe or ephemeral configured public base %s',value=>{
+  expect(()=>resolvePublicBase({APP_BASE_URL:value},{tunnel:true,port:3000})).toThrow('LOCAL_PUBLIC_BASE_URL_INVALID');
+ });
+ it('requires the default port because the named tunnel forwards to 127.0.0.1:3000',()=>{
+  expect(()=>resolvePublicBase({APP_BASE_URL:named},{tunnel:true,port:3001})).toThrow('LOCAL_NAMED_TUNNEL_PORT_MISMATCH');
+  expect(resolvePublicBase({APP_BASE_URL:named},{tunnel:false,port:3001})).toEqual({kind:'none',namedConfigured:true});
+ });
+ it('builds the child session with the permanent base and still refuses other public hosts',()=>{
+  const actual=buildSessionEnvironment(env,embedding,named,3000);
+  expect(actual.APP_BASE_URL).toBe(named);expect(actual.LINE_WEBHOOK_MODE).toBe('durable');
+  for(const bad of [named+'/x','http://botserveryru.dpdns.org','https://203.0.113.7'])
+   expect(()=>buildSessionEnvironment(env,embedding,bad,3000)).toThrow('LOCAL_BASE_URL_INVALID');
+ });
+ it('labels the permanent URLs as stable and warns that --no-tunnel cannot stop the service from forwarding',()=>{
+  const lines=readyMessages(3000,named,'SKIPPED','CONFIGURATION',{publicBase:'named'});
+  expect(lines).toContain(`Student webhook: ${named}/api/line/student/webhook`);
+  expect(lines).toContain(`Staff webhook: ${named}/api/line/staff/webhook`);
+  expect(lines.join('|')).toContain('Permanent named tunnel');
+  expect(lines.join('|')).not.toContain('trycloudflare');
+  const local=readyMessages(3000,null,'SKIPPED','CONFIGURATION',{publicBase:'none',namedConfigured:true}).join('|');
+  expect(local).toContain('--no-tunnel');expect(local).toContain('may still forward real LINE webhooks');
+  expect(readyMessages(3000,null).join('|')).not.toContain('may still forward');
  });
 });
