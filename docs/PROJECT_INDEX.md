@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-201; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-202; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+16 November 2026 (DEC-202): CHAT-MEDIA-02G Student viewer implemented behind the existing default-off viewer gates: LIFF page `/liff/media`, server-verified LINE ID token, 5-minute attachment-bound cookie, SENT-only access to the current recipient with checks before and after the Storage read, 30-day access window and append-only Staff revocation (migration 56 applied to hosted development, existing data unchanged). Owned PostgreSQL 28/28. Real LIFF/LINE acceptance and Flow A–F remain open; V1 is NOT complete.
 
 16 November 2026 (DEC-199): OC-OPERATOR-07 Inbox UI fixes are squashed into `feat/yru-v1-final-polish` (source/tests/docs only; harness artifacts are gitignored). Mounted fixture matrix S01–S27 27/27 passes on the merged tree. Outbound chat media 02C–02E is behind default-off flags; next are 02F confirmation/outbox and the 02G Student viewer. V1 is still NOT complete: real LINE/OAuth/Realtime and Flow A–F remain open. See the end of the [task board](tasks/V1_TASK_BOARD.md).
 

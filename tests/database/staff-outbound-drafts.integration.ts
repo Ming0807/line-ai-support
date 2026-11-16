@@ -10,6 +10,7 @@ import {createHash} from 'node:crypto';
 import {reconcileStaffOutboundUploads} from '../../lib/chat/staff-outbound-recovery';
 import {confirmStaffOutboundAttachment} from '../../lib/chat/staff-outbound-confirm';
 import {decryptValue} from '../../lib/security/identity';
+import {findStudentViewableAttachment,revokeStaffOutboundDelivery,STUDENT_MEDIA_ACCESS_DAYS} from '../../lib/chat/student-media-access';
 
 // scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE; the older dedicated runner name stays accepted.
 const database=process.env.YRU_OWNED_DATABASE??process.env.YRU_OUTBOUND_DRAFTS_DATABASE;
@@ -442,4 +443,87 @@ test('delivery records are private, immutable and accept only a READY draft of t
   values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[uploading.attachmentId,g.staffId,g.ticketId,randomUUID(),'b'.repeat(64),gMessage,row.outbox_id,0,{}]),/STAFF_OUTBOUND_DELIVERY_INVALID/u,
   'an UPLOADING draft and a foreign outbox are rejected by the database guard');
  assert.ok(result.messageId);
+});
+
+// CHAT-MEDIA-02G: the Student viewer serves bytes only for a SENT delivery to the current verified recipient (DEC-202).
+async function confirmedDelivery(f:Fixture):Promise<{attachmentId:string;outboxId:string}>{
+ const attachmentId=await readyDraft(f),result=await confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId),key,link);
+ const outboxId=(await pool.query('select outbox_id from private.staff_outbound_deliveries where attachment_id=$1',[attachmentId])).rows[0].outbox_id as string;
+ assert.ok(result.messageId);return {attachmentId,outboxId};
+}
+async function setOutbox(outboxId:string,status:'PENDING'|'PROCESSING'|'SENT'|'DEAD'|'SUPPRESSED',completedAgo='0 seconds'):Promise<void>{
+ await pool.query(`update private.message_outbox set status=$2,completed_at=case when $2 in('SENT','DEAD','SUPPRESSED') then clock_timestamp()-$3::interval else null end,
+  lease_token=case when $2='PROCESSING' then gen_random_uuid() else null end,lease_until=case when $2='PROCESSING' then clock_timestamp()+interval '60 seconds' else null end
+  where id=$1`,[outboxId,status,completedAgo]);
+}
+const viewable=(attachmentId:string,userHash:string)=>findStudentViewableAttachment(pool,attachmentId,userHash);
+
+test('viewer access exists only after the bound outbox row is SENT, with the immutable draft reference',async()=>{
+ const f=await makeCase(),{attachmentId,outboxId}=await confirmedDelivery(f);
+ for(const status of ['PENDING','PROCESSING','DEAD','SUPPRESSED'] as const){
+  await setOutbox(outboxId,status);assert.equal(await viewable(attachmentId,f.userHash),null,status);
+ }
+ await setOutbox(outboxId,'SENT');
+ const draft=await draftRow(attachmentId),ref=await viewable(attachmentId,f.userHash);
+ assert.deepEqual(ref,{attachmentId,objectId:draft.object_id,ticketId:f.ticketId,mimeType:'application/pdf',byteLength:128,checksum});
+ const unconfirmed=await readyDraft(await makeCase());
+ assert.equal(await viewable(unconfirmed,f.userHash),null,'a READY draft that was never confirmed is not viewable');
+ assert.equal(await viewable(randomUUID(),f.userHash),null);
+});
+
+test('viewer access needs the current recipient identity of an active LINE session',async()=>{
+ const f=await makeCase(),{attachmentId,outboxId}=await confirmedDelivery(f);await setOutbox(outboxId,'SENT');
+ const other=await makeCase();
+ assert.equal(await viewable(attachmentId,other.userHash),null,'another Student account cannot open the file');
+ assert.equal(await viewable(attachmentId,'d'.repeat(64)),null);
+ await pool.query('update public.line_sessions set active=false where id=$1',[f.sessionId]);
+ assert.equal(await viewable(attachmentId,f.userHash),null,'unfollow/block suspends access');
+ await pool.query('update public.line_sessions set active=true where id=$1',[f.sessionId]);
+ assert.ok(await viewable(attachmentId,f.userHash),'follow again restores access');
+ const replacement=`U${randomUUID().replaceAll('-','')}`;
+ await pool.query('update private.line_identities set user_hash=$2,user_id_encrypted=$3 where line_session_id=$1',[f.sessionId,hashLineUserId(replacement,key),encryptValue(replacement,key)]);
+ assert.equal(await viewable(attachmentId,f.userHash),null,'the original hash alone is not enough once the session identity changes');
+ assert.equal(await viewable(attachmentId,hashLineUserId(replacement,key)),null,'a new identity is not the confirmed recipient');
+});
+
+test('a delivered file stays viewable after the case closes, within the access window only',async()=>{
+ const f=await makeCase(),{attachmentId,outboxId}=await confirmedDelivery(f);await setOutbox(outboxId,'SENT');
+ await pool.query("update public.tickets set status='RESOLVED' where id=$1",[f.ticketId]);
+ assert.ok(await viewable(attachmentId,f.userHash),'closing the case does not withdraw a delivered file');
+ assert.equal(STUDENT_MEDIA_ACCESS_DAYS,30);
+ await setOutbox(outboxId,'SENT',`${STUDENT_MEDIA_ACCESS_DAYS} days -1 hour`);
+ assert.ok(await viewable(attachmentId,f.userHash),'inside the window');
+ await setOutbox(outboxId,'SENT',`${STUDENT_MEDIA_ACCESS_DAYS} days 1 minute`);
+ assert.equal(await viewable(attachmentId,f.userHash),null,'after the window');
+ assert.equal((await draftRow(attachmentId)).status,'READY','expiry never rewrites or deletes the draft');
+});
+
+test('revocation is append-only, scoped to sender/assignee/scoped supervisor and immediately ends access',async()=>{
+ const privileges=(await pool.query(`select c.relrowsecurity,
+  has_table_privilege('anon','private.staff_outbound_revocations','SELECT,INSERT,UPDATE,DELETE') as anon_any,
+  has_table_privilege('authenticated','private.staff_outbound_revocations','SELECT,INSERT,UPDATE,DELETE') as auth_any,
+  has_table_privilege('service_role','private.staff_outbound_revocations','SELECT,INSERT') as service_access
+  from pg_class c where c.oid='private.staff_outbound_revocations'::regclass`)).rows[0];
+ assert.equal(privileges.relrowsecurity,true);assert.equal(privileges.anon_any,false);assert.equal(privileges.auth_any,false);assert.equal(privileges.service_access,true);
+ const f=await makeCase(),{attachmentId,outboxId}=await confirmedDelivery(f);await setOutbox(outboxId,'SENT');
+ const outsider=await makeStaff((await pool.query("select id from public.departments where code='LIBRARY'")).rows[0].id as string,'SUPERVISOR');
+ const colleague=await makeStaff(f.departmentId,'STAFF');
+ for(const staffId of [outsider,colleague])
+  await assert.rejects(revokeStaffOutboundDelivery(pool,{staffId,ticketId:f.ticketId,attachmentId}),/NOT_FOUND/u,'no revocation without scope and relation');
+ await assert.rejects(revokeStaffOutboundDelivery(pool,{staffId:f.staffId,ticketId:(await makeCase()).ticketId,attachmentId}),/NOT_FOUND/u,'wrong case');
+ assert.ok(await viewable(attachmentId,f.userHash));
+ assert.deepEqual(await revokeStaffOutboundDelivery(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId}),{attachmentId,revoked:true});
+ assert.equal(await viewable(attachmentId,f.userHash),null,'revoked immediately');
+ assert.deepEqual(await revokeStaffOutboundDelivery(pool,{staffId:f.supervisorId,ticketId:f.ticketId,attachmentId}),{attachmentId,revoked:true},'idempotent for a scoped supervisor');
+ const row=(await pool.query('select * from private.staff_outbound_revocations where attachment_id=$1',[attachmentId])).rows;
+ assert.equal(row.length,1);assert.equal(row[0].revoked_by,f.staffId);
+ await assert.rejects(pool.query('update private.staff_outbound_revocations set revoked_by=$2 where attachment_id=$1',[attachmentId,f.supervisorId]),/STAFF_OUTBOUND_REVOCATION_IMMUTABLE/u);
+ await assert.rejects(pool.query('delete from private.staff_outbound_revocations where attachment_id=$1',[attachmentId]),/STAFF_OUTBOUND_REVOCATION_IMMUTABLE/u);
+ assert.equal((await draftRow(attachmentId)).status,'READY','revocation never deletes or rewrites the private object reference');
+ const unconfirmed=await makeCase(),draft=await readyDraft(unconfirmed);
+ await assert.rejects(revokeStaffOutboundDelivery(pool,{staffId:unconfirmed.staffId,ticketId:unconfirmed.ticketId,attachmentId:draft}),/NOT_FOUND/u,'only a confirmed delivery can be revoked');
+ const g=await makeCase(),second=await confirmedDelivery(g);await setOutbox(second.outboxId,'SENT');
+ await pool.query("update public.tickets set status='RESOLVED' where id=$1",[g.ticketId]);
+ assert.deepEqual(await revokeStaffOutboundDelivery(pool,{staffId:g.staffId,ticketId:g.ticketId,attachmentId:second.attachmentId}),{attachmentId:second.attachmentId,revoked:true},
+  'a closed case can still be revoked by the sender');
 });
