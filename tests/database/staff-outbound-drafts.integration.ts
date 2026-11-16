@@ -11,6 +11,7 @@ import {reconcileStaffOutboundUploads} from '../../lib/chat/staff-outbound-recov
 import {confirmStaffOutboundAttachment} from '../../lib/chat/staff-outbound-confirm';
 import {decryptValue} from '../../lib/security/identity';
 import {findStudentViewableAttachment,revokeStaffOutboundDelivery,STUDENT_MEDIA_ACCESS_DAYS} from '../../lib/chat/student-media-access';
+import {readThread} from '../../lib/chat/service';
 
 // scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE; the older dedicated runner name stays accepted.
 const database=process.env.YRU_OWNED_DATABASE??process.env.YRU_OUTBOUND_DRAFTS_DATABASE;
@@ -526,4 +527,36 @@ test('revocation is append-only, scoped to sender/assignee/scoped supervisor and
  await pool.query("update public.tickets set status='RESOLVED' where id=$1",[g.ticketId]);
  assert.deepEqual(await revokeStaffOutboundDelivery(pool,{staffId:g.staffId,ticketId:g.ticketId,attachmentId:second.attachmentId}),{attachmentId:second.attachmentId,revoked:true},
   'a closed case can still be revoked by the sender');
+});
+
+// CHAT-MEDIA-02H (DEC-205): the Staff thread shows a confirmed file with derived Student access, never the LIFF link parsed from text.
+const outboundEnv={CHAT_STAFF_OUTBOUND_UPLOAD_ENABLED:'true',CHAT_STAFF_OUTBOUND_CONFIRM_ENABLED:'true',LINE_STUDENT_MEDIA_VIEWER_ENABLED:'true',
+ LINE_STUDENT_LOGIN_SAME_PROVIDER_CONFIRMED:'true',LINE_STUDENT_LOGIN_CHANNEL_ID:link.liffId.split('-')[0],LINE_STUDENT_LIFF_ID:link.liffId,ENCRYPTION_KEY:key};
+async function threadFile(staffId:string,f:Fixture,env:Record<string,string|undefined>=outboundEnv){
+ const thread=await readThread(staffId,f.ticketId,{},{pool,key,env});
+ return {thread,file:thread.messages.find(message=>message.outboundAttachment)?.outboundAttachment??null};
+}
+
+test('thread API exposes outboundFiles and the confirmed file with derived studentAccess and canRevoke',async()=>{
+ const f=await makeCase(),{attachmentId,outboxId}=await confirmedDelivery(f);
+ const {thread,file}=await threadFile(f.staffId,f);
+ assert.deepEqual(thread.outboundFiles,{enabled:true});
+ assert.deepEqual(file,{id:attachmentId,name:'guide.pdf',mimeType:'application/pdf',size:128,studentAccess:'WAITING_DELIVERY',canRevoke:true});
+ const owner=thread.messages.find(message=>message.outboundAttachment);
+ assert.equal(owner?.senderType,'STAFF');
+ assert.equal(thread.messages.filter(message=>message.outboundAttachment).length,1,'only the confirming STAFF message carries the file');
+ assert.equal((await threadFile(f.staffId,f,{...outboundEnv,CHAT_STAFF_OUTBOUND_UPLOAD_ENABLED:'false'})).thread.outboundFiles?.enabled,false);
+ assert.equal((await threadFile(f.staffId,f,{...outboundEnv,CHAT_STAFF_OUTBOUND_CONFIRM_ENABLED:'false'})).file?.canRevoke,false,'revoke route hidden');
+ await setOutbox(outboxId,'SENT');assert.equal((await threadFile(f.staffId,f)).file?.studentAccess,'AVAILABLE');
+ await setOutbox(outboxId,'SENT',`${STUDENT_MEDIA_ACCESS_DAYS} days 1 minute`);assert.equal((await threadFile(f.staffId,f)).file?.studentAccess,'EXPIRED');
+ for(const status of ['DEAD','SUPPRESSED'] as const){await setOutbox(outboxId,status);assert.equal((await threadFile(f.staffId,f)).file?.studentAccess,'NOT_DELIVERED',status);}
+ await setOutbox(outboxId,'SENT');
+ const colleague=await makeStaff(f.departmentId,'STAFF');
+ assert.equal((await threadFile(colleague,f)).file?.canRevoke,false,'a scoped colleague sees the file but cannot revoke');
+ assert.equal((await threadFile(f.supervisorId,f)).file?.canRevoke,true,'a scoped supervisor can revoke');
+ await revokeStaffOutboundDelivery(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId});
+ assert.deepEqual((await threadFile(f.supervisorId,f)).file,{id:attachmentId,name:'guide.pdf',mimeType:'application/pdf',size:128,studentAccess:'REVOKED',canRevoke:false});
+ const plain=await makeCase(),ready=await readyDraft(plain);
+ const unconfirmed=await threadFile(plain.staffId,plain);
+ assert.equal(unconfirmed.file,null,'an unconfirmed READY draft is not listed');assert.ok(ready);
 });

@@ -8,8 +8,9 @@ import {transaction} from '../../lib/database/pool';
 import {enqueueOutbound} from '../../lib/queue/outbox';
 import {encryptValue} from '../../lib/security/identity';
 
-const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
-assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
+// verify-structured-schema provides YRU_STRUCTURED_SCHEMA_DATABASE; scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE.
+const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE??process.env.YRU_OWNED_DATABASE;
+assert(database&&/^yru_(?:structured_schema|owned)_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
 const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${database}`,max:6,application_name:'inbox-chat-owned-qa'});
 const key=Buffer.alloc(32,83).toString('base64');
 const letters=()=>randomUUID().replaceAll('-','').toUpperCase().replace(/[0-9]/gu,value=>String.fromCharCode(65+Number(value)));

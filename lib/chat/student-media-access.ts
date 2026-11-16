@@ -4,11 +4,8 @@ import {z} from 'zod';
 import {authorizeScope,isSupervisor,loadActor,TicketError,type DbClient} from '../tickets/authorization';
 import {staffOutboundRefSchema,type StaffOutboundRef} from './staff-outbound-binary';
 
-/**
- * CHAT-MEDIA-02G (DEC-202): a delivered Staff file is viewable for this many days after LINE accepted the
- * message. Expiry only ends access; the private object and draft stay for a later audited retention policy.
- */
-export const STUDENT_MEDIA_ACCESS_DAYS=30;
+import {STUDENT_MEDIA_ACCESS_DAYS} from './staff-outbound-view';
+export {STUDENT_MEDIA_ACCESS_DAYS};
 const hashPattern=/^[a-f0-9]{64}$/u;
 
 /**

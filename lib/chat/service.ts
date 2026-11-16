@@ -1,15 +1,16 @@
 import {createHash} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {getDatabasePool,transaction} from '../database/pool';
-import {loadActor,authorizeScope,lockConversation,TicketError} from '../tickets/authorization';
+import {loadActor,authorizeScope,lockConversation,TicketError,isSupervisor} from '../tickets/authorization';
 import {getTicketDetail} from '../tickets/reads';
 import {decryptValue,encryptValue} from '../security/identity';
 import {readChatInputSchema,noteChatInputSchema,type InboxQuery,type ThreadQuery} from './contracts';
 import type {InboxListResult,InboxThreadResult,ChatMessage,ChatNote} from '../../types/inbox';
 import type {TicketListItem} from '../../types/tickets';
 import {chatMediaForMessages} from './media-repository';
+import {outboundAttachmentsForMessages,staffOutboundFilesEnabled} from './staff-outbound-view';
 
-type Options={pool?:Pool;key?:string};
+type Options={pool?:Pool;key?:string;env?:Record<string,string|undefined>};
 const seq=(value:unknown)=>{const n=Number(value);if(!Number.isSafeInteger(n)||n<0)throw new Error('INBOX_SEQUENCE_INVALID');return n;};
 const stamp=(value:Date|string)=>new Date(value).toISOString();
 const ticketSelect=`select t.id,t.ticket_no,t.department_id,d.name_th department_name,t.category,t.problem_summary,t.priority,t.status,t.mode,
@@ -70,9 +71,9 @@ const deliverySql=`coalesce((select o.status from private.message_outbox o where
 export async function readThread(staffId:string,ticketId:string,query:Partial<ThreadQuery>={},options:Options={}):Promise<InboxThreadResult>{
  const pool=options.pool??getDatabasePool();
  return transaction(async c=>{
-  await lockedTicket(c,staffId,ticketId);
+  const actor=await lockedTicket(c,staffId,ticketId);
   const detail=await getTicketDetail(staffId,ticketId,{client:c,includeMessages:false});if(!detail)throw new TicketError('NOT_FOUND');
-  const ticket=(await c.query('select department_id,sensitive_level from public.tickets where id=$1',[ticketId])).rows[0];if(!ticket)throw new TicketError('NOT_FOUND');
+  const ticket=(await c.query('select department_id,sensitive_level,assigned_staff_id from public.tickets where id=$1',[ticketId])).rows[0];if(!ticket)throw new TicketError('NOT_FOUND');
   await authorizeScope(c,ticket.department_id,ticket.sensitive_level);
   const limit=query.limit??50;if(!Number.isInteger(limit)||limit<1||limit>100)throw new TicketError('INVALID_REQUEST');
   const before=query.beforeSequence;if(before!==undefined&&(!Number.isSafeInteger(before)||before<=0))throw new TicketError('INVALID_REQUEST');
@@ -90,15 +91,20 @@ export async function readThread(staffId:string,ticketId:string,query:Partial<Th
   const key=options.key??process.env.ENCRYPTION_KEY;
   const attachments=await chatMediaForMessages(c,ticketId,messages.map(message=>message.id),key);
   for(const message of messages)message.attachments=attachments.get(message.id)??[];
+  const env=options.env??process.env;
+  const outbound=await outboundAttachmentsForMessages(c,{ticketId,messageIds:messages.map(message=>message.id),actorId:staffId,
+   actorSupervisor:isSupervisor(actor),assigneeId:ticket.assigned_staff_id??null,revokeEnabled:env.CHAT_STAFF_OUTBOUND_CONFIRM_ENABLED==='true',key});
+  for(const message of messages){const file=outbound.get(message.id);if(file)message.outboundAttachment=file;}
   const notes:ChatNote[]=noteRows.map(r=>{if(!key)throw new Error('ENCRYPTION_NOT_CONFIGURED');return {id:r.id,text:decryptValue(r.content_encrypted,key),staffName:r.display_name,createdAt:stamp(r.created_at)};});
-  return {detail,messages,notes,latestSequence,readThroughSequence,hasMore,nextBefore:hasMore?messages[0]?.sequence??null:null};
+  return {detail,messages,notes,latestSequence,readThroughSequence,hasMore,nextBefore:hasMore?messages[0]?.sequence??null:null,
+   outboundFiles:{enabled:staffOutboundFilesEnabled(env)}};
  },pool);
 }
 
 async function lockedTicket(c:PoolClient,staffId:string,ticketId:string){
- await loadActor(c,staffId);const ref=(await c.query('select conversation_id from public.tickets where id=$1',[ticketId])).rows[0];if(!ref)throw new TicketError('NOT_FOUND');
+ const actor=await loadActor(c,staffId);const ref=(await c.query('select conversation_id from public.tickets where id=$1',[ticketId])).rows[0];if(!ref)throw new TicketError('NOT_FOUND');
  await lockConversation(c,ref.conversation_id);const row=(await c.query('select department_id,sensitive_level from public.tickets where id=$1 for share',[ticketId])).rows[0];
- if(!row)throw new TicketError('NOT_FOUND');await authorizeScope(c,row.department_id,row.sensitive_level);
+ if(!row)throw new TicketError('NOT_FOUND');await authorizeScope(c,row.department_id,row.sensitive_level);return actor;
 }
 export async function acknowledgeRead(staffId:string,ticketId:string,throughSequence:number,options:Options={}){
  readChatInputSchema.parse({throughSequence});

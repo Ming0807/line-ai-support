@@ -100,8 +100,13 @@ export async function computeSha256Hex(bytes: ArrayBuffer | Uint8Array): Promise
 
 export function encodeOutboundFileNameHeader(name: string): string {
   const trimmed = name.trim() || 'attachment';
-  const chars = Array.from(trimmed);
-  let candidate = chars.slice(0, 360).join('');
+  // The server limit is 360 UTF-16 code units (JavaScript string length), so count units, and only cut
+  // between code points so an emoji is never split into a lone surrogate.
+  let candidate = '';
+  for (const char of trimmed) {
+    if (candidate.length + char.length > 360) break;
+    candidate += char;
+  }
   let encoded = encodeURIComponent(candidate);
   while (encoded.length > 1080 && candidate.length > 1) {
     const reduced = Array.from(candidate);
