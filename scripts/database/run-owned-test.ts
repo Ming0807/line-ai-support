@@ -13,18 +13,21 @@ import {fileURLToPath} from 'node:url';
  *   pnpm exec tsx scripts/database/run-owned-test.ts tests/database/section-expansion.integration.ts
  *
  * Pass --seed to apply supabase/seed.sql (reference departments) after the migrations.
+ * Pass --structured-name for older tests that read YRU_STRUCTURED_SCHEMA_DATABASE: the disposable
+ * database is then named yru_structured_schema_<hex> and both variables point to it.
  */
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 assert.equal(resolve(process.cwd()), root, 'WORKSPACE_ROOT_REQUIRED');
 const args = process.argv.slice(2);
 const seed = args.includes('--seed');
+const structuredName = args.includes('--structured-name');
 const testFile = args.find(arg => !arg.startsWith('--')) ?? '';
 const relativeTest = relative(root, resolve(root, testFile)).replaceAll('\\', '/');
 assert.match(relativeTest, /^tests\/database\/[a-z0-9-]+\.integration\.ts$/u, 'OWNED_TEST_FILE_REQUIRED');
 
 const container = 'supabase_db_line-ai-yru';
-const database = `yru_owned_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
-assert.match(database, /^yru_owned_[a-f0-9]{12}$/u, 'DISPOSABLE_DATABASE_REQUIRED');
+const database = `${structuredName ? 'yru_structured_schema_' : 'yru_owned_'}${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+assert.match(database, /^yru_(?:owned|structured_schema)_[a-f0-9]{12}$/u, 'DISPOSABLE_DATABASE_REQUIRED');
 
 function command(args: string[], input?: string): string {
   return execFileSync('docker', ['exec', ...(input === undefined ? [] : ['-i']), container, ...args],
@@ -63,7 +66,7 @@ commit;`);
   stage = 'test';
   console.log(JSON.stringify({stage: 'owned_database_ready', migrations: migrations.length, seeded: seed, test: relativeTest}));
   const run = spawnSync('pnpm', ['exec', 'tsx', '--conditions=react-server', '--test', '--test-concurrency=1', relativeTest],
-    {cwd: root, env: {...process.env, YRU_OWNED_DATABASE: database}, stdio: 'inherit', shell: process.platform === 'win32'});
+    {cwd: root, env: {...process.env, YRU_OWNED_DATABASE: database, ...(structuredName ? {YRU_STRUCTURED_SCHEMA_DATABASE: database} : {})}, stdio: 'inherit', shell: process.platform === 'win32'});
   if (run.status !== 0) process.exitCode = 1;
 } catch (error) {
   // Disposable database only: the psql error line names the failing statement, never data.

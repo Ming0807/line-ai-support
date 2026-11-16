@@ -10,8 +10,8 @@ export async function persistWebhookEvents(events:IngressEvent[],pool:Pool=getDa
    .map(event=>`inbox:${event.channel}:${event.userHash}`))].sort();
   for(const lane of lanes) await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[lane]);
   for(const event of events) await client.query(
-   `insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind)
-    values ($1,$2,$3,$4,$5) on conflict (channel,event_id) do nothing`,
-   [event.channel,event.eventId,event.userHash,event.payloadEncrypted,event.eventKind??'UNKNOWN']);
+   `insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,input_hold)
+    values ($1,$2,$3,$4,$5,$6) on conflict (channel,event_id) do nothing`,
+   [event.channel,event.eventId,event.userHash,event.payloadEncrypted,event.eventKind??'UNKNOWN',event.inputHold==='EXTENDED'?'EXTENDED':'NORMAL']);
  },pool);
 }

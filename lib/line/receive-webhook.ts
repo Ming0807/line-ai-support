@@ -1,4 +1,5 @@
-export interface IngressEvent { channel: 'STUDENT'|'STAFF'; eventId: string; userHash: string|null; payloadEncrypted: string; eventKind?:EventKind; }
+/** inputHold (CONV-BURST-01, DEC-206): Student text only; changes how long the input window waits, nothing else. */
+export interface IngressEvent { channel: 'STUDENT'|'STAFF'; eventId: string; userHash: string|null; payloadEncrypted: string; eventKind?:EventKind; inputHold?:InputHold; }
 export interface WebhookDependencies { channel: 'STUDENT'|'STAFF'; secret?: string; encryptionKey?: string; persist(events: IngressEvent[]): Promise<void>; maxBytes?: number; }
 function fail(status:number,code:string):Response { return Response.json({ok:false,code},{status}); }
 function object(value:unknown):Record<string,unknown>|null {
@@ -40,7 +41,8 @@ export async function receiveLineWebhook(request:Request,dependencies:WebhookDep
    return {channel,eventId:typeof data?.webhookEventId==='string' && data.webhookEventId.length>0
     ? data.webhookEventId : `malformed:${createHash('sha256').update(json).digest('hex')}`,
     userHash:source?.type==='user' && typeof source.userId==='string'?hashLineUserId(source.userId,encryptionKey):null,
-    payloadEncrypted:encryptValue(json,encryptionKey),eventKind:classifyEventKind(event)};
+    payloadEncrypted:encryptValue(json,encryptionKey),eventKind:classifyEventKind(event),
+    ...(channel==='STUDENT'?{inputHold:inputHoldForEvent(event)}:{})};
   });
   await persist(events);
   console.info('LINE_INGRESS_ACCEPTED',{channel,eventCount:events.length});
@@ -54,3 +56,4 @@ import { createHash } from 'node:crypto';
 import { encryptValue, hashLineUserId } from '../security/identity';
 import { verifyLineSignature } from './signature';
 import { classifyEventKind, type EventKind } from './events';
+import { inputHoldForEvent, type InputHold } from '../conversation/input-hold';

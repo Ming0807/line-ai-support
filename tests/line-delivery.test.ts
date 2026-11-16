@@ -286,9 +286,15 @@ describe('deliverLine', () => {
     expect(original).toEqual([message]);
     expect(calls).toHaveLength(1);
 
-    const invalid = await deliverLine(input({ messages: [{ type: 'text', text: 'x', quickReply: { items: [{ type: 'action', action: { type: 'message', label: 'Not supported', text: 'free-form' } }] } }] as unknown as LineMessage[] }), options(fetchImpl));
+    // CONV-GREET-01 (DEC-206) added bounded message actions; other action types stay unsupported.
+    const invalid = await deliverLine(input({ messages: [{ type: 'text', text: 'x', quickReply: { items: [{ type: 'action', action: { type: 'camera', label: 'Not supported' } }] } }] as unknown as LineMessage[] }), options(fetchImpl));
     expect(invalid).toMatchObject({ status: 'DEAD', errorCode: 'INVALID_MESSAGES' });
     expect(calls).toHaveLength(1);
+    const tooLong = await deliverLine(input({ messages: [{ type: 'text', text: 'x', quickReply: { items: [{ type: 'action', action: { type: 'message', label: 'ค่าเทอม', text: 'x'.repeat(301) } }] } }] as unknown as Parameters<typeof deliverLine>[0]['messages'] }), options(fetchImpl));
+    expect(tooLong).toMatchObject({ status: 'DEAD', errorCode: 'INVALID_MESSAGES' });
+    const topic = await deliverLine(input({ messages: [{ type: 'text', text: 'x', quickReply: { items: [{ type: 'action', action: { type: 'message', label: 'ค่าเทอม', text: 'ค่าเทอม' } }] } }] }), options(fetchImpl));
+    expect(topic.status).toBe('SENT');
+    expect(calls).toHaveLength(2);
   });
 
   it('bounds malformed LINE request IDs and does not log transport errors', async () => {

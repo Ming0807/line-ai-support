@@ -28,7 +28,7 @@ process.on('SIGTERM',()=>{stopped=true;});
 try {
  while(!stopped) {
   await observe();
-  const result=await runInboxCycle(pool,key,{aiEnabled,classify,classifyForJob});
+  const result=await runInboxCycle(pool,key,{aiEnabled,classify,classifyForJob,loading:{accessToken:process.env.LINE_STUDENT_CHANNEL_ACCESS_TOKEN}});
   if(process.argv.includes('--once')) {if(result.failed) process.exitCode=1;break;}
   if(!result.claimed || result.failed) await delay(1000);
  }

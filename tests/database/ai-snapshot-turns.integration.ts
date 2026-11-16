@@ -12,8 +12,9 @@ import {runAICycle} from '../../lib/ai/run-worker';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 import {flushDegradedInputNotices} from '../../lib/conversation/input-windows';
 
-const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
-assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
+// verify-structured-schema provides YRU_STRUCTURED_SCHEMA_DATABASE; scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE.
+const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE??process.env.YRU_OWNED_DATABASE;
+assert(database&&/^yru_(?:structured_schema|owned)_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
 const pool=new Pool({host:'127.0.0.1',port:54422,database,user:'postgres',password:'postgres',max:4});
 const sessions:string[]=[];
 afterEach(async()=>{
@@ -76,18 +77,19 @@ test('individually valid large fragments get one explicit limit notice instead o
  assert.match(packet.messages[0].text,/เกินขนาด/u);assert.match(packet.messages[0].text,/แยกคำถาม/u);assert(!packet.messages[0].text.includes('ก'.repeat(100)));
 });
 
-test('quiet extension stops at three seconds and duplicate insertion never extends collection',async()=>{
+// CONV-BURST-01 (DEC-206) raised the cap from 3 s to 15 s and the normal quiet gap from 1.2 s to 2.5 s.
+test('quiet extension stops at fifteen seconds and duplicate insertion never extends collection',async()=>{
  const f=await fixture(),first=await f.event(0);
- for(const ms of [1000,2000,2900])await f.event(ms);
+ for(const ms of [2000,4000,6000,8000,10000,12000,14000,14900])await f.event(ms);
  const window=(await pool.query(`select w.* from private.student_input_windows w join private.webhook_inbox i on i.input_window_id=w.id where i.id=$1`,[first.id])).rows[0];
- assert.equal(window.ready_at.getTime()-window.first_received_at.getTime(),3000);
+ assert.equal(window.ready_at.getTime()-window.first_received_at.getTime(),15000);
  const count=(await pool.query('select count(*)::int n from private.student_input_windows')).rows[0].n;
  const inserted=await pool.query(`insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,received_at)
   select channel,event_id,user_hash,payload_encrypted,event_kind,received_at+interval '1 second' from private.webhook_inbox where id=$1
   on conflict(channel,event_id) do nothing returning id`,[first.id]);assert.equal(inserted.rowCount,0);
  assert.equal((await pool.query('select count(*)::int n from private.student_input_windows')).rows[0].n,count);
  assert.equal((await pool.query('select ready_at from private.student_input_windows where id=$1',[window.id])).rows[0].ready_at.getTime(),window.ready_at.getTime());
- const next=await f.event(3001);
+ const next=await f.event(15001);
  assert.notEqual((await pool.query('select input_window_id from private.webhook_inbox where id=$1',[next.id])).rows[0].input_window_id,window.id);
 });
 

@@ -10,8 +10,9 @@ import {runInboxCycle} from '../../lib/queue/run-inbox';
 import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {flushDegradedInputNotices} from '../../lib/conversation/input-windows';
 
-const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
-assert(database&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
+// verify-structured-schema provides YRU_STRUCTURED_SCHEMA_DATABASE; scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE.
+const database=process.env.YRU_STRUCTURED_SCHEMA_DATABASE??process.env.YRU_OWNED_DATABASE;
+assert(database&&/^yru_(?:structured_schema|owned)_[a-f0-9]{12}$/u.test(database),'OWNED_DATABASE_REQUIRED');
 const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${database}`,max:4,
  application_name:'conversation-turns-owned-test'});
 after(()=>pool.end());
@@ -156,7 +157,7 @@ test('a newer routed USER source stales only the earlier job in that conversatio
  }finally{await f.cleanup();}
 });
 
-test('actual Student ingress does not create a claimable AI job before the 1200ms quiet window',async()=>{
+test('actual Student ingress does not create a claimable AI job before the 2500ms quiet window',async()=>{
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`;
  const userHash=hashLineUserId(userId,key),eventId=`TURN_WINDOW_${randomUUID()}`;
  const lineMessageId=randomUUID();
@@ -177,10 +178,10 @@ test('actual Student ingress does not create a claimable AI job before the 1200m
    where w.id=$1 and j.line_session_id=$2`,[inboxId,sessionId])).rows[0];
   assert(row,'AI_JOB_PREPARED_FROM_INGRESS');
   const age=(await pool.query('select extract(epoch from(clock_timestamp()-received_at))*1000 ms from private.webhook_inbox where id=$1',[inboxId])).rows[0].ms;
-  assert(Number(age)<1200,`fixture must reach claim inside the quiet window; observed ${age}ms`);
+  assert(Number(age)<2500,`fixture must reach claim inside the quiet window; observed ${age}ms`);
 
   const claim=await claimAIJob(pool);
-  assert.equal(claim,null,'AI generation must wait until the 1200ms quiet period closes');
+  assert.equal(claim,null,'AI generation must wait until the 2500ms quiet period closes');
  }finally{
   if(sessionId){
    await pool.query('delete from private.delivery_attempts where outbox_id in(select id from private.message_outbox where line_session_id=$1)',[sessionId]);
@@ -198,20 +199,21 @@ test('actual Student ingress does not create a claimable AI job before the 1200m
  }
 });
 
-test('a multi-message input window stops collecting at the three-second hard cap without charging an early AI attempt',async()=>{
+// CONV-BURST-01 (DEC-206): normal quiet gap 2.5 s (was 1.2 s), hard cap 15 s (was 3 s).
+test('a multi-message input window stops collecting at the fifteen-second hard cap without charging an early AI attempt',async()=>{
  const f=await windowFixture();
  try{
-  const firstAt=new Date(Date.now()+10000);
+  const firstAt=new Date(Date.now()+30000);
   const first=await f.addEvent('First short message',{receivedAt:firstAt});await f.routeNext();
-  const second=await f.addEvent('Second short message',{receivedAt:new Date(firstAt.getTime()+1100)});await f.routeNext();
-  const third=await f.addEvent('Third short message',{receivedAt:new Date(firstAt.getTime()+2200)});await f.routeNext();
-  assert.equal(second.windowId,first.windowId,'the second message joins the open window inside the quiet period');
-  assert.equal(third.windowId,first.windowId,'the third message joins before the hard cap');
+  for(const offset of [2400,4800,7200,9600,12000,14400]){
+   const next=await f.addEvent(`Short message at ${offset}`,{receivedAt:new Date(firstAt.getTime()+offset)});await f.routeNext();
+   assert.equal(next.windowId,first.windowId,'each message inside the quiet gap joins before the hard cap');
+  }
   const schedule=(await pool.query(`select w.first_received_at,w.last_received_at,w.ready_at,
-    w.ready_at=w.first_received_at+interval '3 seconds' capped,
-    w.ready_at<w.last_received_at+interval '1200 milliseconds' cut_short
+    w.ready_at=w.first_received_at+interval '15 seconds' capped,
+    w.ready_at<w.last_received_at+interval '2500 milliseconds' cut_short
    from private.student_input_windows w where w.id=$1`,[first.windowId])).rows[0];
-  assert.equal(schedule.capped,true,'ready_at is fixed by the first message plus three seconds');
+  assert.equal(schedule.capped,true,'ready_at is fixed by the first message plus fifteen seconds');
   assert.equal(schedule.cut_short,true,'the final message would otherwise extend the quiet period beyond the hard cap');
   const jobs=(await pool.query(`select j.id,j.message_id,j.attempts,j.status,m.source_event_id
    from private.ai_jobs j join public.messages m on m.id=j.message_id where j.line_session_id=$1 order by j.job_seq`,[f.session])).rows;

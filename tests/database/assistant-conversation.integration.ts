@@ -30,9 +30,11 @@ test('an obsolete unsent reply is suppressed without stranding the next unchange
  assert.equal((await runAICycle(pool,f.key,{produce:async snapshot=>createConversationReply(snapshot,'คำตอบแรก')!})).completed,1);
  const next=(await pool.query("insert into public.messages(conversation_id,sender_type,message_type,content) values($1,'USER','TEXT','คำถามถัดไป') returning id",[f.conversation])).rows[0].id;
  const nextJob=await transaction(client=>prepareAIJob(client,{sessionId:f.session,conversationId:f.conversation,messageId:next,receivedAt:new Date()},f.key),pool);
- let history:unknown;
- assert.equal((await runAICycle(pool,f.key,{produce:async snapshot=>{history=snapshot.history;return createConversationReply(snapshot,'คำตอบถัดไป')!;}})).completed,1);
- assert.deepEqual(history,[{role:'user',content:'Wi-Fi คืออะไร'}],'UNSENT_PRIOR_REPLY_MUST_NOT_BE_INPUT_HISTORY');
+ let history:unknown,question:unknown;
+ assert.equal((await runAICycle(pool,f.key,{produce:async snapshot=>{history=snapshot.history;question=snapshot.question;return createConversationReply(snapshot,'คำตอบถัดไป')!;}})).completed,1);
+ // CONV-SUPERSEDE-01 (DEC-206): the first question never got its (now stale) reply, so the next turn answers both.
+ assert.deepEqual(history,[],'UNSENT_PRIOR_REPLY_MUST_NOT_BE_INPUT_HISTORY');
+ assert.equal(question,'Wi-Fi คืออะไร\nคำถามถัดไป','UNANSWERED_PRIOR_QUESTION_IS_CARRIED');
  const sent:string[]=[];const options={accessTokens:{STUDENT:'synthetic',STAFF:'synthetic'},fetchImpl:async(_url:unknown,init?:RequestInit)=>{
   sent.push(...JSON.parse(String(init?.body)).messages.map((message:{text:string})=>message.text));return new Response(null,{status:200});
  }};

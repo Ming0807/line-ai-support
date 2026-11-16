@@ -5,7 +5,8 @@ import {structuredReferenceSources} from '../knowledge/structured-row-reference'
 import {transaction} from '../database/pool';
 import {lockConversation} from '../tickets/authorization';
 import {decryptValue,encryptValue} from '../security/identity';
-import {enqueueOutbound,type OutboundText} from '../queue/outbox';
+import {enqueueOutbound} from '../queue/outbox';
+import type {LineMessage} from '../line/message-schemas';
 import {freshAnswerEvidence} from '../knowledge/section-expansion';
 import {buildCitedAnswer,evidenceStillMatches,LINE_TEXT_PACKET_LIMIT_MESSAGE,lineMessages} from '../knowledge/citations';
 import {ruleContextsStillMatch} from '../knowledge/rule-proof';
@@ -25,6 +26,7 @@ import {createChoices} from '../conversation/quick-reply';
 import {loadCandidates,candidateSnapshot} from '../conversation/context-resolver';
 import {shortAnswerText,SHOW_FULL_LABEL,type ShortAnswerSource} from '../line/answer-presentation';
 import {isTurnFailureText} from './turn-flow-v2';
+import {greetingKind,greetingReply,isGreetingReplyText} from '../conversation/input-hold';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
@@ -65,6 +67,9 @@ async function snapshot(pool:Pool,job:AIJob,key:string,options:AIWorkerOptions):
 }
 async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promise<AIResult>{
  if(snapshot.collectedInputTooLarge)return {kind:'CLARIFY',text:AI_LONG_INPUT_MESSAGE};
+ // CONV-GREET-01 (DEC-206): a turn of only greetings/thanks gets a fixed reply without a model call.
+ const greeting=greetingKind(snapshot.question);
+ if(greeting)return {kind:'CLARIFY',text:greetingReply(greeting).text};
  const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
  const timeout=new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('AI_JOB_DEADLINE'));},90_000);});
  try{return await Promise.race([Promise.resolve().then(()=>options.produce(snapshot,controller.signal)),timeout]);}
@@ -123,7 +128,8 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    support=fresh;
   }
   const request=aiRequestSchema.parse(JSON.parse(decryptValue(current.request_encrypted,key)));
-  let messages:OutboundText[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|'LINE_TEXT_PACKET_TOO_LARGE'|null=null;
+  // LineMessage also allows the CONV-GREET-01 message action; enqueueOutbound validates the same schema.
+  let messages:LineMessage[],citations:unknown[]=[],code:'EVIDENCE_CHANGED'|'LINE_TEXT_PACKET_TOO_LARGE'|null=null;
   if(result.kind==='CONVERSATION'){
    const fresh=await readAIKnowledgeSnapshot(client,current,key);
    if(!fresh||!verifyConversationReply(result,fresh)){await finish(client,job,'SUPPRESSED','CONTEXT_CHANGED');return 'SUPPRESSED';}
@@ -187,6 +193,10 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
      const quickReply=await offer({label:SHOW_FULL_LABEL,value:{action:'SHOW_FULL',jobId:job.id,conversationId:job.conversation_id}});
      messages=lineMessages(short);messages[messages.length-1]={...messages[messages.length-1],quickReply};presentation='SHORT_FIRST';
     }
+   }else if(envelope.kind==='CLARIFY'&&isGreetingReplyText(envelope.text)){
+    const topics=greetingReply(envelope.text===greetingReply('GREETING').text?'GREETING':'THANKS').topics;
+    if(topics.length)messages[messages.length-1]={...messages[messages.length-1],
+     quickReply:{items:topics.map(label=>({type:'action' as const,action:{type:'message' as const,label,text:label}}))}};
    }else if(envelope.kind==='CLARIFY'&&isTurnFailureText(envelope.text)){
     const quickReply=await offer({label:'คุยกับเจ้าหน้าที่',value:{action:'CONTACT',conversationId:job.conversation_id}});
     messages[messages.length-1]={...messages[messages.length-1],quickReply};
@@ -221,7 +231,8 @@ export async function runAICycle(pool:Pool,key:string,options:AIWorkerOptions):P
   job=await claimAIJob(pool);if(!job)return stats;stats.claimed=1;
   let context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
   if(job.result_encrypted===null){
-   await showLoading(pool,job,key,options);
+   // A fixed greeting is answered at once, so no loading animation is started for it.
+   if(context.collectedInputTooLarge||!greetingKind(context.question))await showLoading(pool,job,key,options);
    // Takeover/revision/lease may change while the animation HTTP call runs.
    context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
    await saveAIResult(pool,job,await produceBounded(context,options),key);
