@@ -14,7 +14,7 @@ import {databaseConnection} from '../../lib/database/connection.ts';
 import {structuredInfrastructureReady} from '../../lib/knowledge/structured-readiness.ts';
 import {readStaffLineConfig} from '../../lib/auth/line-staff-config.ts';
 import {verifyChatMediaStorage} from '../../lib/chat/media-storage.ts';
-import {assistantPreviewMessages,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,resolvePublicBase,validateEmbeddingHealth,REVISION} from './config.mjs';
+import {assistantPreviewMessages,buildOcrSessionEnvironment,buildSessionEnvironment,hermesReadiness,parseArguments,readyMessages,redactLine,resolvePublicBase,validateEmbeddingHealth,validateOcrHealth,REVISION} from './config.mjs';
 import {forceStopOwnedTree} from './process-tree.mjs';
 import {parsePilotStatusLine} from '../ai/hermes-pilot-status.mjs';
 
@@ -45,13 +45,15 @@ function pipeLines(stream,name,onLine){
  });
  stream.on('end',()=>{pending+=decoder.end();if(pending&&!omitted&&pending.length<65536){onLine?.(pending);log(name,pending);}});
 }
-function launch(name,command,args,env,ipc=false,onLine){
+/** optional: an exit only stops this service (OCR-IMP-02), not the whole session. */
+function launch(name,command,args,env,ipc=false,onLine,optional=false){
  if(stopping)throw new Error('LOCAL_STOPPING');
  const child=spawn(command,args,{cwd:root,env,windowsHide:true,stdio:ipc?['ignore','pipe','pipe','ipc']:['ignore','pipe','pipe']});
  children.set(name,child);pipeLines(child.stdout,name,onLine);pipeLines(child.stderr,name,onLine);persist();
  child.once('error',()=>{log(name,'LOCAL_PROCESS_START_FAILED');if(!stopping)void shutdown(1);});
  child.once('exit',(code,signal)=>{
   log(name,`Stopped (${code??signal??'unknown'})`);
+  if(!stopping&&optional){log(name,'Optional service stopped; the rest of the session continues');persist();return;}
   if(!stopping){log('LOCAL',`${name} exited; stopping this session`);void shutdown(1);}
  });
  return child;
@@ -68,7 +70,7 @@ function shutdown(code=0){
  stopping=true;process.exitCode=code;state.status='STOPPING';persist();
  stopPromise=(async()=>{
   log('LOCAL','Stopping only services created by this session; waiting for workers to close');
-  for(const name of ['TUNNEL','HERMES','INBOX','INCIDENT','AI','OUTBOX','MEDIA','WEB','E5']){
+  for(const name of ['TUNNEL','HERMES','INBOX','INCIDENT','AI','OUTBOX','MEDIA','WEB','OCR','E5']){
    const child=children.get(name);if(!child||!active(child))continue;
    if(name==='HERMES'){
     try{await forceStopOwnedTree(child);}catch{log('HERMES','Exact process-tree stop failed; retrying within the bounded shutdown window');}
@@ -138,6 +140,28 @@ async function databaseCheck(env){
 async function checkEmbedding(env){
  const response=await fetch(env.EMBEDDING_API_URL+'/health',{headers:env.EMBEDDING_API_KEY?{Authorization:`Bearer ${env.EMBEDDING_API_KEY}`}:{},signal:AbortSignal.timeout(2000)});
  return response.ok&&validateEmbeddingHealth(await response.json());
+}
+async function checkOcr(env){
+ const response=await fetch(env.OCR_API_URL+'/health',{signal:AbortSignal.timeout(2000)});
+ return response.ok&&validateOcrHealth(await response.json());
+}
+/** OCR-IMP-02 (DEC-207): optional; failure leaves import OCR off for this session instead of stopping it. */
+async function startOcr(ocrEnv){
+ if(!ocrEnv)return false;
+ const env={...sessionEnv,...ocrEnv};
+ try{if(await checkOcr(env)){log('OCR','Reusing existing verified OCR service; it will not be stopped by this session');return true;}}catch{/* Started below. */}
+ const python=join(root,'services/ocr/.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
+ if(!existsSync(python)){log('OCR','Skipped: services/ocr/.venv is missing (see services/ocr/README.md); import OCR stays off');return false;}
+ if(!await portAvailable(Number(ocrEnv.OCR_PORT),ocrEnv.OCR_HOST)){log('OCR','Skipped: OCR port is in use by another program; import OCR stays off');return false;}
+ launch('OCR',python,[join(root,'services/ocr/run.py')],env,false,undefined,true);
+ try{
+  await waitFor('OCR',()=>checkOcr(env),180_000,()=>log('OCR','Still loading the pinned OpenThai OCR model on CPU'));
+  log('OCR','Ready: OpenThai2.0-OCR-Text 40e8e9f on loopback; import OCR drafts enabled for this session only');return true;
+ }catch(error){
+  if(error?.message==='LOCAL_STOPPING')throw error;
+  log('OCR','Not ready in time; stopping it and continuing with import OCR off');
+  const child=children.get('OCR');if(child)await forceStop(child);return false;
+ }
 }
 async function workerObservations(since){
  const pool=new pg.Pool({...databaseConnection(sessionEnv.DIRECT_URL),max:1});
@@ -225,12 +249,15 @@ async function main(){
  const serviceKeys=new Set(['EMBEDDING_MODEL','EMBEDDING_DIMENSION','EMBEDDING_MODEL_REVISION','EMBEDDING_MODEL_CACHE_DIR','EMBEDDING_API_KEY','EMBEDDING_HOST','EMBEDDING_PORT']);
  if(Object.keys(service).some(key=>!serviceKeys.has(key)))throw new Error('LOCAL_EMBEDDING_CONFIG_INVALID');
  sessionEnv=buildSessionEnvironment(process.env,service,`http://127.0.0.1:${options.port}`,options.port,options);
+ const ocrFile=join(root,'services/ocr/.env');
+ const ocrEnv=buildOcrSessionEnvironment(process.env,existsSync(ocrFile)?dotenv.parse(readFileSync(ocrFile)):null);
  const publicBase=resolvePublicBase(process.env,options);
  const python=join(root,'services/embedding/.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
  if(!existsSync(python))throw new Error('LOCAL_EMBEDDING_PYTHON_MISSING');
  phase='CACHE';checkCache(service);phase='DATABASE';await databaseCheck(sessionEnv);
  phase='MEDIA_STORAGE';await verifyChatMediaStorage({url:sessionEnv.SUPABASE_URL,secretKey:sessionEnv.SUPABASE_SECRET_KEY});
  log('CHECK','Private chat media storage settings verified');phase='START';
+ log('CHECK',ocrEnv?`OCR: services/ocr/.env found; the service starts with this session at ${ocrEnv.OCR_API_URL}`:'OCR: services/ocr/.env not found; import OCR stays off');
  if(options.mode==='check'){log('CHECK',publicBase.kind==='named'?`Public base: permanent named tunnel ${publicBase.url} (not contacted by --check)`:'Public base: quick tunnel at start (or none with --no-tunnel)');log('CHECK','PASS: configuration/cache/development database/private media storage; no services or provider/LINE calls started');return;}
  if(!await portAvailable(options.port))throw new Error('LOCAL_WEB_PORT_IN_USE');
  const cloudflared=publicBase.kind==='quick'?findCloudflared():undefined;
@@ -255,6 +282,7 @@ async function main(){
   sessionEnv=buildSessionEnvironment(process.env,service,publicBase.url,options.port,options);
   log('TUNNEL','Using the permanent named tunnel from APP_BASE_URL; cloudflared is not started by this session');
  }else if(publicBase.namedConfigured)log('LOCAL','Local only: the permanent named tunnel service may still forward real LINE webhooks to this port');
+ if(await startOcr(ocrEnv))sessionEnv={...sessionEnv,...ocrEnv};
  const publicUrl=publicBase.kind==='none'?null:sessionEnv.APP_BASE_URL;
  const entry=join(root,'scripts/local/node-service.mjs');
  launch('WEB',process.execPath,['--import','tsx',entry,'WEB',String(options.port)],sessionEnv,true);

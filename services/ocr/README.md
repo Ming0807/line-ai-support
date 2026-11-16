@@ -16,6 +16,8 @@ services/ocr/.venv/Scripts/python services/ocr/run.py
 
 Binds `127.0.0.1:8010` by default. A non-loopback host requires `OCR_API_KEY`. In the root `.env` set `KNOWLEDGE_IMPORT_OCR_ENABLED=true` and `OCR_API_URL=http://127.0.0.1:8010` to show the OCR buttons in the import review page.
 
+With `pnpm local` (OCR-IMP-02, DEC-207) you do not need to start it yourself: when `services/ocr/.env` exists the runner starts this service after E5 (or reuses a verified one), waits up to three minutes for the pinned model, and turns the import OCR buttons on for that session only (`.env` unchanged). OCR is optional there: a missing `.venv`, a busy port or a slow start only leaves OCR off; it never stops the session. Loopback only.
+
 ## API
 
 - `GET /health` → `{model, revision, healthy}` (no paths)

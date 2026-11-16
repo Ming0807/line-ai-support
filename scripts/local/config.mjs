@@ -87,6 +87,26 @@ export function buildSessionEnvironment(env,service,baseUrl,port,options={}){
   HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',
   ...(options.staffTest?{YRU_ASSISTANT_ENABLED:'false'}:options.assistantPreview?{YRU_ASSISTANT_ENABLED:'true',YRU_CONVERSATION_FLOW_V2:options.flowV2===true?'true':'false'}:{})};
 }
+export const OCR_MODEL='iapp/OpenThai2.0-OCR-Text';
+export const OCR_REVISION='40e8e9ff752b65153b1a71d521ec9390882afd7e';
+const ocrKeys=new Set(['OCR_MODEL_DIR','OCR_HOST','OCR_PORT','OCR_API_KEY']);
+/**
+ * OCR-IMP-02 (DEC-207): services/ocr/.env (literal keys only) → loopback session endpoint. null without the file.
+ * The OCR buttons are enabled for this local session only; .env stays unchanged and OCR text stays a draft.
+ */
+export function buildOcrSessionEnvironment(env,service){
+ if(!service)return null;
+ const bad=()=>fail('LOCAL_OCR_CONFIG_INVALID');
+ if(Object.keys(service).some(key=>!ocrKeys.has(key))||!service.OCR_MODEL_DIR)bad();
+ const host=service.OCR_HOST??'127.0.0.1',port=service.OCR_PORT??'8010';
+ if(!loopbacks.has(host)||!/^\d{1,5}$/.test(port)||Number(port)<1||Number(port)>65535)bad();
+ const origin=`http://${host}:${port}`;
+ if(env.OCR_API_URL&&env.OCR_API_URL.replace(/\/$/,'')!==origin)bad();
+ const key=service.OCR_API_KEY??'';
+ if((env.OCR_API_KEY??'')!==key||(key&&(key.length<16||key.length>512||/\s/.test(key))))bad();
+ return {OCR_MODEL_DIR:service.OCR_MODEL_DIR,OCR_HOST:host,OCR_PORT:port,OCR_API_URL:origin,KNOWLEDGE_IMPORT_OCR_ENABLED:'true',...(key?{OCR_API_KEY:key}:{})};
+}
+export function validateOcrHealth(value){return value?.model===OCR_MODEL&&value.revision===OCR_REVISION&&value.healthy===true;}
 export function validateEmbeddingHealth(value){return value?.status==='ok'&&value.model===MODEL&&value.revision===REVISION&&value.dimension===384;}
 const hermesPhases=new Set(['CONFIGURATION','PRIVATE_HOME','DATABASE_CONNECT','DATABASE_READY','BRIDGE_START','BRIDGE_READY','HERMES_RUNTIME_CONFIG','INTERPRETER_DISCOVERY','INTERPRETER_ACTIVATION','INTERPRETER_READY','AGENT_RUNNING','BEFORE_IMPORT','AFTER_IMPORT','AGENT_INIT','AGENT_READY','TURN_1_START','TURN_1_DONE','TURN_2_START','TURN_2_DONE','AGENT_EXITED','COMPLETE']);
 export function hermesReadiness(status,phase='CONFIGURATION'){
