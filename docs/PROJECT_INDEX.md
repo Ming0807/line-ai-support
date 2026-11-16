@@ -12,7 +12,7 @@
 
 ## สถานะปัจจุบัน
 
-16 November 2026 (DEC-205–207): CHAT-MEDIA-02H thread fields and the merged OC-08 Inbox file UI (flags off); [CONV-REAL](architecture/LINE_CHAT_REALISM_PLAN.md) adaptive input window (migration 57, not yet on hosted development), unanswered input carried into the next turn and a fixed greeting reply; [LINE-style eval](reports/CONV_EVAL_LINE_01_REPORT.md) 41/41 with a fake provider; `pnpm local` starts optional OCR. V1 is not complete: real LINE/OA and Flow A–F acceptance remain.
+16 November 2026 (DEC-205–207): CHAT-MEDIA-02H thread fields and the merged OC-08 Inbox file UI (flags off); [CONV-REAL](architecture/LINE_CHAT_REALISM_PLAN.md) adaptive input window (migration 57, on hosted development), unanswered input carried into the next turn and a fixed greeting reply; [LINE-style eval](reports/CONV_EVAL_LINE_01_REPORT.md) 41/41 with a fake provider; `pnpm local` starts optional OCR. V1 is not complete: real LINE/OA and Flow A–F acceptance remain.
 
 16 November 2026 (DEC-202): CHAT-MEDIA-02G Student viewer implemented behind the existing default-off viewer gates: LIFF page `/liff/media`, server-verified LINE ID token, 5-minute attachment-bound cookie, SENT-only access to the current recipient with checks before and after the Storage read, 30-day access window and append-only Staff revocation (migration 56 applied to hosted development, existing data unchanged). Owned PostgreSQL 28/28. Real LIFF/LINE acceptance and Flow A–F remain open; V1 is NOT complete.
 
