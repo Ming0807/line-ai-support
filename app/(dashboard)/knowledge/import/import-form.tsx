@@ -8,6 +8,7 @@ import type {SourceLocation} from '@/lib/imports/types';
 import {isReceiptEnvelope} from '@/lib/imports/publication-response';
 import {getImportFlowSteps,type ImportFlowStage} from './import-flow';
 import ReviewForm from './review-form';
+import {applyOcrDrafts,ocrEligiblePages,parseOcrDraft,type OcrPageReport} from './ocr-draft';
 
 type ApiResponse={response:Response;body:unknown};
 type EditConflict={id:string;label:string;previousValue:string;latestValue:string|null;draftValue:string;location:string;targetExists:boolean;acknowledged:boolean};
@@ -109,7 +110,7 @@ function rebaseDrafts(snapshot:DraftSnapshot,next:ImportPreview){
  return {titleDraft,pages,cells,conflicts,reason:hasEdits?snapshot.reason:''};
 }
 
-export default function ImportForm({initialJobs,initialJobId,initialListError}:{initialJobs:ImportJobView[];initialJobId:string|null;initialListError:boolean}){
+export default function ImportForm({initialJobs,initialJobId,initialListError,ocrEnabled=false}:{initialJobs:ImportJobView[];initialJobId:string|null;initialListError:boolean;ocrEnabled?:boolean}){
  const [jobs,setJobs]=useState(initialJobs);
  const [listError,setListError]=useState(initialListError);
  const [mode,setMode]=useState<'FILE'|'URL'>('FILE');
@@ -127,6 +128,7 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const [pageDrafts,setPageDrafts]=useState<Record<number,string>>({});
  const [cellDrafts,setCellDrafts]=useState<Record<string,string>>({});
  const [reason,setReason]=useState('');
+ const [ocrReport,setOcrReport]=useState<{jobId:string;revision:number;pages:Record<number,OcrPageReport>}|null>(null);
  const [pending,setPending]=useState<string|null>(null);
  const [notice,setNotice]=useState('');
  const [failure,setFailure]=useState('');
@@ -306,6 +308,26 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
   }catch{setFailure('เชื่อมต่อระบบไม่ได้ ข้อความร่างยังอยู่ครบ ลองบันทึกอีกครั้ง');}
   finally{setPending(null);}
  }
+ /** OCR-IMP-01: puts a draft into untouched page editors only; the reviewer still corrects and saves. */
+ async function runOcr(indexes:number[]){
+  if(!preview||pending!==null||sourceMutationLocked||indexes.length===0)return;
+  setPending('ocr');setFailure('');setNotice('');
+  try{
+   const result=await requestJson(`/api/knowledge/imports/${encodeURIComponent(preview.job.id)}/ocr`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({revision:preview.job.revision,pages:indexes.slice(0,20)})});
+   const draft=parseOcrDraft(result.body);
+   if(!result.response.ok||!draft){
+    if(result.response.status===409)setConflict(true);
+    setFailure(result.response.status===503?'บริการ OCR ยังไม่ทำงาน ตรวจว่าเปิด OCR service แล้ว หรือพิมพ์ข้อความเอง':errorMessage(result,'สร้างร่าง OCR ไม่สำเร็จ'));return;
+   }
+   const applied=applyOcrDrafts(preview.extraction,pageDrafts,draft);
+   setPageDrafts(applied.drafts);
+   setEditConflicts(current=>current.map(item=>applied.applied.some(index=>item.id===`page:${index}`)&&item.acknowledged?{...item,acknowledged:false}:item));
+   setOcrReport(current=>({jobId:preview.job.id,revision:preview.job.revision,pages:{...(current?.jobId===preview.job.id&&current.revision===preview.job.revision?current.pages:{}),
+    ...Object.fromEntries(draft.pages.filter(page=>applied.applied.includes(page.pageIndex)).map(page=>[page.pageIndex,{meanConfidence:page.meanConfidence,lowConfidence:page.lowConfidence}]))}}));
+   setNotice(`ใส่ร่างจาก OCR แล้ว ${applied.applied.length} หน้า${applied.skipped.length?` (ข้าม ${applied.skipped.length} หน้าที่พิมพ์เองไว้แล้ว)`:''} ต้องตรวจทุกบรรทัดเทียบต้นฉบับก่อนบันทึก โดยเฉพาะตัวเลข วันที่ และตาราง`);
+  }catch{setFailure('เชื่อมต่อระบบไม่ได้ ลองใหม่อีกครั้ง');}
+  finally{setPending(null);}
+ }
  async function reloadAfterConflict(){
   if(!selectedId)return;
   if(hasDrafts&&!window.confirm('โหลดฉบับล่าสุดและเก็บข้อความร่างไว้เพื่อตรวจเทียบหรือไม่'))return;
@@ -348,6 +370,8 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
  const page=extraction?.pages[pageIndex];
  const table=extraction?.tables[tableIndex];
  const pageText=page?pageDrafts[pageIndex]??page.text:'';
+ const ocrPages=extraction?ocrEligiblePages(extraction):[];
+ const currentOcr=preview&&ocrReport?.jobId===preview.job.id&&ocrReport.revision===preview.job.revision?ocrReport.pages[pageIndex]??null:null;
  const tableLocation=extraction?.locations.tables[tableIndex];
  const maxColumns=table?Math.max(0,...table.rows.map(row=>row.length)):0;
  const rowStart=rowWindow*20,columnStart=columnWindow*8;
@@ -464,6 +488,15 @@ export default function ImportForm({initialJobs,initialJobId,initialListError}:{
      <textarea value={pageText} onChange={event=>changeDraftValue(`page:${pageIndex}`,()=>setPageDrafts(current=>({...current,[pageIndex]:event.target.value})))} maxLength={5_000_000} rows={10} disabled={pending!==null||sourceMutationLocked}/>
      <span className="knowledge-hint">ตำแหน่งต้นทางคงเดิม · การแก้จะเพิ่มคำเตือนให้ตรวจซ้ำ</span>
     </label>}
+    {ocrEnabled&&ocrPages.length>0&&<div className="knowledge-ocr-actions" role="group" aria-label="ร่างข้อความด้วย OCR">
+     <p className="knowledge-hint">หน้าที่เป็นภาพสแกน {ocrPages.length} หน้า · OCR ช่วยร่างข้อความ แต่ต้องตรวจทุกบรรทัดก่อนบันทึก</p>
+     {ocrPages.includes(pageIndex)&&<button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>void runOcr([pageIndex])} disabled={pending!==null||sourceMutationLocked}>ร่างหน้านี้ด้วย OCR</button>}
+     <button type="button" className="knowledge-button knowledge-button-tertiary" onClick={()=>void runOcr(ocrPages.filter(index=>!(ocrReport?.jobId===preview?.job.id&&ocrReport?.revision===preview?.job.revision&&ocrReport.pages[index])).slice(0,20))} disabled={pending!==null||sourceMutationLocked}>{pending==='ocr'?'กำลังอ่านภาพ…':'ร่างหน้าสแกนที่เหลือ (ครั้งละไม่เกิน 20 หน้า)'}</button>
+    </div>}
+    {currentOcr&&<div className="knowledge-ocr-report" role="note">
+     <p>ข้อความหน้านี้มาจาก OCR{currentOcr.meanConfidence!==null?` (ความมั่นใจเฉลี่ย ${(currentOcr.meanConfidence*100).toFixed(1)}%)`:''} — ตรวจเทียบต้นฉบับก่อนบันทึก</p>
+     {currentOcr.lowConfidence.length>0&&<><p>บรรทัดที่ควรตรวจเป็นพิเศษ:</p><ul>{currentOcr.lowConfidence.slice(0,30).map(line=><li key={line.line}>บรรทัด {line.line}: {line.text} ({(line.confidence*100).toFixed(0)}%)</li>)}</ul></>}
+    </div>}
 
     {extraction.tables.length>0&&<div className="knowledge-table-editor">
      <div className="knowledge-table-heading"><label className="knowledge-field">เลือกตาราง

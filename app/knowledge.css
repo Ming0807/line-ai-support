@@ -163,6 +163,10 @@
 .knowledge-window-actions > span { color: var(--knowledge-muted); font-size: .84rem; font-variant-numeric: tabular-nums; }
 .knowledge-window-actions .knowledge-button { min-height: 2.5rem; padding-inline: .65rem; font-size: .82rem; }
 .knowledge-page-editor textarea { min-height: 14rem; max-height: 42rem; }
+.knowledge-ocr-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
+.knowledge-ocr-actions .knowledge-hint { flex-basis: 100%; margin: 0; }
+.knowledge-ocr-report { border-left: 4px solid #d97706; background: #fffbeb; padding: .5rem .75rem; margin: .5rem 0; border-radius: 4px; }
+.knowledge-ocr-report ul { margin: .25rem 0 0 1.25rem; max-height: 12rem; overflow: auto; }
 .knowledge-table-editor { display: grid; gap: .65rem; padding-top: .7rem; border-top: 1px solid var(--knowledge-line); }
 .knowledge-table-heading { align-items: end; }
 .knowledge-table-heading .knowledge-field { width: min(100%, 20rem); }

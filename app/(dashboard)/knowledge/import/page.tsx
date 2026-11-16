@@ -4,6 +4,7 @@ import {requireStaff} from '@/lib/auth/staff';
 import {listImportJobs} from '@/lib/imports/import-staging';
 import type {ImportJobView} from '@/lib/imports/import-staging';
 import ImportForm from './import-form';
+import {readOcrConfig} from '@/lib/imports/ocr-client';
 import '@/app/knowledge.css';
 
 type SearchParams=Promise<Record<string,string|string[]|undefined>>;
@@ -29,6 +30,6 @@ export default async function KnowledgeImportPage({searchParams}:{searchParams:S
       </span>
     </div>
   </nav>
-  <ImportForm initialJobs={jobs} initialJobId={initialJobId} initialListError={loadError}/>
+  <ImportForm initialJobs={jobs} initialJobId={initialJobId} initialListError={loadError} ocrEnabled={readOcrConfig()!==null}/>
  </main>;
 }

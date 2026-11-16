@@ -1,0 +1,9 @@
+# OCR-IMP-01: CPU-only OpenThai2.0-OCR-Text runtime. Installing packages is not a model download.
+onnxruntime==1.32.0
+opencv-python-headless==5.0.0.93
+pyclipper==1.4.0
+numpy==2.5.5
+pypdfium2==5.15.2
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5
