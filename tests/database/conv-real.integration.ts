@@ -249,50 +249,93 @@ test('CONV-GREET-02: a greeting never asks which topic and never calls the routi
  }
 });
 
-test('CONV-STALE-HUMAN-01: a new question is not filed silently into a staff case idle for over 24 hours; the Student chooses',async()=>{
+// NATURAL-ROUTE-01 (DEC-209): typing alone is always enough. Uncertain routing continues the most recently active AI
+// conversation; no topic list, no idle-case buttons, no "เริ่มเรื่องใหม่" button.
+async function studentChat(){
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`,userHash=hashLineUserId(userId,key);
- const send=async(text:string,classify?:Parameters<typeof runInboxCycle>[2] extends infer O?O extends {classify?:infer C}?C:never:never)=>{
+ type Classify=NonNullable<Parameters<typeof runInboxCycle>[2]>['classify'];
+ const send=async(text:string,classify?:Classify)=>{
   const event={type:'message',replyToken:'r'.repeat(32),source:{type:'user',userId},message:{type:'text',id:randomUUID(),text}};
   await persistWebhookEvents([{channel:'STUDENT',eventId:randomUUID(),userHash,payloadEncrypted:encryptValue(JSON.stringify(event),key),eventKind:'MESSAGE'}],pool);
-  return runInboxCycle(pool,key,{aiEnabled:true,...(classify?{classify}:{})});
+  const result=await runInboxCycle(pool,key,{aiEnabled:true,...(classify?{classify}:{})});
+  assert.deepEqual(result,{claimed:1,completed:1,failed:0},text);
  };
  await send('สวัสดีครับ');
  const sid=(await pool.query('select line_session_id from private.line_identities where user_hash=$1',[userHash])).rows[0].line_session_id as string;sessions.push(sid);
+ const message=async(text:string)=>(await pool.query(`select m.id,m.conversation_id,m.ticket_id,m.metadata from public.messages m join public.conversations c on c.id=m.conversation_id
+  where c.line_session_id=$1 and m.content=$2 order by m.created_at desc limit 1`,[sid,text])).rows[0];
+ const systemTexts=async()=>(await pool.query(`select payload_encrypted from private.message_outbox where line_session_id=$1 and kind='SYSTEM' order by created_at`,[sid])).rows
+  .map(r=>JSON.parse(decryptValue(r.payload_encrypted,key)).messages[0] as {text:string;quickReply?:{items:{action:{label:string}}[]}});
+ const jobFor=async(messageId:string)=>(await pool.query(`select id,request_encrypted from private.ai_jobs where message_id=$1`,[messageId])).rows[0];
+ const latestAI=async()=>(await pool.query(`select c.id from public.conversations c where c.line_session_id=$1 and c.mode='AI' and c.conversation_type<>'SUPPORT'
+  order by (select max(m.created_at) from public.messages m where m.conversation_id=c.id) desc nulls last limit 1`,[sid])).rows[0]?.id as string;
+ return {key,sid,userHash,send,message,systemTexts,jobFor,latestAI};
+}
+const newTopic=async()=>({decision:'NEW' as const,candidateCode:null,confidence:.99});
+
+test('NATURAL-ROUTE-01: an unsure or unavailable routing model never sends a topic list; the latest AI topic continues',async()=>{
+ const c=await studentChat();
+ await c.send('ค่าเทอมเท่าไหร่',newTopic);await c.send('wifi เข้าไม่ได้',newTopic);
+ const latest=await c.latestAI();
+ await c.send('แล้วต้องทำยังไงต่อ',async()=>({decision:'ASK',candidateCode:null,confidence:.4}));
+ const unsure=await c.message('แล้วต้องทำยังไงต่อ');
+ assert.equal(unsure.metadata.routing_status,'ROUTED');assert.equal(unsure.conversation_id,latest,'an unsure message continues the most recently active AI topic');
+ assert(await c.jobFor(unsure.id),'the AI answers it');
+ await c.send('ขอเบอร์ติดต่อหน่อย',async()=>{throw new Error('MODEL_DOWN');});
+ const down=await c.message('ขอเบอร์ติดต่อหน่อย');
+ assert.equal(down.metadata.routing_status,'ROUTED','a routing outage does not leave the Student waiting for a choice');
+ assert(await c.jobFor(down.id));
+ const texts=await c.systemTexts();
+ assert(!texts.some(t=>/เป็นเรื่องใด|ไม่พร้อมเชื่อมต่อเรื่อง/u.test(t.text)),'no topic list is sent');
+ const request=JSON.parse(decryptValue((await c.jobFor(unsure.id)).request_encrypted,c.key));
+ const labels=(request.quickReply?.items??[]).map((i:{action:{label:string}})=>i.action.label);
+ assert(!labels.includes('เริ่มเรื่องใหม่'),'no new-topic button on AI answers');
+});
+
+test('NATURAL-ROUTE-01: a question near a staff case idle over 24 hours is answered by the AI with a note about the case',async()=>{
+ const c=await studentChat();
  const department=(await pool.query("select id from public.departments where code='IT'")).rows[0].id as string;
- async function humanCase(idleHours:number){
-  const conv=(await pool.query(`insert into public.conversations(line_session_id,conversation_type,mode,status,topic) values($1,'TICKET','HUMAN','ACTIVE','เทียบโอนวิชาอังกฤษ') returning id`,[sid])).rows[0].id as string;
-  const ticket=(await pool.query(`insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,mode,status) values($1,$2,$3,'เทียบโอนวิชาอังกฤษไม่ได้','HUMAN','STAFF_HANDLING') returning id,ticket_no`,[sid,conv,department])).rows[0];
-  await pool.query('update public.conversations set active_ticket_id=$2 where id=$1',[conv,ticket.id]);
-  await pool.query(`insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content,created_at) values($1,$2,'USER','TEXT','เทียบโอนวิชาอังกฤษไม่ได้',now()-make_interval(hours=>$3))`,[conv,ticket.id,idleHours]);
-  return {conv,ticketId:ticket.id as string,ticketNo:ticket.ticket_no as string};
- }
- const pickHuman=async(input:{contexts:{code:string;mode:string}[]})=>({decision:'CONTINUE' as const,candidateCode:input.contexts.filter(c=>c.mode==='HUMAN').at(-1)!.code,confidence:.97});
- const old=await humanCase(19*24);
- assert.deepEqual(await send('เทียบโอนยังไง',pickHuman),{claimed:1,completed:1,failed:0});
- const stored=(await pool.query(`select m.conversation_id,m.ticket_id,m.metadata from public.messages m join public.conversations c on c.id=m.conversation_id where c.line_session_id=$1 and m.content='เทียบโอนยังไง'`,[sid])).rows[0];
- assert.equal(stored.metadata.routing_status,'PENDING','the question waits for the Student\'s choice');
- assert.equal(stored.ticket_id,null,'it is not attached to the old staff case');
- const replies=(await pool.query(`select kind,channel,payload_encrypted from private.message_outbox where (line_session_id=$1 or channel='STAFF') and created_at>now()-interval '1 minute' order by created_at`,[sid])).rows;
- assert(!replies.some(r=>r.channel==='STAFF'),'Staff is not notified about a message the Student did not send to the case');
- const last=JSON.parse(decryptValue(replies.at(-1)!.payload_encrypted,key)).messages[0];
- assert.match(last.text,new RegExp(old.ticketNo,'u'));
- assert.deepEqual(last.quickReply.items.map((i:{action:{label:string}})=>i.action.label),['ถามเป็นเรื่องใหม่',`ต่อ ${old.ticketNo}`]);
- // Real students rarely tap the button: the next message is not asked again; both go to the AI as one question.
- const seen:string[]=[];
- assert.deepEqual(await send('ต้องใช้เอกสารอะไรบ้าง',pickHuman),{claimed:1,completed:1,failed:0});
- const asksAfter=(await pool.query(`select payload_encrypted from private.message_outbox where line_session_id=$1 and kind='SYSTEM'`,[sid])).rows
-  .map(r=>JSON.parse(decryptValue(r.payload_encrypted,key)).messages[0].text as string).filter(t=>t.includes(old.ticketNo));
- assert.equal(asksAfter.length,1,'the Student is asked only once');
- const moved=(await pool.query(`select m.content,m.metadata->>'routing_status' rs,m.conversation_id,m.ticket_id from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.content in('เทียบโอนยังไง','ต้องใช้เอกสารอะไรบ้าง') order by m.created_at`,[sid])).rows;
- assert.deepEqual(moved.map(m=>[m.rs,m.ticket_id]),[['ROUTED',null],['ROUTED',null]]);
- assert.equal(moved[0].conversation_id,moved[1].conversation_id,'the waiting question joins the new AI conversation');
- await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[userHash]);
- for(let i=0;i<5;i++)if(!(await runAICycle(pool,key,{produce:async snapshot=>{seen.push(snapshot.question);return {kind:'CLARIFY',text:'ตอบ'};}})).claimed)break;
- assert.deepEqual(seen,['เทียบโอนยังไง\nต้องใช้เอกสารอะไรบ้าง'],'one answer covers the waiting question too');
- // An active staff conversation keeps the existing behaviour.
- const fresh=await humanCase(1);
- assert.deepEqual(await send('ส่งเอกสารเพิ่มแล้วครับ',pickHuman),{claimed:1,completed:1,failed:0});
- const attached=(await pool.query(`select ticket_id,metadata from public.messages where content='ส่งเอกสารเพิ่มแล้วครับ' and conversation_id=$1`,[fresh.conv])).rows[0];
- assert.equal(attached?.ticket_id,fresh.ticketId,'a recently active staff case still receives the message');
+ const conv=(await pool.query(`insert into public.conversations(line_session_id,conversation_type,mode,status,topic) values($1,'TICKET','HUMAN','ACTIVE','เทียบโอนวิชาอังกฤษ') returning id`,[c.sid])).rows[0].id as string;
+ const ticket=(await pool.query(`insert into public.tickets(line_session_id,conversation_id,department_id,problem_summary,mode,status) values($1,$2,$3,'เทียบโอนวิชาอังกฤษไม่ได้','HUMAN','STAFF_HANDLING') returning id,ticket_no`,[c.sid,conv,department])).rows[0];
+ await pool.query('update public.conversations set active_ticket_id=$2 where id=$1',[conv,ticket.id]);
+ await pool.query(`insert into public.messages(conversation_id,ticket_id,sender_type,message_type,content,created_at) values($1,$2,'USER','TEXT','เทียบโอนวิชาอังกฤษไม่ได้',now()-interval '19 days')`,[conv,ticket.id]);
+ const pickHuman=async(input:{contexts:{code:string;mode:string}[]})=>({decision:'CONTINUE' as const,candidateCode:input.contexts.find(x=>x.mode==='HUMAN')!.code,confidence:.97});
+ await c.send('เทียบโอนยังไง',pickHuman);
+ const routed=await c.message('เทียบโอนยังไง');
+ assert.equal(routed.metadata.routing_status,'ROUTED');assert.equal(routed.ticket_id,null,'not filed into the idle staff case');
+ assert.notEqual(routed.conversation_id,conv);
+ assert(!(await c.systemTexts()).some(t=>t.quickReply),'no buttons are required');
+ assert.equal((await pool.query(`select count(*)::int n from private.message_outbox where ticket_id=$1 and channel='STAFF'`,[ticket.id])).rows[0].n,0,'Staff is not notified');
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[c.userHash]);
+ for(let i=0;i<5;i++)if(!(await runAICycle(pool,c.key,{produce:async()=>({kind:'CLARIFY',text:'คำตอบเรื่องเทียบโอน'})})).claimed)break;
+ const answer=(await pool.query(`select payload_encrypted from private.message_outbox o join private.ai_jobs j on o.idempotency_key='ai-job:'||j.id::text where j.message_id=$1`,[routed.id])).rows[0];
+ const text=JSON.parse(decryptValue(answer.payload_encrypted,c.key)).messages.map((m:{text:string})=>m.text).join('\n');
+ assert.match(text,/คำตอบเรื่องเทียบโอน/u);
+ assert(text.includes(ticket.ticket_no)&&text.includes('เจ้าหน้าที่'),'the answer mentions the open staff case');
+ // A recently active staff case still receives a message the router assigns to it.
+ await pool.query(`update public.messages set created_at=now()-interval '1 hour' where conversation_id=$1`,[conv]);
+ await c.send('ส่งเอกสารเพิ่มแล้วครับ',pickHuman);
+ assert.equal((await c.message('ส่งเอกสารเพิ่มแล้วครับ')).ticket_id,ticket.id);
+});
+
+test('NATURAL-ROUTE-01: messages left waiting by an earlier topic question are carried into the next routed message',async()=>{
+ const c=await studentChat();
+ await c.send('ค่าเทอมเท่าไหร่',newTopic);
+ const support=(await pool.query(`insert into public.conversations(line_session_id,conversation_type) values($1,'SUPPORT') returning id`,[c.sid])).rows[0].id as string;
+ await pool.query(`insert into public.messages(conversation_id,sender_type,message_type,content,metadata,created_at) values($1,'USER','TEXT','คำถามที่ค้างจากปุ่มเก่า','{"routing_status":"PENDING","routing_route":"ASK_CONTEXT"}'::jsonb,now()-interval '2 minutes')`,[support]);
+ await c.send('ภาคพิเศษล่ะ',newTopic);
+ const waiting=await c.message('คำถามที่ค้างจากปุ่มเก่า'),next=await c.message('ภาคพิเศษล่ะ');
+ assert.equal(waiting.metadata.routing_status,'ROUTED');assert.equal(waiting.conversation_id,next.conversation_id);
+});
+
+test('CONV-GREET-01 via the real inbox: the greeting keeps its three topic buttons next to the contact shortcut',async()=>{
+ const c=await studentChat();
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[c.userHash]);
+ for(let i=0;i<5;i++)if(!(await runAICycle(pool,c.key,{produce:async()=>{throw new Error('MODEL_MUST_NOT_BE_CALLED');}})).claimed)break;
+ const row=(await pool.query(`select o.payload_encrypted from private.message_outbox o where o.line_session_id=$1 and o.kind='AI'`,[c.sid])).rows[0];
+ const last=JSON.parse(decryptValue(row.payload_encrypted,c.key)).messages.at(-1);
+ assert.equal(last.text,greetingReply('GREETING').text);
+ const labels=last.quickReply.items.map((i:{action:{label:string}})=>i.action.label);
+ assert.deepEqual(labels.slice(0,3),[...GREETING_TOPICS]);
+ assert(labels.length<=13);
 });

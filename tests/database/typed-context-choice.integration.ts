@@ -1,3 +1,4 @@
+// NATURAL-ROUTE-01 (DEC-209): this file drives the button/topic-choice machinery that already-sent LINE buttons still use, so it opts into the legacy topicChoice:'ASK' mode.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {after,test} from 'node:test';
@@ -27,7 +28,7 @@ async function eventFor(userId:string,text:string,options:{postback?:string;mess
   values('STUDENT',$1,$2,$3,$4,'PROCESSING',$5,clock_timestamp()+interval '30 seconds',1) returning *`,
  [randomUUID(),hash,encryptValue(JSON.stringify(event),key),options.postback?'OTHER':'MESSAGE',randomUUID()])).rows[0] as InboxJob;
 }
-const apply=(job:InboxJob,advice?:NonNullable<Awaited<ReturnType<typeof classifyStudentInboxContext>>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,routingAdvice:advice}),pool);
+const apply=(job:InboxJob,advice?:NonNullable<Awaited<ReturnType<typeof classifyStudentInboxContext>>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,topicChoice:'ASK',routingAdvice:advice}),pool);
 async function fixture(question='ล็อกอิน Wi-Fi อย่างไรครับ'){
  const userId='U'+randomUUID().replaceAll('-',''),hash=hashLineUserId(userId,key);
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',['TYPED_'+randomUUID()])).rows[0].id;

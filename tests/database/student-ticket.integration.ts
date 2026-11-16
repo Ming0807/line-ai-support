@@ -1,3 +1,4 @@
+// NATURAL-ROUTE-01 (DEC-209): this file drives the button/topic-choice machinery that already-sent LINE buttons still use, so it opts into the legacy topicChoice:'ASK' mode.
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -52,7 +53,7 @@ async function process(client: Client, student: { sessionId: string; userId: str
     eventId: source.id,
     receivedAt: source.receivedAt,
     event,
-  }, key,{aiEnabled});
+  }, key,{aiEnabled,topicChoice:'ASK'});
   return { eventId: source.id, code };
 }
 

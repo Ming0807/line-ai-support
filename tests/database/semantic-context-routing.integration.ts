@@ -1,3 +1,4 @@
+// NATURAL-ROUTE-01 (DEC-209): this file drives the button/topic-choice machinery that already-sent LINE buttons still use, so it opts into the legacy topicChoice:'ASK' mode.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {after,test} from 'node:test';
@@ -38,7 +39,7 @@ async function fixture(options:{second?:boolean;spam?:boolean;duplicate?:boolean
  const job=(await pool.query("insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,status,lease_token,lease_until,attempts) values('STUDENT',$1,$2,$3,$4,'PROCESSING',$5,clock_timestamp()+interval '30 seconds',1) returning *",[randomUUID(),hash,encryptValue(JSON.stringify(event),key),options.postback?'OTHER':'MESSAGE',randomUUID()])).rows[0] as InboxJob;
  return {userId,hash,session,conversation,ticket,second,job};
 }
-const applyInbox=(job:InboxJob,advice:Awaited<ReturnType<typeof classifyStudentInboxContext>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,routingAdvice:advice??undefined}),pool);
+const applyInbox=(job:InboxJob,advice:Awaited<ReturnType<typeof classifyStudentInboxContext>>)=>transaction(c=>processInboxEvent(c,job,key,{aiEnabled:true,topicChoice:'ASK',routingAdvice:advice??undefined}),pool);
 
 async function createStaffActor(f:Awaited<ReturnType<typeof fixture>>):Promise<string>{
  const staffId=randomUUID();
@@ -153,7 +154,7 @@ test('sixty-five contexts report capacity unavailability without calling AI or g
  assert.equal(await classifyStudentInboxContext(pool,f.job,key,async()=>{calls++;return {decision:'NEW',candidateCode:null,confidence:1};},reason=>reasons.push(reason)),null);
  assert.equal(calls,0);assert.deepEqual(reasons,['CONTEXT_LIMIT']);
  await pool.query("update private.webhook_inbox set status='PENDING',lease_token=null,lease_until=null where id=$1",[f.job.id]);
- assert.deepEqual(await runInboxCycle(pool,key,{aiEnabled:true,classify:async()=>{throw new Error('MUST_NOT_CALL');}}),{claimed:1,completed:1,failed:0});
+ assert.deepEqual(await runInboxCycle(pool,key,{aiEnabled:true,topicChoice:'ASK',classify:async()=>{throw new Error('MUST_NOT_CALL');}}),{claimed:1,completed:1,failed:0});
  const saved=(await pool.query('select content,metadata,ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0];
  assert.equal(saved.content,'คำถามเมื่อมีเรื่องเกินขอบเขต');assert.equal(saved.metadata.routing_status,'PENDING');assert.equal(saved.ticket_id,null);
  assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,0);
@@ -164,7 +165,7 @@ test('provider outage preserves the pending message and choices without claiming
  const f=await fixture({second:true,question:'แล้วเรื่องที่คุยไว้ล่ะ'});
  await pool.query("update private.webhook_inbox set status='PENDING',lease_token=null,lease_until=null where id=$1",[f.job.id]);
  const classify=createSemanticRoutingClassifier(async()=>{throw new AIProviderError('TIMEOUT');});
- assert.deepEqual(await runInboxCycle(pool,key,{aiEnabled:true,classify}),{claimed:1,completed:1,failed:0});
+ assert.deepEqual(await runInboxCycle(pool,key,{aiEnabled:true,topicChoice:'ASK',classify}),{claimed:1,completed:1,failed:0});
  const rows=(await pool.query('select payload_encrypted from private.message_outbox where line_session_id=$1',[f.session])).rows;
  assert.equal(rows.length,1);
  const payload=JSON.parse(decryptValue(rows[0].payload_encrypted,key));
@@ -334,7 +335,7 @@ test('an ignoring classifier respects the approved 25-second ceiling and leaves 
 test('the real inbox cycle claims, classifies and commits a new topic without modifying the HUMAN ticket',async()=>{
  await pool.query("update private.webhook_inbox set status='DONE',lease_token=null,lease_until=null,completed_at=clock_timestamp() where channel='STUDENT' and user_hash=any($1::text[]) and status in('PENDING','PROCESSING')",[ownedHashes]);
  const f=await fixture();await pool.query("update private.webhook_inbox set status='PENDING',lease_token=null,lease_until=null where id=$1",[f.job.id]);let calls=0;
- const result=await runInboxCycle(pool,key,{aiEnabled:true,classify:async()=>{calls++;return {decision:'NEW',candidateCode:null,confidence:.98};}});
+ const result=await runInboxCycle(pool,key,{aiEnabled:true,topicChoice:'ASK',classify:async()=>{calls++;return {decision:'NEW',candidateCode:null,confidence:.98};}});
  assert.deepEqual(result,{claimed:1,completed:1,failed:0});assert.equal(calls,1);
  assert.equal((await pool.query('select count(*)::int n from private.ai_jobs where line_session_id=$1',[f.session])).rows[0].n,1);
  assert.deepEqual((await pool.query('select mode,status,revision from public.tickets where id=$1',[f.ticket])).rows[0],{mode:'HUMAN',status:'STAFF_HANDLING',revision:0});

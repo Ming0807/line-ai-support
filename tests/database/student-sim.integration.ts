@@ -36,7 +36,7 @@ async function fakeRouter(input:SemanticPrompt):Promise<RoutingProposal>{
 }
 
 interface Outcome {id:string;modelQuestions:string[];fixed:string[];topicLists:number;staleAsks:number;receipts:number;staffNotices:number;
- pending:string[];stuck:string[];silent:string[];greetingAskedTopic:boolean;filedIntoStaleCase:string[];replies:string[]}
+ pending:string[];stuck:string[];silent:string[];buttons:string[];greetingAskedTopic:boolean;filedIntoStaleCase:string[];replies:string[]}
 
 async function runScenario(s:Scenario,index:number):Promise<Outcome>{
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`,userHash=hashLineUserId(userId,key);
@@ -82,7 +82,9 @@ async function runScenario(s:Scenario,index:number):Promise<Outcome>{
  if(last)await deliver(last.at+(last.hold==='EXTENDED'?INPUT_EXTENDED_QUIET_MS:INPUT_QUIET_MS)+MODEL_LATENCY_MS);
  else await deliver(now+1000);
  const outbox=(await pool.query(`select kind,channel,payload_encrypted from private.message_outbox where (line_session_id=$1 or ticket_id=$2) order by created_at,id`,[session,staleTicket])).rows;
- const texts=outbox.filter(o=>o.channel==='STUDENT').map(o=>JSON.parse(decryptValue(o.payload_encrypted,key)).messages.map((m:{text:string})=>m.text).join(' | ') as string);
+ const payloads=outbox.filter(o=>o.channel==='STUDENT').map(o=>JSON.parse(decryptValue(o.payload_encrypted,key)).messages as {text:string;quickReply?:{items:{action:{label:string}}[]}}[]);
+ const texts=payloads.map(messages=>messages.map(m=>m.text).join(' | '));
+ const buttons=payloads.flatMap(messages=>messages.flatMap(m=>m.quickReply?.items.map(i=>i.action.label)??[]));
  const users=(await pool.query(`select m.content,m.metadata->>'routing_status' rs,m.ticket_id from public.messages m join public.conversations c on c.id=m.conversation_id
   where c.line_session_id=$1 and m.sender_type='USER' and m.created_at>=$2 order by m.created_at,m.id`,[session,new Date(base-1000)])).rows;
  const fixedTexts=[greetingReply('GREETING').text,greetingReply('THANKS').text];
@@ -97,7 +99,7 @@ async function runScenario(s:Scenario,index:number):Promise<Outcome>{
  const greetingTexts=s.steps.filter(st=>st.text&&greetingKind(st.text)).length;
  const topicLists=texts.filter(t=>t.includes('ข้อความนี้เป็นเรื่องใด')).length;
  return {id:s.id,modelQuestions,fixed,topicLists,staleAsks:texts.filter(t=>t.includes('ที่ส่งถึงเจ้าหน้าที่ไว้ก่อนหน้านี้')).length,
-  receipts:texts.filter(t=>t.includes('บันทึกข้อความเข้าเคส')).length,staffNotices:outbox.filter(o=>o.channel==='STAFF').length,pending,stuck,silent,
+  receipts:texts.filter(t=>t.includes('บันทึกข้อความเข้าเคส')).length,staffNotices:outbox.filter(o=>o.channel==='STAFF').length,pending,stuck,silent,buttons,
   greetingAskedTopic:greetingTexts>0&&topicLists>0&&s.steps.filter(st=>st.text).every(st=>greetingKind(st.text!)),
   filedIntoStaleCase:staleTicket?users.filter(u=>u.ticket_id===staleTicket).map(u=>u.content as string):[],replies:texts};
 }
@@ -112,15 +114,18 @@ test('STUDENT-SIM-01: model-written student chats through the real inbox, router
   ...o.filedIntoStaleCase.map(t=>`${o.id}: filed into the idle staff case without asking: ${t}`),
   ...o.silent.map(t=>`${o.id}: no reply covers: ${t}`),
   ...(o.topicLists?[`${o.id}: topic list shown ${o.topicLists}x`]:[]),
-  ...(o.staleAsks>1?[`${o.id}: asked about the idle staff case ${o.staleAsks}x`]:[]),
+  ...(o.staleAsks?[`${o.id}: asked about the idle staff case ${o.staleAsks}x`]:[]),
+  // NATURAL-ROUTE-01 (DEC-209): typing must always be enough; these buttons only exist to make the Student choose a route.
+  ...[...new Set(o.buttons.filter(label=>/^(เริ่มเรื่องใหม่|ถามเป็นเรื่องใหม่|ต่อ |เรื่องก่อนหน้า|เรื่องอื่น)/u.test(label)))].map(label=>`${o.id}: route button offered: ${label}`),
+  ...o.pending.map(t=>`${o.id}: still waiting for a choice: ${t}`),
   ...o.stuck.map(t=>`${o.id}: left waiting while the Student kept typing: ${t}`),
  ]);
- const summary={scenarios:outcomes.length,modelCalls:outcomes.reduce((n,o)=>n+o.modelQuestions.length,0),fixedReplies:outcomes.reduce((n,o)=>n+o.fixed.length,0),
+ const summary={scenarios:outcomes.length,buttonLabels:[...new Set(outcomes.flatMap(o=>o.buttons))],modelCalls:outcomes.reduce((n,o)=>n+o.modelQuestions.length,0),fixedReplies:outcomes.reduce((n,o)=>n+o.fixed.length,0),
   topicLists:outcomes.reduce((n,o)=>n+o.topicLists,0),staleAsks:outcomes.reduce((n,o)=>n+o.staleAsks,0),receipts:outcomes.reduce((n,o)=>n+o.receipts,0),
   staffNotices:outcomes.reduce((n,o)=>n+o.staffNotices,0),pendingMessages:outcomes.reduce((n,o)=>n+o.pending.length,0),problems:problems.length};
  const out='D:/codex-cache/yru-student-sim';mkdirSync(out,{recursive:true});
  writeFileSync(`${out}/result.json`,JSON.stringify({summary,problems,outcomes},null,1));
  console.log(JSON.stringify({stage:'student_sim',...summary}));
  for(const p of problems)console.log('PROBLEM',p);
- assert.deepEqual(problems.filter(p=>/greeting got|filed into the idle|asked about the idle|left waiting/u.test(p)),[],'hard invariants');
+ assert.deepEqual(problems,[],'no required button, nothing silent, nothing left waiting');
 });

@@ -1,3 +1,4 @@
+// NATURAL-ROUTE-01 (DEC-209): this file drives the button/topic-choice machinery that already-sent LINE buttons still use, so it opts into the legacy topicChoice:'ASK' mode.
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {after,test} from 'node:test';
@@ -43,7 +44,7 @@ async function event(f:Fixture,text:string,postback=false){
  const job=(await pool.query("insert into private.webhook_inbox(channel,event_id,user_hash,payload_encrypted,event_kind,status,lease_token,lease_until,attempts) values('STUDENT',$1,$2,$3,$4,'PROCESSING',$5,clock_timestamp()+interval '30 seconds',1) returning *",[randomUUID(),f.hash,encryptValue(JSON.stringify(value),key),postback?'OTHER':'MESSAGE',randomUUID()])).rows[0];
  return {value,job,input:{sessionId:f.session,eventId:job.id,receivedAt:job.received_at,event:value}};
 }
-async function send(f:Fixture,text:string,postback=false,aiEnabled=true){const e=await event(f,text,postback);await transaction(c=>processStudentContent(c,e.input,key,{aiEnabled}),pool);return e;}
+async function send(f:Fixture,text:string,postback=false,aiEnabled=true){const e=await event(f,text,postback);await transaction(c=>processStudentContent(c,e.input,key,{aiEnabled,topicChoice:'ASK'}),pool);return e;}
 async function latestStudent(f:Fixture){const row=(await pool.query("select payload_encrypted from private.message_outbox where line_session_id=$1 order by outbox_seq desc limit 1",[f.session])).rows[0];return JSON.parse(decryptValue(row.payload_encrypted,key)).messages[0];}
 async function selectHuman(f:Fixture){
  await send(f,'PRIVATE_USER_MESSAGE');const prompt=await latestStudent(f);
@@ -88,7 +89,7 @@ test('an AI NEW button is remembered for the next question without asking to cho
  const next=await event(f,'ห้องสมุดเปิดกี่โมง');let classified=false;
  assert.equal(await classifyStudentInboxContext(pool,next.job as InboxJob,key,async()=>{classified=true;return {decision:'NEW',candidateCode:null,confidence:.99};}),null);
  assert.equal(classified,false);
- await transaction(c=>processStudentContent(c,next.input,key,{aiEnabled:true}),pool);
+ await transaction(c=>processStudentContent(c,next.input,key,{aiEnabled:true,topicChoice:'ASK'}),pool);
  const jobs=(await pool.query('select conversation_id from private.ai_jobs where line_session_id=$1',[f.session])).rows;
  assert.equal(jobs.length,2);assert(jobs.some(r=>r.conversation_id!==first.conversation_id));
 });
@@ -100,7 +101,7 @@ test('closed tickets cannot be selected by retained HUMAN focus',async()=>{
 test('valid semantic NEW overrides explicit focus rather than capturing a new question in HUMAN',async()=>{
  const f=await fixture();await selectHuman(f);const e=await event(f,'ห้องสมุดเปิดกี่โมง');
  const advice=await classifyStudentInboxContext(pool,e.job as InboxJob,key,async()=>({decision:'NEW',candidateCode:null,confidence:.99}));assert(advice);
- await transaction(c=>processStudentContent(c,e.input,key,{aiEnabled:true,routingAdvice:advice}),pool);
+ await transaction(c=>processStudentContent(c,e.input,key,{aiEnabled:true,topicChoice:'ASK',routingAdvice:advice}),pool);
  assert.notEqual((await pool.query('select conversation_id from public.messages where source_event_id=$1',[e.job.id])).rows[0].conversation_id,f.conversation);
 });
 test('restricted USER continuation alerts expose no ticket number, problem or message body',async()=>{

@@ -17,6 +17,8 @@ import {isLatestConversationInput} from './input-watermark';
 
 const action=z.object({type:z.literal('postback'),label:z.string().min(1).max(20),data:z.string().min(1).max(300),displayText:z.string().max(300).optional()}).strict();
 export const aiRequestSchema=z.object({replyToken:z.string().min(1).max(500).optional(),receivedAt:z.iso.datetime(),
+ /** NATURAL-ROUTE-01 (DEC-209): an idle staff case the reply must mention; set only by the server router. */
+ staffCaseNote:z.string().regex(/^YRU-\d{1,20}$/u).optional(),
  quickReply:z.object({items:z.array(z.object({type:z.literal('action'),action}).strict()).min(1).max(13)}).strict().optional()}).strict();
 const knowledgeResultSchema=z.discriminatedUnion('kind',[
  formDirectoryResultSchema,
@@ -45,13 +47,14 @@ export interface AIJob {
  lease_token:string;lease_until:Date;request_encrypted:string;result_encrypted:string|null;attempts:number;
 }
 export interface PrepareAIJob {
- sessionId:string;conversationId:string;messageId:string;replyToken?:string;receivedAt:Date;quickReply?:OutboundText['quickReply'];
+ sessionId:string;conversationId:string;messageId:string;replyToken?:string;receivedAt:Date;quickReply?:OutboundText['quickReply'];staffCaseNote?:string;
 }
 /** Called inside the verified inbox business transaction, after routing and storing the USER message. */
 export async function prepareAIJob(client:DbClient,input:PrepareAIJob,key:string):Promise<string|null>{
  if(![input.sessionId,input.conversationId,input.messageId].every(id=>z.uuid().safeParse(id).success)||
   !(input.receivedAt instanceof Date)||!Number.isFinite(input.receivedAt.getTime()))throw new Error('AI_JOB_CONTEXT_INVALID');
- const request=aiRequestSchema.safeParse({replyToken:input.replyToken,receivedAt:input.receivedAt.toISOString(),quickReply:input.quickReply});
+ const request=aiRequestSchema.safeParse({replyToken:input.replyToken,receivedAt:input.receivedAt.toISOString(),quickReply:input.quickReply,
+  ...(input.staffCaseNote?{staffCaseNote:input.staffCaseNote}:{})});
  if(!request.success)throw new Error('AI_JOB_REQUEST_INVALID');
  await lockConversation(client,input.conversationId);
  const context=(await client.query(`select c.mode,c.status,c.revision,s.active,m.sender_type,m.message_type from public.conversations c

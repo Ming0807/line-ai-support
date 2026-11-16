@@ -181,6 +181,18 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    try{messages=lineMessages(`${envelope.general.text}\n\n${messages.map(message=>message.text).join('')}`);}
    catch{messages=[{type:'text',text:LINE_TEXT_PACKET_LIMIT_MESSAGE}];code='LINE_TEXT_PACKET_TOO_LARGE';citations=[];}
   }
+  // NATURAL-ROUTE-01 (DEC-209): the AI answered a question near an idle staff case; say the case is still open.
+  if(request.staffCaseNote){
+   const note=`เคส ${request.staffCaseNote} ที่ส่งถึงเจ้าหน้าที่ไว้ยังเปิดอยู่ครับ ถ้าต้องการเพิ่มข้อมูลให้เจ้าหน้าที่ในเคสนั้น พิมพ์บอกได้เลย`;
+   if(messages.length<5)messages=[...messages,{type:'text',text:note}];
+   else messages[messages.length-1]={...messages[messages.length-1],text:`${messages[messages.length-1].text}\n\n${note}`.slice(0,5000)};
+  }
+  // CONV-GREET-01: a fixed greeting offers its topic buttons (they only send the label as ordinary text).
+  if(envelope.kind==='CLARIFY'&&isGreetingReplyText(envelope.text)&&!('support' in result&&result.support)){
+   const topics=greetingReply(envelope.text===greetingReply('GREETING').text?'GREETING':'THANKS').topics;
+   if(topics.length)messages[messages.length-1]={...messages[messages.length-1],
+    quickReply:{items:topics.map(label=>({type:'action' as const,action:{type:'message' as const,label,text:label}}))}};
+  }
   // CONV-V2-05: only V2 results (section-expanded answers, exact V2 failure texts) get these one-use choices,
   // and only when no other choice is already offered on this reply. Both are re-validated when pressed.
   let presentation:'SHORT_FIRST'|undefined;
@@ -193,16 +205,18 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
      const quickReply=await offer({label:SHOW_FULL_LABEL,value:{action:'SHOW_FULL',jobId:job.id,conversationId:job.conversation_id}});
      messages=lineMessages(short);messages[messages.length-1]={...messages[messages.length-1],quickReply};presentation='SHORT_FIRST';
     }
-   }else if(envelope.kind==='CLARIFY'&&isGreetingReplyText(envelope.text)){
-    const topics=greetingReply(envelope.text===greetingReply('GREETING').text?'GREETING':'THANKS').topics;
-    if(topics.length)messages[messages.length-1]={...messages[messages.length-1],
-     quickReply:{items:topics.map(label=>({type:'action' as const,action:{type:'message' as const,label,text:label}}))}};
    }else if(envelope.kind==='CLARIFY'&&isTurnFailureText(envelope.text)){
     const quickReply=await offer({label:'คุยกับเจ้าหน้าที่',value:{action:'CONTACT',conversationId:job.conversation_id}});
     messages[messages.length-1]={...messages[messages.length-1],quickReply};
    }
   }
-  if(request.quickReply&& !('support' in result&&result.support))messages[messages.length-1]={...messages[messages.length-1],quickReply:request.quickReply};
+  if(request.quickReply&& !('support' in result&&result.support)){
+   // CONV-GREET-01: greeting topic buttons come first; the inbox shortcut buttons follow (LINE allows 13).
+   // A server postback with the same label (e.g. ติดต่อเจ้าหน้าที่) replaces the plain-text topic button.
+   const serverLabels=new Set(request.quickReply.items.map(item=>item.action.label));
+   const own=(messages[messages.length-1].quickReply?.items??[]).filter(item=>!serverLabels.has(item.action.label));
+   messages[messages.length-1]={...messages[messages.length-1],quickReply:{items:[...own,...request.quickReply.items].slice(0,13)}};
+  }
   const outbox=await enqueueOutbound(client,{idempotencyKey:`ai-job:${job.id}`,kind:'AI',channel:'STUDENT',lineSessionId:job.line_session_id,
    conversationId:job.conversation_id,conversationRevision:job.expected_conversation_revision,replyToken:request.replyToken,
    receivedAt:new Date(request.receivedAt),messages},key);

@@ -41,7 +41,7 @@ export async function createSupportActions(client:DbClient,state:SupportActionSt
   choices.push({label:a.departmentCode?'เลือกหน่วยงานอื่น':'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',...values}});
  }
  if(!choices.length)return undefined;
- choices.push({label:'เริ่มเรื่องใหม่',value:{action:'NEW'}});
+ // NATURAL-ROUTE-01 (DEC-209): no new-topic button; the AI understands a change of topic from text.
  return createChoices(client,{sessionId:context.sessionId,snapshot:candidateSnapshot(await loadCandidates(client,context.sessionId)),choices},key);
 }
 export async function confirmSupportSolved(client:DbClient,value:SupportConfirmation,key:string):Promise<boolean>{

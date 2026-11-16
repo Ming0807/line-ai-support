@@ -48,6 +48,7 @@ export async function runInboxCycle(pool:Pool,key:string,options:StudentProcessi
     routingUnavailable=true;console.warn('INBOX_ROUTING_UNAVAILABLE',{channel,reason});
    }):null;
    const processing:StudentProcessingOptions={aiEnabled:options.aiEnabled,routingAdvice:routingAdvice??undefined,routingUnavailable,
+    ...(options.topicChoice?{topicChoice:options.topicChoice}:{}),
     routingObservation:(observation:RoutingDecisionObservation)=>recordRoutingObservation(pool,{...observation,inboxEventId:claimed.id})};
    await transaction(client=>processInboxEvent(client,claimed,key,processing),pool);
    result.completed++;

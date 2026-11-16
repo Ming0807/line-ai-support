@@ -23,7 +23,12 @@ import {registerStudentChatAttachment} from '../chat/media-repository';
 import {fullAnswerForChoice} from './show-full-answer';
 import {greetingKind} from './input-hold';
 
-export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;
+/**
+ * topicChoice 'ASK' is the pre-DEC-209 behaviour (topic list / idle-case filing) kept only so tests can still drive the
+ * button-consumption machinery that already-sent LINE buttons rely on. Production never sets it; remove it once
+ * NATURAL-CHAT is accepted on the real OA (DEC-209).
+ */
+export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;topicChoice?:'ASK';
  routingObservation?:(observation:RoutingDecisionObservation)=>void}
 
 export async function processStudentContent(client:DbClient,input:{sessionId:string;eventId:string;receivedAt:Date;event:DirectUserEvent},key:string,options:StudentProcessingOptions={}):Promise<string|null> {
@@ -100,27 +105,32 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
  const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice,key):null;
  const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
- // CONV-GREET-02 (DEC-208): a greeting-only message has no topic, so it never asks "which topic?". It follows an
- // explicit human focus as before, otherwise continues the most recently active AI conversation, or starts one.
- const greeting=event.type==='message'&&event.message.type==='text'&&!typedChoice&&!requestedNew&&!semantic&&!focus&&greetingKind(event.message.text)!==null;
- const greetingTarget=greeting?(await client.query(`select c.id from public.conversations c where c.id=any($1::uuid[]) and c.mode='AI'
+ // NATURAL-ROUTE-01 (DEC-209): typing alone is always enough, so a typed message never waits for a button. When the
+ // router is unsure, unavailable or the context ended, the message continues the most recently active AI
+ // conversation (or starts one) and the AI answers with that history; a wrong guess is corrected by typing.
+ const typedMessage=event.type==='message'&&!typedChoice,natural=options.topicChoice!=='ASK';
+ const latestAI=typedMessage?(await client.query(`select c.id from public.conversations c where c.id=any($1::uuid[]) and c.mode='AI'
   order by coalesce((select max(m.created_at) from public.messages m where m.conversation_id=c.id),c.created_at) desc,c.id desc limit 1`,
   [candidates.filter(c=>c.mode==='AI'&&c.ticketId===null).map(c=>c.conversationId)])).rows[0]?.id as string|undefined:undefined;
- // CONV-STALE-HUMAN-01 (DEC-208): automatic advice that picks a staff case quiet for over a day is only a guess,
- // and filing there silences the AI. Ask with two buttons instead; an explicit choice or human focus is unchanged.
- // Asked once already and the Student kept typing instead of choosing: that is a new question for the AI, and the
- // waiting messages (≤10 minutes) join it so one answer covers them. Never ask about the same idle case twice.
- const ignoredStaleAsk=event.type==='message'&&!typedChoice?(await client.query(`select m.id from public.messages m join public.conversations c on c.id=m.conversation_id
-  where c.line_session_id=$1 and m.sender_type='USER' and m.ticket_id is null and m.metadata->>'routing_status'='PENDING' and m.metadata ? 'stale_case_ask'
+ // CONV-GREET-02 (DEC-208): a greeting has no topic; it follows an explicit human focus, otherwise the latest AI topic.
+ const greeting=typedMessage&&event.message.type==='text'&&!requestedNew&&!semantic&&!focus&&greetingKind(event.message.text)!==null;
+ // Messages still waiting from an earlier topic question (≤10 minutes) join this message so one answer covers them.
+ const waiting=typedMessage&&natural?(await client.query(`select m.id from public.messages m join public.conversations c on c.id=m.conversation_id
+  where c.line_session_id=$1 and m.sender_type='USER' and m.ticket_id is null and m.metadata->>'routing_status'='PENDING'
    and m.created_at>now()-interval '10 minutes' order by m.created_at,m.id`,[sessionId])).rows.map(row=>row.id as string):[];
- const adviceHuman=semantic?.selectedConversationId&&!selected&&!ignoredStaleAsk.length?candidates.find(c=>c.conversationId===semantic.selectedConversationId&&c.mode==='HUMAN'&&c.ticketId):undefined;
- const staleHuman=adviceHuman&&(await client.query(`select 1 from public.conversations c where c.id=$1 and coalesce((select max(m.created_at)
+ // A staff case quiet for over a day is only a guess for automatic advice: the AI answers instead and the reply
+ // notes that the case is still with Staff. An explicit choice or human focus is unchanged.
+ const adviceHuman=semantic?.selectedConversationId&&!selected?candidates.find(c=>c.conversationId===semantic.selectedConversationId&&c.mode==='HUMAN'&&c.ticketId):undefined;
+ const staleHuman=natural&&adviceHuman&&(await client.query(`select 1 from public.conversations c where c.id=$1 and coalesce((select max(m.created_at)
   from public.messages m where m.conversation_id=c.id and m.metadata->>'routing_status' is distinct from 'PENDING'),c.created_at)<now()-make_interval(hours=>$2)`,
   [adviceHuman.conversationId,STALE_HUMAN_CASE_HOURS])).rowCount===1?adviceHuman:undefined;
  const decisionStart=Date.now();
- const decision:RouteDecision=staleHuman?{route:'ASK_CONTEXT',confidence:semantic?.confidence??0,reason:'stale_human_case_requires_confirmation'}
-  :ignoredStaleAsk.length?{route:'AI_NEW',confidence:semantic?.confidence??0,reason:'stale_case_question_not_chosen'}:routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined)??greetingTarget,
-  newTopic:newTopic||requestedNew||semantic?.newTopic||(greeting&&!greetingTarget),confidence:semantic?.confidence});
+ let decision:RouteDecision=routeConversation({candidates,selectedConversationId:selected??(staleHuman?undefined:semantic?.selectedConversationId)??(!semantic?focus?.conversationId:undefined)??(greeting?latestAI:undefined),
+  newTopic:newTopic||requestedNew||(!staleHuman&&semantic?.newTopic)||(greeting&&!latestAI),confidence:semantic?.confidence});
+ if(typedMessage&&natural&&(staleHuman||decision.route==='ASK_CONTEXT')){
+  const reason=staleHuman?'idle_staff_case_answered_by_ai':`continued_latest_ai_${decision.reason}`;
+  decision=latestAI?{route:'AI_EXISTING',conversationId:latestAI,confidence:decision.confidence,reason}:{route:'AI_NEW',confidence:decision.confidence,reason};
+ }
  options.routingObservation?.({stage:'DECISION',status:decision.route==='ASK_CONTEXT'?'SKIPPED':'SUCCESS',reasonCode:decision.reason.toUpperCase(),
   candidates:candidates.length,latencyMs:routingLatency(decisionStart)});
  let conversationId=selected;
@@ -165,21 +175,13 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   // A display representation of unsupported media is not a Student text question.
   // Keep the durable original event; no media understanding/download is claimed.
   const messageType=event.message.type==='text'?'TEXT':event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'SYSTEM';
-  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,...(staleHuman?{stale_case_ask:staleHuman.conversationId}:{}),
+  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,
    ...(event.message.type==='text'?{}:{source_message_type:event.message.type})}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
-  if(ignoredStaleAsk.length&&decision.route==='AI_NEW')await client.query(`update public.messages set conversation_id=$2,
-   metadata=(metadata-'stale_case_ask')||'{"routing_status":"ROUTED","routing_route":"AI_NEW"}'::jsonb
-   where id=any($1::uuid[]) and ticket_id is null and metadata->>'routing_status'='PENDING'`,[ignoredStaleAsk,conversationId]);
+  if(waiting.length&&(decision.route==='AI_NEW'||decision.route==='AI_EXISTING'))await client.query(`update public.messages set conversation_id=$2,
+   metadata=(metadata-'stale_case_ask')||jsonb_build_object('routing_status','ROUTED','routing_route',$3::text)
+   where id=any($1::uuid[]) and ticket_id is null and metadata->>'routing_status'='PENDING'`,[waiting,conversationId,decision.route]);
   if(event.message.type==='image'||event.message.type==='file')await registerStudentChatAttachment(client,{messageId:stored.id,sourceEventId:eventId},key);
- }
- if(decision.route==='ASK_CONTEXT'&&staleHuman){
-  const label=staleHuman.topicLabel??'เคสเดิม';
-  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,
-   choices:[{label:'ถามเป็นเรื่องใหม่',value:{action:'NEW'}},{label:`ต่อ ${label}`,value:{action:'CONTINUE',conversationId:staleHuman.conversationId}}]},key);
-  await respond(`คำถามนี้คล้ายเคส ${label} ที่ส่งถึงเจ้าหน้าที่ไว้ก่อนหน้านี้ครับ
-ต้องการให้ผู้ช่วยตอบเป็นคำถามใหม่ หรือส่งเข้าเคสเดิมให้เจ้าหน้าที่`,quickReply);
-  return null;
  }
  if(decision.route==='ASK_CONTEXT'){
   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:contextChoiceOptions(candidates)},key);
@@ -201,8 +203,9 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    if(explicit||inherited){
     await rememberExplicitHumanFocus(client,sessionId,pendingMessageId,decision.ticketId,explicit?undefined:inherited??undefined);
     const current=await loadCandidates(client,sessionId),label=current.find(c=>c.ticketId===decision.ticketId)?.topicLabel??'ที่เลือก';
-    const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),choices:[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
-    await respond(`ส่งข้อความเข้าเรื่อง ${label} แล้วครับ เจ้าหน้าที่จะเห็นข้อความในระบบ\nข้อความถัดไปจะต่อเรื่องนี้ชั่วคราว หากต้องการถามเรื่องอื่น กด “เริ่มเรื่องใหม่”`,quickReply);
+    if(natural)await respond(`ส่งข้อความเข้าเรื่อง ${label} แล้วครับ เจ้าหน้าที่จะเห็นข้อความในระบบ\nถ้าต้องการถามเรื่องอื่น พิมพ์มาได้เลยครับ`);
+    else await respond(`ส่งข้อความเข้าเรื่อง ${label} แล้วครับ เจ้าหน้าที่จะเห็นข้อความในระบบ\nข้อความถัดไปจะต่อเรื่องนี้ชั่วคราว หากต้องการถามเรื่องอื่น กด “เริ่มเรื่องใหม่”`,
+     await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),choices:[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key));
    }else await respond('บันทึกข้อความเข้าเคสที่กำลังคุยกับเจ้าหน้าที่แล้วครับ เจ้าหน้าที่จะเห็นข้อความนี้ในระบบ');
   }
   // Fixed receipts and scoped Staff alerts are separate from forbidden AI answers in HUMAN.
@@ -212,14 +215,15 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   await client.query("update public.messages set conversation_id=$2,metadata=$4::jsonb where id=$1 and ticket_id is null and conversation_id in(select id from public.conversations where line_session_id=$3)",[pendingMessageId,conversationId,sessionId,{routing_status:'ROUTED',routing_route:decision.route,routing_input_event_id:eventId}]);
  }
  const current=await loadCandidates(client,sessionId);
- const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:options.aiEnabled?undefined:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}]},key);
+ const quickReply=await createChoices(client,{sessionId,snapshot:candidateSnapshot(current),pendingMessageId:options.aiEnabled?undefined:pendingMessageId??undefined,choices:[{label:'ติดต่อเจ้าหน้าที่',value:{action:'CONTACT',conversationId}},...(natural?[]:[{label:'เริ่มเรื่องใหม่',value:{action:'NEW'}}])]},key);
  if(options.aiEnabled&&pendingMessageId){
   const text=(await client.query("select id from public.messages where id=$1 and conversation_id=$2 and sender_type='USER' and message_type='TEXT' and metadata->>'routing_status'='ROUTED'",[pendingMessageId,conversationId])).rows[0];
   if(text){
-   await prepareAIJob(client,{sessionId,conversationId,messageId:pendingMessageId,receivedAt,replyToken,quickReply},key);return null;
+   await prepareAIJob(client,{sessionId,conversationId,messageId:pendingMessageId,receivedAt,replyToken,quickReply,
+    ...(staleHuman&&/^YRU-\d{1,20}$/u.test(staleHuman.topicLabel??'')?{staffCaseNote:staleHuman.topicLabel!}:{})},key);return null;
   }
  }
- await respond('ได้รับข้อความแล้วครับ เลือกติดต่อเจ้าหน้าที่หรือเริ่มเรื่องใหม่ได้ด้านล่าง',quickReply);
+ await respond(natural?'ได้รับข้อความแล้วครับ ถ้าต้องการคุยกับเจ้าหน้าที่ กดปุ่มด้านล่างได้เลย':'ได้รับข้อความแล้วครับ เลือกติดต่อเจ้าหน้าที่หรือเริ่มเรื่องใหม่ได้ด้านล่าง',quickReply);
  return null;
 
  async function respond(text:string,quickReply?:OutboundText['quickReply']) {
