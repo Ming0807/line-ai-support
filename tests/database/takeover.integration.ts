@@ -7,9 +7,16 @@ import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {enqueueOutbound} from '../../lib/queue/outbox';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 import {applyTicketAction} from '../../lib/tickets/ticket-service';
+import {prepareAIJob} from '../../lib/ai/jobs';
+import {runAICycle} from '../../lib/ai/run-worker';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 
 async function fixture(){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5}),key=randomBytes(32).toString('base64'),staff=randomUUID();
+ const pool=new Pool({connectionString:ownedUrl,max:5}),key=randomBytes(32).toString('base64'),staff=randomUUID();
  await pool.query('insert into auth.users(id) values($1)',[staff]);
  const dept=(await pool.query("insert into public.departments(code,name_th,name_en) values($1,'ทดสอบ','Test') returning id",[`RACE-${randomUUID()}`])).rows[0].id;
  await pool.query("insert into public.staff_profiles(id,department_id,display_name,role) values($1,$2,'Test','STAFF')",[staff,dept]);
@@ -21,18 +28,29 @@ async function fixture(){
  async function cleanup(){
   await pool.query('delete from private.delivery_attempts where outbox_id in(select id from private.message_outbox where line_session_id=$1)',[session]);
   await pool.query('delete from private.message_outbox where line_session_id=$1',[session]);
+  await pool.query('delete from private.ai_jobs where line_session_id=$1',[session]);
   await pool.query('delete from private.ticket_action_receipts where ticket_id=$1',[ticket]);
   await pool.query('delete from private.activities where ticket_id=$1',[ticket]);
   await pool.query('delete from public.ticket_history where ticket_id=$1',[ticket]);
   await pool.query('update public.conversations set active_ticket_id=null where id=$1',[conversation]);
   await pool.query('delete from private.incident_detection_jobs where ticket_id=$1',[ticket]);
   await pool.query('delete from private.incident_ticket_vectors where ticket_id=$1',[ticket]);
-  await pool.query('delete from public.tickets where id=$1',[ticket]);await pool.query('delete from public.conversations where id=$1',[conversation]);
+  await pool.query('delete from public.tickets where id=$1',[ticket]);await pool.query('delete from public.messages where conversation_id=$1',[conversation]);
+  await pool.query('delete from public.conversations where id=$1',[conversation]);
   await pool.query('delete from private.line_identities where line_session_id=$1',[session]);await pool.query('delete from public.line_sessions where id=$1',[session]);
   await pool.query('delete from public.staff_profiles where id=$1',[staff]);await pool.query('delete from auth.users where id=$1',[staff]);await pool.query('delete from public.departments where id=$1',[dept]);await pool.end();
  }
  const enqueue=()=>transaction(client=>enqueueOutbound(client,{idempotencyKey:randomUUID(),channel:'STUDENT',kind:'AI',lineSessionId:session,conversationId:conversation,conversationRevision:0,messages:[{type:'text',text:'Controlled AI fixture'}]},key),pool);
- return {pool,key,staff,ticket,conversation,session,enqueue,cleanup};
+ // DEC-189: only a finalized ai-job packet for the latest Student input is deliverable (otherwise STALE_AI_INPUT),
+ // so a dispatchable AI packet comes from the real AI worker path with a controlled CLARIFY result.
+ async function sourceBoundAI(){
+  const message=(await pool.query(`insert into public.messages(conversation_id,sender_type,message_type,content)
+   values($1,'USER','TEXT','Controlled takeover question') returning id`,[conversation])).rows[0].id;
+  const job=await transaction(c=>prepareAIJob(c,{sessionId:session,conversationId:conversation,messageId:message,receivedAt:new Date()},key),pool);assert(job);
+  assert.equal((await runAICycle(pool,key,{produce:async()=>({kind:'CLARIFY',text:'Controlled AI fixture'})})).claimed,1);
+  return job;
+ }
+ return {pool,key,staff,ticket,conversation,session,enqueue,sourceBoundAI,cleanup};
 }
 
 test('accept wins the generation race; old-revision AI enqueue is suppressed',async()=>{
@@ -60,14 +78,17 @@ test('dispatch and takeover serialize across bounded HTTP without an open SQL tr
  const entered=new Promise<void>(resolve=>{enter=resolve;}),released=new Promise<void>(resolve=>{release=resolve;});
  let acceptance:Promise<unknown>|undefined,dispatch:Promise<unknown>|undefined;
  try{
-  await f.enqueue();
+  const job=await f.sourceBoundAI();
+  assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${job}`])).rows[0].status,'PENDING');
   const transport:typeof fetch=async()=>{
    assert.equal((await f.pool.query('select mode from public.conversations where id=$1',[f.conversation])).rows[0].mode,'AI');
    // Attempt persistence must be visible independently while HTTP is pending.
    assert.equal((await f.pool.query('select attempts from private.message_outbox where conversation_id=$1',[f.conversation])).rows[0].attempts,1);
    enter();await released;return new Response(null,{status:200});
   };
-  dispatch=runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'fake',STAFF:'fake'},fetchImpl:transport});await entered;
+  dispatch=runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'fake',STAFF:'fake'},fetchImpl:transport});
+  // Fail instead of hanging when dispatch suppresses or defers the packet without reaching HTTP.
+  assert.equal(await Promise.race([entered.then(()=>'ENTERED'),dispatch.then(()=>'FINISHED_WITHOUT_HTTP')]),'ENTERED');
   await acceptClient.query('begin');const pid=(await acceptClient.query('select pg_backend_pid() pid')).rows[0].pid;
   acceptance=applyTicketAction(acceptClient,f.staff,f.ticket,'ACCEPT',{revision:0,requestId:randomUUID()},f.key);
   let blocked=false;

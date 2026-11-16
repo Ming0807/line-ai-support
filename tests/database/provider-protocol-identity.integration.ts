@@ -8,8 +8,13 @@ import {reorderModels} from '../../lib/ai/provider-order';
 import {createAIStore} from '../../lib/ai/store';
 import {buildFallbackPreview} from '../../lib/ai/provider-preview';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('Zen protocol changes are network identity changes; order retains the pinned protocol and old hints are fenced',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'}),actor=randomUUID();
+ const pool=new Pool({connectionString:ownedUrl}),actor=randomUUID();
  const options={pool,key:randomBytes(32).toString('base64')};let providerId:string|undefined;
  try{
   await pool.query('insert into auth.users(id) values($1)',[actor]);await pool.query("insert into public.staff_profiles(id,display_name,role,active) values($1,'Protocol fixture','SUPER_ADMIN',true)",[actor]);

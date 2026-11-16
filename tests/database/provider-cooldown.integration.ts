@@ -9,8 +9,13 @@ import {createAIStore} from '../../lib/ai/store';
 import {generate} from '../../lib/ai/gateway';
 import {testProviderModel} from '../../lib/ai/provider-probe-admin';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('durable cooldown survives order/display edits, obeys network identity and blocks only matching inference',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5});
+ const pool=new Pool({connectionString:ownedUrl,max:5});
  const actor=randomUUID(),key=randomBytes(32).toString('base64'),options={pool,key};let providerId:string|undefined;
  try{
   assert.equal(Number((await pool.query('select count(*) from private.ai_providers')).rows[0].count),0,'DEDICATED_REGISTRY_REQUIRED');

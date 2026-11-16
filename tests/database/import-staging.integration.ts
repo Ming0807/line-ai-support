@@ -4,7 +4,12 @@ import {test} from 'node:test';
 import {Pool} from 'pg';
 import {createImportJob,createOfficialUrlImportJob,getImportJob,listImportJobs,markImportFailed,readImportOriginal} from '../../lib/imports/import-staging';
 import {createImportSource} from '../../lib/imports/source';
-const poolOptions={connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5};
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const poolOptions={connectionString:ownedUrl,max:5};
 function source(label=randomUUID()){
  return createImportSource({bytes:Buffer.from(`\ufeffหัวข้อ,ข้อความ\r\n${label},ข้อมูลต้นฉบับ\r\n`),filename:'original.csv',mimeType:'text/csv',sourceUrl:'https://library.yru.ac.th/guide',acquiredFrom:'UPLOAD',fetchedAt:null});
 }

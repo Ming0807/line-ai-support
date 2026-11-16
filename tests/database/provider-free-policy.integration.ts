@@ -4,8 +4,13 @@ import {test} from 'node:test';
 import {Pool} from 'pg';
 import {createProvider,createModel,listProviders,updateProvider,checkProviderHealth} from '../../lib/ai/provider-admin';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('provider policy defaults FREE_ONLY and allows official free providers with explicit embedding dimensions',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3});
+ const pool=new Pool({connectionString:ownedUrl,max:3});
  const actor=randomUUID(),key=randomBytes(32).toString('base64'),options={pool,key};const created:string[]=[];
  try{
   await pool.query('insert into auth.users(id) values($1)',[actor]);

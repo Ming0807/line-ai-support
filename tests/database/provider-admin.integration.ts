@@ -6,8 +6,13 @@ import {Pool} from 'pg';
 import {createProvider,updateProvider,createModel,updateModel,listProviders,checkProviderHealth} from '../../lib/ai/provider-admin';
 import {decryptValue} from '../../lib/security/identity';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('only active database Super Admin can manage provider/model config; reads never return encrypted or plain keys',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3}),key=randomBytes(32).toString('base64');
+ const pool=new Pool({connectionString:ownedUrl,max:3}),key=randomBytes(32).toString('base64');
  const admin=randomUUID(),staff=randomUUID(),inactive=randomUUID(),ids=[admin,staff,inactive];let providerId='';
  const secret='fixture-first-'+randomUUID(),replacement='fixture-second-'+randomUUID();
  const settings={name:'Provider fixture '+randomUUID(),adapter:'OPENAI',baseUrl:'https://api.openai.com/v1',priority:1,enabled:true,apiKey:secret};

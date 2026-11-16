@@ -5,8 +5,13 @@ import {Pool} from 'pg';
 import {createProvider,createModel,listProviders} from '../../lib/ai/provider-admin';
 import {reorderProviders,reorderModels} from '../../lib/ai/provider-order';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('full-scope provider/model reorder is atomic, revision guarded, role scoped and purpose isolated',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:6});
+ const pool=new Pool({connectionString:ownedUrl,max:6});
  const actor=randomUUID(),forbidden=randomUUID(),options={pool,key:randomBytes(32).toString('base64')};const ids:string[]=[];
  try{
   assert.equal(Number((await pool.query('select count(*) from private.ai_providers')).rows[0].count),0,'dedicated local registry must be empty for a full-scope fixture');

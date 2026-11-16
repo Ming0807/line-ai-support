@@ -18,10 +18,11 @@ import { hashOpaqueToken } from '../../lib/conversation/quick-reply';
 import { notifyTicketStaff } from '../../lib/tickets/notifications';
 import { staffAlertsInstalled } from '../../lib/incidents/staff-alerts';
 
-const localUrl = 'postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
 const ownedDatabase = process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
-if (ownedDatabase) assert(/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase), 'OWNED_ISOLATED_DATABASE_REQUIRED');
-const pool = new Pool({ connectionString: ownedDatabase ? localUrl.replace(/postgres$/u, ownedDatabase) : localUrl, max: 5 });
+assert(ownedDatabase && /^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase), 'OWNED_ISOLATED_DATABASE_REQUIRED');
+const localUrl = `postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const pool = new Pool({ connectionString: localUrl, max: 5 });
 const makeKey = () => randomBytes(32).toString('base64');
 
 interface FixtureIds {

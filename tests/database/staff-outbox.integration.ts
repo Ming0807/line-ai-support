@@ -6,7 +6,12 @@ import {decryptValue,encryptValue,hashLineUserId,hashStaffLineUserId} from '../.
 import {enqueueOutbound} from '../../lib/queue/outbox';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl=ownedUrl;
 const testTokens={STUDENT:'student-test-access-token',STAFF:'staff-test-access-token'};
 
 interface StaffFixture {id:string;userId:string}

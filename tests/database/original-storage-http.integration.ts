@@ -7,12 +7,17 @@ import {localStorageConfig} from '../../scripts/storage/local-config';
 import {createOriginalStorage,provisionOriginalStorage,ORIGINAL_BUCKET} from '../../lib/imports/original-storage';
 import {createImportJob,readImportOriginal} from '../../lib/imports/import-staging';
 import {createImportSource} from '../../lib/imports/source';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 test('actual local Storage keeps originals private for anon/authenticated while authorized backend recovers exact bytes',{timeout:120_000},async()=>{
  const config=localStorageConfig();assert.equal(config.url,'http://127.0.0.1:54421');
  const service=createClient(config.url,config.secretKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
  const anon=createClient(config.url,config.publishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
  const browser=createClient(config.url,config.publishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3}),email=`original-${randomUUID()}@example.invalid`,password=randomBytes(24).toString('base64url');
+ const pool=new Pool({connectionString:ownedUrl,max:3}),email=`original-${randomUUID()}@example.invalid`,password=randomBytes(24).toString('base64url');
  let actor:string|undefined;const paths:string[]=[];
  try{
   await provisionOriginalStorage(config);

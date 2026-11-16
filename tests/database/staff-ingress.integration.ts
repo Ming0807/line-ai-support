@@ -7,8 +7,13 @@ import { processInboxEvent } from '../../lib/queue/process-inbox';
 import { classifyEventKind, type DirectUserEvent } from '../../lib/line/events';
 import { persistStaffInboxEvent } from '../../lib/queue/staff-inbox';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 // Deliberately isolated to the dedicated local Supabase database.
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+const localUrl=ownedUrl;
 
 async function assertReadyQueuesEmpty(client:Client,channels:('STUDENT'|'STAFF')[]):Promise<void> {
  const ready=(await client.query(
@@ -92,7 +97,8 @@ test('processing a claimed STAFF text event stores only encrypted private intake
   assert.equal(duplicateResult,null,'duplicate processing is an accepted no-op');
   assert.equal((await client.query('select count(*)::int as count from private.staff_inbound_messages where source_event_id=$1',[job.id])).rows[0].count,1,'replay keeps one Staff intake row');
   const inboxState=(await client.query('select status,last_error_code from private.webhook_inbox where id=$1',[job.id])).rows[0];
-  assert.deepEqual(inboxState,{status:'DONE',last_error_code:null});
+  // DEC-189: Staff OA is notification-only; an unbound sender's text is kept encrypted but completes UNBOUND_STAFF with no reply.
+  assert.deepEqual(inboxState,{status:'DONE',last_error_code:'UNBOUND_STAFF'});
 
   const columns=(await client.query(`select column_name from information_schema.columns
     where table_schema='private' and table_name='staff_inbound_messages'`)).rows.map(row=>row.column_name);
@@ -127,7 +133,7 @@ test('the same user, event ID, and message ID stay isolated between STUDENT and 
   assert.equal((await client.query('select count(*)::int as count from private.staff_inbound_messages where source_event_id=$1',[staffJob.id])).rows[0].count,1,'Staff event is stored in its isolated private table');
   const state=(await client.query('select channel,status,last_error_code from private.webhook_inbox where event_id=$1 order by channel',[eventId])).rows;
   assert.deepEqual(state,[
-   {channel:'STAFF',status:'DONE',last_error_code:null},
+   {channel:'STAFF',status:'DONE',last_error_code:'UNBOUND_STAFF'}, // DEC-189 notification-only Staff OA
    {channel:'STUDENT',status:'DONE',last_error_code:null},
   ]);
  } finally {
@@ -136,7 +142,7 @@ test('the same user, event ID, and message ID stay isolated between STUDENT and 
  }
 });
 
-test('Staff follow and non-text events are completed unsupported without Student rows',async()=>{
+test('Staff follow and non-text events from an unbound account complete without Student rows',async()=>{
  const client=new Client({connectionString:localUrl});
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`;
  const userHash=hashLineUserId(userId,key),followId=`unsupported-follow-${randomUUID()}`,imageId=`unsupported-image-${randomUUID()}`;
@@ -155,7 +161,8 @@ test('Staff follow and non-text events are completed unsupported without Student
   for(const id of ids) await claimAndProcess(client,'STAFF',id,key);
 
   const statuses=(await client.query('select last_error_code from private.webhook_inbox where id=any($1::uuid[]) order by event_seq', [ids])).rows.map(row=>row.last_error_code);
-  assert.deepEqual(statuses,['UNSUPPORTED_EVENT','UNSUPPORTED_EVENT']);
+  // DEC-189: these events parse, so they reach the notification-only Staff path, which completes an unbound sender as UNBOUND_STAFF.
+  assert.deepEqual(statuses,['UNBOUND_STAFF','UNBOUND_STAFF']);
   assert.equal((await client.query('select count(*)::int as count from private.line_identities where user_hash=$1',[userHash])).rows[0].count,0);
   assert.equal((await client.query('select count(*)::int as count from public.line_sessions s join private.line_identities i on i.line_session_id=s.id where i.user_hash=$1',[userHash])).rows[0].count,0);
   assert.equal((await client.query('select count(*)::int as count from public.conversations c join public.line_sessions s on s.id=c.line_session_id join private.line_identities i on i.line_session_id=s.id where i.user_hash=$1',[userHash])).rows[0].count,0);

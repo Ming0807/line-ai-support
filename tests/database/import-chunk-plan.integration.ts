@@ -12,8 +12,13 @@ import {unfinishedReviewDraft} from '../fixtures/import-review';
 import {LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION,LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';
 import type {PassageTokenCounter} from '../../lib/knowledge/embedding-client';
 import {encryptStagingValue} from '../../lib/imports/staging-envelope';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 async function fixture(work:(f:Awaited<ReturnType<typeof ready>>)=>Promise<void>){
- const actor=randomUUID(),staff=randomUUID(),pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5,application_name:'chunk-plan-'+actor});
+ const actor=randomUUID(),staff=randomUUID(),pool=new Pool({connectionString:ownedUrl,max:5,application_name:'chunk-plan-'+actor});
  try{await work(await ready(pool,actor,staff));}
  finally{
   await pool.query('delete from private.knowledge_import_jobs where creator_id=$1',[actor]);await pool.query('delete from private.activities where actor_id=any($1::uuid[])',[[actor,staff]]);
@@ -70,7 +75,7 @@ test('actor revoked or request aborted during preparation returns no private pla
 
 test('review committed during the final job lock wait invalidates the previously counted plan',()=>fixture(async f=>{
  await saveImportReview(f.actor,f.job.id,f.input,f.config);
- const operationName='chunk-lock-'+randomUUID(),operationPool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3,application_name:operationName});
+ const operationName='chunk-lock-'+randomUUID(),operationPool=new Pool({connectionString:ownedUrl,max:3,application_name:operationName});
  const blocker=await f.pool.connect();let resume:()=>void=()=>undefined,prepared:()=>void=()=>undefined;
  const gate=new Promise<void>(resolve=>{resume=resolve;}),ready=new Promise<void>(resolve=>{prepared=resolve;});
  const lookup=getImportChunkPlan(f.actor,f.job.id,f.query,{...f.config,pool:operationPool,beforeRead:async()=>{prepared();await gate;}});

@@ -6,10 +6,15 @@ import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import {buildCitedAnswer,evidenceStillMatches} from '../../lib/knowledge/citations';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {knowledgeLocations} from '../fixtures/knowledge-locations';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 const fingerprint='b'.repeat(64);
 const scope:KnowledgeScope={historical:false,academicYear:2569,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 async function fixture(work:(client:PoolClient,document:string,code:string)=>Promise<void>){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:1}),client=await pool.connect();
+ const pool=new Pool({connectionString:ownedUrl,max:1}),client=await pool.connect();
  try{
   await client.query('begin');const code='TEST_'+randomUUID().replaceAll('-','').toUpperCase();
   const family=(await client.query("insert into public.document_families(code,name,category) values($1,'Location fixture','Test') returning id",[code])).rows[0].id;

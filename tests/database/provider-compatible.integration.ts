@@ -8,11 +8,16 @@ import {generate} from '../../lib/ai/gateway';
 import {embed} from '../../lib/ai/embedding-gateway';
 import {z} from 'zod';
 import {testProviderModel} from '../../lib/ai/provider-probe-admin';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 const base='https://api.provider-support.com/v1';
 const config={name:'Compatible fixture',adapter:'COMPATIBLE',baseUrl:base,apiKey:'canary-compatible-key',enabled:true,priority:1};
 
 async function fixture(work:(pool:Pool,actor:string,staff:string,key:string,providers:string[])=>Promise<void>){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5,application_name:`compatible-${randomUUID()}`});
+ const pool=new Pool({connectionString:ownedUrl,max:5,application_name:`compatible-${randomUUID()}`});
  const actor=randomUUID(),staff=randomUUID(),key=randomBytes(32).toString('base64'),providers:string[]=[];
  try{
   assert.equal(Number((await pool.query('select count(*) from private.ai_providers')).rows[0].count),0,'DEDICATED_REGISTRY_REQUIRED');

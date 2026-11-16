@@ -3,8 +3,13 @@ import {test} from 'node:test';
 import {Pool} from 'pg';
 import {getInitialDocumentFamilies} from '../../lib/imports/family-catalog';
 import {seedInitialDocumentFamilies} from '../../lib/imports/family-seed';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 test('fixed nineteen-family seed dry-run is read-only; apply/idempotent replay preserve existing metadata and publish nothing',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'}),client=await pool.connect();
+ const pool=new Pool({connectionString:ownedUrl}),client=await pool.connect();
  try{
   await client.query('begin');
   await client.query("insert into public.document_families(code,name,category,default_storage_mode) values('ACADEMIC_CALENDAR','ชื่อที่มหาวิทยาลัยตั้งไว้','รักษาค่าเดิม','BOTH') on conflict(code) do nothing");

@@ -12,9 +12,14 @@ import {approveImport} from '../../lib/imports/import-publication';
 import {unfinishedReviewDraft} from '../fixtures/import-review';
 import {LOCAL_EMBEDDING_MODEL,LOCAL_EMBEDDING_REVISION,LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';
 import type {LocalE5EmbeddingProvider} from '../../lib/knowledge/embedding-client';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 const base={q:null,departmentCode:null,status:null,page:1,pageSize:10};
 async function fixture(work:(f:{pool:Pool;actor:string;staff:string;family:string;empty:string;code:string;ids:string[];pending:string})=>Promise<void>){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4}),actor=randomUUID(),staff=randomUUID(),family=randomUUID(),empty=randomUUID(),pending=randomUUID(),ids=Array.from({length:7},()=>randomUUID()),code='CAT_'+actor.replaceAll('-','').toUpperCase();
+ const pool=new Pool({connectionString:ownedUrl,max:4}),actor=randomUUID(),staff=randomUUID(),family=randomUUID(),empty=randomUUID(),pending=randomUUID(),ids=Array.from({length:7},()=>randomUUID()),code='CAT_'+actor.replaceAll('-','').toUpperCase();
  try{
   for(const [id,role] of [[actor,'SUPER_ADMIN'],[staff,'STAFF']]){await pool.query('insert into auth.users(id) values($1)',[id]);await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1,$2,'Catalog fixture',true,case when $2='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role]);}
   await pool.query("insert into public.document_families(id,code,name,category,default_storage_mode) values($1,$2,'Catalog test','Fixture','BOTH'),($3,$4,'Empty catalog','Fixture','RAG')",[family,code,empty,code+'_EMPTY']);

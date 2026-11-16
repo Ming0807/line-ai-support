@@ -3,7 +3,12 @@ import {test} from 'node:test';
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 
-const poolOptions={connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2};
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const poolOptions={connectionString:ownedUrl,max:2};
 test('knowledge tables fail closed for browser roles, with explicit server privileges and pgvector',async()=>{
  const pool=new Pool(poolOptions);
  try{

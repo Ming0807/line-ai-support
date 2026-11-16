@@ -5,8 +5,13 @@ import {Pool} from 'pg';
 import {encryptValue} from '../../lib/security/identity';
 import {createAIStore} from '../../lib/ai/store';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('an in-flight generation preserves usage but cannot overwrite health after a configuration change',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2});
+ const pool=new Pool({connectionString:ownedUrl,max:2});
  const key=randomBytes(32).toString('base64');let providerId='';
  try{
   providerId=(await pool.query(`insert into private.ai_providers(name,adapter,base_url,api_key_encrypted)
@@ -38,7 +43,7 @@ test('an in-flight generation preserves usage but cannot overwrite health after 
 });
 
 test('AI registry is private to browser roles and explicitly usable by service_role',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});
+ const pool=new Pool({connectionString:ownedUrl});
  try{
   const result=await pool.query(`select c.relname,c.relrowsecurity,
    has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') as browser_read,
@@ -52,7 +57,7 @@ test('AI registry is private to browser roles and explicitly usable by service_r
 });
 
 test('real AI store records usage, fixed errors and provider health without exposing keys or payloads',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2});
+ const pool=new Pool({connectionString:ownedUrl,max:2});
  const key=randomBytes(32).toString('base64'),secret='fixture-api-'+randomUUID();let providerId='';
  try{
   providerId=(await pool.query(`insert into private.ai_providers(name,adapter,base_url,api_key_encrypted)
@@ -81,7 +86,7 @@ test('real AI store records usage, fixed errors and provider health without expo
 });
 
 test('AI registry rejects unsafe base URLs and preserves encrypted keys with deterministic model priority',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'}),client=await pool.connect();
+ const pool=new Pool({connectionString:ownedUrl}),client=await pool.connect();
  const key=randomBytes(32).toString('base64'),secret='fixture-api-'+randomUUID();
  try{
   await client.query('begin');

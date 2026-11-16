@@ -9,7 +9,12 @@ import {createImportSource} from '../../lib/imports/source';
 import {parseHtmlSource} from '../../lib/imports/html-parser';
 import {buildReviewWarnings} from '../../lib/imports/review-warnings';
 import {unfinishedReviewDraft} from '../fixtures/import-review';
-const connectionString='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const connectionString=ownedUrl;
 async function fixture(work:(pool:Pool,actor:string,staff:string,key:string)=>Promise<void>){
  const pool=new Pool({connectionString,max:6,application_name:`import-review-${randomUUID()}`}),actor=randomUUID(),staff=randomUUID(),key=Buffer.alloc(32,93).toString('base64');
  try{

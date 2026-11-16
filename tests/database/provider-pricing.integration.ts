@@ -6,8 +6,13 @@ import {createProvider,createModel,listProviders,updateProvider} from '../../lib
 import {refreshModelPricing} from '../../lib/ai/provider-pricing';
 import {createAIStore} from '../../lib/ai/store';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('pricing refresh is outside SQL, persists only matching revisions and cannot grant manual free eligibility',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4});
+ const pool=new Pool({connectionString:ownedUrl,max:4});
  const actor=randomUUID(),options={pool,key:randomBytes(32).toString('base64')};let providerId='';
  const config={name:`Price ${randomUUID()}`,adapter:'OPENROUTER',baseUrl:'https://openrouter.ai/api/v1',apiKey:'fixture-key',enabled:true,priority:1};
  try{

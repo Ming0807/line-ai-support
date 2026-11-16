@@ -5,9 +5,14 @@ import {Pool,type PoolClient} from 'pg';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 const fingerprint='d'.repeat(64),scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 async function fixture(work:(client:PoolClient,family:string,code:string)=>Promise<void>){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2}),client=await pool.connect();
+ const pool=new Pool({connectionString:ownedUrl,max:2}),client=await pool.connect();
  try{await client.query('begin');const code='REL_'+randomUUID().replaceAll('-','').toUpperCase();
  const family=(await client.query("insert into public.document_families(code,name,category) values($1,'Controlled relationships','REGULATION') returning id",[code])).rows[0].id;
  await work(client,family,code);

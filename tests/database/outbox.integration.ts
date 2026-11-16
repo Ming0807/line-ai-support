@@ -7,8 +7,13 @@ import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 import {randomBytes} from 'node:crypto';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('outbox claims enforce recipient order and leave other recipients available',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});
+ const client=new Client({connectionString:ownedUrl});
  await client.connect();
  try{
   await client.query('begin');
@@ -23,7 +28,7 @@ test('outbox claims enforce recipient order and leave other recipients available
 });
 
 test('concurrent outbox claimers have only one winner for one committed recipient job',async()=>{
- const local='postgresql://postgres:postgres@127.0.0.1:54422/postgres',setup=new Client({connectionString:local}),a=new Client({connectionString:local}),b=new Client({connectionString:local});
+ const local=ownedUrl,setup=new Client({connectionString:local}),a=new Client({connectionString:local}),b=new Client({connectionString:local});
  await Promise.all([setup.connect(),a.connect(),b.connect()]);
  const session=(await setup.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[`Concurrent-${randomUUID()}`])).rows[0].id;
  const job=(await setup.query("insert into private.message_outbox(idempotency_key,line_session_id,kind,payload_encrypted) values($1,$2,'SYSTEM','encrypted') returning id",[randomUUID(),session])).rows[0].id;
@@ -35,7 +40,7 @@ test('concurrent outbox claimers have only one winner for one committed recipien
 });
 
 test('expired attempted Reply is UNKNOWN and never reclaimed or switched to Push',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});await client.connect();
+ const client=new Client({connectionString:ownedUrl});await client.connect();
  try{
   await client.query('begin');
   const session=(await client.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[`Reply-${randomUUID()}`])).rows[0].id;
@@ -46,7 +51,7 @@ test('expired attempted Reply is UNKNOWN and never reclaimed or switched to Push
 });
 
 test('real outbox dispatch commits attempt before HTTP and retry preserves key/body',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2});
+ const pool=new Pool({connectionString:ownedUrl,max:2});
  const key=randomBytes(32).toString('base64'),session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[`Outbox-${randomUUID()}`])).rows[0].id;
  const userId=`U${randomUUID().replaceAll('-','')}`;
  await pool.query("insert into private.line_identities(line_session_id,user_hash,user_id_encrypted) values($1,$2,$3)",[session,hashLineUserId(userId,key),encryptValue(userId,key)]);
@@ -72,7 +77,7 @@ test('real outbox dispatch commits attempt before HTTP and retry preserves key/b
 });
 
 test('a database finalization failure after accepted Push retries safely with the same key',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2});
+ const pool=new Pool({connectionString:ownedUrl,max:2});
  const key=randomBytes(32).toString('base64'),suffix=randomUUID().replaceAll('-',''),name=`fixture_delivery_${suffix}`;
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[`Failure-${randomUUID()}`])).rows[0].id;
  const user=`U${randomUUID().replaceAll('-','')}`;

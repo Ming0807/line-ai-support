@@ -9,7 +9,12 @@ import type { IngressEvent } from '../../lib/line/receive-webhook';
 import { setTimeout as delay } from 'node:timers/promises';
 import { classifyEventKind } from '../../lib/line/events';
 
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl=ownedUrl;
 
 async function processedFixture(makeEvents:(userId:string)=>unknown[],ageSeconds=0) {
  const client=new Client({connectionString:localUrl});
@@ -167,7 +172,7 @@ test('a lease expiring during processing prevents completion and rolls back effe
 });
 
 test('processing an encrypted event stores an anonymous message once and fences old leases',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});
+ const client=new Client({connectionString:ownedUrl});
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`,eventId=randomUUID(),messageId=randomUUID();
  const event={type:'message',webhookEventId:eventId,source:{type:'user',userId},message:{type:'text',id:messageId,text:'เครือข่ายเข้าไม่ได้'},timestamp:Date.now()};
  await client.connect();
@@ -188,7 +193,7 @@ test('processing an encrypted event stores an anonymous message once and fences 
 });
 
 test('a student user burst is throttled at 20 persisted messages',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});
+ const client=new Client({connectionString:ownedUrl});
  const key=randomBytes(32).toString('base64'),userId=`U${randomUUID().replaceAll('-','')}`;
  const hash=hashLineUserId(userId,key);
  await client.connect();

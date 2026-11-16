@@ -7,7 +7,12 @@ import {analyzeImportJob,editImportExtraction,getImportPreview} from '../../lib/
 import {createImportSource} from '../../lib/imports/source';
 import {parseHtmlSource as parseHtml} from '../../lib/imports/html-parser';
 import {createMalformedPdfFixture} from '../fixtures/import-pdf';
-const options={connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5};
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const options={connectionString:ownedUrl,max:5};
 async function fixture(work:(pool:Pool,actor:string,staff:string,key:string)=>Promise<void>){
  const pool=new Pool({...options,application_name:`import-extraction-${randomUUID()}`}),actor=randomUUID(),staff=randomUUID(),key=randomBytes(32).toString('base64');
  try{

@@ -3,8 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { Client } from 'pg';
 
-// This suite intentionally targets only the dedicated local development database.
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl=ownedUrl;
 
 test('concurrent claims preserve same-user order while another user progresses',async()=>{
  const setup=new Client({connectionString:localUrl});

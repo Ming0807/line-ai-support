@@ -4,7 +4,12 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 import { runInboxCycle } from '../../lib/queue/run-inbox';
 
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl=ownedUrl;
 
 test('a real worker cycle backs off failures, fences retries, and stops after five attempts',async()=>{
  const pool=new Pool({connectionString:localUrl,max:2});

@@ -4,7 +4,12 @@ import {test} from 'node:test';
 import {Pool} from 'pg';
 import {applyTicketAction} from '../../lib/tickets/ticket-service';
 
-const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4});
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const pool=new Pool({connectionString:ownedUrl,max:4});
 const key=randomBytes(32).toString('base64');
 test('ticket ACCEPT atomically sets HUMAN and writes exactly one audit',async()=>{
  const client=await pool.connect(),staff=randomUUID();

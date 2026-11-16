@@ -8,7 +8,12 @@ import { classifyEventKind, type DirectUserEvent } from '../../lib/line/events';
 import { processStudentContent } from '../../lib/conversation/student-processing';
 import { hashOpaqueToken } from '../../lib/conversation/quick-reply';
 
-const localUrl = 'postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=globalThis.process.env.YRU_STRUCTURED_SCHEMA_DATABASE; // this file declares its own process() helper
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl = ownedUrl;
 const key = randomBytes(32).toString('base64');
 
 type QuickChoice = { type: 'action'; action: { type: 'postback'; label: string; data: string; displayText?: string } };

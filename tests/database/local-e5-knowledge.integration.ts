@@ -6,10 +6,15 @@ import {LOCAL_EMBEDDING_FINGERPRINT} from '../../lib/knowledge/embedding-space';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,
  studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 const vector=[1,...Array<number>(383).fill(0)];
-const poolOptions={connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2};
+const poolOptions={connectionString:ownedUrl,max:2};
 
 test('E5 has a real generated vector(384) projection while preserving browser RLS and old vectors',async()=>{
  const pool=new Pool(poolOptions);

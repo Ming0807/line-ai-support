@@ -5,10 +5,15 @@ import {Pool,type PoolClient} from 'pg';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 const baseScope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,
  audience:null,studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 const fingerprint='d'.repeat(64);
-const poolOptions={connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2};
+const poolOptions={connectionString:ownedUrl,max:2};
 async function fixture(client:PoolClient,code:string,options:Record<string,unknown>={}){
  const family=(await client.query(`insert into public.document_families(code,name,category) values($1,'Controlled retrieval','REGULATION')
   on conflict(code) do update set name=excluded.name returning id`,[code])).rows[0].id;

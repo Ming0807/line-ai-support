@@ -6,8 +6,13 @@ import {hashOpaqueToken,consumeChoice} from '../../lib/conversation/quick-reply'
 import {hashStaffLineUserId,encryptValue} from '../../lib/security/identity';
 import {processStaffCommand} from '../../lib/tickets/staff-command';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('database-expired choice cannot be consumed when app clock lags',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});await client.connect();
+ const client=new Client({connectionString:ownedUrl});await client.connect();
  const key=randomBytes(32).toString('base64'),token=randomBytes(32).toString('base64url'),originalNow=Date.now;
  try{
   await client.query('begin');
@@ -20,7 +25,7 @@ test('database-expired choice cannot be consumed when app clock lags',async()=>{
 });
 
 test('database-expired Staff ACCEPT token is denied despite a lagging app clock',async()=>{
- const client=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres'});await client.connect();
+ const client=new Client({connectionString:ownedUrl});await client.connect();
  const key=randomBytes(32).toString('base64'),token=randomBytes(32).toString('base64url'),staff=randomUUID(),user=`U${randomUUID().replaceAll('-','')}`,originalNow=Date.now;
  try{
   await client.query('begin');await client.query('insert into auth.users(id) values($1)',[staff]);

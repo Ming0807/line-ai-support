@@ -6,7 +6,12 @@ import {listTickets} from '../../lib/tickets/reads';
 import {getDatabasePool} from '../../lib/database/pool';
 import type {TicketFilters} from '../../types/tickets';
 
-const localUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const localUrl=ownedUrl;
 // Never let the RED pre-seam implementation use a remote environment database.
 process.env.DATABASE_URL=localUrl;
 const pool=new Pool({connectionString:localUrl,max:3});

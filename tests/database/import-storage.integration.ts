@@ -5,7 +5,12 @@ import {Pool} from 'pg';
 import {createImportJob,getImportJob,markImportFailed,readImportOriginal,type ImportStagingOptions} from '../../lib/imports/import-staging';
 import {createImportSource} from '../../lib/imports/source';
 import type {OriginalStorage} from '../../lib/imports/original-storage';
-const connectionString='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const connectionString=ownedUrl;
 async function fixture(work:(pool:Pool,actor:string,staff:string,options:ImportStagingOptions,objects:Map<string,Uint8Array>)=>Promise<void>){
  const pool=new Pool({connectionString,max:5,application_name:`import-storage-${randomUUID()}`}),actor=randomUUID(),staff=randomUUID(),objects=new Map<string,Uint8Array>();
  const storage:OriginalStorage={async upload(jobId,_ref,envelope){objects.set(jobId,Uint8Array.from(envelope));},async download(jobId){const value=objects.get(jobId);assert(value);return Uint8Array.from(value);}};

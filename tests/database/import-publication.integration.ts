@@ -21,8 +21,13 @@ import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import {searchKnowledge} from '../../lib/knowledge/retrieval';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 import {setTimeout as delay} from 'node:timers/promises';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 async function fixture(work:(f:Awaited<ReturnType<typeof setup>>)=>Promise<void>){
- const actor=randomUUID(),staff=randomUUID(),pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:6,application_name:'publication-'+actor});
+ const actor=randomUUID(),staff=randomUUID(),pool=new Pool({connectionString:ownedUrl,max:6,application_name:'publication-'+actor});
  try{await work(await setup(pool,actor,staff));}
  finally{
   await pool.query('delete from private.knowledge_import_jobs where creator_id=$1',[actor]);
@@ -136,7 +141,7 @@ test('same job concurrent preparations produce one document and one matching rec
  const r=await f.ready();let arrivals=0;let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
  // Track each request separately: a sibling's short authorized read is allowed
  // while this request embeds, but this request's own transaction must be closed.
- const requests=['first','second'].map(name=>{const applicationName='publication-'+f.actor+'-'+name;const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:3,application_name:applicationName});return {pool,provider:f.providerFor(pool,applicationName)};});
+ const requests=['first','second'].map(name=>{const applicationName='publication-'+f.actor+'-'+name;const pool=new Pool({connectionString:ownedUrl,max:3,application_name:applicationName});return {pool,provider:f.providerFor(pool,applicationName)};});
  const beforeCommit=async()=>{if(++arrivals===2)release();await barrier;};
  const approvals=requests.map(request=>approveImport(f.actor,r.input,{...f.options,...request,beforeCommit}));
  try{

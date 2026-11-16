@@ -15,7 +15,12 @@ import {unfinishedReviewDraft} from '../fixtures/import-review';
 import {approveImport} from '../../lib/imports/import-publication';
 import {encryptStagingValue} from '../../lib/imports/staging-envelope';
 
-const connectionString='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
+const connectionString=ownedUrl;
 async function fixture(work:(f:Awaited<ReturnType<typeof ready>>)=>Promise<void>){
  const pool=new Pool({connectionString,max:6,application_name:'structured-review-'+randomUUID()}),actor=randomUUID(),staff=randomUUID();
  try{

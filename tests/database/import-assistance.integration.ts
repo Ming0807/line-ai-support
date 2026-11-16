@@ -9,8 +9,13 @@ import {analyzeImportJob,editImportExtraction} from '../../lib/imports/import-ex
 import {saveImportReview,getImportReview} from '../../lib/imports/import-review';
 import {applyImportAssistance,parseAssistanceEnvelope} from '../../lib/imports/assistance-contract';
 import {unfinishedReviewDraft} from '../fixtures/import-review';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 async function fixture(work:(f:{pool:Pool;actor:string;staff:string;key:string})=>Promise<void>){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4}),actor=randomUUID(),staff=randomUUID(),key=Buffer.alloc(32,98).toString('base64'),referenceId=randomUUID();
+ const pool=new Pool({connectionString:ownedUrl,max:4}),actor=randomUUID(),staff=randomUUID(),key=Buffer.alloc(32,98).toString('base64'),referenceId=randomUUID();
  try{
   for(const [id,role] of [[actor,'SUPER_ADMIN'],[staff,'STAFF']]){await pool.query('insert into auth.users(id) values($1)',[id]);await pool.query("insert into public.staff_profiles(id,role,display_name,active,department_id) values($1,$2,'Assistance fixture',true,case when $2='STAFF' then (select id from public.departments where code='IT') else null end)",[id,role]);}
   await pool.query("insert into public.document_families(id,code,name,category) values($1,'WIFI_GUIDE','คู่มือ Wi-Fi','ระบบดิจิทัล') on conflict(code) do nothing",[referenceId]);

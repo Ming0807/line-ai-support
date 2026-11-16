@@ -10,7 +10,12 @@ import {createImportSource} from '../../lib/imports/source';
 import {parseHtmlSource} from '../../lib/imports/html-parser';
 import {unfinishedReviewDraft} from '../fixtures/import-review';
 import {encryptStagingValue} from '../../lib/imports/staging-envelope';
-const connectionString='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+const connectionString=ownedUrl;
 async function fixture(work:(f:Awaited<ReturnType<typeof prepare>>)=>Promise<void>){
  const pool=new Pool({connectionString,max:6,application_name:`import-versions-${randomUUID()}`}),actor=randomUUID(),staff=randomUUID(),family=randomUUID();
  try{const f=await prepare(pool,actor,staff,family);await work(f);}
@@ -92,7 +97,7 @@ test('revoked actor, changed review, changed extraction or abort during preparat
 }));
 test('over one hundred family versions fails closed without exposing a misleading truncated target list',()=>fixture(async f=>{
  await family(f);await f.pool.query(`insert into public.documents(document_family_id,title,version_name,version_stream,checksum)
- select $1,'Bounded candidate','test','TEST_'||n,encode(extensions.digest(n::text,'sha256'),'hex') from generate_series(1,102) n`,[f.family]);
+ select $1,'Bounded candidate','test','TEST_'||n,encode(sha256(convert_to(n::text,'UTF8')),'hex') from generate_series(1,102) n`,[f.family]);
  await f.pool.query(`update public.documents set version_stream='MAIN',is_current=true,status='ACTIVE',approval_status='APPROVED',approved_at=clock_timestamp(),effective_from='2026-01-01',extraction_reviewed=true,requires_review=false
  where id=(select id from public.documents where document_family_id=$1 order by id desc limit 1)`,[f.family]);await saveImportReview(f.actor,f.job.id,f.input,f.config);
  const result=await getImportVersionResolution(f.actor,f.job.id,f.query,f.config);assert.equal(result.limitExceeded,true);assert.deepEqual(result.availableActions,[]);assert.deepEqual(result.candidates,[]);assert.equal(result.currentStreamOccupied,true);

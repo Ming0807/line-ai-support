@@ -8,8 +8,13 @@ import {refreshProviderQuota} from '../../lib/ai/provider-quota-admin';
 import {createAIStore} from '../../lib/ai/store';
 import {AIProviderError} from '../../lib/ai/types';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 test('per-model probes and quotas are authorized, selected-only, outside SQL, leased and revision guarded',async()=>{
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:5});
+ const pool=new Pool({connectionString:ownedUrl,max:5});
  const actor=randomUUID(),nonadmin=randomUUID(),key=randomBytes(32).toString('base64');let providerId='';
  const config={name:`Observation ${randomUUID()}`,adapter:'OPENROUTER',baseUrl:'https://openrouter.ai/api/v1',apiKey:'fixture-key',enabled:true,priority:1};
  try{
