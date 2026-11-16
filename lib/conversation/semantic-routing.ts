@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {greetingKind} from './input-hold';
 import type {Pool} from 'pg';
 import {transaction} from '../database/pool';
 import type {DbClient} from '../tickets/authorization';
@@ -83,6 +84,8 @@ export async function classifyStudentInboxContext(pool:Pool,job:InboxJob,key:str
    const question=event.message.text;if(question.length>20000||Buffer.byteLength(question,'utf8')>60000||!question.trim())return {kind:'skip',reason:'QUESTION_SIZE'};
    const hash=hashLineUserId(event.source.userId,key);if(row.user_hash!==hash||job.user_hash!==hash)return {kind:'skip',reason:'IDENTITY_MISMATCH'};
    if(isTypedSupportConfirmation(question))return {kind:'skip',reason:'SUPPORT_CONFIRMATION'};
+   // CONV-GREET-02 (DEC-208): a greeting has no topic to classify, so no routing model call.
+   if(greetingKind(question))return {kind:'skip',reason:'GREETING'};
    await c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`processing:STUDENT:${hash}`]);
    const session=(await c.query('select i.line_session_id from private.line_identities i join public.line_sessions s on s.id=i.line_session_id and s.active where i.user_hash=$1',[hash])).rows[0];
    if(!session)return {kind:'skip',reason:'SESSION_MISSING'};

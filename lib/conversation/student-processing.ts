@@ -2,7 +2,10 @@ import type {DbClient} from '../tickets/authorization';
 import {lockConversation} from '../tickets/authorization';
 import type {DirectUserEvent} from '../line/events';
 import {enqueueOutbound,type OutboundText} from '../queue/outbox';
-import {routeConversation} from './router';
+import {routeConversation,type RouteDecision} from './router';
+
+/** CONV-STALE-HUMAN-01 (DEC-208): a staff case idle longer than this is never chosen for the Student without asking. */
+export const STALE_HUMAN_CASE_HOURS=24;
 import {loadCandidates,candidateSnapshot} from './context-resolver';
 import {createChoices,consumeChoice,consumeTypedRouteChoice,isTypedRouteNavigation,latestPendingRouteSource,contextChoiceOptions,contextChoiceText} from './quick-reply';
 import {createEscalation} from '../tickets/create-ticket';
@@ -18,6 +21,7 @@ import {consumeTypedSupportConfirmation,isTypedSupportConfirmation} from './supp
 import {readExplicitHumanFocus,rememberExplicitHumanFocus,clearExplicitHumanFocus,readExplicitNewTopic,rememberExplicitNewTopic} from './explicit-focus';
 import {registerStudentChatAttachment} from '../chat/media-repository';
 import {fullAnswerForChoice} from './show-full-answer';
+import {greetingKind} from './input-hold';
 
 export interface StudentProcessingOptions {aiEnabled?:boolean;routingAdvice?:SemanticRoutingAdvice;routingUnavailable?:boolean;
  routingObservation?:(observation:RoutingDecisionObservation)=>void}
@@ -96,8 +100,21 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
  if(requestedNew)await clearExplicitHumanFocus(client,sessionId);
  const semantic=event.type==='message'&&!typedChoice?await validateRoutingAdvice(client,input,options.routingAdvice,key):null;
  const focus=event.type==='message'?await readExplicitHumanFocus(client,sessionId,candidates):null;
+ // CONV-GREET-02 (DEC-208): a greeting-only message has no topic, so it never asks "which topic?". It follows an
+ // explicit human focus as before, otherwise continues the most recently active AI conversation, or starts one.
+ const greeting=event.type==='message'&&event.message.type==='text'&&!typedChoice&&!requestedNew&&!semantic&&!focus&&greetingKind(event.message.text)!==null;
+ const greetingTarget=greeting?(await client.query(`select c.id from public.conversations c where c.id=any($1::uuid[]) and c.mode='AI'
+  order by coalesce((select max(m.created_at) from public.messages m where m.conversation_id=c.id),c.created_at) desc,c.id desc limit 1`,
+  [candidates.filter(c=>c.mode==='AI'&&c.ticketId===null).map(c=>c.conversationId)])).rows[0]?.id as string|undefined:undefined;
+ // CONV-STALE-HUMAN-01 (DEC-208): automatic advice that picks a staff case quiet for over a day is only a guess,
+ // and filing there silences the AI. Ask with two buttons instead; an explicit choice or human focus is unchanged.
+ const adviceHuman=semantic?.selectedConversationId&&!selected?candidates.find(c=>c.conversationId===semantic.selectedConversationId&&c.mode==='HUMAN'&&c.ticketId):undefined;
+ const staleHuman=adviceHuman&&(await client.query(`select 1 from public.conversations c where c.id=$1 and coalesce((select max(m.created_at)
+  from public.messages m where m.conversation_id=c.id and m.metadata->>'routing_status' is distinct from 'PENDING'),c.created_at)<now()-make_interval(hours=>$2)`,
+  [adviceHuman.conversationId,STALE_HUMAN_CASE_HOURS])).rowCount===1?adviceHuman:undefined;
  const decisionStart=Date.now();
- const decision=routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined),newTopic:newTopic||requestedNew||semantic?.newTopic,confidence:semantic?.confidence});
+ const decision:RouteDecision=staleHuman?{route:'ASK_CONTEXT',confidence:semantic?.confidence??0,reason:'stale_human_case_requires_confirmation'}:routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined)??greetingTarget,
+  newTopic:newTopic||requestedNew||semantic?.newTopic||(greeting&&!greetingTarget),confidence:semantic?.confidence});
  options.routingObservation?.({stage:'DECISION',status:decision.route==='ASK_CONTEXT'?'SKIPPED':'SUCCESS',reasonCode:decision.reason.toUpperCase(),
   candidates:candidates.length,latencyMs:routingLatency(decisionStart)});
  let conversationId=selected;
@@ -146,6 +163,14 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
    ...(event.message.type==='text'?{}:{source_message_type:event.message.type})}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
   if(event.message.type==='image'||event.message.type==='file')await registerStudentChatAttachment(client,{messageId:stored.id,sourceEventId:eventId},key);
+ }
+ if(decision.route==='ASK_CONTEXT'&&staleHuman){
+  const label=staleHuman.topicLabel??'เคสเดิม';
+  const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,
+   choices:[{label:'ถามเป็นเรื่องใหม่',value:{action:'NEW'}},{label:`ต่อ ${label}`,value:{action:'CONTINUE',conversationId:staleHuman.conversationId}}]},key);
+  await respond(`คำถามนี้คล้ายเคส ${label} ที่ส่งถึงเจ้าหน้าที่ไว้ก่อนหน้านี้ครับ
+ต้องการให้ผู้ช่วยตอบเป็นคำถามใหม่ หรือส่งเข้าเคสเดิมให้เจ้าหน้าที่`,quickReply);
+  return null;
  }
  if(decision.route==='ASK_CONTEXT'){
   const quickReply=await createChoices(client,{sessionId,snapshot,pendingMessageId:pendingMessageId??undefined,choices:contextChoiceOptions(candidates)},key);

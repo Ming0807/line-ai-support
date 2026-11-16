@@ -228,8 +228,10 @@ function socialProducer(onSocial?:()=>Promise<void>){
  };
  return {tasks,produce:createSupportProducer({generate,embed:async()=>{throw new Error('SOCIAL_MUST_NOT_EMBED');},search:async()=>{throw new Error('SOCIAL_MUST_NOT_SEARCH');}})};
 }
+// CONV-GREET-02 (DEC-208): a pure greeting no longer reaches the routing model or the social producer, so social
+// small talk that is not a greeting keeps this path covered.
 async function routeSocialAsNew(){
- const question='สวัสดีครับ';const f=await fixture({question});
+ const question='วันนี้อากาศร้อนมากเลยครับ';const f=await fixture({question});
  const advice=await classifyStudentInboxContext(pool,f.job,key,async input=>{
   assert.equal(input.question,question);assert.equal(input.contexts.length,1);assert.equal(input.contexts[0].code,'C1');
   return {decision:'NEW',candidateCode:null,confidence:.99};
@@ -238,6 +240,9 @@ async function routeSocialAsNew(){
  const routed=(await pool.query('select conversation_id,ticket_id from public.messages where source_event_id=$1',[f.job.id])).rows[0];
  assert(routed);assert.notEqual(routed.conversation_id,f.conversation);assert.equal(routed.ticket_id,null);
  const job=(await pool.query('select id,conversation_id from private.ai_jobs where line_session_id=$1 and conversation_id=$2',[f.session,routed.conversation_id])).rows[0];assert(job);
+ // CONV-BURST-01 (DEC-206): the quiet window is now 2.5 s; make it due instead of relying on elapsed test time.
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '4 seconds',last_received_at=now()-interval '3 seconds',
+  ready_at=now()-interval '1 second' where id=(select input_window_id from private.webhook_inbox where id=$1)`,[f.job.id]);
  return {...f,question,conversationId:routed.conversation_id,aiJobId:job.id};
 }
 test('semantic routing receives and stores complete long Thai and prior USER text without changing the HUMAN case',async()=>{

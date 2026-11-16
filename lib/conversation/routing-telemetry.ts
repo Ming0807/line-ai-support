@@ -9,6 +9,7 @@ export const routingReasons={
  QUESTION_SIZE:{severity:'INFO',label:'ขนาดข้อความอยู่นอกขอบเขต'},
  IDENTITY_MISMATCH:{severity:'WARN',label:'ยืนยันตัวตนผู้ส่งไม่ตรง'},
  SUPPORT_CONFIRMATION:{severity:'INFO',label:'ข้อความยืนยันการสนับสนุน'},
+ GREETING:{severity:'INFO',label:'ทักทายหรือขอบคุณอย่างเดียว ไม่ต้องเลือกเรื่อง'},
  SESSION_MISSING:{severity:'WARN',label:'ไม่พบเซสชันผู้ใช้ที่ใช้งานอยู่'},
  EXPLICIT_NEW_TOPIC:{severity:'INFO',label:'ผู้เรียนขอเริ่มเรื่องใหม่ชัดเจน'},
  INBOX_RATE_LIMIT:{severity:'WARN',label:'ผู้เรียนส่งถี่เกินขนาดรับได้'},
