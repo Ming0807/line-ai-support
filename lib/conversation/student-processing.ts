@@ -108,12 +108,18 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   [candidates.filter(c=>c.mode==='AI'&&c.ticketId===null).map(c=>c.conversationId)])).rows[0]?.id as string|undefined:undefined;
  // CONV-STALE-HUMAN-01 (DEC-208): automatic advice that picks a staff case quiet for over a day is only a guess,
  // and filing there silences the AI. Ask with two buttons instead; an explicit choice or human focus is unchanged.
- const adviceHuman=semantic?.selectedConversationId&&!selected?candidates.find(c=>c.conversationId===semantic.selectedConversationId&&c.mode==='HUMAN'&&c.ticketId):undefined;
+ // Asked once already and the Student kept typing instead of choosing: that is a new question for the AI, and the
+ // waiting messages (≤10 minutes) join it so one answer covers them. Never ask about the same idle case twice.
+ const ignoredStaleAsk=event.type==='message'&&!typedChoice?(await client.query(`select m.id from public.messages m join public.conversations c on c.id=m.conversation_id
+  where c.line_session_id=$1 and m.sender_type='USER' and m.ticket_id is null and m.metadata->>'routing_status'='PENDING' and m.metadata ? 'stale_case_ask'
+   and m.created_at>now()-interval '10 minutes' order by m.created_at,m.id`,[sessionId])).rows.map(row=>row.id as string):[];
+ const adviceHuman=semantic?.selectedConversationId&&!selected&&!ignoredStaleAsk.length?candidates.find(c=>c.conversationId===semantic.selectedConversationId&&c.mode==='HUMAN'&&c.ticketId):undefined;
  const staleHuman=adviceHuman&&(await client.query(`select 1 from public.conversations c where c.id=$1 and coalesce((select max(m.created_at)
   from public.messages m where m.conversation_id=c.id and m.metadata->>'routing_status' is distinct from 'PENDING'),c.created_at)<now()-make_interval(hours=>$2)`,
   [adviceHuman.conversationId,STALE_HUMAN_CASE_HOURS])).rowCount===1?adviceHuman:undefined;
  const decisionStart=Date.now();
- const decision:RouteDecision=staleHuman?{route:'ASK_CONTEXT',confidence:semantic?.confidence??0,reason:'stale_human_case_requires_confirmation'}:routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined)??greetingTarget,
+ const decision:RouteDecision=staleHuman?{route:'ASK_CONTEXT',confidence:semantic?.confidence??0,reason:'stale_human_case_requires_confirmation'}
+  :ignoredStaleAsk.length?{route:'AI_NEW',confidence:semantic?.confidence??0,reason:'stale_case_question_not_chosen'}:routeConversation({candidates,selectedConversationId:selected??semantic?.selectedConversationId??(!semantic?focus?.conversationId:undefined)??greetingTarget,
   newTopic:newTopic||requestedNew||semantic?.newTopic||(greeting&&!greetingTarget),confidence:semantic?.confidence});
  options.routingObservation?.({stage:'DECISION',status:decision.route==='ASK_CONTEXT'?'SKIPPED':'SUCCESS',reasonCode:decision.reason.toUpperCase(),
   candidates:candidates.length,latencyMs:routingLatency(decisionStart)});
@@ -159,9 +165,12 @@ export async function processStudentContent(client:DbClient,input:{sessionId:str
   // A display representation of unsupported media is not a Student text question.
   // Keep the durable original event; no media understanding/download is claimed.
   const messageType=event.message.type==='text'?'TEXT':event.message.type==='image'?'IMAGE':event.message.type==='file'?'FILE':'SYSTEM';
-  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,
+  const stored=(await client.query("insert into public.messages(conversation_id,sender_type,message_type,content,line_message_id,source_event_id,metadata) values($1,'USER',$2,$3,$4,$5,$6) on conflict do nothing returning id",[conversationId,messageType,content,event.message.id,eventId,{routing_status:decision.route==='ASK_CONTEXT'?'PENDING':'ROUTED',routing_route:decision.route,...(staleHuman?{stale_case_ask:staleHuman.conversationId}:{}),
    ...(event.message.type==='text'?{}:{source_message_type:event.message.type})}])).rows[0];
   if(!stored)return null;pendingMessageId=stored.id;
+  if(ignoredStaleAsk.length&&decision.route==='AI_NEW')await client.query(`update public.messages set conversation_id=$2,
+   metadata=(metadata-'stale_case_ask')||'{"routing_status":"ROUTED","routing_route":"AI_NEW"}'::jsonb
+   where id=any($1::uuid[]) and ticket_id is null and metadata->>'routing_status'='PENDING'`,[ignoredStaleAsk,conversationId]);
   if(event.message.type==='image'||event.message.type==='file')await registerStudentChatAttachment(client,{messageId:stored.id,sourceEventId:eventId},key);
  }
  if(decision.route==='ASK_CONTEXT'&&staleHuman){

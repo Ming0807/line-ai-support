@@ -277,6 +277,19 @@ test('CONV-STALE-HUMAN-01: a new question is not filed silently into a staff cas
  const last=JSON.parse(decryptValue(replies.at(-1)!.payload_encrypted,key)).messages[0];
  assert.match(last.text,new RegExp(old.ticketNo,'u'));
  assert.deepEqual(last.quickReply.items.map((i:{action:{label:string}})=>i.action.label),['ถามเป็นเรื่องใหม่',`ต่อ ${old.ticketNo}`]);
+ // Real students rarely tap the button: the next message is not asked again; both go to the AI as one question.
+ const seen:string[]=[];
+ assert.deepEqual(await send('ต้องใช้เอกสารอะไรบ้าง',pickHuman),{claimed:1,completed:1,failed:0});
+ const asksAfter=(await pool.query(`select payload_encrypted from private.message_outbox where line_session_id=$1 and kind='SYSTEM'`,[sid])).rows
+  .map(r=>JSON.parse(decryptValue(r.payload_encrypted,key)).messages[0].text as string).filter(t=>t.includes(old.ticketNo));
+ assert.equal(asksAfter.length,1,'the Student is asked only once');
+ const moved=(await pool.query(`select m.content,m.metadata->>'routing_status' rs,m.conversation_id,m.ticket_id from public.messages m join public.conversations c on c.id=m.conversation_id
+  where c.line_session_id=$1 and m.content in('เทียบโอนยังไง','ต้องใช้เอกสารอะไรบ้าง') order by m.created_at`,[sid])).rows;
+ assert.deepEqual(moved.map(m=>[m.rs,m.ticket_id]),[['ROUTED',null],['ROUTED',null]]);
+ assert.equal(moved[0].conversation_id,moved[1].conversation_id,'the waiting question joins the new AI conversation');
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[userHash]);
+ for(let i=0;i<5;i++)if(!(await runAICycle(pool,key,{produce:async snapshot=>{seen.push(snapshot.question);return {kind:'CLARIFY',text:'ตอบ'};}})).claimed)break;
+ assert.deepEqual(seen,['เทียบโอนยังไง\nต้องใช้เอกสารอะไรบ้าง'],'one answer covers the waiting question too');
  // An active staff conversation keeps the existing behaviour.
  const fresh=await humanCase(1);
  assert.deepEqual(await send('ส่งเอกสารเพิ่มแล้วครับ',pickHuman),{claimed:1,completed:1,failed:0});
