@@ -5,8 +5,13 @@ import {Pool} from 'pg';
 import {transaction} from '../../lib/database/pool';
 import {prepareAIJob,claimAIJob,saveAIResult} from '../../lib/ai/jobs';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 async function fixture(){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4});
+ const pool=new Pool({connectionString:ownedUrl,max:4});
  const key=randomBytes(32).toString('base64');
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
  const conversation=(await pool.query('insert into public.conversations(line_session_id) values($1) returning id',[session])).rows[0].id;
@@ -48,12 +53,15 @@ test('durable AI job enqueue is transactional/idempotent/private and denies HUMA
 test('AI claim has one winner, preserves conversation order, expires using database time and retries saved results',async()=>{
  const f=await fixture();
  try{
-  const firstMessage=await f.message('First'),secondMessage=await f.message('Second');
-  const first=await transaction(c=>prepareAIJob(c,f.input(firstMessage),f.key),f.pool);
-  const second=await transaction(c=>prepareAIJob(c,f.input(secondMessage),f.key),f.pool);
+  // DEC-189: a newer input supersedes an older PENDING job, so the later job is prepared while the first is PROCESSING.
+  const firstMessage=await f.message('First');
+  const first=await transaction(c=>prepareAIJob(c,f.input(firstMessage),f.key),f.pool);assert(first);
   const claims=await Promise.all([claimAIJob(f.pool),claimAIJob(f.pool)]);
   assert.equal(claims.filter(Boolean).length,1);
   const claim=claims.find(Boolean)!;assert.equal(claim.id,first);
+  const secondMessage=await f.message('Second');
+  const second=await transaction(c=>prepareAIJob(c,f.input(secondMessage),f.key),f.pool);assert(second&&second!==first);
+  assert.equal(await claimAIJob(f.pool),null,'a later job waits while an earlier job in the conversation is leased');
   await saveAIResult(f.pool,claim,{kind:'CLARIFY',text:'กรุณาระบุปีการศึกษาครับ'},f.key);
   await f.pool.query("update private.ai_jobs set lease_until=clock_timestamp()-interval '1 second' where id=$1",[first]);
   const retry=await claimAIJob(f.pool);assert(retry&&retry.id===first&&retry.result_encrypted);

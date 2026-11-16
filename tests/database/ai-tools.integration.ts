@@ -9,7 +9,10 @@ import {encryptValue,hashLineUserId} from '../../lib/security/identity';
 import type {ToolContext} from '../../lib/ai/tools';
 import type {KnowledgeScope} from '../../lib/knowledge/types';
 
-const url='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const url=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
 const scope:KnowledgeScope={historical:false,academicYear:null,asOfDate:null,familyCodes:[],departmentCode:null,audience:null,
  studentType:null,semester:null,programCode:null,curriculumCode:null,cohort:null};
 

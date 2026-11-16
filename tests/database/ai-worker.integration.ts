@@ -12,8 +12,13 @@ import {decryptValue,encryptValue,hashLineUserId} from '../../lib/security/ident
 import {runOutboxCycle} from '../../lib/queue/run-outbox';
 import {setTimeout as delay} from 'node:timers/promises';
 
+// Disposable database only: run through scripts/database/run-owned-test.ts --structured-name.
+const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
+assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+
 async function fixture(){
- const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:4,
+ const pool=new Pool({connectionString:ownedUrl,max:4,
   application_name:'m6-controlled-ai-worker'}),key=randomBytes(32).toString('base64');
  const session=(await pool.query('insert into public.line_sessions(anonymous_code) values($1) returning id',[randomUUID()])).rows[0].id;
  const user='U'+randomUUID().replaceAll('-','');
@@ -287,12 +292,17 @@ test('assistant history contains delivered answers and excludes pending or suppr
    return {kind:'CLARIFY',text:'Controlled answer B'};
   }})).completed,1);
   assert.equal(sawPending,false,'pending answer is not user-visible history');
-  assert.equal((await runOutboxCycle(f.pool,f.key,{accessTokens:{STUDENT:'fixture',STAFF:'fixture'},fetchImpl:async()=>new Response(null,{status:200})})).sent,1);
-  await f.pool.query("update private.message_outbox set status='SUPPRESSED',last_error_code='EVIDENCE_CHANGED',completed_at=clock_timestamp() where idempotency_key=$1",[`ai-job:${second}`]);
+  // DEC-189: newer input in the same conversation stales the undelivered older answer; the newer answer is delivered.
+  const delivery={accessTokens:{STUDENT:'fixture',STAFF:'fixture'},fetchImpl:async()=>new Response(null,{status:200})};
+  assert.equal((await runOutboxCycle(f.pool,f.key,delivery)).sent,0);
+  assert.deepEqual((await f.pool.query('select status,last_error_code from private.message_outbox where idempotency_key=$1',[`ai-job:${f.job}`])).rows[0],
+   {status:'SUPPRESSED',last_error_code:'STALE_AI_INPUT'});
+  assert.equal((await runOutboxCycle(f.pool,f.key,delivery)).sent,1);
+  assert.equal((await f.pool.query('select status from private.message_outbox where idempotency_key=$1',[`ai-job:${second}`])).rows[0].status,'SENT');
   await addQuestion('Third question');
   assert.equal((await runAICycle(f.pool,f.key,{produce:async snapshot=>{
-   assert(snapshot.history.some(item=>item.role==='assistant'&&item.content==='Controlled answer A'),'accepted LINE answer remains history');
-   assert(!snapshot.history.some(item=>item.role==='assistant'&&item.content==='Controlled answer B'),'suppressed answer is excluded');
+   assert(snapshot.history.some(item=>item.role==='assistant'&&item.content==='Controlled answer B'),'accepted LINE answer remains history');
+   assert(!snapshot.history.some(item=>item.role==='assistant'&&item.content==='Controlled answer A'),'suppressed answer is excluded');
    return {kind:'CLARIFY',text:'Controlled answer C'};
   }})).completed,1);
  }finally{await f.cleanup();}
