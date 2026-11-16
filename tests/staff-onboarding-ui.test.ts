@@ -202,3 +202,44 @@ describe('fixed navigation targets',()=>{
     expect(DASHBOARD_URL).toBe('/dashboard');
   });
 });
+
+describe('OP06-11 login availability and terminal outcomes',()=>{
+  it('rejects a 200 context payload without loginAvailable as unavailable',async()=>{
+    const partial:Record<string,unknown>={
+      authenticated:true,lineLinked:true,staffActive:false,canReview:false,
+      application:null,departments:[{id:'dept-1',name:'บริการวิชาการ'}],
+    };
+    expect((await loadOnboardingContext(vi.fn<typeof fetch>().mockResolvedValue(json(partial)))).kind).toBe('unavailable');
+  });
+  it('still accepts the full contract payload that carries loginAvailable',async()=>{
+    expect((await loadOnboardingContext(vi.fn<typeof fetch>().mockResolvedValue(json(staffContext())))).kind).toBe('ready');
+  });
+  it('routes an approval without an active staff profile to the generic unavailable state',()=>{
+    const state=reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_SUCCEEDED',
+      context:staffContext({application:applicationFixture({status:'APPROVED'})})});
+    expect(resolveApplyPhase(state)).toBe('unavailable');
+    expect(state.notice?.kind).toBe('error');
+    expect(state.notice?.text).not.toContain('ฝ่าย');
+    expect(state.notice?.text).toContain('ผู้ดูแลระบบ');
+  });
+  it('sends an active staff with an old approved application to their account instead',()=>{
+    expect(resolveApplyPhase(reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_SUCCEEDED',
+      context:staffContext({staffActive:true,application:applicationFixture({status:'APPROVED'})})}))).toBe('alreadyStaff');
+  });
+  it('keeps departments-empty unavailable on the departments copy only',()=>{
+    const state=reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_SUCCEEDED',context:staffContext({departments:[]})});
+    expect(resolveApplyPhase(state)).toBe('unavailable');
+    expect(state.notice?.text).toContain('ฝ่าย');
+  });
+  it('exposes the terminal recorded phase for rejected and suspended applications unchanged',()=>{
+    expect(resolveApplyPhase(reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_SUCCEEDED',
+      context:staffContext({application:applicationFixture({status:'REJECTED',reviewerName:'ผู้ดูแล A',decisionReason:'ไม่ผ่านการตรวจสอบ'})})}))).toBe('recorded');
+    expect(resolveApplyPhase(reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_SUCCEEDED',
+      context:staffContext({application:applicationFixture({status:'SUSPENDED'})})}))).toBe('recorded');
+  });
+  it('keeps the 401 fallback without any context so both honest entries can render',()=>{
+    const state=reduceOnboarding(initialOnboardingState(),{type:'CONTEXT_LOAD_FAILED',kind:'unauthenticated'});
+    expect(resolveApplyPhase(state)).toBe('login');
+    expect(state.context).toBeNull();
+  });
+});

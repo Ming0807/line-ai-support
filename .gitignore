@@ -36,3 +36,6 @@ services/**/.pytest_cache/
 *.pt
 *.pth
 output/
+
+# OC-INBOX mounted-matrix evidence stays outside history (DEC-196)
+tests/browser/oc-inbox/artifacts/

@@ -12,5 +12,5 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   const [staff, params] = await Promise.all([requireStaff(), searchParams]);
   const ticket = typeof params.ticket === 'string' ? params.ticket : null;
 
-  return <Inbox key={actorMountKey(staff.id)} actorId={staff.id} initialTicketId={ticket} />;
+  return <Inbox key={actorMountKey(staff.id)} actorId={staff.id} initialTicketId={ticket} initialParams={params} />;
 }

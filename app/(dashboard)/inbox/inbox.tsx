@@ -1,342 +1,285 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { RealtimeChannel } from '@supabase/supabase-js';
-import { createBrowserClient } from '@/lib/supabase/browser';
-import type { InboxListResult, InboxThreadResult, ChatMessage } from '@/types/inbox';
+import type { InboxListResult } from '@/types/inbox';
 import type { TicketListItem } from '@/types/tickets';
-import StaffAiPanel from '@/app/(dashboard)/tickets/[id]/staff-ai-panel';
-import StaffKnowledgePanel from '@/app/(dashboard)/tickets/[id]/staff-knowledge-panel';
-import StaffCopilotPanel from '@/app/(dashboard)/tickets/[id]/staff-copilot-panel';
-import { assistantDraftDisposition, deliveryEvidence, draftKey, installVisibleRefresh, readDraft, requestForText, restoredScrollTop, retryAfterStatus, shouldAcknowledgeRead, shouldClearSelectedThread, ThreadRequestFence, writeDraft, type DraftKind, type RetryRequest } from './controller';
+import TicketActions from '@/app/(dashboard)/tickets/[id]/ticket-actions';
+import ChatThread from '@/app/(dashboard)/tickets/[id]/chat-thread';
+import {
+  CHAT_THREAD_REFRESH_EVENT,
+  useChatThreadOps,
+  useStaffInvalidateSupervisor,
+  type DraftStore,
+} from '@/app/(dashboard)/tickets/[id]/chat-thread-ops';
+import {
+  ListRequestGate,
+  buildInboxListParams,
+  inboxListStateFromURL,
+  inboxListUrl,
+  paginationLabel,
+  priorityValues,
+  rawFromURLSearchParams,
+  sensitivityValues,
+  ticketSelectionFromURL,
+  ticketStatusValues,
+  type InboxListState,
+} from '@/app/(dashboard)/tickets/[id]/chat-thread-state';
+import { draftKey, writeDraft } from './controller';
 
-type Props = { actorId: string; initialTicketId: string | null };
-type View = 'all' | 'mine' | 'unassigned' | 'unread' | 'waiting_staff' | 'waiting_user';
-type Retry = RetryRequest;
+type Props = { actorId: string; initialTicketId: string | null; initialParams: Record<string, string | string[] | undefined> };
 
-const views: { id: View; label: string }[] = [
+const views = [
   { id: 'all', label: 'ทั้งหมด' }, { id: 'mine', label: 'ของฉัน' }, { id: 'unassigned', label: 'ยังไม่มอบหมาย' },
   { id: 'unread', label: 'ยังไม่อ่าน' }, { id: 'waiting_staff', label: 'รอเจ้าหน้าที่' }, { id: 'waiting_user', label: 'รอผู้แจ้ง' },
-];
+] as const;
+
 const statusLabels: Record<TicketListItem['status'], string> = {
   NEW: 'ใหม่', AI_HANDLING: 'ระบบกำลังดูแล', WAITING_STAFF: 'รอเจ้าหน้าที่', STAFF_HANDLING: 'กำลังดูแล',
   WAITING_USER: 'รอผู้แจ้ง', RESOLVED: 'แก้ไขแล้ว', CLOSED: 'ปิดแล้ว', CANCELLED: 'ยกเลิก',
 };
 const priorityLabels: Record<TicketListItem['priority'], string> = { LOW: 'ต่ำ', MEDIUM: 'ปกติ', HIGH: 'สูง', CRITICAL: 'เร่งด่วน' };
-const senderLabels: Record<ChatMessage['senderType'], string> = { USER: 'ผู้แจ้ง', AI: 'YRU AI', STAFF: 'เจ้าหน้าที่', SYSTEM: 'ระบบ' };
+const sensitivityLabels: Record<string, string> = { GENERAL: 'ทั่วไป', SENSITIVE: 'ละเอียดอ่อน', RESTRICTED: 'จำกัดการเข้าถึง' };
 
 function dateTime(value: string) {
   return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
-function recipient(ticket: TicketListItem) { return `${ticket.ticket_no} · ผู้แจ้ง ${ticket.anonymous_code}`; }
 
-export default function Inbox({ actorId, initialTicketId }: Props) {
+export default function Inbox({ actorId, initialParams }: Props) {
   const router = useRouter();
-  const [view, setView] = useState<View>('all');
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('');
-  const [page, setPage] = useState(1);
+
+  // URL is the single source of truth for list filters; first paint derives it on the server.
+  const [listSeed] = useState(() => inboxListStateFromURL(initialParams));
+  const [listState, setListState] = useState<InboxListState>(listSeed.state);
+  // S08: the selection deep-link is validated BEFORE anything may fetch with it;
+  // a malformed ticket id never starts a thread request and shows in the dropped note.
+  const seededTicket = ticketSelectionFromURL(initialParams);
+  const [droppedKeys, setDroppedKeys] = useState<string[]>(seededTicket.malformed ? [...listSeed.dropped, 'ticket'] : listSeed.dropped);
+  const listStateRef = useRef(listState);
+
   const [list, setList] = useState<InboxListResult | null>(null);
-  const [activeId, setActiveId] = useState(initialTicketId);
-  const [thread, setThread] = useState<InboxThreadResult | null>(null);
-  const [loadingList, setLoadingList] = useState(true);
-  const [loadingThread, setLoadingThread] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [listLoading, setLoadingList] = useState(true);
   const [listError, setListError] = useState('');
-  const [threadError, setThreadError] = useState('');
-  const [liveState, setLiveState] = useState<'connecting' | 'live' | 'polling'>('connecting');
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [retries, setRetries] = useState<Record<string, Retry>>({});
-  const [busy, setBusy] = useState<DraftKind | 'accept' | null>(null);
-  const [notice, setNotice] = useState<{ text: string; kind: 'success' | 'error' } | null>(null);
-  const messagesPaneRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLLIElement | null>(null);
-  const readThroughRef = useRef<Record<string, number>>({});
-  const channelRef = useRef<RealtimeChannel | null>(null);
-  const activeIdRef = useRef(initialTicketId);
-  const requestFenceRef = useRef<ThreadRequestFence | null>(null);
-  if (requestFenceRef.current === null) requestFenceRef.current = new ThreadRequestFence(actorId, initialTicketId);
-  const latestThreadRef = useRef(thread);
-  const pendingScrollRef = useRef<{ ticketId: string; scrollTop: number; scrollHeight: number; stickToBottom: boolean } | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [activeId, setActiveId] = useState<string | null>(seededTicket.id);
+  const activeIdRef = useRef<string | null>(seededTicket.id);
 
-  const refreshList = useCallback(async (signal?: AbortSignal) => {
-    const params = new URLSearchParams({ view, page: String(page), pageSize: '50' });
-    if (query.trim()) params.set('q', query.trim());
-    if (category) params.set('category', category);
-    const response = await fetch(`/api/chat/inbox?${params}`, { credentials: 'same-origin', cache: 'no-store', signal });
-    if (!response.ok) throw new Error(response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'โหลดรายการสนทนาไม่สำเร็จ');
-    const data = await response.json() as InboxListResult;
-    setList(data);
-  }, [category, page, query, view]);
-
-  const refreshThread = useCallback(async (id: string, signal?: AbortSignal) => {
-    const requestToken = requestFenceRef.current!.begin(actorId, id);
-    let response: Response;
-    try { response = await fetch(`/api/chat/tickets/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store', signal }); }
-    catch (error) {
-      if (!requestFenceRef.current?.accepts(requestToken) || activeIdRef.current !== id) return;
-      throw error;
-    }
-    if (!response.ok) {
-      const isCurrent = requestFenceRef.current?.accepts(requestToken) ?? false;
-      if (!isCurrent || activeIdRef.current !== id) return;
-      if (shouldClearSelectedThread({ status: response.status, requestIsCurrent: isCurrent, requestTicketId: id, selectedTicketId: activeIdRef.current })) {
-        setThread(null);
-        setList(current => response.status === 401 ? null : current ? { ...current, tickets: current.tickets.filter(ticket => ticket.id !== id), unreadCounts: withoutKey(current.unreadCounts, id) } : current);
-        setThreadError(response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'ไม่พบรายการนี้หรือสิทธิ์ของคุณเปลี่ยนไป');
+  // Drafts stay in this tab's memory only: parent state keeps controlled textareas exact.
+  const [drafts, setDraftsState] = useState<Record<string, string>>({});
+  const draftsRef = useRef(drafts);
+  useLayoutEffect(() => { draftsRef.current = drafts; }, [drafts]);
+  const [draftsStore] = useState<DraftStore>(() => ({
+    read: (ownerId, ticketId, kind) => draftsRef.current[draftKey(ownerId, ticketId, kind)] ?? '',
+    write: (ownerId, ticketId, kind, text) => {
+      const next = writeDraft(draftsRef.current, ownerId, ticketId, kind, text);
+      draftsRef.current = next;
+      setDraftsState(next);
+    },
+    // OP06-02 CX1: a whole-actor authority reset erases EVERY draft of the
+    // actor in this store (list denial loses the entire mounted workspace).
+    eraseActorDrafts: ownerId => {
+      const prefix = `${ownerId}:`;
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(draftsRef.current)) {
+        if (!key.startsWith(prefix)) next[key] = value;
       }
-      throw new Error(response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง'
-        : response.status === 403 || response.status === 404 ? 'ไม่พบรายการนี้หรือสิทธิ์ของคุณเปลี่ยนไป'
-          : response.status === 409 ? 'เคสมีการเปลี่ยนแปลง · ร่างข้อความยังคงอยู่ ตรวจข้อมูลล่าสุดก่อนส่งอีกครั้ง'
-            : 'โหลดบทสนทนาไม่สำเร็จ');
-    }
-    let data: InboxThreadResult;
-    try { data = await response.json() as InboxThreadResult; }
-    catch (error) {
-      if (!requestFenceRef.current?.accepts(requestToken) || activeIdRef.current !== id) return;
-      throw error;
-    }
-    if (!requestFenceRef.current?.accepts(requestToken) || activeIdRef.current !== id) return;
-    const pane = messagesPaneRef.current;
-    if (pane) {
-      const distanceFromBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight;
-      pendingScrollRef.current = { ticketId: id, scrollTop: pane.scrollTop, scrollHeight: pane.scrollHeight, stickToBottom: distanceFromBottom < 48 };
-    }
-    setThread(current => {
-      if (current?.detail.ticket.id !== id) return data;
-      const oldFirst = current.messages[0]?.sequence;
-      const newFirst = data.messages[0]?.sequence;
-      const retainedHistory = oldFirst !== undefined && newFirst !== undefined && oldFirst < newFirst;
-      return {
-        ...data,
-        messages: mergeMessages(current.messages, data.messages),
-        hasMore: data.hasMore || current.hasMore,
-        nextBefore: retainedHistory ? current.nextBefore : data.nextBefore,
-      };
-    });
-    setThreadError('');
-  }, [actorId]);
+      draftsRef.current = next;
+      setDraftsState(next);
+    },
+  }));
 
-  useLayoutEffect(() => {
-    latestThreadRef.current = thread;
-  }, [thread]);
+  // Bounded serial list gate: out-of-order responses never overwrite the newest query.
+  const listGateRef = useRef<ListRequestGate | null>(null);
+  if (listGateRef.current === null) listGateRef.current = new ListRequestGate();
+  const listAbortRef = useRef<AbortController | null>(null);
 
-  useLayoutEffect(() => {
-    const anchor = pendingScrollRef.current;
-    const pane = messagesPaneRef.current;
-    if (!anchor || !pane || anchor.ticketId !== activeId || activeIdRef.current !== activeId) return;
-    pane.scrollTop = restoredScrollTop(anchor, pane.scrollHeight);
-    pendingScrollRef.current = null;
-  }, [activeId, thread]);
+  // List denial (401/403/404) resets the WHOLE actor workspace; the hook is
+  // defined below, so the reset is handed over through this ref once mounted.
+  const resetOpsRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    queueMicrotask(() => {
-      if (controller.signal.aborted) return;
-      setLoadingList(true); setListError('');
-      void refreshList(controller.signal).catch(error => {
-        if (!controller.signal.aborted) setListError(error instanceof Error ? error.message : 'โหลดรายการสนทนาไม่สำเร็จ');
-      }).finally(() => { if (!controller.signal.aborted) setLoadingList(false); });
-    });
-    return () => controller.abort();
-  }, [refreshList]);
+  const composeUrl = useCallback((state: InboxListState, ticketId: string | null) => {
+    const base = inboxListUrl(state);
+    if (!ticketId) return base;
+    return base.includes('?') ? `${base}&ticket=${encodeURIComponent(ticketId)}` : `${base}?ticket=${encodeURIComponent(ticketId)}`;
+  }, []);
 
-  useEffect(() => {
-    if (!activeId) return;
-    const id = activeId;
-    const controller = new AbortController();
-    queueMicrotask(() => {
-      if (controller.signal.aborted) return;
-      setLoadingThread(true); setThreadError('');
-      void refreshThread(id, controller.signal).catch(error => {
-        if (!controller.signal.aborted) setThreadError(error instanceof Error ? error.message : 'โหลดบทสนทนาไม่สำเร็จ');
-      }).finally(() => { if (!controller.signal.aborted) setLoadingThread(false); });
-    });
-    return () => controller.abort();
-  }, [activeId, refreshThread]);
-
-  const invalidate = useCallback(() => {
-    if (document.visibilityState !== 'visible') return;
-    void refreshList().catch(() => setListError('รายการอาจเปลี่ยนแปลง · กดรีเฟรชเพื่อลองอีกครั้ง'));
-    const id = activeId;
-    if (id) void refreshThread(id).catch(() => setThreadError('บทสนทนาอาจเปลี่ยนแปลง · กดโหลดใหม่เพื่อลองอีกครั้ง'));
-  }, [activeId, refreshList, refreshThread]);
-
-  useEffect(() => {
-    let client: ReturnType<typeof createBrowserClient> | null = null;
-    let alive = true;
-    let stopVisibleRefresh: () => void = () => {};
-    try {
-      client = createBrowserClient();
-      const channel = client.channel(`staff:${actorId}:inbox`, { config: { private: true } });
-      channelRef.current = channel;
-      channel.on('broadcast', { event: 'invalidate' }, () => invalidate());
-      channel.subscribe(status => {
-        if (!alive) return;
-        if (status === 'SUBSCRIBED') { setLiveState('live'); invalidate(); }
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setLiveState('polling');
-      });
-    } catch { queueMicrotask(() => { if (alive) setLiveState('polling'); }); }
-
-    stopVisibleRefresh = installVisibleRefresh(document, window, invalidate, 5000);
-    return () => {
-      alive = false;
-      stopVisibleRefresh();
-      if (client && channelRef.current) void client.removeChannel(channelRef.current);
-      channelRef.current = null;
-    };
-  }, [actorId, invalidate]);
-
-  useEffect(() => {
-    const id = activeId;
-    const pane = messagesPaneRef.current;
-    const sentinel = bottomRef.current;
-    if (!id || !pane || !sentinel || !thread || thread.detail.ticket.id !== id) return;
-    const sequence = thread.messages.at(-1)?.sequence;
-    if (sequence === undefined) return;
-    const observer = new IntersectionObserver(entries => {
-      const sentinelVisible = entries.some(entry => entry.isIntersecting);
-      if (!shouldAcknowledgeRead({ documentVisible: document.visibilityState === 'visible', rendered: sentinel.isConnected, sentinelVisible, latestSequence: sequence, readThroughSequence: Math.max(thread.readThroughSequence, readThroughRef.current[id] ?? 0) })) return;
-      readThroughRef.current[id] = sequence;
-      observer.disconnect();
-      void fetch(`/api/chat/tickets/${encodeURIComponent(id)}/read`, {
-        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ throughSequence: sequence }),
-      }).then(response => {
-        if (response.ok) setThread(current => current?.detail.ticket.id === id ? { ...current, readThroughSequence: Math.max(current.readThroughSequence, sequence) } : current);
-        else readThroughRef.current[id] = thread.readThroughSequence;
-      }).catch(() => { readThroughRef.current[id] = thread.readThroughSequence; });
-    }, { root: pane, threshold: 1 });
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && sentinel.isConnected) {
-        observer.unobserve(sentinel);
-        observer.observe(sentinel);
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    observer.observe(sentinel);
-    return () => { observer.disconnect(); document.removeEventListener('visibilitychange', onVisibilityChange); };
-  }, [activeId, thread]);
-
-  const activeTicket = useMemo(() => thread?.detail.ticket ?? list?.tickets.find(ticket => ticket.id === activeId) ?? null, [activeId, list, thread]);
-  const activeReplyKey = activeId ? draftKey(actorId, activeId, 'reply') : '';
-  const activeNoteKey = activeId ? draftKey(actorId, activeId, 'note') : '';
-  const reply = activeId ? readDraft(drafts, actorId, activeId, 'reply') : '';
-  const note = activeId ? readDraft(drafts, actorId, activeId, 'note') : '';
-  const pagination = list?.pagination;
-
-  function selectTicket(id: string) {
+  const applySelection = useCallback((id: string | null) => {
     activeIdRef.current = id;
-    requestFenceRef.current?.select(actorId, id);
-    pendingScrollRef.current = null;
     setActiveId(id);
-    setThread(null);
-    setLoadingThread(true);
-    setNotice(null);
-    router.replace(`/inbox?ticket=${encodeURIComponent(id)}`, { scroll: false });
-  }
+    setFeedback('');
+  }, []);
 
-  function updateDraft(key: string, kind: DraftKind, value: string) {
-    const scopedKey = activeId ? draftKey(actorId, activeId, kind) : key;
-    setDrafts(current => writeDraft(current, actorId, activeId ?? '', kind, value));
-    const pending = retries[scopedKey];
-    if (pending && pending.text !== value) setRetries(current => { const next = { ...current }; delete next[scopedKey]; return next; });
-  }
+  const requestList = useCallback(async (state: InboxListState) => {
+    const gate = listGateRef.current!;
+    const ticket = gate.begin();
+    const controller = new AbortController();
+    listAbortRef.current?.abort();
+    listAbortRef.current = controller;
+    setLoadingList(true);
+    setListError('');
+    try {
+      const response = await fetch(`/api/chat/inbox?${buildInboxListParams(state)}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+      if (!response.ok) {
+        if (!gate.accepts(ticket)) return;
+        setListError(response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'โหลดรายการสนทนาไม่สำเร็จ · กดรีเฟรชเพื่อลองอีกครั้ง');
+        // S03: an auth/authorization denial invalidates the whole snapshot — no stale
+        // rows may stay clickable. 409 and network errors must NOT clear the list.
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          setList(null);
+          // CX1: a list-level denial invalidates the whole actor workspace —
+          // the retained records/drafts/attempts cannot survive it.
+          resetOpsRef.current?.();
+          if (activeIdRef.current) {
+            applySelection(null);
+            router.replace(composeUrl(listStateRef.current, null), { scroll: false });
+          }
+        }
+        return;
+      }
+      let data: InboxListResult | null = null;
+      try { data = await response.json() as InboxListResult; } catch { data = null; }
+      if (!gate.accepts(ticket) || controller.signal.aborted) return;
+      if (!data) { setListError('ระบบตอบกลับไม่สมบูรณ์ · กดรีเฟรชเพื่อลองอีกครั้ง'); return; }
+      setList(data);
+    } catch {
+      if (!gate.accepts(ticket) || controller.signal.aborted) return;
+      setListError('เชื่อมต่อเพื่อโหลดรายการไม่ได้ · กดรีเฟรชเพื่อลองอีกครั้ง');
+    } finally {
+      if (gate.accepts(ticket) && !controller.signal.aborted) setLoadingList(false);
+    }
+  }, [applySelection, composeUrl, router]);
 
-  function applyAssistantDraft(sourceActorId: string, sourceTicketId: string, sourceRevision: number, draftText: string) {
-    const selectedThread = latestThreadRef.current;
-    const selectedId = activeIdRef.current;
-    if (!selectedId || !selectedThread) return;
-    const disposition = assistantDraftDisposition({
-      currentActorId: actorId, sourceActorId,
-      currentTicketId: selectedId, sourceTicketId,
-      currentRevision: selectedThread.detail.ticket.revision, sourceRevision,
-      canReply: selectedThread.detail.permissions.reply, busy: busy !== null,
-      draftText, currentReply: readDraft(drafts, actorId, selectedId, 'reply'),
-    });
-    if (disposition === 'reject') {
-      setNotice({ kind: 'error', text: 'ร่างนี้ไม่ตรงกับเคสหรือสิทธิ์ปัจจุบัน หรือยาวเกินช่องตอบกลับ กรุณาตรวจข้อมูลล่าสุด' });
+  // The list owner trims its rows when the server denies this thread entirely.
+  // P3-1: a 401 means the actor session itself is gone — reset the WHOLE actor
+  // immediately without waiting for a pending list request to answer 401.
+  // CX2: 403/404 stay ticket-scoped so another open room remains untouched.
+  const onThreadAccessLost = useCallback((status: number, lostTicketId: string) => {
+    if (status === 401) {
+      setList(null);
+      setListError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+      resetOpsRef.current?.();
+      if (activeIdRef.current) {
+        applySelection(null);
+        router.replace(composeUrl(listStateRef.current, null), { scroll: false });
+      }
+      setFeedback('เซสชันหมดอายุ · บทสนทนาที่เปิดไว้ถูกปิดลง');
+      void requestList(listStateRef.current);
       return;
     }
-    if (disposition === 'confirm' && !window.confirm('แทนที่ข้อความที่พิมพ์ไว้ด้วยร่างนี้?')) return;
-    const key = draftKey(sourceActorId, sourceTicketId, 'reply');
-    setDrafts(current => writeDraft(current, sourceActorId, sourceTicketId, 'reply', draftText));
-    setRetries(current => { const next = { ...current }; delete next[key]; return next; });
-    setNotice({ kind: 'success', text: 'นำร่างไปไว้ในช่องตอบกลับแล้ว · โปรดตรวจทานก่อนส่ง' });
-  }
-
-  async function submitReply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!activeId || !thread || !thread.detail.permissions.reply || !reply.trim()) return;
-    await submitMessage('reply', activeId, reply, `/api/tickets/${encodeURIComponent(activeId)}/reply`, {
-      revision: thread.detail.ticket.revision, text: reply.trim(),
-    });
-  }
-
-  async function submitNote(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!activeId || !note.trim()) return;
-    await submitMessage('note', activeId, note, `/api/chat/tickets/${encodeURIComponent(activeId)}/notes`, { text: note.trim() });
-  }
-
-  async function submitMessage(kind: DraftKind, id: string, text: string, endpoint: string, fields: Record<string, string | number>) {
-    const key = draftKey(actorId, id, kind);
-    const retry = requestForText(retries[key], text, fields, () => crypto.randomUUID());
-    setRetries(current => ({ ...current, [key]: retry }));
-    setBusy(kind); setNotice(null);
-    try {
-      const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(retry.body) });
-      if (!response.ok) {
-        if (retryAfterStatus(response.status) === 'clear') setRetries(current => { const next = { ...current }; delete next[key]; return next; });
-        setNotice({ kind: 'error', text: response.status === 409
-          ? 'เคสมีการเปลี่ยนแปลง · ข้อความยังคงอยู่ ตรวจข้อมูลล่าสุดก่อนส่งอีกครั้ง'
-          : response.status >= 500 ? 'ยังยืนยันผลไม่ได้ · ข้อความและคำขอเดิมยังคงอยู่ กดส่งซ้ำได้'
-            : 'บันทึกไม่สำเร็จ · ข้อความที่พิมพ์ไว้ยังคงอยู่' });
-        setBusy(null); return;
-      }
-      setRetries(current => { const next = { ...current }; delete next[key]; return next; });
-      setDrafts(current => ({ ...current, [key]: '' }));
-      setNotice({ kind: 'success', text: kind === 'reply' ? 'บันทึกคำตอบแล้ว · สถานะการส่งจะแสดงในบทสนทนา' : 'บันทึกบันทึกส่วนตัวแล้ว · ผู้แจ้งจะไม่เห็นข้อความนี้' });
-      await Promise.all([refreshThread(id).catch(() => undefined), refreshList().catch(() => undefined)]);
-      setBusy(null);
-    } catch {
-      setNotice({ kind: 'error', text: 'การเชื่อมต่อขาดหาย ยังไม่ทราบผล · กดส่งซ้ำเพื่อใช้คำขอเดิม' });
-      setBusy(null);
+    if (activeIdRef.current === lostTicketId) {
+      applySelection(null);
+      router.replace(composeUrl(listStateRef.current, null), { scroll: false });
+      setFeedback('บทสนทนานี้ไม่แสดงให้คุณอีกต่อไป · ลองโหลดรายการใหม่');
     }
-  }
+    // The ops owner already erased the lost room's retained state either way.
+    void requestList(listStateRef.current);
+  }, [applySelection, composeUrl, requestList, router]);
 
-  async function acceptTicket() {
-    if (!activeId || !thread?.detail.permissions.accept || busy) return;
-    setBusy('accept'); setNotice(null);
-    try {
-      const response = await fetch(`/api/tickets/${encodeURIComponent(activeId)}/accept`, {
-        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ revision: thread.detail.ticket.revision, requestId: crypto.randomUUID() }),
-      });
-      if (!response.ok) { setNotice({ kind: 'error', text: response.status === 409 ? 'เคสมีการเปลี่ยนแปลง · โหลดข้อมูลล่าสุดก่อนรับเรื่อง' : 'ยังรับเรื่องไม่สำเร็จ · โหลดใหม่เพื่อตรวจสอบสถานะ' }); setBusy(null); return; }
-      setNotice({ kind: 'success', text: 'รับเรื่องแล้ว · เคสนี้อยู่ในโหมดเจ้าหน้าที่ดูแล' });
-      await Promise.all([refreshThread(activeId).catch(() => undefined), refreshList().catch(() => undefined)]);
-    } catch { setNotice({ kind: 'error', text: 'ยังไม่ทราบผลการรับเรื่อง · โหลดใหม่เพื่อตรวจสอบสถานะ' }); }
-    setBusy(null);
-  }
+  const ops = useChatThreadOps({ actorId, ticketId: activeId, draftsStore, onThreadAccessLost });
+  const {
+    thread, loading, error: threadError, hasStaleResponse, catchUpBefore, historyLoading,
+    busy, notice, drafts: threadDrafts, attempts,
+    refresh, paneRef, sentinelRef,
+    onDraftChange, applyAssistantDraft, loadEarlier, loadCatchUp,
+    onSubmitReply, onSubmitNote,
+  } = ops;
+  // The list owner may reset the whole actor workspace on a list-level denial;
+  // handed over through a ref (written in an effect, never during render).
+  useEffect(() => {
+    resetOpsRef.current = ops.revokeAuthority;
+  }, [ops]);
 
-  async function loadEarlier() {
-    if (!activeId || !thread?.nextBefore || historyLoading) return;
-    setHistoryLoading(true);
-    try {
-      const response = await fetch(`/api/chat/tickets/${encodeURIComponent(activeId)}?beforeSequence=${thread.nextBefore}&limit=50`, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error('โหลดประวัติก่อนหน้าไม่สำเร็จ');
-      const earlier = await response.json() as InboxThreadResult;
-      const pane = messagesPaneRef.current;
-      if (pane) pendingScrollRef.current = { ticketId: activeId, scrollTop: pane.scrollTop, scrollHeight: pane.scrollHeight, stickToBottom: false };
-      setThread(current => current?.detail.ticket.id === activeId ? { ...earlier, messages: mergeMessages(earlier.messages, current.messages), notes: current.notes, readThroughSequence: current.readThroughSequence } : current);
-    } catch { setThreadError('โหลดประวัติก่อนหน้าไม่สำเร็จ · ลองอีกครั้ง'); }
-    setHistoryLoading(false);
-  }
+  // D7 mobile focus transfer: a row click hands focus into the opened pane (its
+  // back button); closing hands it back to the originating row if still present,
+  // else the queue heading. Focus never stays inside a display:none pane. The
+  // previous-selection ref is read and written only inside this effect.
+  const backButtonRef = useRef<HTMLButtonElement | null>(null);
+  const queueHeadingRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveIdRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    const previous = previousActiveIdRef.current;
+    if (previous === activeId) return;
+    previousActiveIdRef.current = activeId;
+    if (activeId !== null) {
+      backButtonRef.current?.focus();
+      return;
+    }
+    if (previous === null) return;
+    const queue = queueHeadingRef.current?.closest('.inbox-queue');
+    const originating = queue
+      ? queue.querySelector<HTMLButtonElement>(`[data-ticket-row="${previous}"]`)
+      : null;
+    (originating ?? queueHeadingRef.current)?.focus();
+  }, [activeId]);
+
+  const selectTicket = useCallback((id: string) => {
+    applySelection(id);
+    router.replace(composeUrl(listStateRef.current, id), { scroll: false });
+  }, [applySelection, composeUrl, router]);
+
+  const closeTicket = useCallback(() => {
+    applySelection(null);
+    router.replace(composeUrl(listStateRef.current, null), { scroll: false });
+  }, [applySelection, composeUrl, router]);
+
+  // One fetch per effective state; URL mirrors it for sharing and back/forward.
+  const rangeInvalid = Boolean(listState.from && listState.to && listState.from > listState.to);
+  useEffect(() => {
+    listStateRef.current = listState;
+    if (rangeInvalid) return;
+    const target = listState;
+    queueMicrotask(() => {
+      if (listStateRef.current !== target) return;
+      void requestList(target);
+    });
+    window.history.replaceState(window.history.state, '', composeUrl(listState, activeIdRef.current));
+  }, [listState, requestList, composeUrl, rangeInvalid]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const params = rawFromURLSearchParams(new URLSearchParams(window.location.search));
+      const next = inboxListStateFromURL(params);
+      const selection = ticketSelectionFromURL(params);
+      setListState(next.state);
+      setDroppedKeys(selection.malformed ? [...next.dropped, 'ticket'] : next.dropped);
+      applySelection(selection.id);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [applySelection]);
+
+  // Lifecycle writes and submissions announce themselves; the queue must catch up.
+  useEffect(() => {
+    const handler = () => { void requestList(listStateRef.current); };
+    window.addEventListener(CHAT_THREAD_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(CHAT_THREAD_REFRESH_EVENT, handler);
+  }, [requestList]);
+
+  // D8 shared lifetime wiring (one listener set + cleanup per route): private
+  // `staff:<actorId>:inbox` invalidate marker refetch, visible/online interval
+  // refresh, and exactly one removeChannel of its own channel on unmount.
+  const liveState = useStaffInvalidateSupervisor({
+    actorId,
+    onInvalidate: () => {
+      void requestList(listStateRef.current);
+      refresh();
+    },
+  });
+
+  const patchState = useCallback((patch: Partial<InboxListState>) => {
+    setListState(current => ({ ...current, ...patch }));
+  }, []);
+
+  const resetFilters = useCallback((patch: Partial<InboxListState>) => {
+    setListState(current => ({ ...current, ...patch, page: 1 }));
+  }, []);
+
+  const activeTicket = useMemo(() => thread?.detail.ticket ?? list?.tickets.find(item => item.id === activeId) ?? null, [activeId, list, thread]);
   const selectedTickets = list?.tickets ?? [];
+  const countOutcome = paginationLabel(list?.pagination, listState.page);
+  const pagination = list?.pagination;
 
   return (
     <main className="inbox-page" aria-label="กล่องข้อความเจ้าหน้าที่">
@@ -346,86 +289,116 @@ export default function Inbox({ actorId, initialTicketId }: Props) {
       </header>
       <section className="inbox-layout" aria-label="รายการและบทสนทนา">
         <aside className={`inbox-queue ${activeId ? 'inbox-mobile-hidden' : ''}`} aria-label="รายการสนทนา">
-          <div className="inbox-queue-heading"><div><h2>การสนทนา</h2><span>{pagination ? `${pagination.total} รายการ` : 'รายการที่อยู่ในขอบเขต'}</span></div><button type="button" className="inbox-icon-button" aria-label="โหลดรายการใหม่" onClick={() => { setLoadingList(true); void refreshList().catch(() => setListError('โหลดรายการสนทนาไม่สำเร็จ')).finally(() => setLoadingList(false)); }}>↻</button></div>
-          <label className="inbox-search"><span className="sr-only">ค้นหาบทสนทนา</span><span aria-hidden="true">⌕</span><input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="ค้นหาเรื่องหรือรหัสผู้แจ้ง" /></label>
-          <div className="inbox-filter-row"><label><span className="sr-only">มุมมอง</span><select value={view} onChange={event => { setView(event.target.value as View); setPage(1); }}>{views.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label><span className="sr-only">หมวดหมู่</span><select value={category} onChange={event => { setCategory(event.target.value); setPage(1); }}><option value="">ทุกหมวด</option>{list?.categories.map(item => <option key={item} value={item}>{item}</option>)}</select></label></div>
-          {listError && <div className="inbox-inline-error" role="alert">{listError}<button type="button" onClick={() => void refreshList().catch(() => undefined)}>ลองใหม่</button></div>}
-          <div className="inbox-ticket-list" aria-live="polite" aria-busy={loadingList}>
-            {loadingList && selectedTickets.length === 0 ? <p className="inbox-empty-state">กำลังโหลดรายการ…</p> : selectedTickets.length === 0 ? <p className="inbox-empty-state">ไม่มีบทสนทนาตรงกับตัวกรอง</p> : selectedTickets.map(ticket => {
-              const unread = list?.unreadCounts[ticket.id] ?? 0;
-              return <button key={ticket.id} type="button" className={`inbox-ticket-row ${activeId === ticket.id ? 'is-selected' : ''}`} aria-current={activeId === ticket.id ? 'true' : undefined} onClick={() => selectTicket(ticket.id)}>
-                <span className="inbox-ticket-avatar" aria-hidden="true">{ticket.anonymous_code.slice(0, 1)}</span>
-                <span className="inbox-ticket-main"><span className="inbox-ticket-title">{ticket.problem_summary}</span><span className="inbox-ticket-snippet">{ticket.category} · {ticket.department_name}</span><span className="inbox-ticket-meta">{ticket.ticket_no} · {ticket.assignee_name ?? 'ยังไม่มอบหมาย'}</span></span>
-                <span className="inbox-ticket-side"><span className={`inbox-status-chip inbox-status-${ticket.status.toLowerCase()}`}>{statusLabels[ticket.status]}</span>{unread > 0 && <span className="inbox-unread-count" aria-label={`${unread} ข้อความที่ยังไม่อ่าน`}>{unread}</span>}<time dateTime={ticket.updated_at}>{new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit' }).format(new Date(ticket.updated_at))}</time></span>
-              </button>;
-            })}
+          <div className="inbox-queue-heading" ref={queueHeadingRef} tabIndex={-1}>
+            <div><h2>การสนทนา</h2><span aria-live="polite">{countOutcome.text}</span></div>
+            <button type="button" className="inbox-icon-button" aria-label="โหลดรายการใหม่" onClick={() => { void requestList(listStateRef.current); }}>↻</button>
           </div>
-          {pagination && <nav className="inbox-pagination" aria-label="หน้ารายการสนทนา"><button type="button" disabled={!pagination.hasPrevious || loadingList} onClick={() => setPage(value => Math.max(1, value - 1))}>ก่อนหน้า</button><span>หน้า {pagination.page} / {pagination.totalPages}</span><button type="button" disabled={!pagination.hasNext || loadingList} onClick={() => setPage(value => value + 1)}>ถัดไป</button></nav>}
+          {countOutcome.kind === 'out-of-range' && (
+            <div className="inbox-range-recovery" role="status">
+              <span>{countOutcome.text}</span>
+              <button type="button" onClick={() => patchState({ page: 1 })}>กลับไปหน้าแรก</button>
+            </div>
+          )}
+          {droppedKeys.length > 0 && <p className="inbox-dropped-note">พารามิเตอร์ที่ไม่รู้จักถูกข้าม: {droppedKeys.join(', ')}</p>}
+          <label className="inbox-search"><span className="sr-only">ค้นหาบทสนทนา</span><span aria-hidden="true">⌕</span><input value={listState.q ?? ''} onChange={event => resetFilters({ q: event.target.value || undefined })} placeholder="ค้นหาเรื่องหรือรหัสผู้แจ้ง" /></label>
+          <div className="inbox-filter-row">
+            <label><span className="sr-only">มุมมอง</span><select value={listState.view} onChange={event => resetFilters({ view: event.target.value as InboxListState['view'] })}>{views.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+            <label><span className="sr-only">หมวดหมู่</span><select value={listState.category ?? ''} onChange={event => resetFilters({ category: event.target.value || undefined })}><option value="">ทุกหมวด</option>{list?.categories.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+          </div>
+          <div className="inbox-filter-row">
+            <label><span className="sr-only">หน่วยงาน</span><select value={listState.department ?? ''} onChange={event => resetFilters({ department: event.target.value || undefined })}><option value="">ทุกหน่วยงาน</option>{list?.departments.map(item => <option key={item.id} value={item.id}>{item.name_th}</option>)}</select></label>
+            <label><span className="sr-only">สถานะ</span><select value={listState.status ?? ''} onChange={event => resetFilters({ status: event.target.value || undefined })}><option value="">ทุกสถานะ</option>{ticketStatusValues.map(item => <option key={item} value={item}>{statusLabels[item]}</option>)}</select></label>
+          </div>
+          <div className="inbox-filter-row">
+            <label><span className="sr-only">ความสำคัญ</span><select value={listState.priority ?? ''} onChange={event => resetFilters({ priority: event.target.value || undefined })}><option value="">ทุกระดับ</option>{priorityValues.map(item => <option key={item} value={item}>{priorityLabels[item]}</option>)}</select></label>
+            <label><span className="sr-only">เจ้าหน้าที่ผู้รับผิดชอบ</span><select value={listState.assignee ?? ''} onChange={event => resetFilters({ assignee: event.target.value || undefined })}><option value="">ทุกผู้รับผิดชอบ</option>{list?.assignees.map(item => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></label>
+          </div>
+          <div className="inbox-filter-row">
+            <label><span className="sr-only">ระดับข้อมูล</span><select value={listState.sensitivity ?? ''} onChange={event => resetFilters({ sensitivity: event.target.value || undefined })}><option value="">ทุกระดับข้อมูล</option>{sensitivityValues.map(item => <option key={item} value={item}>{sensitivityLabels[item]}</option>)}</select></label>
+            <span className="inbox-date-pair">
+              <label><span className="sr-only">ตั้งแต่วันที่</span><input type="date" value={listState.from ?? ''} onChange={event => resetFilters({ from: event.target.value || undefined })} /></label>
+              <label><span className="sr-only">ถึงวันที่</span><input type="date" value={listState.to ?? ''} onChange={event => resetFilters({ to: event.target.value || undefined })} /></label>
+            </span>
+          </div>
+          {rangeInvalid && <p className="inbox-inline-error" role="alert">ช่วงวันที่ไม่ถูกต้อง · ตั้งแต่วันที่ต้องไม่เป็นวันหลังถึงวันที่ (รายการยังไม่โหลด)</p>}
+          {listError && <div className="inbox-inline-error" role="alert">{listError}<button type="button" onClick={() => { void requestList(listStateRef.current); }}>ลองใหม่</button></div>}
+          <div className="inbox-ticket-list" aria-live="polite" aria-busy={listLoading}>
+            {listLoading && selectedTickets.length === 0 ? <p className="inbox-empty-state">กำลังโหลดรายการ…</p>
+              : selectedTickets.length === 0
+                ? <p className="inbox-empty-state">{countOutcome.kind === 'empty' ? 'ยังไม่มีบทสนทนา' : 'ไม่มีบทสนทนาตรงกับตัวกรอง'}</p>
+                : selectedTickets.map(ticket => {
+                  const unread = list?.unreadCounts[ticket.id] ?? 0;
+                  return <button key={ticket.id} type="button" className={`inbox-ticket-row ${activeId === ticket.id ? 'is-selected' : ''}`} aria-current={activeId === ticket.id ? 'true' : undefined} data-ticket-row={ticket.id} onClick={() => selectTicket(ticket.id)}>
+                    <span className="inbox-ticket-avatar" aria-hidden="true">{ticket.anonymous_code.slice(0, 1)}</span>
+                    <span className="inbox-ticket-main"><span className="inbox-ticket-title">{ticket.problem_summary}</span><span className="inbox-ticket-snippet">{ticket.category} · {ticket.department_name}</span><span className="inbox-ticket-meta">{ticket.ticket_no} · {ticket.assignee_name ?? 'ยังไม่มอบหมาย'}</span></span>
+                    <span className="inbox-ticket-side"><span className={`inbox-status-chip inbox-status-${ticket.status.toLowerCase()}`}>{statusLabels[ticket.status]}</span>{unread > 0 && <span className="inbox-unread-count" aria-label={`${unread} ข้อความที่ยังไม่อ่าน`}>{unread}</span>}<time dateTime={ticket.updated_at}>{new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit' }).format(new Date(ticket.updated_at))}</time></span>
+                  </button>;
+                })}
+          </div>
+          <nav className="inbox-pagination" aria-label="หน้ารายการสนทนา">
+            <button type="button" disabled={!pagination?.hasPrevious || listLoading} onClick={() => patchState({ page: Math.max(1, listState.page - 1) })}>ก่อนหน้า</button>
+            <span>{pagination ? `หน้า ${pagination.page} / ${pagination.totalPages}` : `หน้า ${listState.page} / ไม่ทราบ`}</span>
+            <button type="button" disabled={!pagination?.hasNext || listLoading} onClick={() => patchState({ page: listState.page + 1 })}>ถัดไป</button>
+          </nav>
         </aside>
 
         <section className={`inbox-conversation ${!activeId ? 'inbox-mobile-hidden' : ''}`} aria-label="บทสนทนาที่เลือก">
-          {!activeId ? <div className="inbox-welcome"><span className="inbox-welcome-icon" aria-hidden="true">✳</span><h2>เลือกบทสนทนา</h2><p>เลือกเรื่องจากรายการเพื่อดูข้อความและตอบกลับผู้แจ้ง</p></div> : loadingThread && !thread ? <p className="inbox-empty-state">กำลังโหลดบทสนทนา…</p> : threadError && !thread ? <div className="inbox-welcome" role="alert"><h2>เปิดบทสนทนาไม่ได้</h2><p>{threadError}</p><button type="button" className="inbox-button inbox-button-secondary" onClick={() => void refreshThread(activeId).catch(error => setThreadError(error.message))}>ลองโหลดใหม่</button></div> : thread && activeTicket ? <>
-            <header className="inbox-conversation-header">
-              <button type="button" className="inbox-back-mobile" onClick={() => { activeIdRef.current = null; requestFenceRef.current?.select(actorId, null); pendingScrollRef.current = null; setActiveId(null); setThread(null); router.replace('/inbox', { scroll: false }); }}>← รายการ</button>
-              <div className="inbox-conversation-title"><h2>{activeTicket.problem_summary}</h2><p>{activeTicket.ticket_no} · ผู้แจ้ง {activeTicket.anonymous_code} · {activeTicket.category}</p></div>
-              <div className="inbox-header-actions">{thread.detail.permissions.accept && <button type="button" className="inbox-button inbox-button-primary" disabled={busy !== null} onClick={() => void acceptTicket()}>{busy === 'accept' ? 'กำลังรับ…' : 'รับเรื่อง'}</button>}<Link href={`/tickets/${activeId}`} className="inbox-details-link">เปิดรายละเอียด ↗</Link></div>
-            </header>
-            <div className="inbox-message-scroll" ref={messagesPaneRef}>
-              {thread.hasMore && <div className="inbox-history-control"><button type="button" onClick={() => void loadEarlier()} disabled={historyLoading}>{historyLoading ? 'กำลังโหลด…' : 'โหลดข้อความก่อนหน้า'}</button></div>}
-              {threadError && <p className="inbox-inline-error" role="alert">{threadError}</p>}
-              <ol className="inbox-messages" aria-label="ประวัติบทสนทนา">
-                {thread.messages.map(message => <li key={message.id} className={`inbox-message inbox-message-${message.senderType.toLowerCase()}`}>
-                  <div className="inbox-message-meta"><span>{senderLabels[message.senderType]}{message.senderType === 'STAFF' && message.staffName ? ` · ${message.staffName}` : ''}</span><time dateTime={message.createdAt}>{dateTime(message.createdAt)}</time></div>
-                  <div className="inbox-message-bubble"><p>{message.content}</p>{message.attachments.map(file => <div className="inbox-attachment" key={file.id}><span aria-hidden="true">{file.mimeType === 'application/pdf' ? 'PDF' : 'IMG'}</span><span>{file.name}<small>{file.status === 'PENDING' ? 'กำลังเตรียมไฟล์' : file.status === 'FAILED' ? 'ไฟล์ยังเปิดไม่ได้' : `${Math.max(1, Math.round(file.size / 1024))} KB`}</small></span>{file.status === 'READY' && file.downloadUrl ? <a href={file.downloadUrl} target="_blank" rel="noreferrer">เปิด</a> : null}</div>)}</div>
-                  {(() => {
-                    const evidence = deliveryEvidence(message.senderType, message.deliveryStatus);
-                    return evidence && <span className={`inbox-delivery inbox-delivery-${evidence.kind.toLowerCase()}`}>{evidence.kind === 'unproven' ? evidence.text : `สถานะข้อความ: ${evidence.text}`}</span>;
-                  })()}
-                </li>)}
-                <li ref={bottomRef} className="inbox-bottom-sentinel" aria-hidden="true" />
-              </ol>
-              {thread.messages.length === 0 && <p className="inbox-empty-state">ยังไม่มีข้อความในบทสนทนานี้</p>}
-            </div>
-            <div className="inbox-composer-wrap">
-              {notice && <p className={`inbox-notice inbox-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.text}{notice.kind === 'error' && notice.text.includes('เคสมีการเปลี่ยนแปลง') && <button type="button" className="inbox-notice-refresh" onClick={() => void refreshThread(activeId).catch(error => setThreadError(error.message))}>โหลดข้อมูลล่าสุด</button>}</p>}
-              {thread.detail.permissions.reply ? <form className="inbox-reply-form" onSubmit={submitReply}>
-                <label htmlFor="inbox-reply">ตอบกลับผู้แจ้ง <span>ข้อความจะส่งถึง {recipient(activeTicket)} เท่านั้น</span></label>
-                <textarea id="inbox-reply" value={reply} maxLength={5000} onChange={event => updateDraft(activeReplyKey, 'reply', event.target.value)} placeholder="เขียนข้อความตอบกลับ…" rows={3} />
-                <div className="inbox-compose-footer"><span>{reply.length}/5,000 · ร่างอยู่ในหน่วยความจำของแท็บนี้</span><button type="submit" className="inbox-button inbox-button-primary" disabled={busy !== null || !reply.trim()}>{busy === 'reply' ? 'กำลังบันทึก…' : retries[activeReplyKey] ? 'ส่งซ้ำด้วยคำขอเดิม' : 'ส่งข้อความ'}</button></div>
-              </form> : <p className="inbox-readonly-note">คุณไม่มีสิทธิ์ตอบกลับ หรือเคสนี้ยังไม่อยู่ในสถานะที่ตอบได้</p>}
-              <details className="inbox-note-disclosure"><summary>บันทึกส่วนตัวสำหรับเจ้าหน้าที่</summary><form onSubmit={submitNote}><label htmlFor="inbox-note" className="sr-only">บันทึกส่วนตัว</label><textarea id="inbox-note" value={note} maxLength={3000} onChange={event => updateDraft(activeNoteKey, 'note', event.target.value)} placeholder="บันทึกนี้ผู้แจ้งจะไม่เห็น" rows={2} /><div className="inbox-compose-footer"><span>{note.length}/3,000</span><button className="inbox-button inbox-button-secondary" type="submit" disabled={busy !== null || !note.trim()}>{busy === 'note' ? 'กำลังบันทึก…' : retries[activeNoteKey] ? 'บันทึกซ้ำด้วยคำขอเดิม' : 'เพิ่มบันทึก'}</button></div></form>{thread.notes.length > 0 && <ul className="inbox-notes">{thread.notes.map(item => <li key={item.id}><p>{item.text}</p><span>{item.staffName} · {dateTime(item.createdAt)}</span></li>)}</ul>}</details>
-            </div>
-          </> : null}
+          {!activeId ? <div className="inbox-welcome"><span className="inbox-welcome-icon" aria-hidden="true">✳</span><h2>เลือกบทสนทนา</h2><p>เลือกเรื่องจากรายการเพื่อดูข้อความและตอบกลับผู้แจ้ง</p>{feedback && <p className="inbox-muted" role="status">{feedback}</p>}</div>
+            : (
+              <>
+                <div className="inbox-conversation-topbar">
+                  <button ref={backButtonRef} type="button" className="inbox-back-mobile" onClick={closeTicket}>← รายการ</button>
+                  {activeTicket && <Link href={`/tickets/${activeTicket.id}`} className="inbox-details-link">เปิดรายละเอียด ↗</Link>}
+                </div>
+                <ChatThread
+                  actorId={actorId}
+                  thread={thread}
+                  loading={loading}
+                  error={threadError}
+                  drafts={threadDrafts}
+                  attempts={attempts}
+                  busy={busy}
+                  notice={notice}
+                  hasStaleResponse={hasStaleResponse}
+                  catchUpBefore={catchUpBefore}
+                  historyLoading={historyLoading}
+                  onDraftChange={onDraftChange}
+                  onLoadEarlier={() => void loadEarlier()}
+                  onLoadCatchUp={() => void loadCatchUp()}
+                  onRefresh={refresh}
+                  onSubmitReply={onSubmitReply}
+                  onSubmitNote={onSubmitNote}
+                  assist={{
+                    available: thread !== null,
+                    revision: thread?.detail.ticket.revision ?? 0,
+                    onDraft: text => {
+                      const current = activeIdRef.current;
+                      if (!current || !thread) return;
+                      applyAssistantDraft(actorId, current, thread.detail.ticket.revision, text);
+                    },
+                  }}
+                  paneRef={paneRef}
+                  sentinelRef={sentinelRef}
+                />
+              </>
+            )}
         </section>
 
         <aside className={`inbox-context ${activeId ? '' : 'inbox-mobile-hidden'}`} aria-label="บริบทของเคส">
-          {!activeTicket ? <div className="inbox-context-empty"><span aria-hidden="true">⌁</span><p>รายละเอียดเคสจะแสดงที่นี่</p></div> : <>
+          {!activeTicket || !thread ? <div className="inbox-context-empty"><span aria-hidden="true">⌁</span><p>รายละเอียดเคสจะแสดงที่นี่</p></div> : <>
             <div className="inbox-context-top"><div className="inbox-context-avatar" aria-hidden="true">{activeTicket.anonymous_code.slice(0, 1)}</div><h2>ผู้แจ้ง {activeTicket.anonymous_code}</h2><p>{activeTicket.ticket_no}</p></div>
             <section className="inbox-context-section"><h3>สถานะเคส</h3><dl><div><dt>การดูแล</dt><dd>{activeTicket.mode === 'HUMAN' ? 'เจ้าหน้าที่ดูแล' : 'ระบบดูแล'}</dd></div><div><dt>สถานะ</dt><dd>{statusLabels[activeTicket.status]}</dd></div><div><dt>ความสำคัญ</dt><dd>{priorityLabels[activeTicket.priority]}</dd></div><div><dt>ผู้รับผิดชอบ</dt><dd>{activeTicket.assignee_name ?? 'ยังไม่มอบหมาย'}</dd></div></dl></section>
-            <section className="inbox-context-section"><h3>หน่วยงานและข้อมูล</h3><dl><div><dt>หน่วยงาน</dt><dd>{activeTicket.department_name}</dd></div><div><dt>หมวดหมู่</dt><dd>{activeTicket.category}</dd></div><div><dt>ระดับข้อมูล</dt><dd>{activeTicket.sensitive_level === 'GENERAL' ? 'ทั่วไป' : activeTicket.sensitive_level === 'SENSITIVE' ? 'ละเอียดอ่อน' : 'จำกัดการเข้าถึง'}</dd></div><div><dt>เริ่มเรื่อง</dt><dd>{dateTime(activeTicket.created_at)}</dd></div></dl></section>
-            <section className="inbox-context-section"><h3>บันทึกส่วนตัว</h3>{thread?.notes.length ? <ul className="inbox-notes">{thread.notes.map(item => <li key={item.id}><p>{item.text}</p><span>{item.staffName} · {dateTime(item.createdAt)}</span></li>)}</ul> : <p className="inbox-muted">ยังไม่มีบันทึก</p>}</section>
-            {thread && activeTicket.mode === 'HUMAN' && ['WAITING_STAFF', 'STAFF_HANDLING', 'WAITING_USER'].includes(activeTicket.status) && <section className="inbox-context-section inbox-assist-tools" aria-label="เครื่องมือช่วยร่าง">
-              <h3>เครื่องมือช่วยร่าง</h3>
-              <StaffAiPanel key={`summary:${activeTicket.id}:${activeTicket.revision}`} id={activeTicket.id} revision={activeTicket.revision} canReply={thread.detail.permissions.reply && busy === null} onDraft={text => applyAssistantDraft(actorId, activeTicket.id, activeTicket.revision, text)} />
-              <StaffKnowledgePanel key={`knowledge:${activeTicket.id}:${activeTicket.revision}`} id={activeTicket.id} revision={activeTicket.revision} canReply={thread.detail.permissions.reply && busy === null} onDraft={text => applyAssistantDraft(actorId, activeTicket.id, activeTicket.revision, text)} />
-              <StaffCopilotPanel key={`copilot:${activeTicket.id}:${activeTicket.revision}`} id={activeTicket.id} revision={activeTicket.revision} canReply={thread.detail.permissions.reply && busy === null} onDraft={text => applyAssistantDraft(actorId, activeTicket.id, activeTicket.revision, text)} />
-            </section>}
+            <section className="inbox-context-section"><h3>หน่วยงานและข้อมูล</h3><dl><div><dt>หน่วยงาน</dt><dd>{activeTicket.department_name}</dd></div><div><dt>หมวดหมู่</dt><dd>{activeTicket.category}</dd></div><div><dt>ระดับข้อมูล</dt><dd>{sensitivityLabels[activeTicket.sensitive_level]}</dd></div><div><dt>เริ่มเรื่อง</dt><dd>{dateTime(activeTicket.created_at)}</dd></div></dl></section>
+            <TicketActions key={thread.detail.ticket.id} actorId={actorId} id={thread.detail.ticket.id} ticketNo={thread.detail.ticket.ticket_no} reporter={thread.detail.ticket.anonymous_code} revision={thread.detail.ticket.revision} permissions={thread.detail.permissions} assignees={thread.detail.assignees} />
+            <section className="inbox-context-section" aria-label="เหตุการณ์ร่วมของหน่วยงาน">
+              <h3>เหตุการณ์ร่วม</h3>
+              <Link href={`/incidents?department=${activeTicket.department_id}`} className="inbox-context-link">ดูเหตุการณ์ร่วมของ {activeTicket.department_name} <span aria-hidden="true">↗</span></Link>
+              <p className="inbox-muted">การเปิดหน้าเหตุการณ์ร่วมไม่เปลี่ยนเคสที่กำลังตอบ · ตรวจผู้รับข้อความก่อนส่งทุกครั้ง ผู้รับปลายทางยืนยันจากเคสที่เปิดอยู่เสมอ และปุ่มส่งในหน้ารวมจะถูกปิดจนกว่าจะเลือกผู้รับชัดเจน</p>
+            </section>
             <Link href={`/tickets/${activeTicket.id}`} className="inbox-context-link">ดูประวัติและการดำเนินการ <span aria-hidden="true">↗</span></Link>
           </>}
         </aside>
       </section>
     </main>
   );
-}
-
-function mergeMessages(first: ChatMessage[], second: ChatMessage[]) {
-  const messages = new Map<string, ChatMessage>();
-  for (const item of [...first, ...second]) messages.set(item.id, item);
-  return [...messages.values()].sort((a, b) => a.sequence - b.sequence);
-}
-
-function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  const next = { ...record };
-  delete next[key];
-  return next;
 }

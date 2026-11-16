@@ -159,6 +159,28 @@
 .inbox-back-mobile { display: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
+/* Shared chat thread container: identical conversation block inside the inbox pane and the ticket detail. */
+.inbox-thread { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.inbox-conversation-topbar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .5rem 1rem; border-bottom: 1px solid var(--inbox-line); }
+/* Mid-history gap control: the missing range is bounded and must stay visible until bridged. */
+.inbox-gap-control { display: flex; align-items: center; justify-content: center; gap: .55rem; padding: .2rem 0 .7rem; }
+.inbox-gap-note { color: #aa6027; font-size: .62rem; font-weight: 700; letter-spacing: .02em; }
+.inbox-gap-control button { padding: .38rem .55rem; color: #55596d; background: #fff; border: 1px solid var(--inbox-line); border-radius: .45rem; cursor: pointer; font-size: .7rem; }
+/* Out-of-range page recovery and dropped deep-link keys: state is honest, recovery is one click. */
+.inbox-range-recovery { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: .1rem .8rem .55rem; padding: .5rem .6rem; color: #8a4c13; background: #fdf3e2; border-radius: .5rem; font-size: .7rem; }
+.inbox-range-recovery button { padding: .3rem .5rem; color: inherit; background: #fff; border: 1px solid #eddfc0; border-radius: .45rem; cursor: pointer; font-size: .66rem; font-weight: 700; }
+.inbox-range-recovery button:disabled { opacity: .45; cursor: not-allowed; }
+.inbox-dropped-note { margin: .1rem .8rem .5rem; color: #8a6d3b; font-size: .66rem; }
+/* Date-range filter pair: stacked inputs inside one grid cell of the filter row. */
+.inbox-date-pair { display: grid; gap: .45rem; align-content: start; min-width: 0; }
+.inbox-date-pair label { display: grid; gap: .12rem; }
+.inbox-date-pair input { width: 100%; height: 2.25rem; padding: 0 .5rem; color: #616578; background: white; border: 1px solid var(--inbox-line); border-radius: .55rem; font-size: .7rem; }
+/* Delivery evidence tones beside the three never-positive readers states (sent/dead/suppressed + unproven). */
+.inbox-delivery-pending { color: #a08b3f; }
+.inbox-delivery-processing { color: #7d8a4f; }
+.inbox-delivery-retry { color: #aa6027; }
+.inbox-delivery-unknown { color: #797b88; }
+
 @media (max-width: 1200px) {
   .inbox-layout { grid-template-columns: minmax(245px, 290px) minmax(350px, 1fr); }
   .inbox-context { display: none; }

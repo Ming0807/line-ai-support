@@ -56,24 +56,33 @@ export default function StatusClient() {
         </div>
       </>)}
 
-      {!loading && phase === 'login' && (<>
-        <h1 className="staff-onboard-h1">ต้องเข้าสู่ระบบเพื่อดูสถานะ</h1>
-        <div className="staff-onboard-actions">
-          <a className="staff-onboard-button" href={LINE_LOGIN_APPLICATION_URL}>เข้าสู่ระบบด้วย LINE</a>
-          <a className="staff-onboard-button staff-onboard-button-secondary" href={LOGIN_PAGE_URL}>เข้าสู่ระบบด้วยบัญชีบุคลากร</a>
-        </div>
-      </>)}
+      {!loading && phase === 'login' && (() => {
+        // OP06-11: only show the LINE entry when the server says it is configured;
+        // a missing context (the bare-401 fallback) keeps both entry points.
+        const lineConfigured = context?.loginAvailable !== false;
+        return (<>
+          <h1 className="staff-onboard-h1">ต้องเข้าสู่ระบบเพื่อดูสถานะ</h1>
+          <div className="staff-onboard-actions">
+            {lineConfigured && <a className="staff-onboard-button" href={LINE_LOGIN_APPLICATION_URL}>เข้าสู่ระบบด้วย LINE</a>}
+            <a className="staff-onboard-button staff-onboard-button-secondary" href={LOGIN_PAGE_URL}>เข้าสู่ระบบด้วยบัญชีบุคลากร</a>
+          </div>
+        </>);
+      })()}
 
-      {!loading && phase === 'linkLine' && (<>
-        <h1 className="staff-onboard-h1">บัญชีของคุณยังไม่ได้ผูกกับ LINE</h1>
-        <p className="staff-onboard-lead">
-          ระบบไม่เดาบัญชีจากชื่อหรืออีเมล โปรดผูกบัญชีผ่าน LINE ก่อนตรวจสอบสถานะ
-        </p>
-        <div className="staff-onboard-actions">
-          <a className="staff-onboard-button" href={LINE_LINK_EXISTING_URL}>ผูกบัญชีนี้กับ LINE</a>
-          <a className="staff-onboard-button staff-onboard-button-secondary" href={LOGIN_PAGE_URL}>กลับหน้าเข้าสู่ระบบ</a>
-        </div>
-      </>)}
+      {!loading && phase === 'linkLine' && (() => {
+        // OP06-11: no LINE link is offered when the LINE staff login is not configured.
+        const lineConfigured = context?.loginAvailable !== false;
+        return (<>
+          <h1 className="staff-onboard-h1">บัญชีของคุณยังไม่ได้ผูกกับ LINE</h1>
+          <p className="staff-onboard-lead">
+            ระบบไม่เดาบัญชีจากชื่อหรืออีเมล โปรดผูกบัญชีผ่าน LINE ก่อนตรวจสอบสถานะ
+          </p>
+          <div className="staff-onboard-actions">
+            {lineConfigured && <a className="staff-onboard-button" href={LINE_LINK_EXISTING_URL}>ผูกบัญชีนี้กับ LINE</a>}
+            <a className="staff-onboard-button staff-onboard-button-secondary" href={LOGIN_PAGE_URL}>กลับหน้าเข้าสู่ระบบ</a>
+          </div>
+        </>);
+      })()}
 
       {!loading && phase === 'noApplication' && (<>
         <h1 className="staff-onboard-h1">ยังไม่มีคำขอการใช้งาน</h1>
@@ -106,7 +115,11 @@ export default function StatusClient() {
         )}
         {application.status === 'APPROVED' && (
           <p className="staff-onboard-lead">
-            คำขอของคุณได้รับการอนุมัติ หากยังเข้าใช้งานไม่ได้ โปรดเข้าสู่ระบบแล้วเปิดหน้างานของฉัน
+            {context?.staffActive === true
+              ? 'คำขอของคุณได้รับการอนุมัติ หากยังเข้าใช้งานไม่ได้ โปรดเข้าสู่ระบบแล้วเปิดหน้างานของฉัน'
+              // OP06-11: an approval without an active profile stays generic and
+              // manual — never a dashboard link the account cannot use yet.
+              : 'คำขอของคุณได้รับการอนุมัติ แต่บัญชียังไม่พร้อมใช้งาน โปรดให้ผู้ดูแลระบบตรวจสอบการเปิดใช้งาน'}
           </p>
         )}
         {application.status === 'REJECTED' && (
@@ -134,7 +147,8 @@ export default function StatusClient() {
         </div>
         <div className="staff-onboard-actions">
           <a className="staff-onboard-button staff-onboard-button-secondary" href={LOGIN_PAGE_URL}>กลับหน้าเข้าสู่ระบบ</a>
-          {application.status === 'APPROVED' && (
+          {/* OP06-11: the dashboard is only offered to an ACTIVELY working account. */}
+          {application.status === 'APPROVED' && context?.staffActive && (
             <a className="staff-onboard-button" href={DASHBOARD_URL}>เปิดหน้างานของฉัน</a>
           )}
         </div>

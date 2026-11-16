@@ -7,10 +7,12 @@
 1. [AGENTS](../AGENTS.md) และ [บอร์ดงานปัจจุบัน](tasks/V1_TASK_BOARD.md)
 2. [Master guide](../CODEX_IMPLEMENTATION_GUIDE_YRU_AI_HELPDESK.md), [ต้นฉบับ](requirements/sources/README.md), [requirements matrix](requirements/V1_REQUIREMENTS_MATRIX.md)
 3. [System design](architecture/YRU_V1_DESIGN.md), subsystem design และ execution plan
-4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-195; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
+4. [Decision log](decisions/DECISION_LOG.md), ล่าสุด DEC-199; รายงานเก่าเป็นหลักฐานตามวันที่และขอบเขตของตน
 5. Next.js changes ต้องอ่านคู่มือที่ติดตั้งตาม AGENTS
 
 ## สถานะปัจจุบัน
+
+16 November 2026 (DEC-199): OC-OPERATOR-07 Inbox UI fixes are squashed into `feat/yru-v1-final-polish` (source/tests/docs only; harness artifacts are gitignored). Mounted fixture matrix S01–S27 27/27 passes on the merged tree. Outbound chat media 02C–02E is behind default-off flags; next are 02F confirmation/outbox and the 02G Student viewer. V1 is still NOT complete: real LINE/OAuth/Realtime and Flow A–F remain open. See the end of the [task board](tasks/V1_TASK_BOARD.md).
 
 30October CHAT-MEDIA-02C: private Staff outbound draft/lease and current case/recipient authority checks implemented; owned53 migration PG13/13, full3721 unit/284 files, type/scopedlint/build PASS. Development53/87RLS activated without changes to prior data, `local:check` PASS. This is metadata only, not a Staff upload or Student viewer; expiry recovery after a worker crash remains open. [Design](architecture/CHAT_MEDIA_DESIGN.md).
 

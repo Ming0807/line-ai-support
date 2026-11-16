@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   incidentBatchSelectAllEligible,
   incidentBatchClearSelection,
+  incidentReplyPreviewMatches,
 } from '../app/(dashboard)/incidents/IncidentBatchReply';
 import type { IncidentReplyOption } from '../lib/incidents/batch-reply-contracts';
 
@@ -52,5 +53,29 @@ describe('incident batch selection controls', () => {
 
   it('clears only after the explicit clear-selection action', () => {
     expect(incidentBatchClearSelection()).toEqual([]);
+  });
+
+  it('only proposes cases that exist in the current options list; late arrivals are never auto-selected', () => {
+    const items = [option('current', 'OWN_CASE')];
+    // "late-1" never appears in the options list, so select-all cannot add it.
+    expect(incidentBatchSelectAllEligible([], items, false, false)).toEqual(['current']);
+    expect(incidentBatchSelectAllEligible(['late-1'], items, false, false)).toEqual(['late-1', 'current']);
+  });
+
+  it('rejects a preview whose case set drifts from the reviewed selection (late arrivals cannot sneak in)', () => {
+    const reviewed = incidentReplyPreviewMatches(
+      { // preview produced by the server; contains an extra case the reviewer never selected
+        status: 'REVIEW_ONLY', incidentId: 'i-1', requestId: 'r-1',
+        cases: [
+          { ticketId: 'case-a', ticketCode: 'T-A', reporterLabel: 'ผู้รายงาน' },
+          { ticketId: 'late-arrival', ticketCode: 'T-LATE', reporterLabel: 'ผู้รายงาน' },
+        ],
+        caseCount: 2, recipientCount: 1, commonText: 'ทบทวนแล้ว',
+        deliveries: [], intervention: false,
+        expiresAt: '2026-10-29T00:00:00.000Z', previewReceipt: 'receipt',
+      } as unknown as Parameters<typeof incidentReplyPreviewMatches>[0],
+      { incidentId: 'i-1', requestId: 'r-1', ticketIds: ['case-a'], text: 'ทบทวนแล้ว', intervention: false },
+    );
+    expect(reviewed).toBe(false);
   });
 });

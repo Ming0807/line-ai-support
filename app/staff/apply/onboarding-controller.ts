@@ -67,6 +67,10 @@ function gateContextPhase(context:StaffApplicationContext): Exclude<ApplyPhase,'
   if (!context.authenticated) return 'login';
   if (!context.lineLinked) return 'linkLine';
   if (context.staffActive) return 'alreadyStaff';
+  // OP06-11: an approval WITHOUT an active staff profile is the design's blocked
+  // legacy-inactive state (manual SuperAdmin review; never auto-activated, never
+  // re-opened as an application). The UI keeps a GENERIC unavailable state.
+  if (context.application?.status === 'APPROVED') return 'unavailable';
   if (context.application) return 'recorded';
   if (context.departments.length === 0) return 'unavailable';
   return 'form';
@@ -77,8 +81,14 @@ export function reduceOnboarding(state:OnboardingState, action:OnboardingAction)
     case 'CONTEXT_LOAD_SUCCEEDED': {
       const nextPhase = gateContextPhase(action.context);
       if (nextPhase === 'unavailable') {
+        // OP06-11: the generic unavailable state carries its own honest reason;
+        // the departments copy is only for a missing department list.
+        const approvedWithoutActivation = action.context.application?.status === 'APPROVED'
+          && !action.context.staffActive;
         return {...state, phase:'unavailable', context:action.context, submitting:false, conflict:false,
-          notice:{kind:'error', text:'ยังไม่มีรายชื่อฝ่ายสำหรับเลือก กรุณากลับมาทำการใหม่ภายหลัง'}};
+          notice:{kind:'error', text: approvedWithoutActivation
+            ? 'บัญชีบุคลากรของคุณยังไม่พร้อมใช้งาน โปรดให้ผู้ดูแลระบบตรวจสอบการอนุมัติของคุณ'
+            : 'ยังไม่มีรายชื่อฝ่ายสำหรับเลือก กรุณากลับมาทำการใหม่ภายหลัง'}};
       }
       return {
         ...state, phase:nextPhase, context:action.context, submitting:false, conflict:false, notice:null,
@@ -193,6 +203,9 @@ function isContextShape(value:unknown): value is StaffApplicationContext {
   return typeof candidate.authenticated === 'boolean'
     && typeof candidate.lineLinked === 'boolean'
     && typeof candidate.staffActive === 'boolean'
+    // OP06-11: a 200 contract response must carry the honest LINE-login
+    // availability flag; anything less cannot drive the login phase truthfully.
+    && typeof candidate.loginAvailable === 'boolean'
     && (candidate.application === null
       || (typeof candidate.application === 'object' && candidate.application !== null))
     && Array.isArray(departments)

@@ -66,18 +66,30 @@ export function assistantDraftDisposition(input: {
   return input.currentReply.trim() ? 'confirm' : 'apply';
 }
 
-export type ThreadRequestToken = { actorId: string; ticketId: string; sequence: number };
+export type ThreadRequestToken = { actorId: string; ticketId: string; sequence: number; authorityEpoch: number };
 
-/** Prevent late requests from a previous selection/session replacing the visible thread. */
+/**
+ * Prevent late requests from a previous selection/session replacing the visible thread.
+ * OP06-02 (commits 2+): the fence also carries the actor's authority epoch —
+ * a denial-scoped reset bumps the generation and every token minted before it
+ * may no longer write anything back, no matter how current its ticket looks.
+ */
 export class ThreadRequestFence {
   private actorId: string;
   private ticketId: string | null;
   private sequence = 0;
   private latest = 0;
+  private authorityEpoch = 0;
 
   constructor(actorId: string, ticketId: string | null) {
     this.actorId = actorId;
     this.ticketId = ticketId;
+  }
+
+  /** CX1: whole-actor authority reset — invalidate every outstanding token. */
+  revokeAuthority() {
+    this.authorityEpoch += 1;
+    this.latest = ++this.sequence;
   }
 
   select(actorId: string, ticketId: string | null) {
@@ -89,12 +101,25 @@ export class ThreadRequestFence {
   begin(actorId: string, ticketId: string): ThreadRequestToken {
     const sequence = ++this.sequence;
     this.latest = sequence;
-    return { actorId, ticketId, sequence };
+    return { actorId, ticketId, sequence, authorityEpoch: this.authorityEpoch };
   }
 
   accepts(token: ThreadRequestToken) {
-    return token.actorId === this.actorId && token.ticketId === this.ticketId && token.sequence === this.latest;
+    return token.actorId === this.actorId && token.ticketId === this.ticketId &&
+      token.sequence === this.latest && token.authorityEpoch === this.authorityEpoch;
   }
+}
+
+/**
+ * Write-lane fence for composer submissions (CX3/OP06-05). Unlike the
+ * selection-sensitive read fence it binds (actor, ticket, authority epoch,
+ * attempt request identity): a submission's completion may only touch the
+ * workspace of the exact request whose response came back, inside the SAME
+ * authority generation, regardless of which room the user has since selected
+ * (commit 3 turns it into the per-room outcome store).
+ */
+export function writeCompletionValid(input: { authorityEpoch: number; leaseEpoch: number; actorId: string; ticketId: string; leaseActorId: string; leaseTicketId: string }) {
+  return input.authorityEpoch === input.leaseEpoch && input.actorId === input.leaseActorId && input.ticketId === input.leaseTicketId;
 }
 
 export function shouldAcknowledgeRead(input: {

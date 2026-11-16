@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireStaff } from '@/lib/auth/staff';
-import { getTicketDetail } from '@/lib/tickets/reads';
-import type { TicketDetail, TicketListItem } from '@/types/tickets';
-import TicketActions from './ticket-actions';
-import {getSimilarIssues,type SimilarIssuesView} from '@/lib/incidents/reads';
-import {getTicketSupportContext,type TicketSupportView} from '@/lib/tickets/support-context';
+import { readThread } from '@/lib/chat/service';
+import type { InboxThreadResult } from '@/types/inbox';
+import type { TicketListItem } from '@/types/tickets';
+import ChatThreadLive from './chat-thread-live';
+import {getSimilarIssues,type SimilarIssuesView} from '@/lib/incidents/reads';import {getTicketSupportContext,type TicketSupportView} from '@/lib/tickets/support-context';
+import '../../inbox/inbox.css';
 import '@/app/tickets.css';
 
+const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const statusLabels: Record<TicketListItem['status'], string> = {
   NEW: 'ใหม่', AI_HANDLING: 'ระบบกำลังดูแล', WAITING_STAFF: 'รอเจ้าหน้าที่',
   STAFF_HANDLING: 'เจ้าหน้าที่กำลังดูแล', WAITING_USER: 'รอผู้แจ้ง',
@@ -16,10 +18,7 @@ const statusLabels: Record<TicketListItem['status'], string> = {
 const actionLabels: Record<string, string> = {
   CREATED: 'รับเรื่องใหม่', ACCEPTED: 'รับดูแลเรื่อง', STAFF_REPLIED: 'ส่งคำตอบ', USER_REPLIED: 'ได้รับข้อความเพิ่มเติม',
   RESOLVED: 'ทำเครื่องหมายว่าแก้ไขแล้ว', CLOSED: 'ปิดเรื่อง', REOPENED: 'เปิดเรื่องอีกครั้ง', REASSIGNED: 'เปลี่ยนผู้รับผิดชอบ',
-  ROUTED: 'ส่งต่อให้เจ้าหน้าที่',
-};
-const senderLabels: Record<TicketDetail['messages'][number]['sender_type'], string> = {
-  USER: 'ผู้แจ้ง', AI: 'ระบบ', STAFF: 'เจ้าหน้าที่', SYSTEM: 'บันทึกระบบ',
+  ROUTED_AI: 'AI รับดำเนินการ',
 };
 
 function dateTime(value: string): string {
@@ -33,10 +32,16 @@ function statusName(value: string | null): string {
 
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!uuidPattern.test(id)) notFound();
   const staff = await requireStaff();
-  const detail = await getTicketDetail(staff.id, id);
-  if (!detail) notFound();
-
+  let initialThread: InboxThreadResult;
+  try {
+    initialThread = await readThread(staff.id, id, { limit: 50 });
+  } catch (failure) {
+    if (failure instanceof Error && failure.message === 'NOT_FOUND') notFound();
+    throw failure;
+  }
+  const detail = initialThread.detail;
   const { ticket } = detail;
   let support:TicketSupportView={status:'UNAVAILABLE',facts:[]};
   try{support=await getTicketSupportContext(staff.id,id);}catch{/* Fresh context authorization may deny a read without hiding the primary ticket snapshot. */}
@@ -58,34 +63,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
       <div className="ticket-detail-grid">
         <div className="ticket-detail-main">
-          <section className="ticket-panel" aria-labelledby="conversation-heading">
-            <div className="ticket-section-heading">
-              <div><h2 id="conversation-heading">บทสนทนา</h2></div>
-              <span className="ticket-message-count">{detail.messages.length} ข้อความ</span>
-            </div>
-            {detail.messages.length === 0 ? <p className="ticket-muted">ยังไม่มีข้อความในเรื่องนี้</p> : (
-              <ol className="ticket-message-list">
-                {detail.messages.map(message => (
-                  <li className={`ticket-message ticket-message-${message.sender_type.toLowerCase()}`} key={message.id}>
-                    <div className="ticket-message-meta">
-                      <div className="ticket-sender-info">
-                        <span className={`ticket-sender-pill ticket-sender-${message.sender_type.toLowerCase()}`}>
-                          {senderLabels[message.sender_type]}
-                        </span>
-                        {message.sender_type === 'STAFF' && message.staff_name && (
-                          <strong className="ticket-staff-name">{message.staff_name}</strong>
-                        )}
-                      </div>
-                      <time dateTime={message.created_at}>{dateTime(message.created_at)}</time>
-                    </div>
-                    <p>{message.content}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <TicketActions key={ticket.id} id={ticket.id} ticketNo={ticket.ticket_no} reporter={ticket.anonymous_code} revision={ticket.revision} permissions={detail.permissions} assignees={detail.assignees} assistAvailable={ticket.mode==='HUMAN'&&['WAITING_STAFF','STAFF_HANDLING','WAITING_USER'].includes(ticket.status)} />
+          <ChatThreadLive key={ticket.id} actorId={staff.id} ticketId={ticket.id} initialThread={initialThread} />
 
           <section className="ticket-panel" aria-labelledby="history-heading">
             <div className="ticket-section-heading"><div><h2 id="history-heading">ประวัติการดำเนินการ</h2></div></div>
