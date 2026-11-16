@@ -26,8 +26,8 @@ import {createChoices} from '../conversation/quick-reply';
 import {loadCandidates,candidateSnapshot} from '../conversation/context-resolver';
 import {shortAnswerText,SHOW_FULL_LABEL,type ShortAnswerSource} from '../line/answer-presentation';
 import {isTurnFailureText} from './turn-flow-v2';
-import {greetingKind,greetingReply,isGreetingReplyText} from '../conversation/input-hold';
-import {escalateFromAI} from './ai-escalation';
+import {greetingKind,greetingReply,isGreetingReplyText,contentlessKind,EMPTY_TURN_TEXT,NUDGE_TURN_TEXT} from '../conversation/input-hold';
+import {escalateFromAI,confirmSolvedFromAI} from './ai-escalation';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
@@ -43,6 +43,8 @@ export interface AIWorkerOptions {
  /** seconds: one best-effort animation (DEC-057, never refreshed); LINE hides it when the reply arrives. */
  loading?:{accessToken?:string;fetchImpl?:typeof fetch;seconds?:LineLoadingSeconds};
  supportEnabled?:boolean;
+ /** 'CONFIRM' is the pre-DEC-209 hand-over that waits for a confirmation button. Tests only, for already-sent buttons; remove after OA acceptance. */
+ handover?:'CONFIRM';
 }
 export async function eligibleAIJob(client:PoolClient,job:AIJob):Promise<boolean>{
  const authorized=(await client.query(`select c.id from public.conversations c join public.line_sessions s on s.id=c.line_session_id
@@ -71,6 +73,9 @@ async function produceBounded(snapshot:AISnapshot,options:AIWorkerOptions):Promi
  // CONV-GREET-01 (DEC-206): a turn of only greetings/thanks gets a fixed reply without a model call.
  const greeting=greetingKind(snapshot.question);
  if(greeting)return {kind:'CLARIFY',text:greetingReply(greeting).text};
+ // NATURAL-EDGE-01 (DEC-209): "?", emoji or a bare nudge gets a fixed short reply without a model call.
+ const contentless=contentlessKind(snapshot.question);
+ if(contentless)return {kind:'CLARIFY',text:contentless==='EMPTY'?EMPTY_TURN_TEXT:NUDGE_TURN_TEXT};
  const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
  const timeout=new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('AI_JOB_DEADLINE'));},90_000);});
  try{return await Promise.race([Promise.resolve().then(()=>options.produce(snapshot,controller.signal)),timeout]);}
@@ -100,7 +105,7 @@ async function showLoading(pool:Pool,job:AIJob,key:string,options:AIWorkerOption
   console.warn('LINE_LOADING_UNAVAILABLE');
  }
 }
-async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promise<'DONE'|'SUPPRESSED'>{
+async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot,handover?:'CONFIRM'):Promise<'DONE'|'SUPPRESSED'>{
  return transaction(async client=>{
   await client.query("set local statement_timeout='5s'");
   const saved=(await client.query('select * from private.ai_jobs where id=$1',[job.id])).rows[0] as AIJob|undefined;
@@ -230,14 +235,17 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    const state=await loadSupportActionState(client,current.line_session_id,current.conversation_id,key);if(!state)throw new Error('SUPPORT_STATE_INVALID');
    // NATURAL-ESCALATE-01 (DEC-209): a hand-over is done, not offered. createEscalation suppresses this turn's
    // unsent AI reply and sends the case notice; an unknown department is asked in words, without buttons.
-   const escalation=state.interpreted.needsTicket?await escalateFromAI(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
+   const escalation=state.interpreted.needsTicket&&handover!=='CONFIRM'?await escalateFromAI(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
     messageId:current.message_id,question:before.question,state},key):null;
    if(escalation?.status==='ASK_DEPARTMENT'){
     messages=[{type:'text',text:escalation.text,...(request.quickReply?{quickReply:request.quickReply}:{})}];
     await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
     await client.query("update public.messages set content=$2 where conversation_id=$1 and sender_type='AI' and metadata->>'ai_job_id'=$3",[job.conversation_id,escalation.text,job.id]);
    }
-   const quickReply=escalation&&escalation.status!=='NOT_ALLOWED'?undefined:await createSupportActions(client,state,key,{canonicalTroubleshooting:verifiedGuidance&&state.interpreted.intent==='TROUBLESHOOT'});
+   // NATURAL-SOLVED-01 (DEC-209): "ได้แล้ว" after delivered guidance closes the case without a button.
+   const solved=!escalation&&handover!=='CONFIRM'&&await confirmSolvedFromAI(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
+    messageId:current.message_id,jobId:job.id,state,replyToken:request.replyToken,receivedAt:new Date(request.receivedAt)},key);
+   const quickReply=solved||escalation&&escalation.status!=='NOT_ALLOWED'?undefined:await createSupportActions(client,state,key,{canonicalTroubleshooting:verifiedGuidance&&state.interpreted.intent==='TROUBLESHOOT'});
    if(quickReply){messages[messages.length-1]={...messages[messages.length-1],quickReply};
     await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
    }
@@ -256,19 +264,25 @@ export async function runAICycle(pool:Pool,key:string,options:AIWorkerOptions):P
   let context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
   if(job.result_encrypted===null){
    // A fixed greeting is answered at once, so no loading animation is started for it.
-   if(context.collectedInputTooLarge||!greetingKind(context.question))await showLoading(pool,job,key,options);
+   if(context.collectedInputTooLarge||!greetingKind(context.question)&&!contentlessKind(context.question))await showLoading(pool,job,key,options);
    // Takeover/revision/lease may change while the animation HTTP call runs.
    context=await snapshot(pool,job,key,options);if(!context){stats.suppressed=1;return stats;}
    await saveAIResult(pool,job,await produceBounded(context,options),key);
   }
-  const status=await finalize(pool,job,key,context);if(status==='DONE')stats.completed=1;else stats.suppressed=1;
+  const status=await finalize(pool,job,key,context,options.handover);if(status==='DONE')stats.completed=1;else stats.suppressed=1;
   console.info('AI_JOB_FINISHED',{status});
  }catch{
   stats.failed=1;console.error('AI_JOB_PROCESSING_FAILED');
-  if(job)await pool.query(`update private.ai_jobs set status=case when attempts>=5 then 'DEAD' else 'PENDING' end,
-   available_at=clock_timestamp()+make_interval(secs=>least(300,power(2,attempts)::integer)),lease_token=null,lease_until=null,
-   last_error_code='PROCESSING_FAILED' where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp()`,
-  [job.id,job.lease_token]).catch(()=>{console.error('AI_JOB_RETRY_FAILED');});
+  const failed=job;
+  if(failed)await transaction(async client=>{
+   const row=(await client.query(`update private.ai_jobs set status=case when attempts>=5 then 'DEAD' else 'PENDING' end,
+    available_at=clock_timestamp()+make_interval(secs=>least(300,power(2,attempts)::integer)),lease_token=null,lease_until=null,
+    last_error_code='PROCESSING_FAILED' where id=$1 and lease_token=$2 and status='PROCESSING' and lease_until>clock_timestamp() returning status`,
+   [failed.id,failed.lease_token])).rows[0];
+   // NATURAL-EDGE-01 (DEC-209): once retries are exhausted the Student is told, never left in silence.
+   if(row?.status==='DEAD')await enqueueOutbound(client,{idempotencyKey:`ai-failed:${failed.id}`,channel:'STUDENT',kind:'SYSTEM',lineSessionId:failed.line_session_id,
+    messages:[{type:'text',text:'ขออภัยครับ ตอนนี้ระบบตอบอัตโนมัติขัดข้องชั่วคราว ลองพิมพ์คำถามอีกครั้งในอีกสักครู่ หรือพิมพ์ว่า "ขอคุยกับเจ้าหน้าที่" ได้เลย'}]},key);
+  },pool).catch(()=>{console.error('AI_JOB_RETRY_FAILED');});
  }
  return stats;
 }

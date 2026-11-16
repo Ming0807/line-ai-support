@@ -103,7 +103,10 @@ async function createFlow(){
  }catch(error){await cleanup().catch(()=>undefined);throw error;}
 }
 
-function proposalFor(stage:'CLARIFY'|'GUIDANCE'|'ESCALATE'){
+function proposalFor(stage:'CLARIFY'|'GUIDANCE'|'ESCALATE'|'SOLVED'){
+ if(stage==='SOLVED')return {intent:'SOLVED',category:'IT_SUPPORT',subcategory:'NETWORK_ACCESS',needsTicket:false,department:'IT',urgency:'low' as const,
+  needsKnowledgeSearch:false,needsStructuredSearch:false,needsWebSearch:false,confidence:.99,missingContext:null,impact:'SINGLE_USER' as const,sensitivity:'GENERAL' as const,
+  facts:[{field:'PROBLEM' as const,source:'U1',quote:'Wi-Fi ต่อไม่ได้'}]};
  if(stage==='CLARIFY')return {intent:'TROUBLESHOOT',category:'IT_SUPPORT',subcategory:'NETWORK_ACCESS',needsTicket:false,department:'IT',urgency:'medium' as const,
   needsKnowledgeSearch:true,needsStructuredSearch:false,needsWebSearch:false,confidence:.99,missingContext:'DEVICE' as const,impact:'SINGLE_USER' as const,sensitivity:'GENERAL' as const,
   facts:[{field:'PROBLEM' as const,source:'U0',quote:'Wi-Fi ต่อไม่ได้'}]};
@@ -117,7 +120,7 @@ function proposalFor(stage:'CLARIFY'|'GUIDANCE'|'ESCALATE'){
    {field:'ERROR' as const,source:'U2',quote:'ไม่สามารถเชื่อมต่อ Wi-Fi ได้'}]};
 }
 
-function producer(f:Flow,phase:'CLARIFY'|'GUIDANCE'|'ESCALATE'){
+function producer(f:Flow,phase:'CLARIFY'|'GUIDANCE'|'ESCALATE'|'SOLVED'){
  let supportCalls=0;const taskCalls:string[]=[];
  const scope=scopeFor(f.familyCode);
  const generate=async(input:GenerateInput<unknown>)=>{
@@ -130,6 +133,8 @@ function producer(f:Flow,phase:'CLARIFY'|'GUIDANCE'|'ESCALATE'){
     assert.equal(supportCalls,1);
     assert.equal(prompt.sources[0]?.text,'ใช้ Android แล้วขึ้นข้อความ ไม่สามารถเชื่อมต่อ Wi-Fi ได้');
     assert.deepEqual(prompt.sources.slice(1).map(s=>[s.code,s.text]),[['U1','Wi-Fi ต่อไม่ได้']]);output=proposalFor('GUIDANCE');
+   }else if(phase==='SOLVED'){
+    assert.equal(supportCalls,1);assert.equal(prompt.sources[0]?.text,'ได้แล้วครับ ขอบคุณ');output=proposalFor('SOLVED');
    }else{
     assert.equal(supportCalls,1);assert.equal(prompt.sources[0]?.text,'ยังแก้ไม่ได้ครับ');
     assert.deepEqual(prompt.sources.slice(1).map(s=>[s.code,s.text]),[['U1','Wi-Fi ต่อไม่ได้'],['U2','ใช้ Android แล้วขึ้นข้อความ ไม่สามารถเชื่อมต่อ Wi-Fi ได้']]);
@@ -178,12 +183,17 @@ async function inbound(f:Flow,text:string){
  const message=(await f.pool.query("select id,conversation_id from public.messages where line_message_id=$1 and sender_type='USER'",[lineMessageId])).rows[0];
  assert(message,'ACTUAL_USER_MESSAGE_MUST_BE_STORED');
  const job=(await f.pool.query('select id from private.ai_jobs where message_id=$1',[message.id])).rows[0];assert(job,'CANONICAL_AI_JOB_MUST_BE_CREATED');
+ // Student input windows (DEC-206) hold a turn for its quiet gap; make this window due instead of waiting in real time.
+ await f.pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',
+  ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[hashLineUserId(f.studentLineId,key)]);
  f.jobIds.push(job.id);return {messageId:message.id,conversationId:message.conversation_id,jobId:job.id};
 }
 
+// The ESCALATE phase drives the legacy confirmation buttons (DEC-209 keeps them for already-sent proposals), so it opts
+// into handover 'CONFIRM'; AUTO_ESCALATE below covers the current AI-opened case.
 async function runAndDeliver(f:Flow,phase:'GUIDANCE'|'ESCALATE',capture:{bodies:unknown[]}){
  const model=producer(f,phase);
- const stats=await runAICycle(f.pool,key,{supportEnabled:true,produce:model.produce});assert.equal(stats.completed,1,'ACTUAL_AI_WORKER_MUST_FINALIZE');
+ const stats=await runAICycle(f.pool,key,{supportEnabled:true,produce:model.produce,...(phase==='ESCALATE'?{handover:'CONFIRM' as const}:{})});assert.equal(stats.completed,1,'ACTUAL_AI_WORKER_MUST_FINALIZE');
  const completed=(await f.pool.query('select last_error_code from private.ai_jobs where id=$1',[f.jobIds.at(-1)])).rows[0];
  assert.equal(completed.last_error_code,null,`SUPPORT_FLOW_RESULT_${completed.last_error_code}`);
  const delivery=await runOutboxCycle(f.pool,key,{accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async(_url,init)=>{
@@ -212,7 +222,7 @@ async function confirm(f:Flow,choice:{label:string;data:string}|string,beforePro
  return inboxJob;
 }
 
-for(const branch of ['SOLVED','ESCALATE','TYPED_ESCALATE'] as const)test(`controlled Wi-Fi troubleshooting flow consumes owned ${branch} action against a reviewed public guide`,async()=>{
+for(const branch of ['SOLVED','TYPED_SOLVED','ESCALATE','TYPED_ESCALATE','AUTO_ESCALATE'] as const)test(`controlled Wi-Fi troubleshooting flow consumes owned ${branch} action against a reviewed public guide`,async()=>{
  const f=await createFlow();try{
   const capture:{bodies:unknown[]}={bodies:[]};
   const first=await inbound(f,'Wi-Fi ต่อไม่ได้');
@@ -236,11 +246,40 @@ for(const branch of ['SOLVED','ESCALATE','TYPED_ESCALATE'] as const)test(`contro
   assert.equal(answer.metadata.citations[0].documentId,f.documentId,'CITATION_MUST_REFERENCE_APPROVED_CANONICAL_DOCUMENT');
 
   let escalation=delivered;
-  if(branch!=='SOLVED'){
+  if(branch==='TYPED_SOLVED'){
+   // NATURAL-SOLVED-01 (DEC-209): typing that it works closes the case; no "แก้ได้แล้ว" button is needed.
+   const solved=await inbound(f,'ได้แล้วครับ ขอบคุณ');assert.equal(solved.conversationId,followup.conversationId);
+   const model=producer(f,'SOLVED');
+   assert.equal((await runAICycle(f.pool,key,{supportEnabled:true,produce:model.produce})).completed,1);
+   const sent=await runOutboxCycle(f.pool,key,{accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async(_url,init)=>{
+    await f.assertOutsideSql();capture.bodies.push(JSON.parse(String(init?.body)));return new Response(null,{status:200});}});
+   assert.equal(sent.failed,0);
+   const replies=(await f.pool.query("select kind,status,payload_encrypted from private.message_outbox where line_session_id=$1 and channel='STUDENT' order by created_at,id",[f.session])).rows;
+   const last=replies.filter(r=>r.status==='SENT').at(-1)!;const text=JSON.parse(decryptValue(last.payload_encrypted,key)).messages[0];
+   assert.match(text.text,/แก้ได้แล้ว/u);assert.equal(text.quickReply,undefined);
+   const outcome=(await f.pool.query('select confirmation_event_id from private.ai_support_outcomes where conversation_id=$1',[followup.conversationId])).rows[0];
+   const trigger=(await f.pool.query('select source_event_id from public.messages where id=$1',[solved.messageId])).rows[0];
+   assert.equal(outcome?.confirmation_event_id,trigger.source_event_id,'the Student own LINE message confirms the outcome');
+  }else if(branch==='AUTO_ESCALATE'){
+   // NATURAL-ESCALATE-01 (DEC-209): "ยังแก้ไม่ได้" makes the AI open the IT case itself and tell the Student.
+   const unresolved=await inbound(f,'ยังแก้ไม่ได้ครับ');assert.equal(unresolved.conversationId,followup.conversationId);
+   const model=producer(f,'ESCALATE');
+   assert.equal((await runAICycle(f.pool,key,{supportEnabled:true,produce:model.produce})).completed,1);
+   assert.deepEqual(model.taskCalls,['SUPPORT_INTENT']);
+   const sent=await runOutboxCycle(f.pool,key,{accessTokens:{STUDENT:'controlled-student-token',STAFF:'controlled-staff-token'},fetchImpl:async(_url,init)=>{
+    await f.assertOutsideSql();capture.bodies.push(JSON.parse(String(init?.body)));return new Response(null,{status:200});}});
+   assert.equal(sent.failed,0);
+   const ticket=(await f.pool.query('select id,ticket_no from public.tickets where conversation_id=$1',[followup.conversationId])).rows[0];assert(ticket,'AI_OPENS_THE_CASE_WITHOUT_A_BUTTON');
+   const notice=(await f.pool.query("select payload_encrypted,status from private.message_outbox where idempotency_key=$1",[`ticket-created:${ticket.id}`])).rows[0];
+   assert.equal(notice.status,'SENT');const noticeText=JSON.parse(decryptValue(notice.payload_encrypted,key)).messages[0];
+   assert.match(noticeText.text,new RegExp(`${ticket.ticket_no}`,'u'));assert.match(noticeText.text,/เทคโนโลยีสารสนเทศ/u);assert.equal(noticeText.quickReply,undefined);
+   assert.equal((await f.pool.query("select status from private.message_outbox where idempotency_key=$1",[`ai-job:${unresolved.jobId}`])).rows[0].status,'SUPPRESSED','the unsent AI reply gives way to the case notice');
+  }else if(branch!=='SOLVED'){
    const unresolved=await inbound(f,'ยังแก้ไม่ได้ครับ');assert.equal(unresolved.conversationId,followup.conversationId);
    escalation=await runAndDeliver(f,'ESCALATE',capture);
    assert.deepEqual(escalation.model.taskCalls,['SUPPORT_INTENT'],'UNRESOLVED_FOLLOWUP_MUST_NOT_GENERATE_ANOTHER_GUIDE');
   }
+  if(branch!=='AUTO_ESCALATE'&&branch!=='TYPED_SOLVED'){
   const target=branch==='SOLVED'?delivered.choices.find(c=>/แก้ได้แล้ว/u.test(c.label)):escalation.choices.find(c=>/ส่งต่อ IT/u.test(c.label));
   assert(target,`OWNED_${branch}_CHOICE_MUST_BE_DELIVERED`);
   const confirmation=await confirm(f,branch==='TYPED_ESCALATE'?'ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ':target);
@@ -251,9 +290,10 @@ for(const branch of ['SOLVED','ESCALATE','TYPED_ESCALATE'] as const)test(`contro
    await confirm(f,'ยืนยันให้ส่งเรื่องนี้ให้เจ้าหน้าที่ช่วยตรวจสอบ');
    assert.equal((await f.pool.query('select count(*)::int n from public.tickets where conversation_id=$1',[followup.conversationId])).rows[0].n,1,'REPLAY_MUST_NOT_DUPLICATE_TICKET');
   }
+  }
   const outcomes=(await f.pool.query('select * from private.ai_support_outcomes where conversation_id=$1',[followup.conversationId])).rows;
-  assert.equal(outcomes.length,1);assert.equal(outcomes[0].kind,branch==='SOLVED'?'USER_CONFIRMED_SOLVED':'USER_CONFIRMED_ESCALATED');
-  if(branch==='SOLVED'){
+  assert.equal(outcomes.length,1);assert.equal(outcomes[0].kind,branch==='SOLVED'||branch==='TYPED_SOLVED'?'USER_CONFIRMED_SOLVED':branch==='AUTO_ESCALATE'?'AI_ESCALATED':'USER_CONFIRMED_ESCALATED');
+  if(branch==='SOLVED'||branch==='TYPED_SOLVED'){
    assert.equal((await f.pool.query('select count(*)::int n from public.tickets where conversation_id=$1',[followup.conversationId])).rows[0].n,0);
    assert.equal(outcomes[0].ticket_id,null);
    assert.equal((await f.pool.query('select status from public.conversations where id=$1',[followup.conversationId])).rows[0].status,'RESOLVED');
@@ -291,7 +331,7 @@ for(const rejection of ['EXPIRED','UNSENT','LATE_SENT','AMBIGUOUS','STALE','FORE
   await inbound(f,'ใช้ Android แล้วขึ้นข้อความ ไม่สามารถเชื่อมต่อ Wi-Fi ได้');
   await runAndDeliver(f,'GUIDANCE',capture);
   const unresolved=await inbound(f,'ยังแก้ไม่ได้ครับ');
-  await runAICycle(f.pool,key,{supportEnabled:true,produce:producer(f,'ESCALATE').produce});
+  await runAICycle(f.pool,key,{supportEnabled:true,produce:producer(f,'ESCALATE').produce,handover:'CONFIRM'});
   if(rejection==='AMBIGUOUS'){
    const outbox=(await f.pool.query('select id,payload_encrypted from private.message_outbox where idempotency_key=$1',[`ai-job:${unresolved.jobId}`])).rows[0];
    const payload=JSON.parse(decryptValue(outbox.payload_encrypted,key));

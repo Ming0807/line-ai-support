@@ -410,3 +410,33 @@ test('NATURAL-ESCALATE-01: a personal-record question is handed over with a shor
  const last=(await studentMessages(c)).at(-1)!;
  assert.match(last.text,/ข้อมูล/u);assert.match(last.text,new RegExp(ticket.ticket_no,'u'));
 });
+
+test('NATURAL-EDGE-01: "?" or emoji alone and a nudge after an answer get a short reply without a model call',async()=>{
+ const c=await studentChat();
+ const noModel=async()=>{throw new Error('MODEL_MUST_NOT_BE_CALLED');};
+ const due=()=>pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[c.userHash]);
+ const drain=async()=>{await due();for(let i=0;i<5;i++)if(!(await runAICycle(pool,c.key,{produce:noModel})).claimed)break;
+  await pool.query(`update private.message_outbox set status='SENT',completed_at=clock_timestamp() where line_session_id=$1 and status='PENDING'`,[c.sid]);};
+ await drain();
+ const lastText=async()=>JSON.parse(decryptValue((await pool.query(`select payload_encrypted from private.message_outbox where line_session_id=$1 order by created_at desc,id desc limit 1`,[c.sid])).rows[0].payload_encrypted,c.key)).messages.at(-1).text as string;
+ await c.send('?');await drain();assert.match(await lastText(),/ช่วยเรื่องอะไร/u);
+ await c.send('😭');await drain();assert.match(await lastText(),/ช่วยเรื่องอะไร/u);
+ await c.send('ตอบด้วย');await drain();assert.match(await lastText(),/ด้านบน/u);
+});
+
+test('NATURAL-EDGE-01: when the model keeps failing, the Student is told instead of left in silence',async()=>{
+ const c=await studentChat();
+ await c.send('ค่าเทอมเท่าไหร่');
+ const job=(await pool.query(`select j.id from private.ai_jobs j join public.messages m on m.id=j.message_id where m.content='ค่าเทอมเท่าไหร่' and j.line_session_id=$1`,[c.sid])).rows[0];
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[c.userHash]);
+ await pool.query(`update private.ai_jobs set status='SUPPRESSED',completed_at=clock_timestamp(),lease_token=null,lease_until=null where line_session_id=$1 and id<>$2 and status in('PENDING','PROCESSING')`,[c.sid,job.id]);
+ for(let i=0;i<6;i++){
+  await runAICycle(pool,c.key,{produce:async()=>{throw new Error('PROVIDER_DOWN');}});
+  await pool.query(`update private.ai_jobs set available_at=clock_timestamp() where id=$1 and status='PENDING'`,[job.id]);
+ }
+ assert.equal((await pool.query('select status from private.ai_jobs where id=$1',[job.id])).rows[0].status,'DEAD');
+ const notice=(await pool.query(`select kind,payload_encrypted from private.message_outbox where idempotency_key=$1`,[`ai-failed:${job.id}`])).rows[0];
+ assert(notice,'a failure notice is queued once the job gives up');
+ assert.equal(notice.kind,'SYSTEM');
+ assert.match(JSON.parse(decryptValue(notice.payload_encrypted,c.key)).messages[0].text,/ขัดข้อง/u);
+});

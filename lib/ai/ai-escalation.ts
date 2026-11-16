@@ -2,6 +2,7 @@ import type {PoolClient} from 'pg';
 import {createEscalation} from '../tickets/create-ticket';
 import {TicketError} from '../tickets/authorization';
 import {routedInputEventSql} from './input-watermark';
+import {enqueueOutbound} from '../queue/outbox';
 import type {SupportActionState} from './support-state';
 
 /**
@@ -31,15 +32,45 @@ export function departmentQuestion(departments:Department[]):string{
  return `เรื่องนี้ต้องให้เจ้าหน้าที่ช่วยต่อครับ ช่วยพิมพ์บอกหน่อยว่าเกี่ยวกับงานไหน เช่น ${departments.map(d=>d.name_th).join(' / ')}`;
 }
 
+/** The Student's own LINE text message for this turn, of the same identity: the verified stand-in for a button. */
+async function studentTrigger(client:PoolClient,input:{sessionId:string;conversationId:string;messageId:string}):Promise<{id:string}|undefined>{
+ return (await client.query(`select e.id from public.messages m join private.webhook_inbox e on e.id=${routedInputEventSql('m')}
+  join private.line_identities i on i.line_session_id=$2 and i.user_hash=e.user_hash
+  where m.id=$1 and m.conversation_id=$3 and m.sender_type='USER' and e.channel='STUDENT' and e.event_kind='MESSAGE'`,
+  [input.messageId,input.sessionId,input.conversationId])).rows[0];
+}
+
+export const TYPED_SOLVED_TEXT='ดีใจที่แก้ได้แล้วครับ ถ้ามีเรื่องอื่นให้ช่วย พิมพ์มาได้เลย';
+/**
+ * NATURAL-SOLVED-01 (DEC-209): the Student typing that delivered troubleshooting worked closes the case like the
+ * former "แก้ได้แล้ว" button: same outcome kind, conversation RESOLVED, later AI work for it cancelled. Allowed only when
+ * the support state says solved can be confirmed (actually SENT guidance for the same problem) and no case exists.
+ */
+export async function confirmSolvedFromAI(client:PoolClient,input:{sessionId:string;conversationId:string;messageId:string;jobId:string;
+ state:SupportActionState;replyToken?:string;receivedAt:Date},key:string):Promise<boolean>{
+ if(input.state.interpreted.intent!=='SOLVED'||!input.state.canConfirmSolved)return false;
+ const trigger=await studentTrigger(client,input);if(!trigger)return false;
+ if((await client.query('select 1 from private.ai_support_outcomes where conversation_id=$1',[input.conversationId])).rowCount)return false;
+ if((await client.query('select 1 from public.tickets where conversation_id=$1',[input.conversationId])).rowCount)return false;
+ await client.query(`insert into private.ai_support_outcomes(conversation_id,line_session_id,last_message_id,confirmation_event_id,state_digest,kind,department_id,sensitive_level)
+  values($1,$2,$3,$4,$5,'USER_CONFIRMED_SOLVED',$6,$7)`,[input.conversationId,input.sessionId,input.messageId,trigger.id,input.state.stateDigest,
+  input.state.departmentId,input.state.interpreted.sensitiveLevel]);
+ await client.query("update public.conversations set status='RESOLVED',revision=revision+1,updated_at=clock_timestamp() where id=$1",[input.conversationId]);
+ await client.query(`update private.ai_jobs set status='SUPPRESSED',last_error_code='USER_CONFIRMED_SOLVED',lease_token=null,lease_until=null,completed_at=clock_timestamp()
+  where conversation_id=$1 and id<>$2 and status in('PENDING','PROCESSING')`,[input.conversationId,input.jobId]);
+ await client.query(`update private.message_outbox set status='SUPPRESSED',last_error_code='USER_CONFIRMED_SOLVED',lease_token=null,lease_until=null,completed_at=clock_timestamp()
+  where conversation_id=$1 and kind='AI' and status in('PENDING','PROCESSING')`,[input.conversationId]);
+ await enqueueOutbound(client,{idempotencyKey:`support-solved:${input.jobId}`,channel:'STUDENT',kind:'SYSTEM',lineSessionId:input.sessionId,
+  replyToken:input.replyToken,receivedAt:input.receivedAt,messages:[{type:'text',text:TYPED_SOLVED_TEXT}]},key);
+ return true;
+}
+
 export type AIEscalationResult={status:'ESCALATED';ticketId:string;ticketNo:string}|{status:'ASK_DEPARTMENT';text:string}|{status:'NOT_ALLOWED'};
 
 export async function escalateFromAI(client:PoolClient,input:{sessionId:string;conversationId:string;messageId:string;question:string;state:SupportActionState},key:string):Promise<AIEscalationResult>{
  const advice=input.state.interpreted;
  if(!advice.needsTicket)return {status:'NOT_ALLOWED'};
- const trigger=(await client.query(`select e.id from public.messages m join private.webhook_inbox e on e.id=${routedInputEventSql('m')}
-  join private.line_identities i on i.line_session_id=$2 and i.user_hash=e.user_hash
-  where m.id=$1 and m.conversation_id=$3 and m.sender_type='USER' and e.channel='STUDENT' and e.event_kind='MESSAGE'`,
-  [input.messageId,input.sessionId,input.conversationId])).rows[0];
+ const trigger=await studentTrigger(client,input);
  if(!trigger)return {status:'NOT_ALLOWED'};
  const departments=await activeDepartments(client);
  const departmentCode=advice.departmentCode??typedDepartment(input.question,departments);

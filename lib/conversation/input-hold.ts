@@ -67,3 +67,19 @@ export function greetingReply(kind:GreetingKind):{text:string;topics:string[]}{
  return kind==='GREETING'?{text:GREETING_TEXT,topics:[...GREETING_TOPICS]}:{text:THANKS_TEXT,topics:[]};
 }
 export function isGreetingReplyText(text:string):boolean{return text===GREETING_TEXT||text===THANKS_TEXT;}
+
+/**
+ * NATURAL-EDGE-01 (DEC-209): a whole turn with no content. EMPTY = only punctuation/emoji ("?", "😭");
+ * NUDGE = only a prompt to reply ("ตอบด้วย", "มีใครอยู่ไหม"). Earlier unanswered input is already carried into the
+ * turn, so a nudge alone means the last question was answered. Anything else (digits, words) goes to the model.
+ */
+export type ContentlessKind='EMPTY'|'NUDGE';
+const NUDGE=new RegExp(`^(?:ตอบ(?:ด้วย|หน่อย|ที)|มี(?:ใคร|คน)อยู่(?:ไหม|มั้ย|มั๊ย|ป่าว)|ไม่มี(?:ใคร|คน)ตอบ(?:เลย)?(?:หรอ|เหรอ|หรือ)?|anyone(?:there)?)${PARTICLE}*$`,'u');
+export function contentlessKind(text:string):ContentlessKind|null{
+ if(typeof text!=='string'||text.length>200)return null;
+ const value=compact(text);
+ if(!value)return text.trim()?'EMPTY':null;
+ return NUDGE.test(value)?'NUDGE':null;
+}
+export const EMPTY_TURN_TEXT='ต้องการให้ช่วยเรื่องอะไรครับ พิมพ์คำถามมาได้เลย';
+export const NUDGE_TURN_TEXT='ขอโทษที่ให้รอครับ คำตอบล่าสุดอยู่ด้านบน ถ้ายังไม่ตรงกับที่ต้องการ พิมพ์บอกเพิ่มได้เลย';

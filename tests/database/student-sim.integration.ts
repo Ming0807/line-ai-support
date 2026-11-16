@@ -7,7 +7,7 @@ import {Pool} from 'pg';
 import {runInboxCycle} from '../../lib/queue/run-inbox';
 import {runAICycle,type AISnapshot} from '../../lib/ai/run-worker';
 import {encryptValue,decryptValue,hashLineUserId} from '../../lib/security/identity';
-import {greetingKind,greetingReply,inputHoldForText,INPUT_QUIET_MS,INPUT_EXTENDED_QUIET_MS} from '../../lib/conversation/input-hold';
+import {greetingKind,greetingReply,inputHoldForText,contentlessKind,EMPTY_TURN_TEXT,NUDGE_TURN_TEXT,INPUT_QUIET_MS,INPUT_EXTENDED_QUIET_MS} from '../../lib/conversation/input-hold';
 import type {SemanticPrompt,RoutingProposal} from '../../lib/conversation/semantic-routing-contracts';
 
 /**
@@ -87,14 +87,14 @@ async function runScenario(s:Scenario,index:number):Promise<Outcome>{
  const buttons=payloads.flatMap(messages=>messages.flatMap(m=>m.quickReply?.items.map(i=>i.action.label)??[]));
  const users=(await pool.query(`select m.content,m.metadata->>'routing_status' rs,m.ticket_id from public.messages m join public.conversations c on c.id=m.conversation_id
   where c.line_session_id=$1 and m.sender_type='USER' and m.created_at>=$2 order by m.created_at,m.id`,[session,new Date(base-1000)])).rows;
- const fixedTexts=[greetingReply('GREETING').text,greetingReply('THANKS').text];
+ const fixedTexts=[greetingReply('GREETING').text,greetingReply('THANKS').text,EMPTY_TURN_TEXT,NUDGE_TURN_TEXT];
  const fixed=texts.filter(t=>fixedTexts.includes(t));
  const covered=new Set(modelQuestions.flatMap(q=>q.split('\n')));
  const greetingsAnswered=fixed.length>0;
  const pending=users.filter(u=>u.rs==='PENDING').map(u=>u.content as string);
  const lastUser=users.at(-1)?.content as string|undefined;
  const stuck=users.filter(u=>u.rs==='PENDING'&&u.content!==lastUser).map(u=>u.content as string);
- const silent=users.filter(u=>u.rs==='ROUTED'&&!u.ticket_id&&!covered.has(u.content)&&!(greetingsAnswered&&greetingKind(u.content)))
+ const silent=users.filter(u=>u.rs==='ROUTED'&&!u.ticket_id&&!covered.has(u.content)&&!(greetingsAnswered&&(greetingKind(u.content)||contentlessKind(u.content))))
   .map(u=>u.content as string);
  const greetingTexts=s.steps.filter(st=>st.text&&greetingKind(st.text)).length;
  const topicLists=texts.filter(t=>t.includes('ข้อความนี้เป็นเรื่องใด')).length;

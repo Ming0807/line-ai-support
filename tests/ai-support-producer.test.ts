@@ -130,9 +130,10 @@ it('invented facts or provider tools cannot grant durable support advice',async(
   expect(result.kind).toBe('CLARIFY');expect(result).not.toHaveProperty('support');expect(f.embed).not.toHaveBeenCalled();
  }
 });
-it('a solved statement requires explicit confirmation rather than an automatic outcome',async()=>{
+// NATURAL-SOLVED-01 (DEC-209): the producer never records an outcome; the backend does, from the verified Student message.
+it('a solved statement never makes the producer record an outcome itself',async()=>{
  const f=fixture({...proposal,intent:'SOLVED',missingContext:null}),s=snapshot();s.support!.input.deliveredGuidance=true;
- const result=await f.produce(s,new AbortController().signal);expect(result.kind).toBe('CLARIFY');if(result.kind==='CLARIFY')expect(result.text).toContain('ยืนยัน');
+ const result=await f.produce(s,new AbortController().signal);expect(result.kind).toBe('CLARIFY');if(result.kind==='CLARIFY')expect(result.text).toContain('แก้ได้แล้ว');
  expect(result).not.toHaveProperty('outcome');expect(f.embed).not.toHaveBeenCalled();
 });
 it('legacy and Staff snapshots keep the unchanged knowledge path with no support metadata',async()=>{

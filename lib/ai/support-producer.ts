@@ -77,7 +77,7 @@ export function createSupportProducer(options:KnowledgeProducerOptions,mode:{han
   let result:AIResult;
   if(advice.intent==='SOCIAL')result={kind:'CLARIFY',text:await composeSocialReply(options,snapshot,signal)??(signal.aborted?unavailable:neutralSocialFallback)};
   else if(advice.clarification)result={kind:'CLARIFY',text:advice.clarification};
-  else if(advice.intent==='SOLVED')result={kind:'CLARIFY',text:advice.suggestSolved?'หากแก้ปัญหาได้แล้ว กรุณากดตัวเลือกแก้ได้แล้วเพื่อยืนยันครับ':'ยังไม่มีคำแนะนำที่ยืนยันการส่งสำเร็จสำหรับเรื่องนี้ครับ สามารถส่งรายละเอียดเพิ่มเติมหรือติดต่อเจ้าหน้าที่ได้'};
+  else if(advice.intent==='SOLVED')result={kind:'CLARIFY',text:advice.suggestSolved?'ดีใจที่แก้ได้แล้วครับ':'ดีครับ ถ้ามีอะไรให้ช่วยเพิ่ม พิมพ์มาได้เลย'};
   else if(advice.intent==='ESCALATE')result={kind:'CLARIFY',text:'กำลังส่งเรื่องนี้ให้เจ้าหน้าที่ครับ'};
   else if(advice.searchText){
    const problem=proposed.data.facts.find(fact=>fact.field==='PROBLEM'),original=problem?input.data.sources.find(source=>source.code===problem.source):undefined;

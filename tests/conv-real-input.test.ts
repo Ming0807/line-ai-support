@@ -63,3 +63,12 @@ describe('CONV-BURST-01 ingress hint',()=>{
   expect(staff.every(e=>!('inputHold' in (e as object)))).toBe(true);
  });
 });
+
+describe('NATURAL-EDGE-01 contentless turns',()=>{
+ it('a turn of only punctuation or emoji is EMPTY; a nudge without content is NUDGE; anything with content is null',async()=>{
+  const {contentlessKind}=await import('../lib/conversation/input-hold');
+  for(const text of ['?','??','!!!','😭','🙏🙏','...',' ? '])expect(contentlessKind(text),text).toBe('EMPTY');
+  for(const text of ['ตอบด้วย','ตอบหน่อยครับ','มีใครอยู่ไหม','มีคนอยู่ไหมคะ','ไม่มีคนตอบเลย','ไม่มีใครตอบเลยหรอ','ตอบด้วยค่ะ??'])expect(contentlessKind(text),text).toBe('NUDGE');
+  for(const text of ['555','ค่าเทอม?','ตอบด้วย ค่าเทอมเท่าไหร่','อยากรู้ตารางสอบ\n??','ยังไง','สวัสดี'])expect(contentlessKind(text),text).toBeNull();
+ });
+});
