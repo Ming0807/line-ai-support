@@ -9,7 +9,8 @@ import {supportCategoryForDepartment} from '../ai/support-contracts';
 import {encryptValue} from '../security/identity';
 
 const inputSchema=z.object({sessionId:z.uuid(),conversationId:z.uuid(),departmentCode:z.string(),summary:z.string().trim().min(1).max(1000)}).strict();
-export async function createEscalation(client:DbClient,input:z.infer<typeof inputSchema>,key:string):Promise<{id:string;ticket_no:string}> {
+/** options.lead (NATURAL-ESCALATE-01): one fixed sentence the AI path puts before the hand-over notice. */
+export async function createEscalation(client:DbClient,input:z.infer<typeof inputSchema>,key:string,options:{lead?:string}={}):Promise<{id:string;ticket_no:string}> {
  const parsed=inputSchema.safeParse(input);if(!parsed.success)throw new TicketError('INVALID_REQUEST');
  const department=await resolveDepartment(client,input.departmentCode);
  await lockConversation(client,input.conversationId);
@@ -35,7 +36,7 @@ export async function createEscalation(client:DbClient,input:z.infer<typeof inpu
  await recordTicketHistory(client,{ticketId:ticket.id,action:'CREATED',to:'WAITING_STAFF',actorType:'SYSTEM'});
  await recordTicketHistory(client,{ticketId:ticket.id,action:'ROUTED',to:'WAITING_STAFF',actorType:'SYSTEM'});
  await enqueueOutbound(client,{idempotencyKey:`ticket-created:${ticket.id}`,channel:'STUDENT',kind:'SYSTEM',lineSessionId:input.sessionId,conversationId:conversation.id,ticketId:ticket.id,
-  messages:[{type:'text',text:`รับเรื่องแล้วครับ ${ticket.ticket_no}\nส่งต่อ${department.name_th} รอเจ้าหน้าที่รับงาน`} ]},key);
+  messages:[{type:'text',text:`${options.lead?`${options.lead}\n`:''}ส่งเรื่องให้เจ้าหน้าที่${department.name_th}แล้วครับ เลขเรื่อง ${ticket.ticket_no}\nเจ้าหน้าที่จะตอบในแชตนี้ ระหว่างนี้พิมพ์ข้อมูลเพิ่มเติมได้เลยครับ`}]},key);
  await notifyTicketStaff(client,ticket,key);
  return {id:ticket.id,ticket_no:ticket.ticket_no};
 }

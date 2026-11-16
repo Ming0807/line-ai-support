@@ -27,6 +27,7 @@ import {loadCandidates,candidateSnapshot} from '../conversation/context-resolver
 import {shortAnswerText,SHOW_FULL_LABEL,type ShortAnswerSource} from '../line/answer-presentation';
 import {isTurnFailureText} from './turn-flow-v2';
 import {greetingKind,greetingReply,isGreetingReplyText} from '../conversation/input-hold';
+import {escalateFromAI} from './ai-escalation';
 
 export interface AISnapshot {
  jobId:string;sessionId:string;conversationId:string;messageId:string;revision:number;question:string;
@@ -227,7 +228,16 @@ async function finalize(pool:Pool,job:AIJob,key:string,before:AISnapshot):Promis
    const verifiedGuidance=code===null&&(result.kind==='ANSWER'||result.kind==='STRUCTURED_ANSWER');
    await saveSupportState(client,current,support,result.support.proposal,key,verifiedGuidance?{guidanceOutboxId:outbox}:{});
    const state=await loadSupportActionState(client,current.line_session_id,current.conversation_id,key);if(!state)throw new Error('SUPPORT_STATE_INVALID');
-   const quickReply=await createSupportActions(client,state,key,{canonicalTroubleshooting:verifiedGuidance&&state.interpreted.intent==='TROUBLESHOOT'});
+   // NATURAL-ESCALATE-01 (DEC-209): a hand-over is done, not offered. createEscalation suppresses this turn's
+   // unsent AI reply and sends the case notice; an unknown department is asked in words, without buttons.
+   const escalation=state.interpreted.needsTicket?await escalateFromAI(client,{sessionId:current.line_session_id,conversationId:current.conversation_id,
+    messageId:current.message_id,question:before.question,state},key):null;
+   if(escalation?.status==='ASK_DEPARTMENT'){
+    messages=[{type:'text',text:escalation.text,...(request.quickReply?{quickReply:request.quickReply}:{})}];
+    await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
+    await client.query("update public.messages set content=$2 where conversation_id=$1 and sender_type='AI' and metadata->>'ai_job_id'=$3",[job.conversation_id,escalation.text,job.id]);
+   }
+   const quickReply=escalation&&escalation.status!=='NOT_ALLOWED'?undefined:await createSupportActions(client,state,key,{canonicalTroubleshooting:verifiedGuidance&&state.interpreted.intent==='TROUBLESHOOT'});
    if(quickReply){messages[messages.length-1]={...messages[messages.length-1],quickReply};
     await client.query('update private.message_outbox set payload_encrypted=$2 where id=$1',[outbox,encryptValue(JSON.stringify({messages,replyToken:request.replyToken}),key)]);
    }

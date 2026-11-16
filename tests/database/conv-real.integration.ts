@@ -10,6 +10,9 @@ import {encryptValue,decryptValue,hashLineUserId} from '../../lib/security/ident
 import {enqueueOutbound} from '../../lib/queue/outbox';
 import {persistWebhookEvents} from '../../lib/queue/inbox';
 import {runInboxCycle} from '../../lib/queue/run-inbox';
+import {createSupportProducer} from '../../lib/ai/support-producer';
+import type {GenerateInput} from '../../lib/ai/gateway';
+import type {KnowledgeProducerOptions} from '../../lib/knowledge/answer-producer';
 import {greetingReply,GREETING_TOPICS} from '../../lib/conversation/input-hold';
 
 // CONV-REAL (DEC-206): CONV-BURST-01 adaptive window, CONV-SUPERSEDE-01 carry unanswered input, CONV-GREET-01.
@@ -338,4 +341,72 @@ test('CONV-GREET-01 via the real inbox: the greeting keeps its three topic butto
  const labels=last.quickReply.items.map((i:{action:{label:string}})=>i.action.label);
  assert.deepEqual(labels.slice(0,3),[...GREETING_TOPICS]);
  assert(labels.length<=13);
+});
+
+// NATURAL-ESCALATE-01 (DEC-209): when the AI cannot help, it opens the case itself and tells the Student; when the
+// department is unclear it asks in words (no buttons), and the Student's typed answer completes the hand-over.
+function supportModel(proposals:Record<string,unknown>[]){
+ let turn=0;
+ const generate:KnowledgeProducerOptions['generate']=async<T>(input:GenerateInput<T>)=>{
+  if(input.taskType!=='SUPPORT_INTENT')throw new Error(`UNEXPECTED_TASK:${input.taskType}`);
+  const proposal=proposals[Math.min(turn++,proposals.length-1)];
+  return {output:input.responseSchema.parse(proposal),toolCalls:[],providerId:'00000000-0000-4000-8000-000000000001',modelId:'00000000-0000-4000-8000-000000000002',fallbackUsed:false};
+ };
+ return createSupportProducer({generate,embed:async()=>{throw new Error('NO_EMBED');},search:async()=>{throw new Error('NO_SEARCH');}});
+}
+const proposal=(intent:'ESCALATE'|'PERSONAL_CASE',department:string|null,quote:string)=>({intent,category:department?({FINANCE:'FINANCE',REGISTRAR:'REGISTRATION',IT:'IT_SUPPORT'} as Record<string,string>)[department]:'GENERAL',
+ subcategory:null,needsTicket:true,department,urgency:'medium',needsKnowledgeSearch:false,needsStructuredSearch:false,needsWebSearch:false,confidence:.95,
+ missingContext:null,impact:'SINGLE_USER',sensitivity:'GENERAL',facts:[{field:'PROBLEM',source:'U0',quote}]});
+async function answerTurn(c:Awaited<ReturnType<typeof studentChat>>,produce:ReturnType<typeof supportModel>){
+ await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`,[c.userHash]);
+ for(let i=0;i<6;i++)if(!(await runAICycle(pool,c.key,{supportEnabled:true,produce})).claimed)break;
+}
+async function studentMessages(c:Awaited<ReturnType<typeof studentChat>>){
+ return (await pool.query(`select kind,status,payload_encrypted from private.message_outbox where line_session_id=$1 and channel='STUDENT' order by created_at,id`,[c.sid])).rows
+  .filter(r=>r.status!=='SUPPRESSED').map(r=>({kind:r.kind as string,...JSON.parse(decryptValue(r.payload_encrypted,c.key)).messages.at(-1)})) as {kind:string;text:string;quickReply?:{items:{action:{label:string}}[]}}[];
+}
+const openTicket=async(sid:string)=>(await pool.query(`select t.id,t.ticket_no,t.mode,t.status,d.code from public.tickets t join public.departments d on d.id=t.department_id
+ where t.line_session_id=$1 and t.status not in('CLOSED','CANCELLED','RESOLVED') order by t.created_at desc limit 1`,[sid])).rows[0];
+
+test('NATURAL-ESCALATE-01: the AI opens the case itself and tells the Student the department and case number',async()=>{
+ const c=await studentChat();await answerTurn(c,supportModel([proposal('ESCALATE',null,'สวัสดีครับ')]));
+ const text='ขอคุยกับเจ้าหน้าที่ เรื่องค่าเทอมจ่ายเกิน';
+ await c.send(text);await answerTurn(c,supportModel([proposal('ESCALATE','FINANCE','ค่าเทอมจ่ายเกิน')]));
+ const ticket=await openTicket(c.sid);
+ assert(ticket,'a case is opened without any button');
+ assert.equal(ticket.code,'FINANCE');assert.equal(ticket.mode,'HUMAN');
+ const last=(await studentMessages(c)).at(-1)!;
+ assert.match(last.text,new RegExp(`${ticket.ticket_no}`,'u'));assert.match(last.text,/การเงิน/u);assert.match(last.text,/แชตนี้/u);
+ assert.equal(last.quickReply,undefined,'no confirmation button');
+ const source=await c.message(text);
+ const outcome=(await pool.query(`select kind,ticket_id,confirmation_event_id from private.ai_support_outcomes where conversation_id=$1`,[source.conversation_id])).rows[0];
+ assert.deepEqual([outcome?.kind,outcome?.ticket_id],['AI_ESCALATED',ticket.id]);
+ const event=(await pool.query(`select m.source_event_id from public.messages m where m.id=$1`,[source.id])).rows[0];
+ assert.equal(outcome.confirmation_event_id,event.source_event_id,'the Student\'s own LINE message is the verified trigger');
+});
+
+test('NATURAL-ESCALATE-01: an unclear department is asked in words once; the typed answer opens the case',async()=>{
+ const c=await studentChat();
+ await c.send('ช่วยส่งเรื่องให้เจ้าหน้าที่หน่อยครับ');
+ await answerTurn(c,supportModel([proposal('ESCALATE',null,'ส่งเรื่องให้เจ้าหน้าที่')]));
+ assert.equal(await openTicket(c.sid),undefined,'no case without a department');
+ const ask=(await studentMessages(c)).at(-1)!;
+ assert.match(ask.text,/งานไหน|หน่วยงานไหน/u);assert.match(ask.text,/การเงิน/u);assert.match(ask.text,/ทะเบียน/u);
+ assert(!(ask.quickReply?.items??[]).some(i=>/ส่งต่อ|เลือกหน่วยงาน/u.test(i.action.label)),'the department question needs no button');
+ await c.send('การเงินครับ');
+ // Even if the model still cannot name it, the typed department name is enough.
+ await answerTurn(c,supportModel([proposal('ESCALATE',null,'การเงิน')]));
+ const ticket=await openTicket(c.sid);
+ assert.equal(ticket?.code,'FINANCE');
+ assert.match((await studentMessages(c)).at(-1)!.text,new RegExp(ticket.ticket_no,'u'));
+});
+
+test('NATURAL-ESCALATE-01: a personal-record question is handed over with a short reason',async()=>{
+ const c=await studentChat();
+ await c.send('เกรดเทอมนี้ผมได้เท่าไหร่ครับ');
+ await answerTurn(c,supportModel([proposal('PERSONAL_CASE','REGISTRAR','เกรดเทอมนี้')]));
+ const ticket=await openTicket(c.sid);
+ assert.equal(ticket?.code,'REGISTRAR');
+ const last=(await studentMessages(c)).at(-1)!;
+ assert.match(last.text,/ข้อมูล/u);assert.match(last.text,new RegExp(ticket.ticket_no,'u'));
 });

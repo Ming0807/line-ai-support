@@ -80,7 +80,7 @@ export function interpretSupportProposal(value:unknown,input:SupportInput,minimu
   if(!problem)clarification='ช่วยบอกปัญหาที่ต้องการแก้เพิ่มเติมอีกนิดครับ';
   else if(p.missingContext!==null&&!seen.has(p.missingContext))clarification=questions[p.missingContext];
  }
- if(p.intent==='PERSONAL_CASE')clarification='ผมยังเข้าถึงข้อมูลส่วนบุคคลหรือข้อมูลเฉพาะบัญชีของคุณไม่ได้ครับ สามารถรวบรวมรายละเอียดแล้วส่งให้เจ้าหน้าที่ตรวจสอบได้';
+ if(p.intent==='PERSONAL_CASE')clarification='ผมยังเข้าถึงข้อมูลส่วนบุคคลหรือข้อมูลเฉพาะบัญชีของคุณไม่ได้ครับ จะส่งเรื่องให้เจ้าหน้าที่ตรวจสอบให้';
  if(p.intent==='OTHER')clarification='ช่วยอธิบายปัญหาหรือคำถามที่ต้องการให้ช่วยอีกนิดครับ';
  if(!clarification&&['INFORMATION','TROUBLESHOOT'].includes(p.intent)){
   searchText=[problem??c.sources[0].text,...p.facts.filter(f=>['DEVICE','ERROR','SYSTEM','LOCATION'].includes(f.field)).map(f=>f.quote)].join('\n');

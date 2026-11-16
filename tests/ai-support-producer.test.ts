@@ -39,7 +39,8 @@ it.each([false,true])('a repaired handoff uses only original USER facts and perm
  const result=await createAssistantOrchestrator({decide,lookup,repairRejectedGeneral:true,
   handoff:(original,abort,handoffReason)=>createSupportProducer({generate:f.generate as unknown as KnowledgeProducerOptions['generate'],embed:f.embed,search:f.search},{handoffReason})(original,abort)})(current,signal);
  expect(decide).toHaveBeenCalledTimes(2);expect(result.kind).toBe('CLARIFY');
- if(realAttempt){expect(result).toMatchObject({support:{proposal:{intent:'ESCALATE'}}});if(result.kind==='CLARIFY')expect(result.text).toContain('ยืนยัน');}
+ if(realAttempt){expect(result).toMatchObject({support:{proposal:{intent:'ESCALATE'}}});// NATURAL-ESCALATE-01 (DEC-209): the hand-over is done by the backend, not offered for confirmation.
+  if(result.kind==='CLARIFY')expect(result.text).toContain('ส่งเรื่อง');}
  else expect(result).not.toHaveProperty('support');
  const payload=JSON.parse(f.generate.mock.calls[0][0].messages[1].content);
  expect(payload.sources).toEqual(current.support!.input.sources);expect(JSON.stringify(payload)).not.toContain('ผมรีเซ็ต');

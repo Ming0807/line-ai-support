@@ -45,7 +45,7 @@ async function composeSocialReply(options:KnowledgeProducerOptions,snapshot:Para
 export function createSupportProducer(options:KnowledgeProducerOptions,mode:{handoffReason?:AssistantHandoffReason}={}):AIWorkerOptions['produce']{
  const legacy=createKnowledgeProducer(options);
  return async(snapshot,signal)=>{
-  if(!snapshot.support)return mode.handoffReason?{kind:'CLARIFY',text:'ยังตรวจสอบบริบทส่งต่อไม่สำเร็จครับ หากต้องการให้เจ้าหน้าที่ช่วย กรุณาเลือกติดต่อเจ้าหน้าที่และหน่วยงานที่ต้องการ'}:legacy(snapshot,signal);
+  if(!snapshot.support)return mode.handoffReason?{kind:'CLARIFY',text:'ยังตรวจสอบบริบทส่งต่อไม่สำเร็จครับ ถ้าต้องการให้เจ้าหน้าที่ช่วย พิมพ์บอกได้เลยว่าเรื่องอะไรและเกี่ยวกับงานไหน'}:legacy(snapshot,signal);
   if(signal.aborted)throw new AIProviderError('CANCELLED');
   const s=snapshot.support,input=supportInputSchema.safeParse(s.input),c=s.context;
   if(!input.success||input.data.sources[0].text!==snapshot.question||c.sessionId!==snapshot.sessionId||c.conversationId!==snapshot.conversationId||
@@ -62,15 +62,15 @@ export function createSupportProducer(options:KnowledgeProducerOptions,mode:{han
     deliveredGuidance:input.data.deliveredGuidance,historyOmittedCount:input.data.historyOmittedCount},input.data.departments,signal,s.minimumSensitivity);
   }
   if(signal.aborted)throw new AIProviderError('CANCELLED');
-  if(handoffUnavailable)return {kind:'CLARIFY',text:'ตอนนี้บริการ AI เตรียมเรื่องส่งต่อไม่สำเร็จครับ ยังไม่มีการสร้างเคสจากคำขอนี้ คุณสามารถเลือกติดต่อเจ้าหน้าที่และหน่วยงานที่ต้องการได้'};
+  if(handoffUnavailable)return {kind:'CLARIFY',text:'ตอนนี้บริการ AI เตรียมเรื่องส่งต่อไม่สำเร็จครับ ยังไม่มีการสร้างเคสจากคำขอนี้ ลองพิมพ์อีกครั้งในอีกสักครู่ หรือกดติดต่อเจ้าหน้าที่ได้'};
   const proposed=supportProposalSchema.safeParse(raw);
-  if(!advice||!proposed.success)return {kind:'CLARIFY',text:mode.handoffReason?'ยังยืนยันรายละเอียดที่ต้องใช้ส่งต่อไม่ครบครับ สามารถเลือกติดต่อเจ้าหน้าที่และหน่วยงานที่ต้องการให้ช่วยตรวจสอบได้':unavailable};
+  if(!advice||!proposed.success)return {kind:'CLARIFY',text:mode.handoffReason?'ยังได้รายละเอียดสำหรับส่งต่อไม่ครบครับ ช่วยพิมพ์บอกเพิ่มอีกนิดว่าเป็นเรื่องอะไร':unavailable};
   if(mode.handoffReason&&advice.intent!==(mode.handoffReason==='PERSONAL_RECORD'?'PERSONAL_CASE':'ESCALATE'))
-   return {kind:'CLARIFY',text:'ต้องการให้เจ้าหน้าที่ช่วยตรวจสอบเรื่องนี้ใช่ไหมครับ กรุณาเลือกติดต่อเจ้าหน้าที่และหน่วยงานที่ต้องการส่งต่อ'};
+   return {kind:'CLARIFY',text:'ต้องการให้เจ้าหน้าที่ช่วยตรวจสอบเรื่องนี้ใช่ไหมครับ ถ้าใช่ พิมพ์บอกได้เลย'};
   // Intent equality cannot establish that troubleshooting occurred. A quoted USER
   // attempt is a necessary evidence floor; confirmation remains a consumed action.
   if(mode.handoffReason==='UNRESOLVED_CONFIRMED'&&!advice.collectedContext.some(fact=>fact.field==='ATTEMPTS'))
-   return {kind:'CLARIFY',text:'ลองแก้ไขด้วยวิธีใดแล้วบ้างครับ หากต้องการให้เจ้าหน้าที่ช่วยต่อ สามารถเลือกติดต่อเจ้าหน้าที่ได้'};
+   return {kind:'CLARIFY',text:'ลองแก้ไขด้วยวิธีใดไปแล้วบ้างครับ เล่าให้ฟังหน่อย ถ้ายังไม่ได้ผลจะส่งเรื่องให้เจ้าหน้าที่ต่อให้ครับ'};
   const metadata=supportMetadataSchema.safeParse({version:1,sourceDigest:s.sourceDigest,directoryDigest:s.directoryDigest,minimumSensitivity:s.minimumSensitivity,
    deliveredGuidance:input.data.deliveredGuidance,proposal:proposed.data});
   if(!metadata.success)return {kind:'CLARIFY',text:unavailable};
@@ -78,7 +78,7 @@ export function createSupportProducer(options:KnowledgeProducerOptions,mode:{han
   if(advice.intent==='SOCIAL')result={kind:'CLARIFY',text:await composeSocialReply(options,snapshot,signal)??(signal.aborted?unavailable:neutralSocialFallback)};
   else if(advice.clarification)result={kind:'CLARIFY',text:advice.clarification};
   else if(advice.intent==='SOLVED')result={kind:'CLARIFY',text:advice.suggestSolved?'หากแก้ปัญหาได้แล้ว กรุณากดตัวเลือกแก้ได้แล้วเพื่อยืนยันครับ':'ยังไม่มีคำแนะนำที่ยืนยันการส่งสำเร็จสำหรับเรื่องนี้ครับ สามารถส่งรายละเอียดเพิ่มเติมหรือติดต่อเจ้าหน้าที่ได้'};
-  else if(advice.intent==='ESCALATE')result={kind:'CLARIFY',text:'สามารถส่งรายละเอียดเรื่องนี้ให้เจ้าหน้าที่ตรวจสอบได้ครับ กรุณายืนยันหน่วยงานที่ต้องการส่งต่อ'};
+  else if(advice.intent==='ESCALATE')result={kind:'CLARIFY',text:'กำลังส่งเรื่องนี้ให้เจ้าหน้าที่ครับ'};
   else if(advice.searchText){
    const problem=proposed.data.facts.find(fact=>fact.field==='PROBLEM'),original=problem?input.data.sources.find(source=>source.code===problem.source):undefined;
    // Never let a short problem quote erase explicit scope/year in the actual question or the selected original USER source.
