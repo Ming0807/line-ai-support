@@ -89,6 +89,13 @@ async function applyTicketActionInternal(client:PoolClient,staffId:string,ticket
 export async function applyTicketAction(client:PoolClient,staffId:string,ticketId:string,action:StaffTicketAction,input:TicketActionInput,key:string,lineOrigin?:ManualLineSelection):Promise<TicketActionResult>{
  return (await applyTicketActionInternal(client,staffId,ticketId,action,input,key,undefined,lineOrigin)).result;
 }
+/**
+ * CHAT-MEDIA-02F: a confirmed Staff file is an ordinary STAFF_REPLY (same locks, state, receipts, delivery
+ * guard/case and outbox). The caller owns the transaction and binds the returned message to its draft.
+ */
+export async function applyStaffAttachmentReply(client:PoolClient,staffId:string,ticketId:string,input:TicketActionInput,key:string){
+ return applyTicketActionInternal(client,staffId,ticketId,'STAFF_REPLY',input,key);
+}
 /** Internal batch transaction owns grouping/enqueue; individual history/state/receipts stay identical. */
 export async function applyIncidentBatchStaffReply(client:PoolClient,staffId:string,ticketId:string,input:TicketActionInput,key:string,intervention:boolean){
  const applied=await applyTicketActionInternal(client,staffId,ticketId,'STAFF_REPLY',input,key,{intervention});

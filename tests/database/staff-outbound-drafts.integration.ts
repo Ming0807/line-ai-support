@@ -8,6 +8,8 @@ import {uploadStaffOutboundAttachment} from '../../lib/chat/staff-outbound-uploa
 import {openStaffOutbound,staffOutboundObjectPath,type StaffOutboundRef} from '../../lib/chat/staff-outbound-binary';
 import {createHash} from 'node:crypto';
 import {reconcileStaffOutboundUploads} from '../../lib/chat/staff-outbound-recovery';
+import {confirmStaffOutboundAttachment} from '../../lib/chat/staff-outbound-confirm';
+import {decryptValue} from '../../lib/security/identity';
 
 // scripts/database/run-owned-test.ts provides YRU_OWNED_DATABASE; the older dedicated runner name stays accepted.
 const database=process.env.YRU_OWNED_DATABASE??process.env.YRU_OUTBOUND_DRAFTS_DATABASE;
@@ -324,4 +326,120 @@ test('the upload orchestrator stores the sealed object outside SQL, retries afte
  assert.deepEqual(Array.from(openStaffOutbound(stored.get(staffOutboundObjectPath(ref))!,ref,key)),Array.from(bytes));
  assert.deepEqual(await uploadStaffOutboundAttachment(deps,upload),{status:'READY',attachmentId:result.attachmentId},'replay is idempotent and stores nothing new');
  assert.equal(stored.size,1);
+});
+
+// CHAT-MEDIA-02F: Staff confirms the exact recipient; one LIFF text goes through the existing STAFF_REPLY outbox.
+const link={liffId:'1234567890-AbCdEfGh'};
+async function readyDraft(f:Fixture,overrides:Partial<BeginInput>={}):Promise<string>{
+ const reservation=await beginStaffOutboundUpload(pool,request(f,overrides),key);
+ assert.equal(reservation.status,'UPLOADING');if(reservation.status!=='UPLOADING')throw new Error('fixture');
+ assert.equal(await finishStaffOutboundUpload(pool,{staffId:f.staffId,ticketId:f.ticketId,attachmentId:reservation.attachmentId,leaseToken:reservation.leaseToken},key),true);
+ return reservation.attachmentId;
+}
+async function ticketState(ticketId:string):Promise<{revision:number;ticketNo:string;status:string}>{
+ const row=(await pool.query('select revision,ticket_no,status from public.tickets where id=$1',[ticketId])).rows[0];
+ return {revision:row.revision as number,ticketNo:row.ticket_no as string,status:row.status as string};
+}
+type ConfirmInput=Parameters<typeof confirmStaffOutboundAttachment>[1];
+async function confirmInput(f:Fixture,attachmentId:string,overrides:Partial<ConfirmInput>={}):Promise<ConfirmInput>{
+ const state=await ticketState(f.ticketId);
+ return {staffId:f.staffId,ticketId:f.ticketId,attachmentId,requestId:randomUUID(),revision:state.revision,ticketNo:state.ticketNo,...overrides};
+}
+async function sideEffects(ticketId:string):Promise<{messages:number;outbox:number;deliveries:number}>{
+ const row=(await pool.query(`select (select count(*)::int from public.messages where ticket_id=$1 and sender_type='STAFF') as messages,
+  (select count(*)::int from private.message_outbox where ticket_id=$1) as outbox,
+  (select count(*)::int from private.staff_outbound_deliveries where ticket_id=$1) as deliveries`,[ticketId])).rows[0];
+ return row as {messages:number;outbox:number;deliveries:number};
+}
+
+test('confirm sends one LIFF text through the existing STAFF_REPLY outbox, guards and history in one transaction',async()=>{
+ const f=await makeCase(),attachmentId=await readyDraft(f),before=await ticketState(f.ticketId),input=await confirmInput(f,attachmentId);
+ const result=await confirmStaffOutboundAttachment(pool,input,key,link);
+ assert.equal(result.attachmentId,attachmentId);assert.equal(result.status,'WAITING_USER');assert.equal(result.revision,before.revision+1);
+ const message=(await pool.query('select * from public.messages where id=$1',[result.messageId])).rows[0];
+ assert.equal(message.sender_type,'STAFF');assert.equal(message.sender_staff_id,f.staffId);assert.equal(message.ticket_id,f.ticketId);
+ const url=`https://liff.line.me/${link.liffId}?attachment=${attachmentId}`;
+ assert.ok(String(message.content).includes(url));assert.doesNotMatch(String(message.content),/storage|supabase|\.yruc|guide\.pdf/iu);
+ const outbox=(await pool.query('select * from private.message_outbox where idempotency_key=$1',[`staff-reply:${f.ticketId}:${result.messageId}`])).rows[0];
+ assert.ok(outbox);assert.equal(outbox.kind,'STAFF');assert.equal(outbox.channel,'STUDENT');assert.equal(outbox.line_session_id,f.sessionId);assert.equal(outbox.status,'PENDING');
+ const payload=JSON.parse(decryptValue(outbox.payload_encrypted,key)) as {messages:{type:string;text:string}[]};
+ assert.deepEqual(payload.messages.map(item=>item.type),['text','text']);assert.equal(payload.messages[0].text,before.ticketNo);assert.ok(payload.messages[1].text.includes(url));
+ assert.equal((await pool.query('select count(*)::int as count from private.staff_chat_delivery_guards where outbox_id=$1 and staff_id=$2',[outbox.id,f.staffId])).rows[0].count,1);
+ assert.equal((await pool.query('select count(*)::int as count from private.staff_chat_delivery_cases where outbox_id=$1 and ticket_id=$2',[outbox.id,f.ticketId])).rows[0].count,1);
+ const delivery=(await pool.query('select * from private.staff_outbound_deliveries where attachment_id=$1',[attachmentId])).rows[0];
+ assert.equal(delivery.message_id,result.messageId);assert.equal(delivery.outbox_id,outbox.id);assert.equal(delivery.staff_id,f.staffId);assert.equal(delivery.confirmed_revision,before.revision);
+ assert.equal((await pool.query("select count(*)::int as count from public.ticket_history where ticket_id=$1 and action='STAFF_REPLIED'",[f.ticketId])).rows[0].count,1);
+ assert.equal((await draftRow(attachmentId)).status,'READY','the immutable draft is not rewritten by confirmation');
+ assert.equal(JSON.stringify(delivery).includes(f.userId),false);
+});
+
+test('confirm replay returns the original result; a second confirmation of the same file conflicts',async()=>{
+ const f=await makeCase(),attachmentId=await readyDraft(f),input=await confirmInput(f,attachmentId);
+ const first=await confirmStaffOutboundAttachment(pool,input,key,link);
+ assert.deepEqual(await confirmStaffOutboundAttachment(pool,input,key,link),first,'identical replay after the revision advanced is idempotent');
+ await assert.rejects(confirmStaffOutboundAttachment(pool,{...input,ticketNo:'YRU-99999999'},key,link),/CONFLICT/u,'same request with changed payload conflicts');
+ await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId),key,link),/CONFLICT/u,'one file is confirmed once');
+ assert.deepEqual(await sideEffects(f.ticketId),{messages:1,outbox:1,deliveries:1});
+});
+
+test('concurrent confirmations of one draft produce exactly one message',async()=>{
+ const f=await makeCase(),attachmentId=await readyDraft(f);
+ const inputs=await Promise.all(Array.from({length:4},()=>confirmInput(f,attachmentId)));
+ const settled=await Promise.allSettled(inputs.map(input=>confirmStaffOutboundAttachment(pool,input,key,link)));
+ assert.equal(settled.filter(item=>item.status==='fulfilled').length,1);
+ assert.deepEqual(await sideEffects(f.ticketId),{messages:1,outbox:1,deliveries:1});
+});
+
+test('confirm refuses non-READY drafts, another Staff member and another case',async()=>{
+ const f=await makeCase(),reservation=await beginStaffOutboundUpload(pool,request(f),key);
+ assert.equal(reservation.status,'UPLOADING');if(reservation.status!=='UPLOADING')return;
+ await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(f,reservation.attachmentId),key,link),/CONFLICT/u,'an UPLOADING draft cannot be sent');
+ const ready=await readyDraft(f);
+ await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(f,ready,{staffId:f.supervisorId}),key,link),/NOT_FOUND/u,'only the uploader confirms its own draft');
+ const other=await makeCase();
+ await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(other,ready),key,link),/NOT_FOUND/u,'a draft never moves to another case');
+ assert.deepEqual(await sideEffects(f.ticketId),{messages:0,outbox:0,deliveries:0});
+ assert.deepEqual(await sideEffects(other.ticketId),{messages:0,outbox:0,deliveries:0});
+});
+
+test('confirm refuses a changed recipient or assignment even with a fresh revision, and needs current state',async()=>{
+ const scenarios:[string,(f:Fixture)=>Promise<void>,RegExp][]=[
+  ['recipient',async f=>{const other=`U${randomUUID().replaceAll('-','')}`;await pool.query('update private.line_identities set user_hash=$2,user_id_encrypted=$3 where line_session_id=$1',[f.sessionId,hashLineUserId(other,key),encryptValue(other,key)]);},/CONFLICT/u],
+  ['assignment epoch',async f=>{const replacement=await makeStaff(f.departmentId);await pool.query('update public.tickets set assigned_staff_id=$2 where id=$1',[f.ticketId,replacement]);await pool.query('update public.tickets set assigned_staff_id=$2 where id=$1',[f.ticketId,f.staffId]);},/CONFLICT/u],
+  ['resolved case',async f=>{await pool.query("update public.tickets set status='RESOLVED' where id=$1",[f.ticketId]);},/INVALID_ACTION/u],
+  ['inactive staff',async f=>{await pool.query('update public.staff_profiles set active=false where id=$1',[f.staffId]);},/NOT_FOUND|INVALID_ACTION|CONFLICT/u],
+ ];
+ for(const [name,mutate,expected] of scenarios){
+  const f=await makeCase(),attachmentId=await readyDraft(f);await mutate(f);
+  await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId),key,link),expected,name);
+  assert.deepEqual(await sideEffects(f.ticketId),{messages:0,outbox:0,deliveries:0},name);
+ }
+ const f=await makeCase(),attachmentId=await readyDraft(f);
+ const stale=await confirmInput(f,attachmentId);await pool.query('update public.tickets set revision=revision+1 where id=$1',[f.ticketId]);
+ await assert.rejects(confirmStaffOutboundAttachment(pool,stale,key,link),/CONFLICT/u,'stale revision');
+ await assert.rejects(confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId,{ticketNo:'YRU-99999999'}),key,link),/CONFLICT/u,'wrong ticket number');
+ await pool.query('update public.tickets set revision=revision+1 where id=$1',[f.ticketId]);
+ const result=await confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId),key,link);
+ assert.equal(result.attachmentId,attachmentId,'an intervening revision is re-reviewed explicitly, not forcing a new upload');
+});
+
+test('delivery records are private, immutable and accept only a READY draft of the same Staff and case',async()=>{
+ const privileges=(await pool.query(`select c.relrowsecurity,
+  has_table_privilege('anon','private.staff_outbound_deliveries','SELECT,INSERT,UPDATE,DELETE') as anon_any,
+  has_table_privilege('authenticated','private.staff_outbound_deliveries','SELECT,INSERT,UPDATE,DELETE') as auth_any,
+  has_table_privilege('service_role','private.staff_outbound_deliveries','SELECT,INSERT') as service_access
+  from pg_class c where c.oid='private.staff_outbound_deliveries'::regclass`)).rows[0];
+ assert.equal(privileges.relrowsecurity,true);assert.equal(privileges.anon_any,false);assert.equal(privileges.auth_any,false);assert.equal(privileges.service_access,true);
+ assert.equal((await pool.query(`select count(*)::int as count from pg_policies where schemaname='private' and tablename='staff_outbound_deliveries'`)).rows[0].count,0);
+ const f=await makeCase(),attachmentId=await readyDraft(f),result=await confirmStaffOutboundAttachment(pool,await confirmInput(f,attachmentId),key,link);
+ await assert.rejects(pool.query('update private.staff_outbound_deliveries set confirmed_revision=0 where attachment_id=$1',[attachmentId]),/STAFF_OUTBOUND_DELIVERY_IMMUTABLE/u);
+ await assert.rejects(pool.query('delete from private.staff_outbound_deliveries where attachment_id=$1',[attachmentId]),/STAFF_OUTBOUND_DELIVERY_IMMUTABLE/u);
+ const row=(await pool.query('select * from private.staff_outbound_deliveries where attachment_id=$1',[attachmentId])).rows[0];
+ const g=await makeCase(),uploading=await beginStaffOutboundUpload(pool,request(g),key);
+ assert.equal(uploading.status,'UPLOADING');
+ const gMessage=(await pool.query(`insert into public.messages(conversation_id,ticket_id,sender_type,sender_staff_id,content) values($1,$2,'STAFF',$3,'x') returning id`,[g.conversationId,g.ticketId,g.staffId])).rows[0].id;
+ await assert.rejects(pool.query(`insert into private.staff_outbound_deliveries(attachment_id,staff_id,ticket_id,request_id,request_hash,message_id,outbox_id,confirmed_revision,result)
+  values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[uploading.attachmentId,g.staffId,g.ticketId,randomUUID(),'b'.repeat(64),gMessage,row.outbox_id,0,{}]),/STAFF_OUTBOUND_DELIVERY_INVALID/u,
+  'an UPLOADING draft and a foreign outbox are rejected by the database guard');
+ assert.ok(result.messageId);
 });

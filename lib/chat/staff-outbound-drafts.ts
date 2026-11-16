@@ -10,7 +10,8 @@ import {staffChatAccessLock} from '../staff/line-case-context';
 import {staffOutboundDraftInputSchema,type StaffOutboundDraftInput} from './staff-outbound-contracts';
 
 type DraftInput=z.output<typeof staffOutboundDraftInputSchema>;
-type Current={conversationId:string;lineSessionId:string;recipientHash:string;revision:number;assignmentEpoch:string};
+export type StaffOutboundScope={conversationId:string;lineSessionId:string;recipientHash:string;revision:number;assignmentEpoch:string};
+type Current=StaffOutboundScope;
 export type StaffOutboundReservation=
  | {status:'UPLOADING';attachmentId:string;leaseToken:string;objectId:string}
  | {status:'READY'|'FAILED';attachmentId:string};
@@ -18,7 +19,7 @@ function digest(input:Pick<DraftInput,'revision'|'name'|'mimeType'|'byteLength'|
  return createHash('sha256').update(JSON.stringify([input.revision,input.name,input.mimeType,input.byteLength,input.checksum])).digest('hex');
 }
 /** Follows the same actor, scope, conversation and assignment locks as STAFF_REPLY. */
-async function current(c:PoolClient,staffId:string,ticketId:string,revision:number):Promise<Current>{
+export async function currentStaffOutboundScope(c:PoolClient,staffId:string,ticketId:string,revision:number):Promise<Current>{
  await c.query('select pg_advisory_xact_lock_shared(hashtextextended($1,0))',[staffChatAccessLock]);
  const actor=await loadActor(c,staffId);
  const ref=(await c.query('select conversation_id from public.tickets where id=$1',[ticketId])).rows[0];
@@ -37,6 +38,10 @@ async function current(c:PoolClient,staffId:string,ticketId:string,revision:numb
  return {conversationId:ticket.conversation_id,lineSessionId:ticket.line_session_id,recipientHash:recipient.user_hash,
   revision:ticket.revision,assignmentEpoch:String(ticket.staff_line_epoch)};
 }
+export function matchesStaffOutboundRecipient(row:Record<string,unknown>,scope:Current):boolean {
+ return row.conversation_id===scope.conversationId&&row.line_session_id===scope.lineSessionId&&row.recipient_hash===scope.recipientHash&&
+  String(row.assignment_epoch)===scope.assignmentEpoch;
+}
 function matches(row:Record<string,unknown>,scope:Current):boolean {
  return row.conversation_id===scope.conversationId&&row.line_session_id===scope.lineSessionId&&row.recipient_hash===scope.recipientHash&&
   row.ticket_revision===scope.revision&&String(row.assignment_epoch)===scope.assignmentEpoch;
@@ -46,7 +51,7 @@ export async function beginStaffOutboundUpload(pool:Pool,input:StaffOutboundDraf
  const parsed=staffOutboundDraftInputSchema.safeParse(input);if(!parsed.success)throw new TicketError('INVALID_REQUEST');
  const value=parsed.data,requestHash=digest(value),nameEncrypted=encryptValue(value.name,key);
  return transaction(async c=>{
-  const scope=await current(c,value.staffId,value.ticketId,value.revision);
+  const scope=await currentStaffOutboundScope(c,value.staffId,value.ticketId,value.revision);
   const existing=(await c.query(`select *,lease_until>clock_timestamp() lease_live from private.staff_outbound_attachments
    where staff_id=$1 and ticket_id=$2 and request_id=$3 for update`,[value.staffId,value.ticketId,value.requestId])).rows[0];
   if(existing){
@@ -79,7 +84,7 @@ export async function finishStaffOutboundUpload(pool:Pool,input:{staffId:string;
   // Read the frozen revision without holding a draft lock; current() acquires the global actor/conversation/ticket order first.
   const snapshot=(await c.query(`select ticket_revision from private.staff_outbound_attachments where id=$1 and staff_id=$2 and ticket_id=$3`,
    [input.attachmentId,input.staffId,input.ticketId])).rows[0];if(!snapshot)return false;
-  const scope=await current(c,input.staffId,input.ticketId,snapshot.ticket_revision);
+  const scope=await currentStaffOutboundScope(c,input.staffId,input.ticketId,snapshot.ticket_revision);
   const row=(await c.query(`select * from private.staff_outbound_attachments where id=$1 and staff_id=$2 and ticket_id=$3
    and status='UPLOADING' and lease_token=$4 and lease_until>clock_timestamp() for update`,
    [input.attachmentId,input.staffId,input.ticketId,input.leaseToken])).rows[0];
