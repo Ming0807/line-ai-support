@@ -2,7 +2,7 @@
 
 17 November 2026, Root (DEC-195, DEC-212). Owner approval for the model budget, 17 November 2026: "ฉันอนุมัติทั้งหมด งานไหนที่คุณทำแทนฉันได้เริ่มเลย" (at most 180 inference calls per comparison round).
 
-**Status: BLOCKED — provider errors. Round r1 was stopped after 3 inference calls. No quality, latency or verdict result exists for either flow.** The current flow stays the default, and `YRU_CONVERSATION_FLOW_V2` stays off.
+**Status: BLOCKED — intermittent Gemini HTTP 503. Round r1 stopped after 3 inference calls and round r2 after 3 (6 of the approved 180 used).** No quality, latency or verdict result exists for either flow. The current flow stays the default, and `YRU_CONVERSATION_FLOW_V2` stays off.
 
 ## What ran
 
@@ -35,6 +35,27 @@ The hosted registry shows successful calls for this model on 15–16 November (6
 
 Because 3 of 3 calls returned 503, Root stopped the round at the 3rd failure instead of spending the budget on fixed failure replies. Following the owner's rule, no case that reached the model was re-run. The harness now stops the round on the first provider 5xx, timeout or network error (`PROVIDER_ERROR_NO_RETRY`).
 
+## Round r2 (17 November 2026, resumed at the parent session's request)
+
+r2 had its own ledger with a cap of **177**, so r1 and r2 together stay within the one approved 180-call budget. Nothing from r1 was pooled into it. The baseline flow ran in fixture order.
+
+| Case | Outcome | Inference calls | Notes |
+|---|---|---|---|
+| A01 | Not started | 0 | Hosted registry read `ECONNRESET` before any provider request |
+| A02 | Completed | 1 | HTTP 200 in 7.1 s; correct 18×7 method; pipeline 7.4 s, end-to-end 10.0 s |
+| A03 | Completed | 1 | HTTP 200 in 7.3 s; correct 800 − 15% = 680; pipeline 7.6 s, end-to-end 10.3 s |
+| A04 | Provider error | 1 | HTTP **503** after 15.7 s → fixed failure text; the round stopped (`PROVIDER_ERROR_NO_RETRY`) |
+| A05–B10, V2 | NOT_RUN | 0 | |
+
+**Exact counts:** r2 ledger = 3 used of 177, 0 refused. Gemini requests across the whole task: **6** (r1 3, r2 3). 4 of the 6 were HTTP 503 and 2 were HTTP 200. Both read-only hosted-registry resets (r1 A02, r2 A01) happened before any provider request. All disposable databases were dropped, and local E5 was stopped again.
+
+Gemini Flash Lite is failing intermittently today (503 after 15–24 s). Under the stop-at-first-provider-error rule, a full 30 × 2 round cannot finish while that continues. Before another round, the owner must choose one of these:
+
+- **(a)** Wait and retry later under the same rule.
+- **(b)** Count a provider 503 as part of the measurement. The turn gets the fixed failure reply that production would send, and is scored as restricted and not useful. There is still no retry. The round stops only on 429, 400/401/403 or an exhausted budget.
+
+Option (b) changes the stop rule, not the rubric, and it affects both flows the same way.
+
 ## Harness added (CONV-V2-00 row: call/latency recording)
 
 - `lib/ai/conversation-eval-metrics.ts` (tests: `tests/conversation-eval-metrics.test.ts`, 7). Records per-turn inference calls and gateway attempts, nearest-rank p50/p95 for pipeline, end-to-end and per-call latency, restricted-reply and re-ask rates (reviewer labels; an unreviewed turn counts as missing, not false), the CLARIFY-kind rate and error codes. `judgeConversationFlowV2` applies §7: 27/30, 18/20, 10/10, 0 invariants, p95 reduction, ≤2 calls per AI turn, restricted and re-ask rates no higher than baseline. It fails closed on unreviewed turns or wrong denominators.
@@ -51,14 +72,14 @@ Evidence: typecheck and eslint pass on the new files; 9/9 focused unit tests pas
 1. The baseline is the production worker configuration, not main6's candidate configuration.
 2. Frozen expectations for B04, B05, B06 and B08 predate DEC-209 (buttons and confirmation, a B08 choice prompt). Both flows share the routing and support producer, so the trajectory for these cases is judged against current behaviour (typed hand-over, Staff case opened by the AI with a receipt, no choice buttons). The legacy witnesses are reported next to it. Thresholds and rubric are unchanged.
 3. The p95 reduction for "significantly lower" is fixed from the baseline before any V2 result is read, and recorded in the review file (`p95RuleFixedAt`).
-4. A new round needs a new label (`r2`) and its own ledger, capped at 180. Results are never pooled with r1.
+4. Every new round gets a new label and its own ledger, and results are never pooled across rounds. r2 was capped at 177 so that the r1 and r2 spend stays within the approved 180. The next round is `r3` with `--cap=174`, unless the owner approves a new budget.
 
 ## To resume
 
 When Gemini is healthy again (one HTTP 200 seen in the dashboard's per-model test, or in normal traffic):
 
 ```bash
-pnpm exec tsx scripts/qa/conv-v2-compare.ts --round=r2 --flow=baseline
+pnpm exec tsx scripts/qa/conv-v2-compare.ts --round=r3 --flow=baseline --cap=174
 ```
 
-Then run the same with `--flow=v2`, write `.superpowers/staging/conv-v2/r2-review.json` and run `scripts/qa/conv-v2-summary.ts --round=r2`. This needs Docker (`supabase_db_line-ai-yru`), local E5 on the configured port, and `DOTENV_CONFIG_PATH` pointing at the main `.env` when started from a worktree. Whether r2 may use a fresh 180-call budget, given that r1 spent 3, is the owner's call.
+Then run the same with `--flow=v2`, write `.superpowers/staging/conv-v2/r3-review.json` and run `scripts/qa/conv-v2-summary.ts --round=r3`. This needs Docker (`supabase_db_line-ai-yru`), local E5 on the configured port, and `DOTENV_CONFIG_PATH` pointing at the main `.env` when started from a worktree. The owner first chooses (a) or (b) from the r2 section.
