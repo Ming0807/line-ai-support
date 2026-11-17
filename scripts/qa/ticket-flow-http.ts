@@ -26,8 +26,11 @@ if (!studentSecret || !staffSecret) throw new Error('TEST_CHANNEL_SECRETS_REQUIR
 const studentChannelSecret: string = studentSecret;
 const staffChannelSecret: string = staffSecret;
 
-// Never derive this connection from .env. This harness is fixed to the isolated local DB.
-const pool = new Pool({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54422/postgres', max: 2 });
+// Never derive this connection from .env. Disposable database only: run through
+// scripts/database/run-owned-test.ts --http-server, which points the :3001 server at the same database.
+const ownedDatabase=process.env.YRU_OWNED_DATABASE;
+assert(ownedDatabase&&/^yru_owned_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const pool = new Pool({ connectionString: `postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`, max: 2 });
 const fixture = randomUUID();
 const studentLineId = `U${fixture.replaceAll('-', '')}`;
 const staffLineId = `U${randomUUID().replaceAll('-', '')}`;

@@ -25,16 +25,24 @@ assert.equal(process.env.LINE_WEBHOOK_MODE?.trim(), 'durable', 'DURABLE_WEBHOOK_
 const encryptionKey: string = key;
 const lineSecret: string = studentSecret;
 
-// Deliberately fixed to the isolated test database. Never inherit DATABASE_URL.
+// Never inherit DATABASE_URL. Disposable database only: run through
+// scripts/database/run-owned-test.ts --http-server, which points the :3001 server at the same database.
+const ownedDatabase = process.env.YRU_OWNED_DATABASE;
+assert(ownedDatabase && /^yru_owned_[a-f0-9]{12}$/u.test(ownedDatabase), 'OWNED_ISOLATED_DATABASE_REQUIRED');
 const fixtureId = randomUUID();
 const fixtureTag = fixtureId.replaceAll('-', '').toUpperCase();
 const pool = new Pool({
-  connectionString: 'postgresql://postgres:postgres@127.0.0.1:54422/postgres',
+  connectionString: `postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`,
   max: 5,
   application_name: `m6-rag-http-${fixtureTag.slice(0, 12)}`,
 });
 const studentLineId = `U${fixtureTag}`;
 const studentHash = hashLineUserId(studentLineId, encryptionKey);
+// Student input windows (DEC-206) hold a turn for its quiet gap; make the open window due instead of waiting in real time.
+async function makeInputWindowDue(): Promise<void> {
+  await pool.query(`update private.student_input_windows set first_received_at=now()-interval '20 seconds',last_received_at=now()-interval '15 seconds',
+    ready_at=now()-interval '10 seconds' where user_hash=$1 and sealed_at is null`, [studentHash]);
+}
 const providerCredential = `fixture-${fixtureTag}`;
 const familyCode = `M6_HTTP_${fixtureTag}`;
 const embeddingModelId = 'fixture/embedding';
@@ -381,6 +389,7 @@ try {
   assert.deepEqual(initialCounts.rows[0], { user_messages: 1, jobs: 1 });
 
   stage = 'current_grounded_answer';
+  await makeInputWindowDue();
   const currentResult = await runAICycle(pool, encryptionKey, { produce: producer });
   assert.deepEqual(currentResult, { claimed: 1, completed: 1, suppressed: 0, failed: 0 });
   assert.equal(embeddingCalls, 1);
@@ -419,6 +428,7 @@ try {
   assert.equal(historicalJob.status, 'PENDING');
   const historicalConversation = historicalJob.conversation_id as string;
   conversations.push(historicalConversation);
+  await makeInputWindowDue();
   const historicalResult = await runAICycle(pool, encryptionKey, { produce: producer });
   assert.deepEqual(historicalResult, { claimed: 1, completed: 1, suppressed: 0, failed: 0 });
   const historicalOutbox = await latestPayload('AI', historicalConversation);
@@ -444,6 +454,7 @@ try {
   conversations.push(takeoverConversation);
   const waiting = gate();
   takeoverGate = { entered: waiting.enter, wait: waiting.wait, release: waiting.release };
+  await makeInputWindowDue();
   const pendingCycle = runAICycle(pool, encryptionKey, { produce: producer });
   activeCycle=pendingCycle;
   let entryTimer:ReturnType<typeof setTimeout>|undefined;

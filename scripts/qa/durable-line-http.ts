@@ -9,7 +9,10 @@ import { decryptValue, hashLineUserId } from '../../lib/security/identity';
 // Only a separately launched local-database Next server may be exercised here.
 const base=new URL(process.env.LINE_TEST_BASE_URL ?? 'http://127.0.0.1:3001');
 assert(['127.0.0.1','localhost'].includes(base.hostname) && base.port==='3001','ISOLATED_LOCAL_HTTP_SERVER_REQUIRED');
-const pool=new Pool({connectionString:'postgresql://postgres:postgres@127.0.0.1:54422/postgres',max:2});
+// Disposable database only: run through scripts/database/run-owned-test.ts --http-server.
+const ownedDatabase=process.env.YRU_OWNED_DATABASE;
+assert(ownedDatabase&&/^yru_owned_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
+const pool=new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`,max:2});
 const key=process.env.ENCRYPTION_KEY;
 assert(key,'TEST_ENCRYPTION_KEY_REQUIRED');
 const suffix=randomUUID(),userId=`U${suffix.replaceAll('-','')}`,hash=hashLineUserId(userId,key);
