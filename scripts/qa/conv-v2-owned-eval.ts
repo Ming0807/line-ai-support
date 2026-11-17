@@ -331,7 +331,9 @@ try{
   const turnCalls=wire.filter(call=>call.turn===turnIndex);
   const providerFailure=turnCalls.find(call=>call.status===429||call.safeError==='RATE_LIMITED')?'ACTUAL_429_NO_RETRY':
    turnCalls.find(call=>call.status!==null&&[400,401,403].includes(call.status))?'PROTOCOL_AUTH_NO_RETRY':
-   turnCalls.find(call=>call.safeError==='EVALUATION_CALL_BUDGET_EXHAUSTED')||readCallLedger(ledgerPath).refused>0?'APPROVED_CALL_BUDGET_EXHAUSTED':null;
+   turnCalls.find(call=>call.safeError==='EVALUATION_CALL_BUDGET_EXHAUSTED')||readCallLedger(ledgerPath).refused>0?'APPROVED_CALL_BUDGET_EXHAUSTED':
+   // Owner rule (17 Nov 2026): a provider error stops the round; no case is re-run after reaching the model.
+   turnCalls.find(call=>call.status!==null&&call.status>=500||call.status===null&&call.safeError!==null)?'PROVIDER_ERROR_NO_RETRY':null;
   const infrastructureCompleted=inbox.row.status==='DONE'&&inbox.totals.failed===0&&ai.failed===0&&delivery.failed===0&&delivery.sent>=1;
   turns.push({turnIndex,question,text:sent.join('\n\n'),sentDeliveries,inboxStatus:inbox.row.status,inboxError:inbox.row.last_error_code,
    routing:{status:message?.metadata?.routing_status??null,route:message?.metadata?.routing_route??null,conversationType:message?.conversation_type??null,mode:message?.mode??null},

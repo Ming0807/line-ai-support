@@ -16,6 +16,7 @@
 - **ปรับจาก design รอบนี้:** ไม่ต่อ loading แบบวนซ้ำ เพราะ DEC-057 กำหนดให้เรียก loading ครั้งเดียวแบบ best-effort จึงให้ V2 ขอ animation 40 วินาทีครั้งเดียวแทน 20 (LINE ซ่อนเองเมื่อคำตอบมาถึง). ยังไม่มีปุ่ม "ลองใหม่" เพราะ quick reply ของระบบรองรับเฉพาะ postback และการส่งคำถามเดิมซ้ำต้องมี contract แยก. Flex Message ยังเลื่อนไว้ตามเดิม
 - หลักฐาน 05: unit 3760 tests / 288 files, typecheck, full lint และ build ผ่าน. owned-PG บนฐานข้อมูลชั่วคราว 53 migrations ผ่านทั้งหมดผ่าน `scripts/database/run-owned-test.ts`: section expansion 3/3 และ short-first/show-all 4/4 (ส่งแบบสั้น, กดดูทั้งหมดครั้งเดียว, กดซ้ำถูกปฏิเสธ, source เปลี่ยนถูกปฏิเสธ, staff takeover ไม่ส่ง, ปุ่มคุยกับเจ้าหน้าที่) และ cleanup ผ่าน. runner นี้ต้อง grant `references` บน `auth.identities` ให้ `postgres` เหมือน hosted Supabase. ฐาน local `postgres` เดิมยังค้างที่ 41 migrations จึงไม่ได้ใช้
 - ยังไม่ทำ: 00 baseline และ 06 การเปรียบเทียบ ซึ่งต้องได้งบ model จากผู้ใช้ และ 07 การทดสอบบน OA จริง
+- 17 พ.ย. 2026 (DEC-212): ผู้ใช้อนุมัติงบแล้ว และ harness สำหรับ 00/06 พร้อมแล้ว (บันทึก call/latency ต่อ turn, ledger งบ, ตัดสินตามหัวข้อ 7) แต่รอบ r1 หยุดหลังเรียก model ไป 3 ครั้ง เพราะ Gemini ตอบ HTTP 503 ทั้งหมด จึงยังไม่มีผลวัด ดู [รายงาน](../reports/CONV_V2_00_06_REPORT.md)
 
 ## 1. ปัญหาที่ต้องแก้
 

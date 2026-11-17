@@ -10,7 +10,7 @@ import {createCallLedger, readCallLedger} from './conv-eval-call-ledger';
  * CONV-V2-00/06 comparison round (DEC-195). Runs the frozen 30 cases in fixture order for one flow,
  * each case on its own disposable database through scripts/database/run-owned-test.ts. One round
  * shares one owner-approved ledger (default 180 inference calls for both flows). No case is retried.
- * Stops the round at an actual 429, a 400/401/403 or an exhausted budget.
+ * Stops the round at an actual 429, a 400/401/403, any provider 5xx/timeout/network error or an exhausted budget.
  *
  *   pnpm exec tsx scripts/qa/conv-v2-compare.ts --round=r1 --flow=baseline [--cap=180]
  *   pnpm exec tsx scripts/qa/conv-v2-compare.ts --round=r1 --flow=v2
@@ -36,8 +36,17 @@ mkdirSync(dir, {recursive: true});
 const ledgerPath = resolve(dir, `${round}-ledger.json`);
 if (!existsSync(ledgerPath)) createCallLedger(ledgerPath, cap);
 assert.equal(readCallLedger(ledgerPath).cap, cap, 'ROUND_CAP_IS_FIXED');
-const runsPath = resolve(dir, `${round}-${flow}-runs.json`);
-assert(!existsSync(runsPath) || only, 'NO_REPLACEMENT_RUN');
+const runsPath = resolve(dir, only ? `${round}-${flow}-rerun-${Date.now()}-runs.json` : `${round}-${flow}-runs.json`);
+assert(!existsSync(runsPath), 'NO_REPLACEMENT_RUN');
+// A case may run again only when its earlier attempt stopped before ANY provider request
+// (for example the read-only registry connection reset). A case that reached the model is never retried.
+for (const id of only ?? []) {
+  const previous = resolve(dir, `${round}-${flow}-${id.toLowerCase()}.json`);
+  if (!existsSync(previous)) continue;
+  const artifact = JSON.parse(readFileSync(previous, 'utf8')) as {stopReason: string | null; wire: unknown[]; records: unknown[]};
+  assert(artifact.stopReason !== null && artifact.wire.length === 0 && artifact.records.length === 0, `NO_RETRY_AFTER_INFERENCE_${id}`);
+  writeFileSync(resolve(dir, `${round}-${flow}-${id.toLowerCase()}-preinference-failure-${Date.now()}.json`), JSON.stringify(artifact, null, 2), {flag: 'wx'});
+}
 const sourceHashes = Object.fromEntries(['lib/ai/turn-flow-v2.ts', 'lib/knowledge/configured.ts', 'lib/ai/assistant-orchestrator.ts', 'lib/ai/assistant-decision.ts',
   'lib/knowledge/answer-producer.ts', 'lib/ai/run-worker.ts', 'lib/ai/gateway.ts', 'scripts/qa/conv-v2-owned-eval.ts', fixturePath].map(path => [path, sha(path)]));
 const records: unknown[] = [];
@@ -60,7 +69,7 @@ for (const scenario of scenarios.filter(item => !only || only.includes(item.id))
   records.push(record);
   console.log(JSON.stringify(record));
   if (!cleanup) stopReason = 'DISPOSABLE_CLEANUP_NOT_PROVEN';
-  if (record.stopReason && ['ACTUAL_429_NO_RETRY', 'PROTOCOL_AUTH_NO_RETRY', 'APPROVED_CALL_BUDGET_EXHAUSTED', 'EVALUATION_CALL_BUDGET_EXHAUSTED'].includes(record.stopReason)) stopReason = record.stopReason;
+  if (record.stopReason && ['ACTUAL_429_NO_RETRY', 'PROTOCOL_AUTH_NO_RETRY', 'PROVIDER_ERROR_NO_RETRY', 'APPROVED_CALL_BUDGET_EXHAUSTED', 'EVALUATION_CALL_BUDGET_EXHAUSTED'].includes(record.stopReason)) stopReason = record.stopReason;
   save();
   if (stopReason) break;
   // Naturally sequential, no burst against the Free account (same 30 s spacing as main6).
