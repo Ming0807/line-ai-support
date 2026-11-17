@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {test} from 'node:test';
 import {createClient} from '@supabase/supabase-js';
-import {Pool} from 'pg';
+import {Client,Pool} from 'pg';
 import {localStorageConfig} from '../../scripts/storage/local-config';
 import {createOriginalStorage,provisionOriginalStorage,ORIGINAL_BUCKET} from '../../lib/imports/original-storage';
 import {createImportJob,readImportOriginal} from '../../lib/imports/import-staging';
@@ -12,6 +12,15 @@ import {createImportSource} from '../../lib/imports/source';
 const ownedDatabase=process.env.YRU_STRUCTURED_SCHEMA_DATABASE;
 assert(ownedDatabase&&/^yru_structured_schema_[a-f0-9]{12}$/u.test(ownedDatabase),'OWNED_ISOLATED_DATABASE_REQUIRED');
 const ownedUrl=`postgresql://postgres:postgres@127.0.0.1:54422/${ownedDatabase}`;
+// Local Auth (GoTrue) and Storage are bound to the container's own `postgres` database, not the disposable one.
+// That database is only read here (read-only session); every fixture row this suite writes goes to the owned database.
+const storageServiceUrl='postgresql://postgres:postgres@127.0.0.1:54422/postgres';
+async function storageObjectPolicyCount():Promise<number>{
+ const client=new Client({connectionString:storageServiceUrl,options:'-c default_transaction_read_only=on'});
+ await client.connect();
+ try{return (await client.query("select count(*)::int n from pg_policies where schemaname='storage' and tablename='objects'")).rows[0].n;}
+ finally{await client.end();}
+}
 test('actual local Storage keeps originals private for anon/authenticated while authorized backend recovers exact bytes',{timeout:120_000},async()=>{
  const config=localStorageConfig();assert.equal(config.url,'http://127.0.0.1:54421');
  const service=createClient(config.url,config.secretKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
@@ -22,9 +31,11 @@ test('actual local Storage keeps originals private for anon/authenticated while 
  try{
   await provisionOriginalStorage(config);
   const user=await service.auth.admin.createUser({email,password,email_confirm:true});assert(!user.error&&user.data.user,'LOCAL_AUTH_FIXTURE_CREATE_FAILED');actor=user.data.user.id;
+  // staff_profiles.id references auth.users(id): mirror the GoTrue-created id into the owned database's auth.users.
+  await pool.query('insert into auth.users(id) values($1)',[actor]);
   await pool.query("insert into public.staff_profiles(id,role,display_name,active) values($1,'SUPER_ADMIN','Original HTTP fixture',true)",[actor]);
   const session=await browser.auth.signInWithPassword({email,password});assert(!session.error&&session.data.session,'LOCAL_AUTH_FIXTURE_SIGNIN_FAILED');
-  assert.equal((await pool.query("select count(*)::int n from pg_policies where schemaname='storage' and tablename='objects'")).rows[0].n,0,'LOCAL_STORAGE_OBJECT_POLICIES_MUST_BE_EMPTY');
+  assert.equal(await storageObjectPolicyCount(),0,'LOCAL_STORAGE_OBJECT_POLICIES_MUST_BE_EMPTY');
   const input=createImportSource({bytes:Buffer.from(`\ufeffหัวข้อ,ข้อความ\r\n${randomUUID()},ต้นฉบับที่ตรวจสิทธิ์\r\n`),filename:'original.csv',mimeType:'text/csv',sourceUrl:null,acquiredFrom:'UPLOAD',fetchedAt:null});
   let requests=0;const storage=createOriginalStorage({...config,fetch:async(input,init)=>{requests++;return fetch(input,init);}}),options={pool,key:randomBytes(32).toString('base64'),storage};
   const before=(await pool.query('select count(*)::int n from public.documents')).rows[0].n;
@@ -53,7 +64,7 @@ test('actual local Storage keeps originals private for anon/authenticated while 
    for(const row of receipts)paths.push(`${row.job_id}/${row.original_id}.yrue`);
    if(paths.length){const removed=await service.storage.from(ORIGINAL_BUCKET).remove([...new Set(paths)]);assert(!removed.error,'LOCAL_STORAGE_FIXTURE_CLEANUP_FAILED');}
    await pool.query('delete from private.knowledge_original_uploads where creator_id=$1',[actor]);await pool.query('delete from private.knowledge_import_jobs where creator_id=$1',[actor]);
-   await pool.query('delete from private.activities where actor_id=$1',[actor]);await pool.query('delete from public.staff_profiles where id=$1',[actor]);
+   await pool.query('delete from private.activities where actor_id=$1',[actor]);await pool.query('delete from public.staff_profiles where id=$1',[actor]);await pool.query('delete from auth.users where id=$1',[actor]);
    const removed=await service.auth.admin.deleteUser(actor);assert(!removed.error,'LOCAL_AUTH_FIXTURE_CLEANUP_FAILED');
   }
   await pool.end();
