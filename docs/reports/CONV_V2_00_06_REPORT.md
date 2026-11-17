@@ -82,4 +82,4 @@ When Gemini is healthy again (one HTTP 200 seen in the dashboard's per-model tes
 pnpm exec tsx scripts/qa/conv-v2-compare.ts --round=r3 --flow=baseline --cap=174
 ```
 
-Then run the same with `--flow=v2`, write `.superpowers/staging/conv-v2/r3-review.json` and run `scripts/qa/conv-v2-summary.ts --round=r3`. This needs Docker (`supabase_db_line-ai-yru`), local E5 on the configured port, and `DOTENV_CONFIG_PATH` pointing at the main `.env` when started from a worktree. The owner first chooses (a) or (b) from the r2 section.
+Then run the same with `--flow=v2`, write `.superpowers/staging/conv-v2/r3-review.json` and run `scripts/qa/conv-v2-summary.ts --round=r3`. This needs Docker (`supabase_db_line-ai-yru`), local E5 already running on the configured port (reuse it as is: never start or stop it, because the owner's `pnpm local:ai` OA runner owns it), and `DOTENV_CONFIG_PATH` pointing at the main `.env` when started from a worktree. The owner first chooses (a) or (b) from the r2 section.
